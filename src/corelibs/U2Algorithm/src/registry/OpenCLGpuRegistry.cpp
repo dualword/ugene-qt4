@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,6 +48,19 @@ OpenCLGpuModel * OpenCLGpuRegistry::getGpuById( OpenCLGpuId id ) const {
 
 QList<OpenCLGpuModel *> OpenCLGpuRegistry::getRegisteredGpus() const {
     return gpus.values();
+}
+
+QList<OpenCLGpuModel *> OpenCLGpuRegistry::getEnabledGpus() const {
+    QList<OpenCLGpuModel*> registeredGpus = getRegisteredGpus();
+
+    QList<OpenCLGpuModel*> enabledGpus;
+    foreach (OpenCLGpuModel* m, registeredGpus) {
+        if (m && m->isEnabled()) {
+            enabledGpus.append(m);
+        }
+    }
+
+    return enabledGpus;
 }
 
 OpenCLGpuModel * OpenCLGpuRegistry::getAnyEnabledGpu() const {

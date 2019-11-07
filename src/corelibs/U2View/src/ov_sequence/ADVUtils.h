@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@ namespace U2 {
 
 class ADVSequenceWidget;
 class AnnotatedDNAView;
+class AnnotationSelectionData;
 
 enum ADVGlobalActionFlag {
     ADVGlobalActionFlag_AddToToolbar        = 1 << 1,
@@ -45,15 +46,15 @@ typedef QFlags<ADVGlobalActionFlag> ADVGlobalActionFlags;
 class U2VIEW_EXPORT ADVGlobalAction: public GObjectViewAction {
     Q_OBJECT
 public:
-    ADVGlobalAction(AnnotatedDNAView* v, const QIcon& icon, const QString& text, int pos = 1000*1000, 
-        ADVGlobalActionFlags flags = ADVGlobalActionFlags(ADVGlobalActionFlag_AddToToolbar) 
+    ADVGlobalAction(AnnotatedDNAView* v, const QIcon& icon, const QString& text, int pos = 1000*1000,
+        ADVGlobalActionFlags flags = ADVGlobalActionFlags(ADVGlobalActionFlag_AddToToolbar)
                                     | ADVGlobalActionFlag_AddToAnalyseMenu
                                     | ADVGlobalActionFlag_SingleSequenceOnly);
-    
-    void addAlphabetFilter(DNAAlphabetType t) {alphabetFilter.insert(t); updateState();};
-    
+
+    void addAlphabetFilter(DNAAlphabetType t) {alphabetFilter.insert(t); updateState();}
+
     ADVGlobalActionFlags getFlags() const {return flags;}
-    
+
     int getPosition() const {return pos;}
 
 private slots:
@@ -65,6 +66,11 @@ private:
     QSet<DNAAlphabetType>   alphabetFilter;
     int                     pos;
     ADVGlobalActionFlags    flags;
+};
+
+class U2VIEW_EXPORT ADVSelectionUtils {
+public:
+    static QString getSequenceIdsFromSelection(const QList<AnnotationSelectionData> &selection, bool localBase = false);
 };
 
 } //namespace

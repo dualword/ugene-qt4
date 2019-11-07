@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,11 +26,11 @@
 #include "ZlibAdapter.h"
 
 //using 3rd-party zlib (not included in ugene bundle) on *nix
-#if defined(Q_OS_LINUX) || defined(Q_OS_UNIX) 
-#include <zlib.h> 
-#else 
-#include "zlib.h" 
-#endif 
+#if defined(Q_OS_UNIX)
+#include <zlib.h>
+#else
+#include "zlib.h"
+#endif
 
 #include <assert.h>
 
@@ -47,7 +47,7 @@ void setIfYouCan( bool what, bool* to ) {
 // used in GZipIndex building
 void addAccessPoint( GZipIndex& index, int bits, qint64 in, qint64 out, quint32 left, char* wnd ) {
     assert( NULL != wnd );
-    
+
     QByteArray window;
     GZipIndexAccessPoint next;
     next.bits = bits;
@@ -66,7 +66,7 @@ void addAccessPoint( GZipIndex& index, int bits, qint64 in, qint64 out, quint32 
 } // anonymous namespace
 
 namespace U2 {
-    
+
 class GzipUtil {
 public:
     GzipUtil(IOAdapter* io, bool doCompression);
@@ -88,7 +88,7 @@ private:
 GzipUtil::GzipUtil(IOAdapter* io, bool doCompression) : io(io), doCompression(doCompression), curPos( 0 )
 {
 //#ifdef _DEBUG
-    qMemSet(buf, 0xDD, CHUNK);
+    memset(buf, 0xDD, CHUNK);
 //#endif
 
     /* allocate inflate state */
@@ -123,7 +123,7 @@ qint64 GzipUtil::getPos() const {
     return curPos;
 }
 
-qint64 GzipUtil::uncompress(char* outBuff, qint64 outSize) 
+qint64 GzipUtil::uncompress(char* outBuff, qint64 outSize)
 {
     /* Based on gun.c (example from zlib, copyrighted (C) 2003, 2005 Mark Adler) */
     strm.avail_out = outSize;
@@ -145,14 +145,23 @@ qint64 GzipUtil::uncompress(char* outBuff, qint64 outSize)
         int ret = inflate(&strm, Z_SYNC_FLUSH);
         assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
         switch (ret) {
-case Z_NEED_DICT:
-case Z_DATA_ERROR:
-case Z_MEM_ERROR:
-    return -1;
-case Z_BUF_ERROR:
-case Z_STREAM_END:
-    curPos += outSize - strm.avail_out;
-    return outSize - strm.avail_out;
+            case Z_NEED_DICT:
+            case Z_DATA_ERROR:
+            case Z_MEM_ERROR:
+                return -1;
+            case Z_STREAM_END:
+            {
+                qint64 readBytes = 0;
+                readBytes = outSize - strm.avail_out;
+                inflateReset(&strm);
+                inflateInit2(&strm, 32 + 15);
+
+                return readBytes;
+            }
+            case Z_BUF_ERROR:
+            case Z_FINISH:
+                curPos += outSize - strm.avail_out;
+                return outSize - strm.avail_out;
         }
         if (strm.avail_out != 0 && strm.avail_in != 0) {
             assert(0);
@@ -164,7 +173,7 @@ case Z_STREAM_END:
     return outSize - strm.avail_out;
 }
 
-qint64 GzipUtil::compress(const char* inBuff, qint64 inSize, bool finish) 
+qint64 GzipUtil::compress(const char* inBuff, qint64 inSize, bool finish)
 {
     int ret; Q_UNUSED(ret);
     /* Based on gun.c (example from zlib, copyrighted (C) 2003, 2005 Mark Adler) */
@@ -247,7 +256,7 @@ bool GzipUtil::skip( const GZipIndexAccessPoint& here, qint64 offset ) {
     return true;
 }
 
-ZlibAdapter::ZlibAdapter(IOAdapter* io) 
+ZlibAdapter::ZlibAdapter(IOAdapter* io)
 : IOAdapter(io->getFactory()), io(io), z(NULL), buf(NULL), rewinded(0) {}
 
 ZlibAdapter::~ZlibAdapter() {
@@ -281,7 +290,7 @@ bool ZlibAdapter::open(const GUrl& url, IOAdapterMode m ) {
     return res;
 }
 
-qint64 ZlibAdapter::readBlock(char* data, qint64 size) 
+qint64 ZlibAdapter::readBlock(char* data, qint64 size)
 {
     if (!isOpen() || z->isCompressing()) {
         assert(0 && "not ready to read");
@@ -455,6 +464,10 @@ qint64 ZlibAdapter::getUncompressedFileSizeInBytes(const GUrl &url) {
 
 GUrl ZlibAdapter::getURL() const {
     return io->getURL();
+}
+
+QString ZlibAdapter::errorString() const{
+    return io->errorString();
 }
 
 };//namespace

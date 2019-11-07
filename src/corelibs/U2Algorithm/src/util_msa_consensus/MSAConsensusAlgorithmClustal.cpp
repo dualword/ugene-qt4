@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,21 +38,22 @@ QString MSAConsensusAlgorithmFactoryClustal::getName() const {
 MSAConsensusAlgorithm* MSAConsensusAlgorithmFactoryClustal::createAlgorithm(const MAlignment&, QObject* p) {
     return new MSAConsensusAlgorithmClustal(this, p);
 }
-    
+
 //////////////////////////////////////////////////////////////////////////
 //Algorithm
 
-char MSAConsensusAlgorithmClustal::getConsensusChar(const MAlignment& msa, int pos) const {
+char MSAConsensusAlgorithmClustal::getConsensusChar(const MAlignment& msa, int pos, const QVector<qint64> &seqIdx) const {
     if (!msa.getAlphabet()->isAmino()) {
         // for nucleic alphabet work as strict algorithm but use ' ' as default
         char  defChar = ' ';
-        char pc = msa.getRows().first().chatAt(pos);
+        char pc = ( seqIdx.isEmpty() ? msa.getRows().first() : msa.getRows()[ seqIdx[0] ] ).charAt(pos);
         if (pc == MAlignment_GapChar) {
             pc = defChar;
         }
-        for (int s = 1, nSeq = msa.getNumRows(); s < nSeq; s++) {
-            const MAlignmentRow& row = msa.getRow(s);
-            char c = row.chatAt(pos);
+        int nSeq =( seqIdx.isEmpty() ? msa.getNumRows() : seqIdx.size());
+        for (int s = 1; s < nSeq; s++) {
+            const MAlignmentRow& row = msa.getRow( seqIdx.isEmpty() ? s : seqIdx [s] );
+            char c = row.charAt(pos);
             if (c != pc) {
                 pc = defChar;
                 break;
@@ -74,9 +75,10 @@ char MSAConsensusAlgorithmClustal::getConsensusChar(const MAlignment& msa, int p
         static int maxWeakGroupLen = 6;
 
         QByteArray currentGroup; //TODO: optimize 'currentGroup' related code!
-        for (int s = 0, nSeq = msa.getNumRows(); s < nSeq; s++) {
-            const MAlignmentRow& row = msa.getRow(s);
-            char c = row.chatAt(pos);
+        int nSeq =( seqIdx.isEmpty() ? msa.getNumRows() : seqIdx.size());
+        for (int s = 0; s < nSeq; s++) {
+            const MAlignmentRow& row = msa.getRow( seqIdx.isEmpty() ? s : seqIdx [s] );
+            char c = row.charAt(pos);
             if (!currentGroup.contains(c)) {
                 currentGroup.append(c);
             }

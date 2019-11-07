@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,8 +29,13 @@
 #include <U2Gui/RegionSelector.h>
 
 #include <QtCore/QList>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 #include <QtGui/QCloseEvent>
 #include <QtCore/QTimer>
 
@@ -39,6 +44,7 @@
 namespace U2 {
 
 class ADVSequenceObjectContext;
+class AutoAnnotationsUpdateTask;
 class U2SequenceObject;
 class CreateAnnotationWidgetController;
 class ORFFindTask;
@@ -58,7 +64,7 @@ protected:
     bool eventFilter(QObject *obj, QEvent *ev);
 
 private slots:
-    
+
     //buttons:
     void sl_onClearList();
     void sl_onFindAll();
@@ -77,7 +83,7 @@ private:
     void tunePercentBox();
     void initSettings();
     void getSettings(ORFAlgorithmSettings& s);
-    
+
     void runTask();
 
     void importResults();
@@ -86,13 +92,14 @@ private:
     ORFAlgorithmStrand getAlgStrand() const;
 
 private:
-	void createAnnotationWidget();
+    void createAnnotationWidget();
+    void findStartedAAUpdateTask();
     ADVSequenceObjectContext* ctx;
-    U2SequenceObject* sequence;
-	CreateAnnotationWidgetController* ac;
+    CreateAnnotationWidgetController* ac;
 
     U2Region panViewSelection;
     ORFFindTask* task;
+    AutoAnnotationsUpdateTask *aaUpdateTask;
     QTimer* timer;
     RegionSelector* rs;
     bool isRegionOk;

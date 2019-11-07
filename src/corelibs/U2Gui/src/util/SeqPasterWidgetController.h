@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,34 +22,43 @@
 #ifndef _U2_SEQ_PASTER_WIDGET_CONTROLLER_H_
 #define _U2_SEQ_PASTER_WIDGET_CONTROLLER_H_
 
-#include <U2Core/global.h>
-#include <U2Core/DNASequence.h>
+#include <QWidget>
 
-#include <QtGui/QWidget>
+#include <U2Core/DNASequence.h>
 
 class Ui_SeqPasterWidget;
 
 namespace U2{
 
+
 class U2GUI_EXPORT SeqPasterWidgetController : public QWidget {
     Q_OBJECT
 public:
-    SeqPasterWidgetController(QWidget *p = NULL, const QByteArray& initText = QByteArray());
+    SeqPasterWidgetController(QWidget *p = NULL, const QByteArray& initText = QByteArray(), bool needWarning = false);
     ~SeqPasterWidgetController();
 
     QString validate(); 
-    DNASequence getSequence() const {return resultSeq;}
+    QList<DNASequence> getSequences() const;
     void disableCustomSettings();
-    void setPreferredAlphabet(DNAAlphabet *alp);
+    void setPreferredAlphabet(const DNAAlphabet *alp);
+    void selectText();
+    void setEventFilter(QObject* evFilter);
+    void allowFastaFormat(bool allow);
 
-    static QByteArray getNormSequence(DNAAlphabet * alph, const QByteArray & seq, bool replace, QChar replaceChar);
+    static QByteArray getNormSequence(const DNAAlphabet * alph, const QByteArray & seq, bool replace, QChar replaceChar);
     
 private slots:
-    void sl_currentindexChanged(const QString&);
+    void sl_currentIndexChanged(const QString &newText);
+
 private:
-    DNAAlphabet *preferred;
-    DNASequence resultSeq;
+    QString addSequence(const QString &name, QString data);
+    static bool isFastaFormat(const QString &data);
+
+    const DNAAlphabet *preferred;
+    QList<DNASequence> resultSequences;
     Ui_SeqPasterWidget* ui;
+    bool additionalWarning;
+    bool allowFastaFormatMode;
 };
 
 }//ns

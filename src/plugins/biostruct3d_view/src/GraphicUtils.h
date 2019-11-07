@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@
 
 class GLUquadric;
 
-namespace U2 { 
+namespace U2 {
 
 class BioStruct3D;
 class BioStruct3DColorScheme;
@@ -114,7 +114,7 @@ void glDrawAtom(GLUquadric* pObj, const Vector3D& pos, double r, float renderDet
 //! Draw cylinder from one point to another
 void glDrawCylinder(GLUquadric* pObj, const Vector3D& p1, const Vector3D& p2, double thickness, float renderDetailLevel);
 
-//! Draw a spline (worm) 
+//! Draw a spline (worm)
 /*! Function straight from CN3D Viewer, uses Catmull-Rom interpolation
 add a thick splined curve from point 1 *halfway* to point 2 */
 void glDrawHalfWorm(const Vector3D& p0, const Vector3D& p1, const Vector3D& p2, const Vector3D& p3,
@@ -132,8 +132,8 @@ void accPerspective(double fovy, double aspect,
                     double near, double far, double pixdx, double pixdy,
                     double eyedx, double eyedy, double focus);
 void accFrustum(double left, double right, double bottom,
-                double top, double near, double far, double pixdx, 
-                double pixdy, double eyedx, double eyedy, 
+                double top, double near, double far, double pixdx,
+                double pixdy, double eyedx, double eyedy,
                 double focus);
 
 

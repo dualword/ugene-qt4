@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,18 +24,24 @@
 
 #include <assert.h>
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
 #include <QtGui/QScrollBar>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QMenu>
+#endif
+
 #include <QtCore/QSharedPointer>
 
 #include <U2Core/U2Assembly.h>
 #include "AssemblyCellRenderer.h"
 #include "AssemblyReadsAreaHint.h"
 #include "AssemblyModel.h"
-
-#include <memory>
-using std::auto_ptr;
+#include "AssemblyNavigationWidget.h"
 
 namespace U2 {
 
@@ -45,7 +51,7 @@ class AssemblyReadsArea;
 
 class AssemblyReadsArea: public QWidget {
     Q_OBJECT
-    
+
     // (hotkey, description) pairs
     struct HotkeyDescription {
         QString key;
@@ -54,10 +60,21 @@ class AssemblyReadsArea: public QWidget {
     };
     static const QList<HotkeyDescription> HOTKEY_DESCRIPTIONS;
     static QList<HotkeyDescription> initHotkeyDescriptions();
-    
+
 public:
     AssemblyReadsArea(AssemblyBrowserUi * ui, QScrollBar * hBar, QScrollBar * vBar);
-    
+
+    bool isReadHintEnabled();
+    void setReadHintEnabled(bool enabled);
+
+    bool isScrolling();
+    void setScrolling(bool value);
+
+    QList<QAction*> getCellRendererActions() {return cellRendererActions; }
+    QAction * getOptimizeRenderAction() { return optimizeRenderAction; }
+
+    static const QString ZOOM_LINK;
+
 protected:
     void paintEvent(QPaintEvent * e);
     void resizeEvent(QResizeEvent * e);
@@ -71,12 +88,14 @@ protected:
     void keyPressEvent(QKeyEvent * e);
     void mouseDoubleClickEvent(QMouseEvent * e);
     bool eventFilter(QObject *obj, QEvent *ev);
-    
+
 private:
     void initRedraw();
     void connectSlots();
     void setupHScrollBar();
     void setupVScrollBar();
+
+    void accumulateDelta(int delta);
 
     void drawAll();
     void drawReads(QPainter & p);
@@ -100,37 +119,40 @@ private:
 
     /** Put welcome screen info on coveredRegionsLabel */
     void showWelcomeScreen();
-    
+
     int calcFontPointSize() const;
-    
+
     void updateMenuActions();
     void exportReads(const QList<U2AssemblyRead> & reads);
 
     void createMenu();
     QMenu* createShadowingMenu();
     void shadowingMenuSetBind(bool enabled);
-        
+
 signals:
     void si_heightChanged();
     void si_mouseMovedToPos(const QPoint &);
-    
+
 public slots:
-    void sl_hideHint();  
+    void sl_hideHint();
     void sl_redraw();
-    
+
 private slots:
-    void sl_coveredRegionClicked(const QString & link);
     void sl_onHScrollMoved(int pos);
     void sl_onVScrollMoved(int pos);
     void sl_zoomOperationPerformed();
     void sl_onCopyReadData();
+    void sl_onCopyCurPos();
     void sl_onExportRead();
     void sl_onExportReadsOnScreen();
     void sl_onShadowingModeChanged(QAction *a);
     void sl_onBindShadowing();
     void sl_onShadowingJump();
     void sl_changeCellRenderer();
-    
+    void sl_onOptimizeRendering(bool enabled);
+    void sl_onScrollPressed() { setScrolling(true); }
+    void sl_onScrollReleased() { setScrolling(false); }
+
 private:
     AssemblyBrowserUi * ui;
     AssemblyBrowser * browser;
@@ -139,12 +161,17 @@ private:
     bool redraw;
     QPixmap cachedView;
 
-    auto_ptr<AssemblyCellRenderer> cellRenderer;
-    
-    QLabel coveredRegionsLabel;
+    QScopedPointer<AssemblyCellRenderer> cellRenderer;
+
+    CoveredRegionsLabel coveredRegionsLabel;
     QScrollBar * hBar;
     QScrollBar * vBar;
-    
+
+    // Some variables for a workaround UGENE-3183
+    static const int DEFAULT_MOUSE_DELTA;
+    int wheelEventAccumulatedDelta;
+    int wheelEventPrevDelta;
+
     // caches reads that are visible on a screen
     class ReadsCache {
     public:
@@ -168,14 +195,14 @@ private:
     };
     ReadsCache cachedReads;
     QPoint curPos;
-    
+
     struct HintData {
         HintData(QWidget * p) : updateHint(false), hint(p) {}
         bool updateHint;
         AssemblyReadsAreaHint hint;
         U2DataId curReadId;
     } hintData;
-    
+
     // needed to move by-letter when scribbling
     class ReadsMover {
     public:
@@ -216,7 +243,11 @@ private:
 
     bool scribbling;
     int currentHotkeyIndex;
-    
+    bool hintEnabled;
+
+    bool scrolling;
+    bool optimizeRenderOnScroll;
+
     QMenu * readMenu;
     QAction * copyDataAction;
     QAction * exportReadAction;
@@ -229,8 +260,9 @@ private:
     QAction *shadowingJump;
 
     QList<QAction*> cellRendererActions;
+    QAction * optimizeRenderAction;
 };
 
 } //ns
 
-#endif 
+#endif

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,24 @@
  * MA 02110-1301, USA.
  */
 
-#include "ConvertAssemblyToSamDialog.h"
-#include <ui/ui_AssemblyToSamDialog.h>
-
-#include <U2Core/GUrlUtils.h>
-#include <U2Core/DocumentUtils.h>
-
-#include <U2Gui/LastUsedDirHelper.h>
-
-#include <QtGui/QFileDialog>
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/GUrlUtils.h>
 
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include "ConvertAssemblyToSamDialog.h"
+#include "ui/ui_AssemblyToSamDialog.h"
 
 namespace U2 {
 
@@ -41,11 +47,17 @@ ConvertAssemblyToSamDialog::ConvertAssemblyToSamDialog(QWidget* parent, QString 
 {
     ui = new Ui_AssemblyToSamDialog;
     ui->setupUi(this);
+    new HelpButton(this, ui->buttonBox, "16122384");
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Convert"));
+    ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    QPushButton* convertButton = ui->buttonBox->button(QDialogButtonBox::Ok);
+    QPushButton* cancelButton = ui->buttonBox->button(QDialogButtonBox::Cancel);
 
     connect(ui->setDbPathButton, SIGNAL(clicked()), SLOT(sl_onSetDbPathButtonClicked()));
     connect(ui->setSamPathButton, SIGNAL(clicked()), SLOT(sl_onSetSamPathButtonClicked()));
-    connect(ui->convertButton, SIGNAL(clicked()), SLOT(accept()));
-    connect(ui->cancelButton, SIGNAL(clicked()), SLOT(reject()));
+    connect(convertButton, SIGNAL(clicked()), SLOT(accept()));
+    connect(cancelButton, SIGNAL(clicked()), SLOT(reject()));
 
     if ("" != dbPath) {
         ui->dbPathEdit->setText(dbPath);
@@ -59,6 +71,7 @@ ConvertAssemblyToSamDialog::ConvertAssemblyToSamDialog(QWidget* parent, QString 
         ui->dbPathEdit->setText(dbFileUrl.getURLString());
         buildSamUrl(dbFileUrl);
     }
+
 }
 
 void ConvertAssemblyToSamDialog::accept() {
@@ -92,7 +105,7 @@ void ConvertAssemblyToSamDialog::sl_onSetDbPathButtonClicked() {
     LastUsedDirHelper lod;
     QString filter;
 
-    lod.url = QFileDialog::getOpenFileName(this, tr("Open an assembly data base file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Open an Assembly Database File"), lod.dir, filter);
     if (lod.url.isEmpty()) {
         return;
     }
@@ -103,7 +116,7 @@ void ConvertAssemblyToSamDialog::sl_onSetDbPathButtonClicked() {
 
 void ConvertAssemblyToSamDialog::sl_onSetSamPathButtonClicked() {
     LastUsedDirHelper lod;
-    lod.url = QFileDialog::getSaveFileName(this, tr("Set a result SAM file name"), lod.dir);
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Set a result SAM file name"), lod.dir);
     if (!lod.url.isEmpty()) {
         GUrl result = lod.url;
         if (result.lastFileSuffix().isEmpty()) {

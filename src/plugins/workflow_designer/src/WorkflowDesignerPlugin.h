@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include <U2Core/ServiceModel.h>
 #include <U2Core/Task.h>
 
+#include <U2Gui/WelcomePageAction.h>
+
 #include <U2Remote/RemoteWorkflowRunTask.h>
+
+#include "SampleActionsManager.h"
 
 class QAction;
 class QEvent;
@@ -39,17 +43,18 @@ public:
     static const QString RUN_WORKFLOW;
     static const QString REMOTE_MACHINE;
     static const QString PRINT;
-    
+
 public:
     WorkflowDesignerPlugin ();
     //~WorkflowDesignerPlugin ();
 private:
     void registerCMDLineHelp();
+    void registerWorkflowTasks();
     void processCMDLineOptions();
-    
+
 private slots:
     void sl_saveSchemaImageTaskFinished();
-    
+    void sl_initWorkers();
 };
 
 class WorkflowDesignerService : public Service {
@@ -64,16 +69,35 @@ protected:
 
     virtual void serviceStateChangedCallback(ServiceState oldState, bool enabledStateChanged);
 
-private slots:
+public slots:
     void sl_showDesignerWindow();
+    void sl_sampleActionClicked(const SampleAction &action);
+
+private slots:
     void sl_showManagerWindow();
     void sl_startWorkflowPlugin();
 
 private:
+    bool checkServiceState() const;
+    void initDesignerAction();
+    void initNewWorkflowAction();
+    void initSampleActions();
+
+private:
     QAction*        designerAction;
     QAction*        managerAction;
+    QAction*        newWorkflowAction;
 };
 
+
+class WorkflowWelcomePageAction : public WelcomePageAction {
+public:
+    WorkflowWelcomePageAction(WorkflowDesignerService *service);
+    void perform();
+
+private:
+    QPointer<WorkflowDesignerService> service;
+};
 
 } //namespace
 

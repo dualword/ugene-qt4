@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,20 +22,19 @@
 #ifndef _U2_ADV_SYNC_VIEW_MANAGER_H_
 #define _U2_ADV_SYNC_VIEW_MANAGER_H_
 
-#include <U2Core/global.h>
-#include <U2Core/U2Region.h>
+#include <QAction>
+#include <QMenu>
+#include <QToolBar>
+#include <QToolButton>
 
-#include <QtGui/QAction>
-#include <QtGui/QMenu>
-#include <QtGui/QToolBar>
-#include <QtGui/QToolButton>
+#include <U2Core/U2Region.h>
 
 namespace U2 {
 
 class AnnotatedDNAView;
 class ADVSequenceWidget;
 class ADVSingleSequenceWidget;
-class LRegionsSelection;  
+class LRegionsSelection;
 
 //Support for synchronous operation for ADVSingleSequenceViews: sync& lock scale, toggle visibility
 class ADVSyncViewManager : public QObject {
@@ -60,7 +59,7 @@ private slots:
     void sl_toggleAutoAnnotationHighlighting();
     void sl_updateAutoAnnotationsMenu();
     void sl_updateVisualMode();
-    
+
 
 private:
     enum SyncMode {
@@ -80,7 +79,7 @@ private:
     void unlock();
     void updateEnabledState();
     void toggleCheckedAction(SyncMode mode);
-    
+
 
     QList<ADVSingleSequenceWidget*> getViewsFromADV() const;
 
@@ -105,13 +104,13 @@ private:
     bool                                selectionRecursion;
     bool                                recursion;
     QList<ADVSingleSequenceWidget*>     views;
-    
-    // auto annotation highlighting 
+
+    // auto annotation highlighting
     QMap<QString, QAction*>             aaActionMap;
     QAction*                            toggleAutoAnnotationsAction;
     QMenu*                              toggleAutoAnnotationsMenu;
     QToolButton*                        toggleAutoAnnotationsButton;
-    
+
     // visual mode vars
     QAction*                            toggleViewButtonAction;
     QToolButton*                        toggleViewButton;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,15 @@
 #ifndef _U2_STATE_LOCKS_H_
 #define _U2_STATE_LOCKS_H_
 
+#include <QPointer>
+#include <QSet>
+
 #include <U2Core/global.h>
 
-#include <QtCore/QSet>
-
 namespace U2 {
+
+class StateLock;
+class StateLockableItem;
 
 #define StateLockModType_AddChild "state-lock-mod-add-child"
 
@@ -38,14 +42,28 @@ enum StateLockFlag {
 
 typedef QFlags<StateLockFlag> StateLockFlags;
 
-class U2CORE_EXPORT StateLock {
+/**
+ * StateLocker takes ownership over the StackLock object.
+ */
+class U2CORE_EXPORT StateLocker {
+public:
+    StateLocker(StateLockableItem *lockableItem, StateLock *lock = NULL);
+    ~StateLocker();
+
+private:
+    StateLockableItem *lockableItem;
+    StateLock *lock;
+};
+
+class U2CORE_EXPORT StateLock : public QObject {
+    Q_OBJECT
 public:
     StateLock() : flags(StateLockFlag_NoFlags){}
     StateLock(const QString& _userDesc, StateLockFlags _flags = StateLockFlag_NoFlags) : userDesc(_userDesc), flags(_flags){}
 
     QString getUserDesc() const {return userDesc;}
     void setUserDesc(const QString& d) {userDesc = d;}
-    
+
     StateLockFlags getFlags() const {return flags;}
 
 private:
@@ -57,7 +75,7 @@ class U2CORE_EXPORT StateLockableItem : public QObject {
     Q_OBJECT
 public:
     StateLockableItem(QObject* p = NULL);
-    ~StateLockableItem();
+    virtual ~StateLockableItem();
 
     int getStateLocksCount() const {return locks.size();}
 
@@ -70,7 +88,7 @@ public:
     virtual void unlockState(StateLock* lock);
 
     virtual void setModified(bool modified, const QString& modType = QString());
-    
+
     virtual bool isModificationAllowed(const QString& modType) {Q_UNUSED(modType); return !isStateLocked();}
 
     virtual bool isItemModified() const {return itemIsModified;}
@@ -114,9 +132,9 @@ typedef QFlags<StateLockableTreeItemBranchFlag> StateLockableTreeItemBranchFlags
 class U2CORE_EXPORT StateLockableTreeItem : public StateLockableItem {
     Q_OBJECT
 public:
-    StateLockableTreeItem() : StateLockableItem(), parentStateLockItem(NULL), childLocksCount(0), numModifiedChildren(0){}
+    StateLockableTreeItem() : StateLockableItem(), childLocksCount(0), numModifiedChildren(0) {}
 
-    ~StateLockableTreeItem();
+    virtual ~StateLockableTreeItem();
 
     virtual bool isStateLocked() const;
 
@@ -130,7 +148,7 @@ public:
 
     virtual bool hasModifiedChildren() const {return numModifiedChildren != 0;}
 
-    StateLockableTreeItem* getParentStateLockItem() const { return parentStateLockItem; }
+    StateLockableTreeItem* getParentStateLockItem() const { return qobject_cast<StateLockableTreeItem*>(parent()); }
 
     bool hasLocks(StateLockableTreeItemBranchFlags treeFlags, StateLockFlag lockFlag = StateLockFlag_AnyFlags) const {
         return !findLocks(treeFlags, lockFlag).isEmpty();
@@ -145,13 +163,11 @@ public:
     virtual bool isMainThreadModificationOnly() const;
 
 protected:
-    
     static void setParentStateLockItem_static(StateLockableTreeItem* child, StateLockableTreeItem* newParent) {
         child->setParentStateLockItem(newParent);
     }
 
-    void setParentStateLockItem(StateLockableTreeItem* p);
-    
+    virtual void setParentStateLockItem(StateLockableTreeItem* p);
 
     void increaseNumModifiedChilds(int n);
     void decreaseNumModifiedChilds(int n);
@@ -162,7 +178,6 @@ protected:
     const QSet<StateLockableTreeItem*>& getChildItems() const {return childItems;}
 
 private:
-    StateLockableTreeItem*          parentStateLockItem;
     QSet<StateLockableTreeItem*>    childItems;
     int                             childLocksCount;
     int                             numModifiedChildren;

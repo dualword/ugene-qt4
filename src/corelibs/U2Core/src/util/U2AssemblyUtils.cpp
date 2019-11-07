@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/U2AssemblyUtils.h>
+#include "U2AssemblyUtils.h"
 
 #include <U2Core/TextUtils.h>
 #include <U2Core/U2OpStatus.h>
@@ -85,7 +85,7 @@ QList<U2CigarToken> U2AssemblyUtils::parseCigar(const QByteArray& cigarString, Q
             int n = c - '0';
             count = count * 10 + n;
             continue;
-        } 
+        }
         U2CigarOp op = char2Cigar(c, err);
         if (!err.isEmpty()) {
             break;
@@ -117,11 +117,11 @@ qint64 U2AssemblyUtils::getCigarExtraLength(const QList<U2CigarToken>& cigar) {
         switch(t.op) {
             case U2CigarOp_I:
             case U2CigarOp_S:
-                res-=t.count; 
+                res-=t.count;
                 break;
-            case U2CigarOp_D: 
-            case U2CigarOp_N: 
-                res+=t.count; 
+            case U2CigarOp_D:
+            case U2CigarOp_N:
+                res+=t.count;
                 break;
             default:;
         }
@@ -161,6 +161,15 @@ void U2AssemblyUtils::deserializeCoverageStat(QByteArray data, U2AssemblyCoverag
     } else {
         os.setError("Invalid attribute size");
     }
+}
+
+QVector<qint64> U2AssemblyUtils::coverageStatToVector(const U2AssemblyCoverageStat &coverageStat) {
+    int size = coverageStat.coverage.size();
+    QVector<qint64> res(size);
+    for(int i = 0; i < size; ++i) {
+        res[i] = coverageStat.coverage[i].maxValue;
+    }
+    return res;
 }
 
 } //namespace

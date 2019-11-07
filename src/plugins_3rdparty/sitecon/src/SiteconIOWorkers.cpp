@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,6 +38,7 @@
 #include <U2Core/Log.h>
 #include <U2Core/GUrlUtils.h>
 #include <U2Core/FailTask.h>
+#include <U2Core/U2SafePoints.h>
 #include "SiteconIO.h"
 
 /* TRANSLATOR U2::SiteconIO */
@@ -65,7 +66,7 @@ DataTypePtr const SiteconWorkerFactory::SITECON_MODEL_TYPE() {
     return dtr->getById(SITECON_MODEL_TYPE_ID);
 }
 
-const Descriptor SiteconWorkerFactory::SITECON_SLOT("sitecon-model", SiteconIO::tr("Sitecon model"), "");
+const Descriptor SiteconWorkerFactory::SITECON_SLOT("sitecon-model", QObject::tr("Sitecon model"), "");
 
 const Descriptor SiteconWorkerFactory::SITECON_CATEGORY() {return Descriptor("hsitecon", SiteconIO::tr("SITECON"), "");}
 
@@ -96,7 +97,7 @@ ReadSiteconProto::ReadSiteconProto(const Descriptor& _desc, const QList<PortDesc
     
     attrs << new Attribute(BaseAttributes::URL_IN_ATTRIBUTE(), BaseTypes::STRING_TYPE(), true);
     QMap<QString, PropertyDelegate*> delegateMap;
-    delegateMap[BaseAttributes::URL_IN_ATTRIBUTE().getId()] = new URLDelegate(SiteconIO::getFileFilter(), SiteconIO::SITECON_ID, true);
+    delegateMap[BaseAttributes::URL_IN_ATTRIBUTE().getId()] = new URLDelegate(SiteconIO::getFileFilter(), SiteconIO::SITECON_ID, true, false, false);
     setEditor(new DelegateEditor(delegateMap));
     setIconPath(":sitecon/images/sitecon.png");
 }
@@ -111,7 +112,7 @@ WriteSiteconProto::WriteSiteconProto(const Descriptor& _desc, const QList<PortDe
     attrs << new Attribute(BaseAttributes::FILE_MODE_ATTRIBUTE(), BaseTypes::NUM_TYPE(), false, SaveDoc_Roll);
 
     QMap<QString, PropertyDelegate*> delegateMap;
-    delegateMap[BaseAttributes::URL_OUT_ATTRIBUTE().getId()] = new URLDelegate(SiteconIO::getFileFilter(), SiteconIO::SITECON_ID, false );
+    delegateMap[BaseAttributes::URL_OUT_ATTRIBUTE().getId()] = new URLDelegate(SiteconIO::getFileFilter(), SiteconIO::SITECON_ID);
     delegateMap[BaseAttributes::FILE_MODE_ATTRIBUTE().getId()] = new FileModeDelegate(false);
     
     setEditor(new DelegateEditor(delegateMap));
@@ -137,7 +138,7 @@ void SiteconWorkerFactory::init()
         QList<PortDescriptor*> p; QList<Attribute*> a;
         Descriptor pd(SITECON_IN_PORT_ID, SiteconIO::tr("Sitecon model"), SiteconIO::tr("Input Sitecon model"));
         p << new PortDescriptor(pd, t, true /*input*/);
-        Descriptor desc(SiteconWriter::ACTOR_ID, SiteconIO::tr("Write SITECON model"), SiteconIO::tr("Saves all input SITECON profiles to specified location."));
+        Descriptor desc(SiteconWriter::ACTOR_ID, SiteconIO::tr("Write SITECON Model"), SiteconIO::tr("Saves all input SITECON profiles to specified location."));
         IntegralBusActorPrototype* proto = new WriteSiteconProto(desc, p, a);
         proto->setPrompter(new SiteconWritePrompter());
         r->registerProto(BaseActorCategories::CATEGORY_TRANSCRIPTION(), proto);
@@ -150,7 +151,7 @@ void SiteconWorkerFactory::init()
         outM[SiteconWorkerFactory::SITECON_SLOT] = SiteconWorkerFactory::SITECON_MODEL_TYPE();
         p << new PortDescriptor(pd, DataTypePtr(new MapDataType("sitecon.read.out", outM)), false /*input*/, true /*multi*/);
         
-        Descriptor desc(SiteconReader::ACTOR_ID, SiteconIO::tr("Read SITECON model"), SiteconIO::tr("Reads SITECON profiles from file(s). The files can be local or Internet URLs."));
+        Descriptor desc(SiteconReader::ACTOR_ID, SiteconIO::tr("Read SITECON Model"), SiteconIO::tr("Reads SITECON profiles from file(s). The files can be local or Internet URLs."));
         IntegralBusActorPrototype* proto = new ReadSiteconProto(desc, p, a);
         proto->setPrompter(new SiteconReadPrompter());
         r->registerProto(BaseActorCategories::CATEGORY_TRANSCRIPTION(), proto);
@@ -185,19 +186,16 @@ Worker* SiteconWorkerFactory::createWorker(Actor* a) {
 }
 
 QString SiteconReadPrompter::composeRichDoc() {
-    return tr("Read model(s) from <u>%1</u>").arg(getHyperlink(BaseAttributes::URL_IN_ATTRIBUTE().getId(), getURL(BaseAttributes::URL_IN_ATTRIBUTE().getId())));
+    return tr("Read model(s) from <u>%1</u>.").arg(getHyperlink(BaseAttributes::URL_IN_ATTRIBUTE().getId(), getURL(BaseAttributes::URL_IN_ATTRIBUTE().getId())));
 }
 
 QString SiteconWritePrompter::composeRichDoc() {
-    IntegralBusPort* input = qobject_cast<IntegralBusPort*>(target->getPort(SITECON_IN_PORT_ID));
-    Actor* producer = input->getProducer(SiteconWorkerFactory::SITECON_MODEL_TYPE_ID);
-    QString from = producer ? producer->getLabel() : "<font color='red'>"+tr("unset")+"</font>";
-    QString url = getScreenedURL(input, BaseAttributes::URL_OUT_ATTRIBUTE().getId(), BaseSlots::URL_SLOT().getId()); 
+    IntegralBusPort *input = qobject_cast<IntegralBusPort*>(target->getPort(SITECON_IN_PORT_ID));
+    SAFE_POINT(NULL != input, "NULL input port", "");
+    QString from = getProducersOrUnset(SITECON_IN_PORT_ID, SiteconWorkerFactory::SITECON_SLOT.getId());
+    QString url = getScreenedURL(input, BaseAttributes::URL_OUT_ATTRIBUTE().getId(), BaseSlots::URL_SLOT().getId());
     url = getHyperlink(BaseAttributes::URL_OUT_ATTRIBUTE().getId(), url);
-    QString doc = tr("Save the profile(s) from <u>%1</u> to %2.")
-        .arg(from)
-        .arg(url);
-    return doc;
+    return tr("Save the profile(s) from <u>%1</u> to %2.").arg(from).arg(url);
 }
 
 void SiteconReader::init() {
@@ -207,26 +205,32 @@ void SiteconReader::init() {
 }
 
 Task* SiteconReader::tick() {
-    Task* t = new SiteconReadTask(urls.takeFirst());
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    tasks.append(t);
-    return t;
+    if (urls.isEmpty() && tasks.isEmpty()) {
+        setDone();
+        output->setEnded();
+    } else {
+        Task* t = new SiteconReadTask(urls.takeFirst());
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        tasks.append(t);
+        return t;
+    }
+    return NULL;
 }
 
 void SiteconReader::sl_taskFinished() {
     SiteconReadTask* t = qobject_cast<SiteconReadTask*>(sender());
+    if ( t->isCanceled( ) ) {
+        return;
+    }
     if (t->getState() != Task::State_Finished) return;
-    tasks.removeAll(t);
     if (output) {
         if (!t->hasError()) {
             QVariant v = qVariantFromValue<SiteconModel>(t->getResult());
             output->put(Message(mtype, v));
         }
-        if (urls.isEmpty() && tasks.isEmpty()) {
-            output->setEnded();
-        }
         algoLog.info(tr("Loaded SITECON model from %1").arg(t->getURL()));
     }
+    tasks.removeAll(t);
 }
 
 void SiteconWriter::init() {
@@ -234,34 +238,43 @@ void SiteconWriter::init() {
 }
 
 Task* SiteconWriter::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    url = actor->getParameter(BaseAttributes::URL_OUT_ATTRIBUTE().getId())->getAttributeValue<QString>(context);
-    fileMode = actor->getParameter(BaseAttributes::FILE_MODE_ATTRIBUTE().getId())->getAttributeValue<uint>(context);
-    QVariantMap data = inputMessage.getData().toMap();
-    SiteconModel model = data.value(SiteconWorkerFactory::SITECON_SLOT.getId()).value<SiteconModel>();
-    
-    QString anUrl = url;
-    if (anUrl.isEmpty()) {
-        anUrl = data.value(BaseSlots::URL_SLOT().getId()).toString();
-    }
-    if (anUrl.isEmpty()) {
-        QString err = tr("Unspecified URL for writing Sitecon");
-        //if (failFast) {
-            return new FailTask(err);
-        /*} else {
-            algoLog.error(err);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
             return NULL;
-        }*/
+        }
+        url = getValue<QString>(BaseAttributes::URL_OUT_ATTRIBUTE().getId());
+        fileMode = actor->getParameter(BaseAttributes::FILE_MODE_ATTRIBUTE().getId())->getAttributeValue<uint>(context);
+        QVariantMap data = inputMessage.getData().toMap();
+        SiteconModel model = data.value(SiteconWorkerFactory::SITECON_SLOT.getId()).value<SiteconModel>();
+        
+        QString anUrl = url;
+        if (anUrl.isEmpty()) {
+            anUrl = data.value(BaseSlots::URL_SLOT().getId()).toString();
+        }
+        if (anUrl.isEmpty()) {
+            QString err = tr("Unspecified URL for writing Sitecon");
+            //if (failFast) {
+                return new FailTask(err);
+            /*} else {
+                algoLog.error(err);
+                return NULL;
+            }*/
+        }
+        assert(!anUrl.isEmpty());
+        anUrl = context->absolutePath(anUrl);
+        int count = ++counter[anUrl];
+        if (count != 1) {
+            anUrl = GUrlUtils::prepareFileName(anUrl, count, QStringList("sitecon"));
+        } else {
+            anUrl = GUrlUtils::ensureFileExt( anUrl, QStringList("sitecon")).getURLString();
+        }
+        ioLog.info(tr("Writing SITECON model to %1").arg(anUrl));
+        return new SiteconWriteTask(anUrl, model, fileMode);
+    } else if (input->isEnded()) {
+        setDone();
     }
-    assert(!anUrl.isEmpty());
-    int count = ++counter[anUrl];
-    if (count != 1) {
-        anUrl = GUrlUtils::prepareFileName(anUrl, count, QStringList("sitecon"));
-    } else {
-        anUrl = GUrlUtils::ensureFileExt( anUrl, QStringList("sitecon")).getURLString();
-    }
-    ioLog.info(tr("Writing SITECON model to %1").arg(anUrl));
-    return new SiteconWriteTask(anUrl, model, fileMode);
+    return NULL;
 }
 
 } //namespace LocalWorkflow

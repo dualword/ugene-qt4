@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -49,20 +49,16 @@ class CollocationWorker : public BaseWorker {
 public:
     CollocationWorker(Actor* a) : BaseWorker(a), input(NULL), output(NULL) {}
     virtual ~CollocationWorker() {}
-    virtual void init() ;
-    virtual bool isReady();
-    virtual Task* tick() ;
-    virtual bool isDone() ;
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 private slots:
     void sl_taskFinished();
 
 protected:
-    CommunicationChannel *input, *output;
-    QString resultName;
-    QSet<QString> names;
+    IntegralBus *input, *output;
     CollocationsAlgorithmSettings cfg;
-}; 
+};
 
 class CollocationWorkerFactory : public DomainFactory {
 public:

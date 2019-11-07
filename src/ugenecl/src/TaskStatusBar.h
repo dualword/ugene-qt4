@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,11 +31,11 @@ class TaskStatusBarCon : public QObject {
     Q_OBJECT
 public:
     static const QString NO_TASK_STATUS_BAR_CMD_OPTION;
-    
+
 private:
     static bool helpRegistered;
     static void setTSBCmdlineHelp();
-    
+
 public:
     TaskStatusBarCon();
     ~TaskStatusBarCon();

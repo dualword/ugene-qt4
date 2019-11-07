@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,14 +22,20 @@
 #ifndef _U2_EXPORT_CHROMATOGRAM_DIALOG_H_
 #define _U2_EXPORT_CHROMATOGRAM_DIALOG_H_
 
-#include <U2Core/global.h>
-#include <U2Core/GUrl.h>
-
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
-#include <ui/ui_ExportChromatogramDialog.h>
+#else
+#include <QtWidgets/QDialog>
+#endif
+
+#include <U2Core/global.h>
+
+#include "ui/ui_ExportChromatogramDialog.h"
 
 namespace U2 {
 
+class GUrl;
 class SaveDocumentGroupController;
 
 class ExportChromatogramDialog : public QDialog, Ui_ExportChromatogramDialog {
@@ -39,20 +45,18 @@ public:
 
     virtual void accept();
 
-
-public:    
+public:
     QString url;
     DocumentFormatId format;
-    bool    addToProjectFlag;
+    bool addToProjectFlag;
     bool reversed;
     bool complemented;
-    
+
 private slots:
     void sl_onBrowseClicked();
 
-private:    
+private:
     SaveDocumentGroupController* saveController;
-
 };
 
 }//namespace

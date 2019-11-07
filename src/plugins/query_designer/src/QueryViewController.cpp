@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,39 +19,40 @@
  * MA 02110-1301, USA.
  */
 
-#include "QueryViewController.h"
-#include "QueryViewItems.h"
-#include "QueryPalette.h"
-#include "QDSamples.h"
-#include "QueryEditor.h"
-#include "QDSceneIOTasks.h"
-#include "QDRunDialog.h"
-#include "QDGroupsEditor.h"
+#include <QMenu>
+#include <QMessageBox>
+#include <QSplitter>
+#include <QTabWidget>
+#include <QToolBar>
 
-#include <U2Core/Log.h>
-#include <U2Core/L10n.h>
-#include <U2Core/Counter.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/Counter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/Log.h>
 #include <U2Core/Settings.h>
 #include <U2Core/TaskSignalMapper.h>
 
+#include <U2Designer/DelegateEditors.h>
+
 #include <U2Gui/GlassView.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
 
 #include <U2Lang/QueryDesignerRegistry.h>
 
-#include <U2Designer/DelegateEditors.h>
-
-#include <QtGui/QMenu>
-#include <QtGui/QToolBar>
-#include <QtGui/QTabWidget>
-#include <QtGui/QSplitter>
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
+#include "QDGroupsEditor.h"
+#include "QDRunDialog.h"
+#include "QDSamples.h"
+#include "QDSceneIOTasks.h"
+#include "QueryEditor.h"
+#include "QueryPalette.h"
+#include "QueryViewController.h"
+#include "QueryViewItems.h"
 
 namespace U2 {
-    
+
 /************************************************************************/
 /* Scene                                                                */
 /************************************************************************/
@@ -76,6 +77,8 @@ showSchemeLbl(false), showDesc(true), showOrder(true), modified(false) {
     initTitle();
     initRuler();
     initDescription();
+
+    setObjectName("QueryScene");
 }
 
 QueryScene::~QueryScene() {
@@ -330,7 +333,7 @@ void QueryScene::setRowsNumber(int count) {
             }
         }
 
-        descTxtItem->moveBy(0.0, dY);        
+        descTxtItem->moveBy(0.0, dY);
         qreal bottom = descTxtItem->mapRectToScene(descTxtItem->boundingRect()).bottom();
         bottom = footnotesArea().bottom() + DESCRIPTION_TOP_PAD;
         descTxtItem->setY(bottom);
@@ -401,7 +404,7 @@ void QueryScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event) {
         QRectF rightArea = sceneRect();
         rightArea.setLeft(mousePos.x());
         const QList<QGraphicsItem*>& annItemsToRight = getElements(rightArea);
-        
+
         qreal delta = sceneRect().width()*sceneRect().width() + sceneRect().height()*sceneRect().height();
         QDElement *src = NULL, *dst = NULL;
         foreach(QGraphicsItem* itLeft, annItemsToLeft) {
@@ -441,6 +444,7 @@ void QueryScene::dropEvent(QGraphicsSceneDragDropEvent *event) {
     if(!event->mimeData()->hasText()) {
         return;
     }
+    QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
     const QString& mimeStr = event->mimeData()->text();
     if (AppContext::getQDActorProtoRegistry()->getAllIds().contains(mimeStr)) {
         QDActorPrototype* proto = AppContext::getQDActorProtoRegistry()->getProto(mimeStr);
@@ -468,8 +472,9 @@ void QueryScene::dropEvent(QGraphicsSceneDragDropEvent *event) {
 
 void QueryScene::setupDistanceDialog(QDDistanceType kind) {
     if(dropCandidateLeft && dropCandidateRight) {
-        AddConstraintDialog dlg(this, kind, dropCandidateLeft, dropCandidateRight);
-        dlg.exec();
+        QObjectScopedPointer<AddConstraintDialog> dlg = new AddConstraintDialog(this, kind, dropCandidateLeft, dropCandidateRight);
+        dlg->exec();
+        CHECK(!dlg.isNull(), );
     }
 }
 
@@ -501,7 +506,10 @@ void QueryScene::addActor(QDActor* actor, const QPointF& pos) {
         QDElement* uv = new QDElement(su);
         unit2view[su] = uv;
         addItem(uv);
-        uv->setPos(pos.x() + dx, y);
+        uv->setObjectName("QDElement");
+        QPointF p(pos.x() + dx, y);
+        while(ajustPosForNewItem(uv, p)) ;
+        uv->setPos(p);
         dx += UNIT_PADDING + uv->boundingRect().width();
     }
     foreach(QDConstraint* c, actor->getParamConstraints()) {
@@ -514,12 +522,28 @@ void QueryScene::addActor(QDActor* actor, const QPointF& pos) {
             addItem(fn);
             fn->updatePos();
         }
-    }    
+    }
     connect(actor->getParameters(), SIGNAL(si_modified()), ruler, SLOT(sl_updateText()));
     emit_schemeChanged();
     setModified(true);
     emit si_itemAdded();
 }
+
+bool QueryScene::ajustPosForNewItem(QDElement *targetItem, QPointF &posToAjust){
+    QRectF itemRect = targetItem->boundingRect();
+    itemRect.moveTo(posToAjust);
+    foreach(QDElement *el, getElements()){
+        if(el == targetItem) continue;
+        QRectF elRect = el->sceneBoundingRect();
+        if( itemRect.intersects(elRect) ){
+            float yy = elRect.bottomLeft().y();
+            posToAjust = QPointF(posToAjust.x(), yy);
+            return true;
+        }
+    }
+    return false;
+}
+
 
 void QueryScene::addDistanceConstraint(QDElement* src, QDElement* dst, QDDistanceType distType, int min, int max) {
     if(src!=dst) {
@@ -538,7 +562,7 @@ void QueryScene::addDistanceConstraint(QDElement* src, QDElement* dst, QDDistanc
     setModified(true);
 }
 
-void QueryScene::removeActor(QDActor* actor) {    
+void QueryScene::removeActor(QDActor* actor) {
     foreach(QGraphicsItem* it, getElements()) {
         QDElement* uv = qgraphicsitem_cast<QDElement*>(it);
         assert(uv);
@@ -637,8 +661,10 @@ QueryViewController::QueryViewController() : MWMDIWindow(tr("Query Designer")), 
 
     sceneView = new GlassView(scene);
     sceneView->setDragMode(QGraphicsView::RubberBandDrag);
+    sceneView->setObjectName("sceneView");
 
     palette = new QueryPalette(this);
+    palette->setObjectName("palette");
     groupsEditor = new QDGroupsEditor(this);
     QDSamplesWidget* samples = new QDSamplesWidget(scene, this);
 
@@ -676,7 +702,7 @@ QueryViewController::QueryViewController() : MWMDIWindow(tr("Query Designer")), 
 
     createActions();
     sl_updateTitle();
-    
+
     sl_scrollUp();
 }
 
@@ -699,7 +725,7 @@ void QueryViewController::createActions() {
     newAction->setShortcuts(QKeySequence::New);
     newAction->setIcon(QIcon(":query_designer/images/filenew.png"));
     connect(newAction, SIGNAL(triggered()), SLOT(sl_newScene()));
-    
+
     loadAction = new QAction(tr("Load Schema..."), this);
     loadAction->setShortcut(QKeySequence("Ctrl+L"));
     loadAction->setIcon(QIcon(":query_designer/images/fileopen.png"));
@@ -707,19 +733,28 @@ void QueryViewController::createActions() {
 
     saveAction = new QAction(tr("Save Schema"), this);
     saveAction->setShortcut(QKeySequence::Save);
+    saveAction->setShortcutContext(Qt::WidgetShortcut);
     saveAction->setIcon(QIcon(":query_designer/images/filesave.png"));
     saveAction->setDisabled(true);
     connect(saveAction, SIGNAL(triggered()), SLOT(sl_saveScene()));
-    
+
     saveAsAction = new QAction(tr("Save Schema As..."), this);
     saveAsAction->setShortcut(QKeySequence::SaveAs);
+    saveAsAction->setShortcutContext(Qt::WidgetShortcut);
     saveAsAction->setIcon(QIcon(":query_designer/images/filesave.png"));
     connect(saveAsAction, SIGNAL(triggered()), SLOT(sl_saveSceneAs()));
 
     deleteAction = new QAction(tr("Delete"), this);
-    deleteAction->setShortcut(QKeySequence::Delete);
     deleteAction->setIcon(QIcon(":query_designer/images/delete.png"));
     connect(deleteAction, SIGNAL(triggered()), SLOT(sl_deleteItem()));
+
+    { // Delete shortcut
+        QAction *deleteShortcut = new QAction(sceneView);
+        deleteShortcut->setShortcuts(QKeySequence::Delete);
+        deleteShortcut->setShortcutContext(Qt::WidgetShortcut);
+        connect(deleteShortcut, SIGNAL(triggered()), SLOT(sl_deleteItem()));
+        sceneView->addAction(deleteShortcut);
+    }
 
     showLabelAction = new QAction(tr("Show title"), this);
     showLabelAction->setCheckable(true);
@@ -864,8 +899,9 @@ void QueryViewController::sl_run() {
     } else if (!scheme->isValid()) {
         QMessageBox::critical(this, L10N::errorTitle(), tr("The schema is invalid! Please see the log for details."));
     } else {
-        QDRunDialog runDlg(scene->getScheme(), this, inFile_, outFile_);
-        runDlg.exec();
+        QObjectScopedPointer<QDRunDialog> runDlg = new QDRunDialog(scene->getScheme(), this, inFile_, outFile_);
+        runDlg->exec();
+        CHECK(!runDlg.isNull(), );
     }
 }
 
@@ -890,7 +926,7 @@ void QueryViewController::sl_loadScene() {
         }
     }
     LastUsedDirHelper dir(QUERY_DESIGNER_ID);
-    dir.url = QFileDialog::getOpenFileName(this, tr("Load Schema"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
+    dir.url = U2FileDialog::getOpenFileName(this, tr("Load Schema"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
     if (!dir.url.isEmpty()) {
         QDLoadSceneTask* t = new QDLoadSceneTask(scene, dir.url);
         connect(new TaskSignalMapper(t), SIGNAL(si_taskFinished(Task*)), SLOT(sl_updateTitle()));
@@ -916,7 +952,7 @@ void QueryViewController::sl_saveScene() {
 
 void QueryViewController::sl_saveSceneAs() {
     LastUsedDirHelper dir(QUERY_DESIGNER_ID);
-    dir.url = QFileDialog::getSaveFileName(this, tr("Save Schema"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
+    dir.url = U2FileDialog::getSaveFileName(this, tr("Save Schema"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
     if (!dir.url.isEmpty()) {
         schemeUri = dir.url;
         sl_saveScene();
@@ -1111,6 +1147,7 @@ AddConstraintDialog::AddConstraintDialog(QueryScene* _scene, QDDistanceType _kin
                                          QDElement* defSrc, QDElement* defDst)
 : scene(_scene), kind(_kind) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122030");
 
     QString title = "Add %1 Constraint";
     switch (kind)
@@ -1159,8 +1196,8 @@ AddConstraintDialog::AddConstraintDialog(QueryScene* _scene, QDDistanceType _kin
 void AddConstraintDialog::accept() {
     int min = minSpin->text().toInt();
     int max = maxSpin->text().toInt();
-    QDElement* src = qVariantValue<QDElement*>(fromCBox->itemData(fromCBox->currentIndex()));
-    QDElement* dst = qVariantValue<QDElement*>(toCBox->itemData(toCBox->currentIndex()));
+    QDElement* src = fromCBox->itemData(fromCBox->currentIndex()).value<QDElement*>();
+    QDElement* dst = toCBox->itemData(toCBox->currentIndex()).value<QDElement*>();
     scene->addDistanceConstraint(src, dst, kind, min, max);
     QDialog::accept();
 }
@@ -1178,7 +1215,7 @@ QPixmap QDUtils::generateSnapShot(QDDocument* doc, const QRect& rect) {
 
 QPixmap QDUtils::generateSnapShot( QueryScene* scene, const QRect& rect) {
     //assert(!rect.isNull());
-    QRectF bounds; 
+    QRectF bounds;
     foreach(QGraphicsItem* item, scene->items()) {
         if (item->type()==QDElementType || item->type()==FootnoteItemType) {
             QRectF itemBound = item->boundingRect();
@@ -1193,7 +1230,7 @@ QPixmap QDUtils::generateSnapShot( QueryScene* scene, const QRect& rect) {
     }
 
     QPixmap pixmap(bounds.size().toSize());
-    if (pixmap.isNull()) { // failed to allocate 
+    if (pixmap.isNull()) { // failed to allocate
         uiLog.trace(QString("Failed to allocate pixmap for the QD scene, bounds: x:%1 y:%2 w:%3 h:%4")
             .arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height()));
         QPixmap naPixmap = QPixmap(rect.size());

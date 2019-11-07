@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportTasks.h"
+#include <QtCore/QFileInfo>
 
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/DocumentModel.h>
@@ -30,9 +30,9 @@
 #include <U2Core/DNATranslationImpl.h>
 #include <U2Formats/SCFFormat.h>
 #include <U2Core/Counter.h>
+#include <U2Core/GHints.h>
 #include <U2Core/DNAChromatogramObject.h>
 #include <U2Core/GObjectRelationRoles.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/AddDocumentTask.h>
 #include <U2Core/MSAUtils.h>
 #include <U2Core/TextUtils.h>
@@ -40,20 +40,29 @@
 #include <U2Core/U2SequenceUtils.h>
 
 #include <U2Core/DNASequenceObject.h>
+#include <U2Core/MAlignmentImporter.h>
 #include <U2Core/MAlignmentObject.h>
+
+#include "ExportTasks.h"
 
 namespace U2 {
 
 //////////////////////////////////////////////////////////////////////////
 // DNAExportAlignmentTask
-SaveAlignmentTask::SaveAlignmentTask(const MAlignment& _ma, const QString& _fileName, DocumentFormatId _f)
-: Task("", TaskFlag_None), ma(_ma), fileName(_fileName), format(_f)
+SaveAlignmentTask::SaveAlignmentTask(const MAlignment& _ma, const QString& _fileName, DocumentFormatId _f, const QVariantMap& _hints)
+: Task("", TaskFlag_None),
+  ma(_ma),
+  fileName(_fileName),
+  hints(_hints),
+  format(_f)
 {
     GCOUNTER( cvar, tvar, "ExportAlignmentTask" );
     setTaskName(tr("Export alignment to '%1'").arg(QFileInfo(fileName).fileName()));
     setVerboseLogMode(true);
 
-    assert(!ma.isEmpty());
+    if (ma.isEmpty()) {
+        setError(tr("An alignment is empty"));
+    }
 }
 
 void SaveAlignmentTask::run() {
@@ -61,8 +70,17 @@ void SaveAlignmentTask::run() {
     DocumentFormat* f = r->getFormatById(format);
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(fileName));
     doc.reset(f->createNewLoadedDocument(iof, fileName, stateInfo));
-    doc->addObject(new MAlignmentObject(ma));
-    f->storeDocument(doc.get(), stateInfo);
+
+    MAlignmentObject* obj = MAlignmentImporter::createAlignment(doc->getDbiRef(), ma, stateInfo);
+    CHECK_OP(stateInfo, );
+
+    GHints* docHints = doc->getGHints();
+    foreach(const QString& key, hints.keys()){
+        docHints->set(key, hints[key]);
+    }
+
+    doc->addObject(obj);
+    f->storeDocument(doc.data(), stateInfo);
 }
 
 
@@ -75,6 +93,7 @@ ma(_ma), url(_url), trimAli(_trimAli), format(_format)
 {
     GCOUNTER( cvar, tvar, "ExportMSA2SequencesTask" );
     setVerboseLogMode(true);
+    stateInfo.setProgress(0);
 }
 
 void SaveMSA2SequencesTask::run() {
@@ -96,7 +115,7 @@ void SaveMSA2SequencesTask::run() {
         doc->addObject(new U2SequenceObject(name, seqRef));
         usedNames.insert(name);
     }
-    f->storeDocument(doc.get(), stateInfo);
+    f->storeDocument(doc.data(), stateInfo);
 }
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -84,7 +84,7 @@ PluginDesc PluginDescriptorHelper::readPluginDescriptor(const QString& descUrl, 
         error = L10N::errorOpeningFileRead(descUrl);
         return failResult;
     }
-    
+
     result.descriptorUrl = descUrl;
 
     QByteArray  xmlData = f.readAll();
@@ -96,14 +96,14 @@ PluginDesc PluginDescriptorHelper::readPluginDescriptor(const QString& descUrl, 
         error = L10N::notValidFileFormat("XML", descUrl);
         return failResult;
     }
-    
+
     QDomElement pluginElement = doc.documentElement();
     QString pluginElementName = pluginElement.tagName();
     if (pluginElementName != "ugene-plugin") {
         error = L10N::notValidFileFormat("UGENE plugin", descUrl);
         return failResult;
     }
-    
+
     result.id = pluginElement.attribute("id");
     if (result.id.isEmpty()) {
         error = tr("Required attribute not found %1").arg("id");
@@ -138,7 +138,12 @@ PluginDesc PluginDescriptorHelper::readPluginDescriptor(const QString& descUrl, 
         error = tr("Required element not found %1").arg("library");
         return failResult;
     }
-    
+    QString licenseUrl = QString(result.id+".license");
+    if (QFileInfo(licenseUrl).isRelative()) { //if path is relative, use descriptor dir as 'current folder'
+        licenseUrl = QFileInfo(descUrl).absoluteDir().canonicalPath() + "/" + licenseUrl;
+    }
+    result.licenseUrl = licenseUrl;
+
     result.name = pluginElement.firstChildElement("name").text();
     if (result.name.isNull()) {
         error = tr("Required element not found %1").arg("name");
@@ -165,14 +170,14 @@ PluginDesc PluginDescriptorHelper::readPluginDescriptor(const QString& descUrl, 
         error = tr("Platform arch is unknown: %1").arg(platformNameText);
         return failResult;
     }
-    
+
     QString platformArchText= platformElement.attribute("arch");
     result.platform.arch = archFromText(platformArchText);
     if (result.platform.arch == PlatformArch_Unknown) {
         error = tr("Platform bits is unknown: %1").arg(platformArchText);
         return failResult;
     }
-    
+
     QString debugText = pluginElement.firstChildElement("debug-build").text();
     bool debug = debugText == "true" || debugText == "yes" || debugText.toInt() == 1;
     result.qtVersion.debug = result.ugeneVersion.debug = result.pluginVersion.debug = debug;
@@ -193,21 +198,22 @@ PluginDesc PluginDescriptorHelper::readPluginDescriptor(const QString& descUrl, 
             }
             DependsInfo di;
             di.id = plugAndVersion.at(0);
-            di.version = Version::parseVersion(plugAndVersion.at(1)); 
+            di.version = Version::parseVersion(plugAndVersion.at(1));
             result.dependsList.append(di);
         }
     }
-    
+
     return result;
 }
 
 
 bool PluginDesc::operator == (const PluginDesc& pd) const  {
-    return id == pd.id 
-        && pluginVersion == pd.pluginVersion 
-        && ugeneVersion == pd.ugeneVersion 
+    return id == pd.id
+        && pluginVersion == pd.pluginVersion
+        && ugeneVersion == pd.ugeneVersion
         && qtVersion == pd.qtVersion
         && libraryUrl == pd.libraryUrl
+        && licenseUrl == pd.licenseUrl
         && platform == pd.platform
         && mode == pd.mode;
 }
@@ -229,7 +235,7 @@ public:
     QList<DepNode*>     childNodes; //nodes that depends on this node
     PluginDesc          desc;
 
-    DepNodeState        state; 
+    DepNodeState        state;
     bool                root;
 };
 
@@ -279,7 +285,7 @@ static void orderPostorder(DepNode* node, QList<PluginDesc>& result) {
 static void orderTopological(DepNode* node, QList<PluginDesc>& result) {
     orderPostorder(node, result);
     QList<PluginDesc> topologicalResult;
-    QListIterator<PluginDesc> it(result); 
+    QListIterator<PluginDesc> it(result);
     it.toBack();
     while( it.hasPrevious()) {
         topologicalResult.append(it.previous());
@@ -288,7 +294,7 @@ static void orderTopological(DepNode* node, QList<PluginDesc>& result) {
 }
 
 QList<PluginDesc> PluginDescriptorHelper::orderPlugins(const QList<PluginDesc>& unordered, QString& err) {
-    // Sort plugin using dependency graph. 
+    // Sort plugin using dependency graph.
     // Root node has no dependencies. All child nodes depends on all parents.
     QList<PluginDesc> result;
     if (unordered.isEmpty()) {
@@ -329,7 +335,7 @@ QList<PluginDesc> PluginDescriptorHelper::orderPlugins(const QList<PluginDesc>& 
         }
         queue.append(desc);
     } while (changed && !queue.isEmpty());
-    
+
     if (!queue.isEmpty()) {
         err = tr("Can't satisfy dependencies for %1 !").arg(queue.first().id);
         return unordered;
@@ -339,13 +345,20 @@ QList<PluginDesc> PluginDescriptorHelper::orderPlugins(const QList<PluginDesc>& 
     resetState(allNodes.qlist);
     orderTopological(rootNode, result);
 
+    foreach (const PluginDesc &desc, result) {
+        if (desc.id.contains("pcr", Qt::CaseInsensitive)) {
+            result.removeAll(desc);
+            result.prepend(desc);
+        }
+    }
+
 #ifdef _DEBUG
     assert(result.size() == unordered.size());
     foreach (const PluginDesc& desc, unordered) {
         int idx = result.indexOf(desc);
         assert(idx >= 0);
     }
-#endif    
+#endif
 
     return result;
 }

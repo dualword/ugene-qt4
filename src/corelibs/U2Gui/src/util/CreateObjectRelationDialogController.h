@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,13 @@
 #define _U2_CREATE_OBJECT_RELATION_DIALOG_CONTROLLER_H_
 
 #include <U2Core/global.h>
+#include <U2Core/GObjectRelationRoles.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 class Ui_CreateObjectRelationDialog;
 
@@ -35,15 +40,15 @@ class GObject;
 class U2GUI_EXPORT CreateObjectRelationDialogController : public QDialog {
     Q_OBJECT
 public:
-    CreateObjectRelationDialogController(GObject* obj, const QList<GObject*>& objects, 
-                                        const QString& role, bool removeDuplicates, const QString& relationHint, QWidget* p = NULL);
+    CreateObjectRelationDialogController(GObject* obj, const QList<GObject*>& objects,
+        GObjectRelationRole role, bool removeDuplicates, const QString& relationHint, QWidget* p = NULL);
     ~CreateObjectRelationDialogController();
 
-    GObject*        selectedObject;
-    GObject*        assObj;
-    QList<GObject*> objects;
-    QString         role;
-    bool            removeDuplicates;
+    GObject*            selectedObject;
+    GObject*            assObj;
+    QList<GObject*>     objects;
+    GObjectRelationRole role;
+    bool                removeDuplicates;
 
 public slots:
     virtual void accept();

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,13 +32,15 @@ public:
     MarkerAttribute(const Descriptor& d, const DataTypePtr type, bool required = false, const QVariant & defaultValue = QVariant());
     virtual void setAttributeValue(const QVariant & newVal);
     virtual const QVariant &getAttributePureValue() const;
+    virtual bool isDefaultValue() const;
     virtual Attribute *clone();
     virtual AttributeGroup getGroup();
 
-    QMap<QString, Marker*> &getMarkers();
+    QList<Marker*> & getMarkers();
+    bool contains(const QString &markerId) const;
 
 private:
-    QMap<QString, Marker*> markers;
+    QList<Marker*> markers;
 };
 
 } //U2

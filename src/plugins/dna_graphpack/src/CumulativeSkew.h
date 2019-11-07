@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 
 #include <U2View/GSequenceGraphView.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 #include <QtCore/QList>
 #include <QtCore/QBitArray>
 
@@ -37,9 +41,8 @@ class CumulativeSkewGraphFactory : public GSequenceGraphFactory {
 public:
     enum GCumulativeSkewType { GC, AT };
     CumulativeSkewGraphFactory(GCumulativeSkewType t, QObject* p);
-    virtual QList<GSequenceGraphData*> createGraphs(GSequenceGraphView* v);
-    virtual GSequenceGraphDrawer* getDrawer(GSequenceGraphView* v);
-    virtual bool isEnabled(U2SequenceObject* o) const;
+    virtual QList<QSharedPointer<GSequenceGraphData> > createGraphs(GSequenceGraphView* v);
+    virtual bool isEnabled(const U2SequenceObject* o) const;
 private:
     QPair<char, char> cumPair;
 };
@@ -50,7 +53,7 @@ public:
     virtual ~CumulativeSkewGraphAlgorithm() {}
 
     float getValue(int begin, int end, const QByteArray& seq);
-    virtual void calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& r, const GSequenceGraphWindowData* d);
+    virtual void calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& r, const GSequenceGraphWindowData* d, U2OpStatus &os);
 
 private:
     QPair<char, char> p;

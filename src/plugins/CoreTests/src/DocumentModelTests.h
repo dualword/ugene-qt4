@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,7 @@ class Document;
 class GObject;
 class LoadDocumentTask;
 class SaveDocumentTask;
+class DocumentProviderTask;
 
 class GTest_LoadDocument : public GTest {
     Q_OBJECT
@@ -41,8 +42,10 @@ public:
     SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_LoadDocument, "load-document");
 
     ReportResult report();
+    void prepare();
 
     virtual void cleanup();
+
 
 private:
     QString             docContextName;
@@ -50,6 +53,13 @@ private:
     bool                contextAdded;
     bool                tempFile;
     QString             url;
+    GTestLogHelper      logHelper;
+
+    QString expectedLogMessage;
+    QString expectedLogMessage2;
+    QString unexpectedLogMessage;
+
+    bool                needVerifyLog;
 };
 
 class GTest_SaveDocument : public GTest {
@@ -74,9 +84,57 @@ public:
 
     Document* getDocument() const;
     ReportResult report();
+    void cleanup();
 
 private:
     LoadDocumentTask*   loadTask;
+    QString url;
+    bool tempFile;
+    QString message;
+};
+
+class GTest_ImportDocument : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_ImportDocument, "import-document");
+
+    ReportResult report();
+    void prepare();
+
+    virtual void cleanup();
+
+
+private:
+    QString                 docContextName;
+    DocumentProviderTask*   importTask;
+    bool                    contextAdded;
+    bool                    tempFile;
+    QString                 url;
+    QString                 destUrl;
+    GTestLogHelper          logHelper;
+
+    QString expectedLogMessage;
+    QString expectedLogMessage2;
+    QString unexpectedLogMessage;
+
+    bool                needVerifyLog;
+};
+
+class GTest_ImportBrokenDocument : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_ImportBrokenDocument, "import-broken-document", TaskFlags(TaskFlag_NoRun)| TaskFlag_FailOnSubtaskCancel);
+
+    Document* getDocument() const;
+    ReportResult report();
+    void cleanup();
+
+private:
+    DocumentProviderTask*   importTask;
+    QString url;
+    QString destUrl;
+    bool tempFile;
+    QString message;
 };
 
 class GTest_DocumentNumObjects : public GTest {
@@ -103,7 +161,7 @@ class GTest_DocumentObjectNames : public GTest {
     SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_DocumentObjectNames, "check-document-object-names");
 
     ReportResult report();
-    
+
     QString docContextName;
     QStringList names;
 };
@@ -113,7 +171,7 @@ class GTest_DocumentObjectTypes : public GTest {
     SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_DocumentObjectTypes, "check-document-object-types");
 
     ReportResult report();
-    
+
     QString docContextName;
     QList<GObjectType> types;
 };
@@ -138,20 +196,59 @@ private:
     QString     objName;
     GObjectType type;
     GObject*    result;
-    
+
 };
 
 class GTest_CompareFiles : public GTest {
     Q_OBJECT
     SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CompareFiles, "compare-docs");
-    
+
     ReportResult report();
-    
+
+private:
+    void compareMixed();
+    QByteArray getLine(IOAdapter* io);
+    IOAdapter* createIoAdapter(const QString& filePath);
+
+
+    QString doc1Path;
+    QString doc2Path;
+    bool byLines;
+    QStringList commentsStartWith;
+    bool line_num_only;
+    bool mixed_lines;
+
+    int first_n_lines;
+
+};
+
+class GTest_Compare_VCF_Files : public GTest {
+    Q_OBJECT
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_Compare_VCF_Files, "compare-vcf-docs");
+
+    ReportResult report();
+
+private:
+    IOAdapter* createIoAdapter(const QString& filePath);
+    QByteArray getLine(IOAdapter* io);
+
+    QString doc1Path;
+    QString doc2Path;
+
+    static const QByteArray COMMENT_MARKER;
+};
+
+class GTest_Compare_PDF_Files : public GTest {
+    Q_OBJECT
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_Compare_PDF_Files, "compare-pdf-docs");
+
+    ReportResult report();
+
 private:
     QString doc1Path;
     QString doc2Path;
     bool byLines;
-    
+
 };
 
 }//namespace

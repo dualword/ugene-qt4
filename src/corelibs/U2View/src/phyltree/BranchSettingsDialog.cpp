@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,48 +19,69 @@
  * MA 02110-1301, USA.
  */
 
+#include <QColorDialog>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QPlastiqueStyle>
+#else
+#include <QProxyStyle>
+#include <QStyleFactory>
+#endif
+
+#include <U2Gui/HelpButton.h>
+
 #include "BranchSettingsDialog.h"
-#include <QtGui/QColorDialog>
 
 namespace U2 {
 
-BranchSettingsDialog::BranchSettingsDialog(QWidget *parent, const BranchSettings &branchSettings)
-: QDialog(parent), settings(branchSettings), changedSettings(branchSettings) {
-
+BranchSettingsDialog::BranchSettingsDialog(QWidget *parent, const OptionsMap& settings)
+    : BaseSettingsDialog(parent)
+{
+    changedSettings[BRANCH_COLOR] = settings[BRANCH_COLOR];
+    changedSettings[BRANCH_THICKNESS] = settings[BRANCH_THICKNESS];
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122304");
 
-    thicknessSpinBox->setValue(settings.branchThickness);
+    thicknessSpinBox->setValue(changedSettings[BRANCH_THICKNESS].toInt());
+
+#if (QT_VERSION < 0x050000) //Qt 5
+    QStyle *buttonStyle = new QPlastiqueStyle;
+#else
+    QStyle *buttonStyle = new QProxyStyle(QStyleFactory::create("fusion"));
+#endif
+    buttonStyle->setParent(colorButton);
+    colorButton->setStyle(buttonStyle);
+
     updateColorButton();
 
     connect(colorButton, SIGNAL(clicked()), SLOT(sl_colorButton()));
 }
 
 void BranchSettingsDialog::updateColorButton() {
-
-    static const QString COLOR_STYLE("QPushButton { background-color : %1;}");
-    colorButton->setStyleSheet(COLOR_STYLE.arg(changedSettings.branchColor.name()));
+    QColor branchColor = qvariant_cast<QColor>(changedSettings[BRANCH_COLOR]);
+    QPalette palette = colorButton->palette();
+    palette.setColor(colorButton->backgroundRole(), branchColor);
+    colorButton->setPalette(palette);
 }
 
 void BranchSettingsDialog::sl_colorButton() {
+    QColorDialog::ColorDialogOptions options;
+#ifdef Q_OS_MAC
+    if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+        options |= QColorDialog::DontUseNativeDialog;
+    }
+#endif
 
-    QColor newColor = QColorDialog::getColor(changedSettings.branchColor, this);
+    QColor branchColor = qvariant_cast<QColor>(changedSettings[BRANCH_COLOR]);
+    QColor newColor = QColorDialog::getColor(branchColor, this, tr("Select Color"), options);
     if (newColor.isValid()) {
-        changedSettings.branchColor = newColor;
+        changedSettings[BRANCH_COLOR] = newColor;
         updateColorButton();
     }
 }
 
 void BranchSettingsDialog::accept() {
-
-    changedSettings.branchThickness = thicknessSpinBox->value();
-
-    settings = changedSettings;
+    changedSettings[BRANCH_THICKNESS] = thicknessSpinBox->value();
     QDialog::accept();
-}
-
-BranchSettings BranchSettingsDialog::getSettings() const {
-
-    return settings;
 }
 
 } //namespace

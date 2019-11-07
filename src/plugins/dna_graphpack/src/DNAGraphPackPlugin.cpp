@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -57,12 +57,12 @@ DNAGraphPackPlugin::DNAGraphPackPlugin()
 }
 
 
-DNAGraphPackViewContext::DNAGraphPackViewContext(QObject* p) : GObjectViewWindowContext(p, ANNOTATED_DNA_VIEW_FACTORY_ID) 
+DNAGraphPackViewContext::DNAGraphPackViewContext(QObject* p) : GObjectViewWindowContext(p, ANNOTATED_DNA_VIEW_FACTORY_ID)
 {
     graphFactories.append(new BaseContentGraphFactory(BaseContentGraphFactory::GC, this));
     graphFactories.append(new BaseContentGraphFactory(BaseContentGraphFactory::AG, this));
-	graphFactories.append(new GCFramePlotFactory(this));
-	graphFactories.append(new DeviationGraphFactory(DeviationGraphFactory::GC, this));
+    graphFactories.append(new GCFramePlotFactory(this));
+    graphFactories.append(new DeviationGraphFactory(DeviationGraphFactory::GC, this));
     graphFactories.append(new DeviationGraphFactory(DeviationGraphFactory::AT, this));
     graphFactories.append(new KarlinGraphFactory(this));
     graphFactories.append(new EntropyGraphFactory(this));
@@ -79,8 +79,7 @@ void DNAGraphPackViewContext::initViewContext(GObjectView* view)
         SIGNAL(si_sequenceWidgetAdded(ADVSequenceWidget*)),
         SLOT(sl_sequenceWidgetAdded(ADVSequenceWidget*)));
 
-    foreach(ADVSequenceWidget* sequenceWidget, annotView->getSequenceWidgets())
-    {
+    foreach(ADVSequenceWidget* sequenceWidget, annotView->getSequenceWidgets()) {
         sl_sequenceWidgetAdded(sequenceWidget);
     }
 }
@@ -93,12 +92,12 @@ void DNAGraphPackViewContext::sl_sequenceWidgetAdded(ADVSequenceWidget* _sequenc
         return;
     }
 
-    QList<QAction*> actions;
-    foreach (GSequenceGraphFactory* factory, graphFactories) { 
-        if (!factory->isEnabled(sequenceWidget->getSequenceObject())) {
-            continue;
-        }
+    foreach (GSequenceGraphFactory* factory, graphFactories) {
         GraphAction *action = new GraphAction(factory);
+        if (!factory->isEnabled(sequenceWidget->getSequenceObject())) {
+            action->setDisabled(true);
+        }
+        connect(sequenceWidget, SIGNAL(si_updateGraphView(const QStringList &, const QVariantMap&)), action, SLOT(sl_updateGraphView(const QStringList &, const QVariantMap&)));
         GraphMenuAction::addGraphAction(sequenceWidget->getActiveSequenceContext(), action);
     }
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,28 +22,34 @@
 #include "CSVColumnConfigurationDialog.h"
 
 #include <U2Core/L10n.h>
-#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/Annotation.h>
+#include <U2Gui/HelpButton.h>
 
-#include "QtGui/QMessageBox"
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
 namespace U2 {
 
-CSVColumnConfigurationDialog::CSVColumnConfigurationDialog(QWidget* w, const ColumnConfig& _config) 
+CSVColumnConfigurationDialog::CSVColumnConfigurationDialog(QWidget* w, const ColumnConfig& _config)
 : QDialog(w), config(_config)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122181");
 
     connect(complMarkRB, SIGNAL(toggled(bool)), SLOT(sl_complMarkToggle(bool)));
     connect(startRB, SIGNAL(toggled(bool)), SLOT(sl_startToggle(bool)));
 
     switch(config.role) {
-        case ColumnRole_Ignore: 
-            ignoreRB->setChecked(true); 
+        case ColumnRole_Ignore:
+            ignoreRB->setChecked(true);
             break;
-        case ColumnRole_Name: 
+        case ColumnRole_Name:
             nameRB->setChecked(true);
             break;
-        case ColumnRole_Qualifier: 
+        case ColumnRole_Qualifier:
             qualifierRB->setChecked(true);
             qualifierNameEdit->setText(config.qualifierName);
             break;
@@ -64,9 +70,13 @@ CSVColumnConfigurationDialog::CSVColumnConfigurationDialog(QWidget* w, const Col
             complValueEdit->setText(config.complementMark);
             complValueCheck->setChecked(!config.complementMark.isEmpty());
             break;
+        case ColumnRole_Group:
+            groupRB->setChecked(true);
+            break;
         default:
             assert(0);
     }
+
 }
 
 
@@ -93,6 +103,8 @@ void CSVColumnConfigurationDialog::accept() {
     } else if (complMarkRB->isChecked()) {
         config.role = ColumnRole_ComplMark;
         config.complementMark = complValueCheck->isChecked() ? complValueEdit->text() : QString();
+    } else if (groupRB->isChecked()) {
+        config.role = ColumnRole_Group;
     } else {
         assert(ignoreRB->isChecked());
     }

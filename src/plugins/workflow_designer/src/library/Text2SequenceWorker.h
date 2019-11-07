@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,41 +35,39 @@ public:
 
 protected:
     QString composeRichDoc();
-    
+
 }; // Text2SequencePrompter
 
 class Text2SequenceWorker : public BaseWorker {
     Q_OBJECT
 public:
     static QMap<QString, QString> cuteAlIdNames;
-    
+
 public:
     Text2SequenceWorker(Actor * p) : BaseWorker(p), txtPort(NULL), outSeqPort(NULL), tickedNum(0) {}
 
     virtual void init();
-    virtual bool isReady();
     virtual Task * tick();
-    virtual bool isDone();
     virtual void cleanup();
 
 private:
     static QMap<QString, QString> initCuteAlNames();
-    
+
 private:
     IntegralBus * txtPort;
     IntegralBus * outSeqPort;
     int tickedNum;
-    
+
 }; // Text2SequenceWorker
 
 class Text2SequenceWorkerFactory : public DomainFactory {
 public:
     static const QString ACTOR_ID;
-    
+
     Text2SequenceWorkerFactory() : DomainFactory(ACTOR_ID) {}
     static void init();
     virtual Worker * createWorker(Actor* a);
-    
+
 }; // Text2SequenceWorkerFactory
 
 } // LocalWorkflow

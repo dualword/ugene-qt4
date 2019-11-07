@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
  */
 
 #ifndef _TREE_VIEWER_UTILS_H_
-#define _TREE_VIEWER_UTILS_H
+#define _TREE_VIEWER_UTILS_H_
 
 #include <QtGui/QFont>
 
@@ -36,4 +36,4 @@ public:
 
 }
 
-#endif
+#endif // _TREE_VIEWER_UTILS_H_

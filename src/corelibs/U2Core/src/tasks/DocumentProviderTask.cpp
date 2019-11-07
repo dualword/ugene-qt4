@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,14 +19,15 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QCoreApplication>
+
 #include <U2Core/DocumentModel.h>
 
 #include "DocumentProviderTask.h"
 
-
 namespace U2 {
 
-DocumentProviderTask::DocumentProviderTask(const QString& name, TaskFlags flags) 
+DocumentProviderTask::DocumentProviderTask(const QString& name, TaskFlags flags)
 : Task(name, flags), resultDocument(NULL), docOwner(true)
 {
     documentDescription = tr("[unknown]");
@@ -50,7 +51,7 @@ Document* DocumentProviderTask::getDocument(bool mainThread)  {
 
 Document* DocumentProviderTask::takeDocument(bool mainThread) {
     docOwner = false;
-    return getDocument(mainThread); 
+    return getDocument(mainThread);
 }
 
 } //namespace

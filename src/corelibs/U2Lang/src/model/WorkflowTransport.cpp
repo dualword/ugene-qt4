@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,16 +25,10 @@ namespace U2 {
 
 namespace Workflow {
 
-Message::Message(DataTypePtr _t, const QVariant& d) : id(nextid()), t(_t), data(d) {
-}
+Message::Message(DataTypePtr t, const QVariant &data, int metadataId)
+: t(t), data(data), metadataId(metadataId)
+{
 
-int Message::nextid() {
-    static QAtomicInt id(0);
-    return id.fetchAndAddRelaxed(1); //memory model??
-}
-
-int Message::getId() const {
-    return id;
 }
 
 DataTypePtr Message::getType() const {
@@ -43,6 +37,26 @@ DataTypePtr Message::getType() const {
 
 QVariant Message::getData() const {
     return data;
+}
+
+bool Message::isEmpty() const {
+    if (t->isMap()) {
+        return data.toMap().isEmpty();
+    } else {
+        return data.isNull();
+    }
+}
+
+int Message::getMetadataId() const {
+    return metadataId;
+}
+
+Message Message::getEmptyMapMessage() {
+    static const QVariantMap emptyData;
+    static const QMap<Descriptor, DataTypePtr> emptyTypeMap;
+    static DataTypePtr emptyType(new MapDataType(Descriptor(), emptyTypeMap));
+
+    return Message(emptyType, emptyData, -1);
 }
 
 } //Workflow namespace

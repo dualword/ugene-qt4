@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,24 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include "StructuralAlignmentDialog.h"
-#include "BioStruct3DSubsetEditor.h"
-
-#include <U2Core/GObject.h>
-#include <U2Core/BioStruct3DObject.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/U2OpStatusUtils.h>
+#include <QMessageBox>
 
 #include <U2Algorithm/StructuralAlignmentAlgorithm.h>
 #include <U2Algorithm/StructuralAlignmentAlgorithmFactory.h>
 #include <U2Algorithm/StructuralAlignmentAlgorithmRegistry.h>
 
-#include <QMessageBox>
+#include <U2Core/AppContext.h>
+#include <U2Core/BioStruct3DObject.h>
+#include <U2Core/GObject.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/U2DbiRegistry.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/HelpButton.h>
+
+#include "BioStruct3DSubsetEditor.h"
+#include "StructuralAlignmentDialog.h"
 
 namespace U2 {
-
-/* class StructuralAlignmentDialog : public QDialog, public Ui::StructuralAlignmentDialog */
 
 static QList<BioStruct3DObject*> findAvailableBioStructs() {
     QList<GObject*> objs = GObjectUtils::findAllObjects(UOF_LoadedOnly, GObjectTypes::BIOSTRUCTURE_3D);
@@ -54,6 +56,7 @@ StructuralAlignmentDialog::StructuralAlignmentDialog(const BioStruct3DObject *fi
         : QDialog(parent), task(0)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122202");
 
     StructuralAlignmentAlgorithmRegistry *reg = AppContext::getStructuralAlignmentAlgorithmRegistry();
     foreach (const QString &id, reg->getFactoriesIds()) {
@@ -107,7 +110,8 @@ void StructuralAlignmentDialog::accept() {
     // Since we unable to change mob structure we clone the GObject
     // TODO: clone live-range?
     U2OpStatus2Log os;
-    BioStruct3DObject *mobClone = qobject_cast<BioStruct3DObject*> (mobSubset.obj->clone(U2DbiRef(), os));
+    const U2DbiRef dbiRef = AppContext::getDbiRegistry( )->getSessionTmpDbiRef( os );
+    BioStruct3DObject *mobClone = qobject_cast<BioStruct3DObject*> (mobSubset.obj->clone(dbiRef, os));
     mobSubset.obj = mobClone;
 
     StructuralAlignmentTaskSettings settings(refSubset, mobSubset);

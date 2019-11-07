@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,62 +28,56 @@
 #include <U2Core/ProjectModel.h>
 #include <U2Core/GObjectRelationRoles.h>
 
-
-#include <QtGui/QHBoxLayout>
-#include <QtGui/QVBoxLayout>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QPushButton>
 #include <QtGui/QMessageBox>
+#include <QtGui/QHBoxLayout>
+#include <QtGui/QVBoxLayout>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QVBoxLayout>
+#endif
+
+#include <U2Gui/HelpButton.h>
+#include "ui/ui_CreateAnnotationDialog.h"
 
 namespace U2 {
 
-CreateAnnotationDialog::CreateAnnotationDialog(QWidget* p, CreateAnnotationModel& m) : QDialog(p), model(m){
-    annWidgetController = new CreateAnnotationWidgetController(m, this);
+CreateAnnotationDialog::CreateAnnotationDialog(QWidget* p, CreateAnnotationModel& m) :
+    QDialog(p),
+    model(m),
+    ui(new Ui::CreateAnnotationDialog)
+{
+    ui->setupUi(this);
+    annWidgetController = new CreateAnnotationWidgetController(m, this, CreateAnnotationWidgetController::Full);
     
-    this->setObjectName("new_annotation_dialog");
+    new HelpButton(this, ui->buttonBox, "16122170");
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Create"));
 
-    QHBoxLayout* buttonsLayout = new QHBoxLayout();
-    buttonsLayout->addStretch(1);
-    createButton = new QPushButton(tr("Create"), this);
-    createButton->setObjectName("create_button");
-    buttonsLayout->addWidget(createButton);
-    cancelButton = new QPushButton(tr("Cancel"), this);
-    cancelButton->setObjectName("cancel_button");
-    buttonsLayout->addWidget(cancelButton);
+    ui->mainLayout->insertWidget(0, annWidgetController->getWidget());
     
-    QVBoxLayout* topLayout = new QVBoxLayout();
-    topLayout->setObjectName("new_annotation_dialog_layout");
-    
-    QWidget * annWidget = annWidgetController->getWidget();
-    topLayout->addWidget(annWidget);
-    annWidget->setMinimumSize(annWidget->layout()->minimumSize());
-    annWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    
-    topLayout->addLayout(buttonsLayout);
-    setLayout(topLayout);
-    setMaximumHeight(layout()->minimumSize().height());
-    
-    connect(createButton, SIGNAL(clicked(bool)), SLOT(sl_onCreateClicked(bool)));
-    connect(cancelButton, SIGNAL(clicked(bool)), SLOT(sl_onCancelClicked(bool)));
-    
-    annWidgetController->setFocusToNameEdit();
-    setWindowTitle(tr("Create annotation"));
+    annWidgetController->setFocusToAnnotationType();
 }
 
-void CreateAnnotationDialog::sl_onCreateClicked(bool) {
+CreateAnnotationDialog::~CreateAnnotationDialog() {
+    delete ui;
+}
+
+void CreateAnnotationDialog::accept() {
     QString err = annWidgetController->validate();
     if (!err.isEmpty()) {
         QMessageBox::warning(this, tr("Error"), err);
         return;
     } 
-    annWidgetController->prepareAnnotationObject();
+    bool objectPrepared = annWidgetController->prepareAnnotationObject();
+    if (!objectPrepared){
+        QMessageBox::warning(this, tr("Error"), tr("Cannot create an annotation object. Please check settings"));
+        return;
+    }
     model = annWidgetController->getModel();
-    accept();
+    QDialog::accept();
 }
-
-void CreateAnnotationDialog::sl_onCancelClicked(bool) {
-    reject();
-}
-
-
 
 } // namespace

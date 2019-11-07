@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,13 @@
 
 #include <U2Algorithm/EnzymeModel.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 
 namespace U2 {
 
@@ -52,25 +57,28 @@ public:
     QList<SEnzymeData> getSelectedEnzymes();
     int getNumSelected();
     int getTotalNumber() { return totalEnzymes; }
-       
-    
+
+
 signals:
     void si_selectionModified(int,int);
 private slots:
-    void sl_selectFile();
+    void sl_openEnzymesFile();
+    void sl_saveEnzymesFile();
     void sl_selectAll();
     void sl_selectNone();
     void sl_selectByLength();
     void sl_inverseSelection();
     void sl_saveSelectionToFile();
+    void sl_loadSelectionFromFile();
     void sl_openDBPage();
     void sl_itemChanged(QTreeWidgetItem* item, int col);
+    void sl_filterTextChanged(const QString& filterText);
 private:
     void loadFile(const QString& url);
     void saveFile(const QString& url);
     void setEnzymesList(const QList<SEnzymeData>& enzymes);
     void updateStatus();
-   
+
 
     EnzymeGroupTreeItem* findGroupItem(const QString& s, bool create);
 

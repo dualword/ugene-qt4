@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,10 +39,14 @@ public:
     Workflow::Metadata meta;
 
 private slots:
-   
+
     void sl_onBrowse();
     void sl_onSave();
     void sl_onURLChanged(const QString & text);
+
+private:
+    QPushButton* cancelButton;
+    QPushButton* okButton;
 };
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,10 +28,11 @@
 #include <QtCore/QEventLoop>
 #include <QtCore/QLinkedList>
 #include <QtCore/QMutex>
+#include <QtNetwork/QAuthenticator>
 
 
-class QHttp;
-class QHttpResponseHeader;
+class QNetworkAccessManager;
+class QNetworkReply;
 class QMutex;
 
 namespace U2 {
@@ -69,13 +70,13 @@ class HttpFileAdapter: public IOAdapter {
     Q_OBJECT
 public:
     HttpFileAdapter(HttpFileAdapterFactory* f, QObject* o = NULL);
-    ~HttpFileAdapter() {if (isOpen()) close();}
+    ~HttpFileAdapter();
 
     virtual bool open(const GUrl& url, IOAdapterMode m);
 
-    bool open(const QString& host, const QString & what, const QNetworkProxy & p, quint16 port=80, bool https=false);
+    bool open(const QUrl& url, const QNetworkProxy & p);
 
-    virtual bool isOpen() const {return (bool)http;}
+    virtual bool isOpen() const {return (bool)reply;}
 
     virtual void close();
 
@@ -84,16 +85,18 @@ public:
     virtual qint64 writeBlock(const char* data, qint64 size);
 
     virtual bool skip(qint64 nBytes);
-    
+
     virtual qint64 left() const;
 
     virtual int getProgress() const;
 
     virtual GUrl getURL() const {return gurl;}
 
+    virtual QString errorString() const;
+
 private:
     void        init();
-    qint64      stored() const; 
+    qint64      stored() const;
     inline bool singleChunk() const { return chunk_list.size() == 1; }
     inline int  firstChunkContains() const {return (singleChunk() ? (isEmpty() ? 0 : end_ptr - begin_ptr) :
                                            CHUNKSIZE - begin_ptr);}
@@ -106,28 +109,28 @@ private:
     qint64 waitData( qint64 until );
 
     static const int CHUNKSIZE = 32 * 1024;
-    QLinkedList<QByteArray> chunk_list; 
+    QLinkedList<QByteArray> chunk_list;
     QByteArray cache;
     bool is_cached;
     int begin_ptr; //pointer to the first byte of data in first chunk
-    int end_ptr; //pointer to the first free byte in last chunk 
+    int end_ptr; //pointer to the first free byte in last chunk
 
-    QHttp * http;
+    QNetworkAccessManager * netManager;
+    QNetworkReply * reply;
     bool badstate;
     bool is_downloaded;
     int downloaded;
     int total;
 
-//    QMutex condmut;
-//    QWaitCondition cond;
     QMutex rwmut;
     QEventLoop loop;
     GUrl gurl;
 private slots:
-    void add_data( const QHttpResponseHeader & resp );
-    void done( bool error );
-    void state( int state ); //debug only
-    void progress( int done, int total );
+    void add_data();
+    void done();
+    void progress( qint64 done, qint64 total );
+    void onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*);
+
 };
 
 

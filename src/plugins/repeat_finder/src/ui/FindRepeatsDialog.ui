@@ -9,12 +9,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>635</width>
-    <height>351</height>
+    <width>699</width>
+    <height>420</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Find repeats</string>
+   <string>Find Repeats</string>
   </property>
   <property name="windowIcon">
    <iconset>
@@ -45,8 +45,11 @@
               <height>0</height>
              </size>
             </property>
+            <property name="toolTip">
+             <string>Number of bases in a sliding window that is moved along the sequence</string>
+            </property>
             <property name="text">
-             <string>Minimum repeat length</string>
+             <string>Window size</string>
             </property>
            </widget>
           </item>
@@ -118,8 +121,11 @@
           </item>
           <item row="1" column="0">
            <widget class="QLabel" name="label_3">
+            <property name="toolTip">
+             <string>How similar the two windows of the sequence</string>
+            </property>
             <property name="text">
-             <string>Repeats  identity</string>
+             <string>Minimum indentity per window</string>
             </property>
            </widget>
           </item>
@@ -337,19 +343,6 @@
          </property>
         </widget>
        </item>
-       <item>
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>37</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="tab_2">
@@ -363,14 +356,14 @@
           <string>Advanced parameters</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_2">
-          <item row="0" column="0">
+          <item row="0" column="1">
            <widget class="QCheckBox" name="algoCheck">
             <property name="text">
              <string>Custom algorithm</string>
             </property>
            </widget>
           </item>
-          <item row="0" column="1">
+          <item row="0" column="2">
            <spacer name="horizontalSpacer_10">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -383,21 +376,21 @@
             </property>
            </spacer>
           </item>
-          <item row="0" column="2">
+          <item row="0" column="3">
            <widget class="QComboBox" name="algoCombo">
             <property name="enabled">
              <bool>false</bool>
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="1" column="1">
            <widget class="QCheckBox" name="annotationFitCheck">
             <property name="text">
              <string>Search only for repeats that lie inside of an annotated region</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="1" column="2">
            <spacer name="horizontalSpacer_6">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -410,7 +403,7 @@
             </property>
            </spacer>
           </item>
-          <item row="1" column="2">
+          <item row="1" column="3">
            <widget class="QLineEdit" name="annotationFitEdit">
             <property name="enabled">
              <bool>false</bool>
@@ -429,7 +422,7 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="3">
+          <item row="1" column="4">
            <widget class="QToolButton" name="annotationFitButton">
             <property name="enabled">
              <bool>false</bool>
@@ -439,14 +432,14 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="2" column="1">
            <widget class="QCheckBox" name="annotationAroundKeepCheck">
             <property name="text">
              <string>Search only for repeats that have an annotated region inside</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
+          <item row="2" column="2">
            <spacer name="horizontalSpacer_12">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -459,7 +452,7 @@
             </property>
            </spacer>
           </item>
-          <item row="2" column="2">
+          <item row="2" column="3">
            <widget class="QLineEdit" name="annotationAroundKeepEdit">
             <property name="enabled">
              <bool>false</bool>
@@ -478,7 +471,7 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="3">
+          <item row="2" column="4">
            <widget class="QToolButton" name="annotationAroundKeepButton">
             <property name="enabled">
              <bool>false</bool>
@@ -488,14 +481,14 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
+          <item row="3" column="1">
            <widget class="QCheckBox" name="annotationAroundFilterCheck">
             <property name="text">
              <string>Filter repeats that have an annotated region inside</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="3" column="2">
            <spacer name="horizontalSpacer_13">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -508,7 +501,7 @@
             </property>
            </spacer>
           </item>
-          <item row="3" column="2">
+          <item row="3" column="3">
            <widget class="QLineEdit" name="annotationAroundFilterEdit">
             <property name="enabled">
              <bool>false</bool>
@@ -527,7 +520,7 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="3">
+          <item row="3" column="4">
            <widget class="QToolButton" name="annotationAroundFilterButton">
             <property name="enabled">
              <bool>false</bool>
@@ -537,34 +530,14 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
-           <widget class="QCheckBox" name="allowNestedCheck">
-            <property name="text">
-             <string>Do not filter nested repeats</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1" colspan="3">
-           <spacer name="horizontalSpacer_11">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>247</width>
-              <height>12</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="5" column="0">
+          <item row="7" column="1">
            <widget class="QCheckBox" name="invertCheck">
             <property name="text">
              <string>Search for inverted repeats</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="1" colspan="3">
+          <item row="7" column="2" colspan="3">
            <spacer name="horizontalSpacer_7">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -577,14 +550,14 @@
             </property>
            </spacer>
           </item>
-          <item row="6" column="0">
+          <item row="8" column="1">
            <widget class="QCheckBox" name="excludeTandemsBox">
             <property name="text">
              <string>Exclude tandems areas</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="1" colspan="3">
+          <item row="8" column="2" colspan="3">
            <spacer name="horizontalSpacer_4">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -596,6 +569,33 @@
              </size>
             </property>
            </spacer>
+          </item>
+          <item row="6" column="2">
+           <spacer name="horizontalSpacer_11">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>247</width>
+              <height>12</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="6" column="3">
+           <widget class="QComboBox" name="filterAlgorithms">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QLabel" name="allowNestedLabel">
+            <property name="text">
+             <string>Nested repeats filter algorithm</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -646,61 +646,19 @@
        </property>
       </spacer>
      </item>
-     <item>
-      <widget class="QPushButton" name="startButton">
-       <property name="text">
-        <string>Start</string>
-       </property>
-       <property name="default">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
-      </widget>
-     </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
  <resources/>
  <connections>
-  <connection>
-   <sender>startButton</sender>
-   <signal>clicked()</signal>
-   <receiver>FindRepeatsDialog</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>416</x>
-     <y>518</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>273</x>
-     <y>270</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>cancelButton</sender>
-   <signal>clicked()</signal>
-   <receiver>FindRepeatsDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>499</x>
-     <y>518</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>273</x>
-     <y>270</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>maxDistCheck</sender>
    <signal>toggled(bool)</signal>
@@ -712,8 +670,8 @@
      <y>165</y>
     </hint>
     <hint type="destinationlabel">
-     <x>446</x>
-     <y>165</y>
+     <x>602</x>
+     <y>169</y>
     </hint>
    </hints>
   </connection>
@@ -728,8 +686,8 @@
      <y>138</y>
     </hint>
     <hint type="destinationlabel">
-     <x>446</x>
-     <y>138</y>
+     <x>602</x>
+     <y>143</y>
     </hint>
    </hints>
   </connection>
@@ -740,12 +698,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>140</x>
-     <y>194</y>
+     <x>161</x>
+     <y>106</y>
     </hint>
     <hint type="destinationlabel">
-     <x>431</x>
-     <y>194</y>
+     <x>571</x>
+     <y>108</y>
     </hint>
    </hints>
   </connection>
@@ -756,12 +714,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>140</x>
-     <y>194</y>
+     <x>161</x>
+     <y>106</y>
     </hint>
     <hint type="destinationlabel">
-     <x>516</x>
-     <y>194</y>
+     <x>602</x>
+     <y>107</y>
     </hint>
    </hints>
   </connection>
@@ -772,12 +730,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>140</x>
-     <y>228</y>
+     <x>161</x>
+     <y>80</y>
     </hint>
     <hint type="destinationlabel">
-     <x>446</x>
-     <y>228</y>
+     <x>571</x>
+     <y>82</y>
     </hint>
    </hints>
   </connection>
@@ -788,12 +746,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>145</x>
-     <y>254</y>
+     <x>166</x>
+     <y>158</y>
     </hint>
     <hint type="destinationlabel">
-     <x>485</x>
-     <y>254</y>
+     <x>571</x>
+     <y>160</y>
     </hint>
    </hints>
   </connection>
@@ -804,12 +762,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>145</x>
-     <y>254</y>
+     <x>166</x>
+     <y>158</y>
     </hint>
     <hint type="destinationlabel">
-     <x>570</x>
-     <y>254</y>
+     <x>602</x>
+     <y>159</y>
     </hint>
    </hints>
   </connection>
@@ -820,12 +778,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>145</x>
-     <y>227</y>
+     <x>166</x>
+     <y>132</y>
     </hint>
     <hint type="destinationlabel">
-     <x>485</x>
-     <y>227</y>
+     <x>571</x>
+     <y>134</y>
     </hint>
    </hints>
   </connection>
@@ -836,12 +794,44 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>145</x>
-     <y>227</y>
+     <x>166</x>
+     <y>132</y>
     </hint>
     <hint type="destinationlabel">
-     <x>570</x>
-     <y>227</y>
+     <x>602</x>
+     <y>133</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>FindRepeatsDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>317</x>
+     <y>330</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>317</x>
+     <y>175</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>FindRepeatsDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>317</x>
+     <y>330</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>317</x>
+     <y>175</y>
     </hint>
    </hints>
   </connection>

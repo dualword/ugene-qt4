@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@
 #include "GenericReadActor.h"
 #include "CoreLib.h"
 #include "DocActors.h"
+#include "util/DatasetValidator.h"
 
 #include <U2Lang/WorkflowEnv.h>
 #include <U2Designer/DelegateEditors.h>
@@ -31,6 +32,7 @@
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseAttributes.h>
 #include <U2Lang/BaseActorCategories.h>
+#include <U2Lang/URLAttribute.h>
 
 #include <U2Core/DNAInfo.h>
 #include <U2Core/DNASequenceObject.h>
@@ -49,21 +51,45 @@
 namespace U2 {
 namespace Workflow {
 
+/************************************************************************/
+/* GenericReadDocProto */
+/************************************************************************/
+#define ICOLOR QColor(85,85,255)
+
+GenericReadDocProto::GenericReadDocProto(const Descriptor &desc)
+    : ReadDbObjActorPrototype(desc)
+{
+    {
+        attrs << new URLAttribute(BaseAttributes::URL_IN_ATTRIBUTE(),
+            BaseTypes::URL_DATASETS_TYPE(), true);
+    }
+
+    setEditor(new DelegateEditor(QMap<QString, PropertyDelegate*>()));
+
+    if(AppContext::isGUIMode()) {
+        setIcon( GUIUtils::createRoundIcon(ICOLOR, 22) );
+    }
+
+    setValidator(new DatasetValidator());
+}
+
 const QString GenericSeqActorProto::MODE_ATTR("mode");
 const QString GenericSeqActorProto::GAP_ATTR("merge-gap");
 const QString GenericSeqActorProto::ACC_ATTR("accept-accession");
+const QString GenericSeqActorProto::LIMIT_ATTR("sequence-count-limit");
 
 const QString GenericSeqActorProto::TYPE("generic.seq");
 const QString GenericMAActorProto::TYPE("generic.ma");
 
-#define ICOLOR QColor(85,85,255)
+GenericSeqActorProto::GenericSeqActorProto() : GenericReadDocProto(CoreLibConstants::GENERIC_READ_SEQ_PROTO_ID)
+{
+    setCompatibleDbObjectTypes(QSet<GObjectType>() << GObjectTypes::SEQUENCE);
 
-GenericSeqActorProto::GenericSeqActorProto() : IntegralBusActorPrototype(CoreLibConstants::GENERIC_READ_SEQ_PROTO_ID)
-{    
-    setDisplayName(U2::Workflow::CoreLib::tr("Read sequence"));
+    setDisplayName(U2::Workflow::CoreLib::tr("Read Sequence"));
     desc = U2::Workflow::CoreLib::tr("Reads sequences and annotations if any from local or remote files.");
     QMap<Descriptor, DataTypePtr> m;
     m[BaseSlots::URL_SLOT()] = BaseTypes::STRING_TYPE();
+    m[BaseSlots::DATASET_SLOT()] = BaseTypes::STRING_TYPE();
     m[BaseSlots::DNA_SEQUENCE_SLOT()] = BaseTypes::DNA_SEQUENCE_TYPE();
     m[BaseSlots::ANNOTATION_TABLE_SLOT()] = BaseTypes::ANNOTATION_TABLE_TYPE();
 
@@ -71,63 +97,71 @@ GenericSeqActorProto::GenericSeqActorProto() : IntegralBusActorPrototype(CoreLib
     bool treg = WorkflowEnv::getDataTypeRegistry()->registerEntry(seqTypeset);
     Q_UNUSED(treg);assert(treg);
 
-    ports << new PortDescriptor(Descriptor(BasePorts::OUT_SEQ_PORT_ID(), U2::Workflow::CoreLib::tr("Sequence"), 
-                                            U2::Workflow::CoreLib::tr("A sequence of any type (nucleotide, protein).")), 
+    ports << new PortDescriptor(Descriptor(BasePorts::OUT_SEQ_PORT_ID(), U2::Workflow::CoreLib::tr("Sequence"),
+                                            U2::Workflow::CoreLib::tr("A sequence of any type (nucleotide, protein).")),
                                 seqTypeset, false, true);
     {
-        Descriptor md(GenericSeqActorProto::MODE_ATTR, SeqReadPrompter::tr("Mode"), 
-            SeqReadPrompter::tr("If the file contains more than one sequence, \"split\" mode sends them as is to output," 
-            "while \"merge\" appends all the sequences and outputs the sole merged sequence."));
-        Descriptor gd(GenericSeqActorProto::GAP_ATTR, SeqReadPrompter::tr("Merging gap"), 
-            SeqReadPrompter::tr("In the \"merge\" mode, insert the specified number of gaps between original sequences."
-            "This is helpful e.g. to avoid finding false positives at the merge boundaries."));
-        Descriptor acd(GenericSeqActorProto::ACC_ATTR, SeqReadPrompter::tr("Accession filter"), 
-            SeqReadPrompter::tr("Only report sequence with the specified accession (id)."));
+        Descriptor md(GenericSeqActorProto::MODE_ATTR, SeqReadPrompter::tr("Mode"),
+            SeqReadPrompter::tr("If the file contains more than one sequence, <i>Split</i> mode sends them \"as is\" to the output, "
+            "while <i>Merge</i> appends all the sequences and outputs the sole merged sequence."));
+        Descriptor gd(GenericSeqActorProto::GAP_ATTR, SeqReadPrompter::tr("Merging gap"),
+            SeqReadPrompter::tr("In <i>Merge</i> mode, the specified number of gaps are inserted between the original sequences. "
+            "This is helpful, for example, to avoid finding false positives at the merge boundaries."));
+        Descriptor acd(GenericSeqActorProto::ACC_ATTR, SeqReadPrompter::tr("Accession filter"),
+            SeqReadPrompter::tr("Reports only sequences containing the specified regular expression."
+                                "<p><i>Leave it empty to switch off this filter. Use <b>*</b> and <b>?</b> to mask some symbols.</i></p>"));
+        Descriptor ld(LIMIT_ATTR, SeqReadPrompter::tr("Sequence count limit"),
+            SeqReadPrompter::tr("<i>Split mode</i> only."
+            "<p>Read only first N sequences from each file."
+            "<br>Set 0 value for reading all sequences.</p>"));
 
-        attrs << new Attribute(BaseAttributes::URL_IN_ATTRIBUTE(), BaseTypes::STRING_TYPE(), true);
         attrs << new Attribute(md, BaseTypes::NUM_TYPE(), true, SPLIT);
         attrs << new Attribute(gd, BaseTypes::NUM_TYPE(), false, 10);
-        attrs << new Attribute(acd, BaseTypes::STRING_TYPE(), false);
+        attrs << new Attribute(ld, BaseTypes::NUM_TYPE(), false, 0);
+        attrs << new Attribute(acd, BaseTypes::STRING_TYPE(), false, QString());
     }
 
     QMap<QString, PropertyDelegate*> delegates;
-    QVariantMap modeMap; 
-    modeMap[SeqReadPrompter::tr("Split")] = SPLIT;
-    modeMap[SeqReadPrompter::tr("Merge")] = MERGE;
-    delegates[MODE_ATTR] = new ComboBoxDelegate(modeMap);
+    {
+        QVariantMap modeMap;
+        QString splitStr = SeqReadPrompter::tr("Split");
+        QString mergeStr = SeqReadPrompter::tr("Merge");
+        modeMap[splitStr] = SPLIT;
+        modeMap[mergeStr] = MERGE;
+        getEditor()->addDelegate(new ComboBoxDelegate(modeMap), MODE_ATTR);
+    }
     {
         QVariantMap m; m["minimum"] = 0; m["maximum"] = INT_MAX;
-        delegates[GAP_ATTR] = new SpinBoxDelegate(m);
+        getEditor()->addDelegate(new SpinBoxDelegate(m), GAP_ATTR);
+        getEditor()->addDelegate(new SpinBoxDelegate(m), LIMIT_ATTR);
     }
-    delegates[BaseAttributes::URL_IN_ATTRIBUTE().getId()] = new URLDelegate(DialogUtils::prepareDocumentsFileFilter(true), QString(), true);
-    setEditor(new DelegateEditor(delegates));
     setPrompter(new ReadDocPrompter(U2::Workflow::CoreLib::tr("Reads sequence(s) from <u>%1</u>.")));
-    
-    if(AppContext::isGUIMode()) {
-        setIcon( GUIUtils::createRoundIcon(ICOLOR, 22) );
-    }
+
+    QString seqSlotId = BasePorts::OUT_SEQ_PORT_ID() + "." + BaseSlots::DNA_SEQUENCE_SLOT().getId();
+    QString annsSlotId = BasePorts::OUT_SEQ_PORT_ID() + "." + BaseSlots::ANNOTATION_TABLE_SLOT().getId();
 }
 
-GenericMAActorProto::GenericMAActorProto() : IntegralBusActorPrototype(CoreLibConstants::GENERIC_READ_MA_PROTO_ID) 
+GenericMAActorProto::GenericMAActorProto() : GenericReadDocProto(CoreLibConstants::GENERIC_READ_MA_PROTO_ID)
 {
-    setDisplayName(U2::Workflow::CoreLib::tr("Read alignment"));
+    setCompatibleDbObjectTypes(QSet<GObjectType>() << GObjectTypes::MULTIPLE_ALIGNMENT);
+
+    setDisplayName(U2::Workflow::CoreLib::tr("Read Alignment"));
     desc = U2::Workflow::CoreLib::tr("Reads multiple sequence alignments (MSAs) from local or remote files."
         "<p>Besides the known alignment formats, it supports composing an alignment from a set of sequences in a corresponding file (e.g. FASTA or Genbank).");
 
     QMap<Descriptor, DataTypePtr> m;
     m[BaseSlots::URL_SLOT()] = BaseTypes::STRING_TYPE();
+    m[BaseSlots::DATASET_SLOT()] = BaseTypes::STRING_TYPE();
     m[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     DataTypePtr blockTypeset(new MapDataType(Descriptor(TYPE), m));
     bool treg = WorkflowEnv::getDataTypeRegistry()->registerEntry(blockTypeset);
     Q_UNUSED(treg);assert(treg);
 
-    ports << new PortDescriptor(Descriptor(BasePorts::OUT_MSA_PORT_ID(), U2::Workflow::CoreLib::tr("Multiple sequence alignment"), ""), 
+    ports << new PortDescriptor(Descriptor(BasePorts::OUT_MSA_PORT_ID(), U2::Workflow::CoreLib::tr("Multiple sequence alignment"), ""),
                                 blockTypeset, false, true);
-    
-    attrs << new Attribute(BaseAttributes::URL_IN_ATTRIBUTE(), BaseTypes::STRING_TYPE(), true);
-    setEditor(new DelegateEditor(BaseAttributes::URL_IN_ATTRIBUTE().getId(), new URLDelegate(DialogUtils::prepareDocumentsFileFilter(true), QString(),true)));
+
     setPrompter(new ReadDocPrompter(U2::Workflow::CoreLib::tr("Reads MSA(s) from <u>%1</u>.")));
-    
+
     if( AppContext::isGUIMode() ) {
         setIcon( GUIUtils::createRoundIcon(ICOLOR, 22) );
     }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,48 +19,55 @@
  * MA 02110-1301, USA.
  */
 
+#include <QPushButton>
+#include <QMessageBox>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include "AddNewDocumentDialogImpl.h"
 #include "DocumentFormatComboboxController.h"
-
-#include <U2Gui/GUIUtils.h>
-#include <U2Gui/DialogUtils.h>
-#include <U2Core/L10n.h>
-#include <U2Core/Settings.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/AppContext.h>
-
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
 
 namespace U2 {
 
 //BUG:419: add label to dialog with state description!
 
-#define SETTINGS_LASTFORMAT		"add_new_document/last_format"
-#define SETTINGS_LASTDIR		"add_new_document/last_dir"
+#define SETTINGS_LASTFORMAT     "add_new_document/last_format"
+#define SETTINGS_LASTDIR        "add_new_document/last_dir"
 
 AddNewDocumentDialogImpl::AddNewDocumentDialogImpl(QWidget* p, AddNewDocumentDialogModel& m, const DocumentFormatConstraints& c) 
 : QDialog(p), model(m)
 {
-	setupUi(this);
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122203");
+    if (model.format.isEmpty()) {
+        model.format = AppContext::getSettings()->getValue(SETTINGS_LASTFORMAT, QString("")).toString();
+    }
+    
+    documentURLEdit->setText(model.url);
+    formatController = new DocumentFormatComboboxController(this, documentTypeCombo, c, model.format);
+    model.successful = false;
+    
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Create"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
-	if (model.format.isEmpty()) {
-		model.format = AppContext::getSettings()->getValue(SETTINGS_LASTFORMAT, QString("")).toString();
-	}
-	
-	documentURLEdit->setText(model.url);
-	formatController = new DocumentFormatComboboxController(this, documentTypeCombo, c, model.format);
-	model.successful = false;
+    connect(documentURLButton, SIGNAL(clicked()), SLOT(sl_documentURLButtonClicked()));
+    QPushButton *createButton = buttonBox->button(QDialogButtonBox::Ok);
+    connect(createButton, SIGNAL(clicked()), SLOT(sl_createButtonClicked()));
+    connect(documentURLEdit, SIGNAL(editingFinished()), SLOT(sl_documentURLEdited()));
+    connect(documentTypeCombo, SIGNAL(currentIndexChanged(int)), SLOT(sl_typeComboCurrentChanged(int)));
+    connect(gzipCheckBox, SIGNAL(toggled(bool)), SLOT(sl_gzipChecked(bool)));
 
-	connect(documentURLButton, SIGNAL(clicked()), SLOT(sl_documentURLButtonClicked()));
-	connect(createButton, SIGNAL(clicked()), SLOT(sl_createButtonClicked()));
-	connect(documentURLEdit, SIGNAL(editingFinished()), SLOT(sl_documentURLEdited()));
-	connect(documentTypeCombo, SIGNAL(currentIndexChanged(int)), SLOT(sl_typeComboCurrentChanged(int)));
-	connect(gzipCheckBox, SIGNAL(toggled(bool)), SLOT(sl_gzipChecked(bool)));
-
-	updateState();
+    updateState();
 }
 
 void AddNewDocumentDialogController::run(QWidget* p, AddNewDocumentDialogModel& m, const DocumentFormatConstraints& c) {
@@ -71,25 +78,27 @@ void AddNewDocumentDialogController::run(QWidget* p, AddNewDocumentDialogModel& 
         return;
     }
 
-	AddNewDocumentDialogImpl d(p, m, c);
-	d.exec();
-	m = d.model;
+    QObjectScopedPointer<AddNewDocumentDialogImpl> d = new AddNewDocumentDialogImpl(p, m, c);
+    d->exec();
+    CHECK(!d.isNull(), );
+
+    m = d->model;
     assert(proj->findDocumentByURL(m.url) == NULL);
 }
 
 void AddNewDocumentDialogImpl::updateState() {
-	bool ready = formatController->hasSelectedFormat();
-	
-	if (ready) {
-		const QString& url = currentURL();
-		ready = !url.isEmpty() && QFileInfo(url).absoluteDir().exists();
-		if (ready) {
-			Project* p = AppContext::getProject();
-			ready = p->findDocumentByURL(url) == NULL;
-		}
-	}
-	
-	createButton->setDisabled(!ready);
+    bool ready = formatController->hasSelectedFormat();
+    
+    if (ready) {
+        const QString& url = currentURL();
+        ready = !url.isEmpty() && QFileInfo(url).absoluteDir().exists();
+        if (ready) {
+            Project* p = AppContext::getProject();
+            ready = p->findDocumentByURL(url) == NULL;
+        }
+    }
+    
+    //createButton->setDisabled(!ready);
 }
 
 
@@ -132,7 +141,7 @@ void AddNewDocumentDialogImpl::sl_documentURLButtonClicked() {
 		url = AppContext::getSettings()->getValue(SETTINGS_LASTDIR, QString("")).toString();
     }
     QString filter = DialogUtils::prepareDocumentsFileFilter(formatController->getActiveFormatId(), false);
-	QString name = QFileDialog::getSaveFileName(this, tr("Save file"), url, filter);
+	QString name = U2FileDialog::getSaveFileName(this, tr("Save file"), url, filter);
 	if (!name.isEmpty()) {
 		documentURLEdit->setText(name);	
 		AppContext::getSettings()->setValue(SETTINGS_LASTDIR, QFileInfo(name).absoluteDir().absolutePath());

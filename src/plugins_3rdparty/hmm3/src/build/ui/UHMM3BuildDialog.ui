@@ -6,14 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>690</width>
-    <height>260</height>
+    <width>691</width>
+    <height>309</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>Dialog</string>
+  <property name="minimumSize">
+   <size>
+    <width>691</width>
+    <height>309</height>
+   </size>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout">
+  <property name="windowTitle">
+   <string>Hmm3 Build</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_11">
    <item>
     <widget class="QTabWidget" name="dlgMainTabWidget">
      <property name="cursor">
@@ -30,17 +36,17 @@
      </property>
      <widget class="QWidget" name="inputAndOutputTab">
       <attribute name="title">
-       <string>input and output</string>
+       <string>Input and output</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_13">
-       <item>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
         <layout class="QVBoxLayout" name="verticalLayout_7">
          <item>
           <layout class="QGridLayout" name="gridLayout">
            <item row="0" column="0">
             <widget class="QLabel" name="maLoadFromFileLabel">
              <property name="text">
-              <string>Alignment file:</string>
+              <string>Input alignment file</string>
              </property>
             </widget>
            </item>
@@ -57,7 +63,7 @@
            <item row="1" column="0">
             <widget class="QLabel" name="outHmmfileLabel">
              <property name="text">
-              <string>Build to profile:</string>
+              <string>Build to profile</string>
              </property>
             </widget>
            </item>
@@ -75,7 +81,7 @@
          </item>
         </layout>
        </item>
-       <item>
+       <item row="1" column="1">
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -88,42 +94,11 @@
          </property>
         </spacer>
        </item>
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_9">
-         <item>
-          <spacer name="horizontalSpacer_4">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>58</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QPushButton" name="okButton">
-           <property name="text">
-            <string>Build</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="cancelButton">
-           <property name="text">
-            <string>Cancel</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="mcTab">
       <attribute name="title">
-       <string>model construction strategies</string>
+       <string>Construction strategies</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
@@ -161,7 +136,7 @@
               <string/>
              </property>
              <property name="text">
-              <string>sym fraction:</string>
+              <string>Sym fraction</string>
              </property>
             </widget>
            </item>
@@ -183,10 +158,10 @@
          <item>
           <widget class="QRadioButton" name="mcHandRadioButton">
            <property name="toolTip">
-            <string>manual construction</string>
+            <string>Manual construction</string>
            </property>
            <property name="text">
-            <string>hand (requires reference annotation)</string>
+            <string>Hand (requires reference annotation)</string>
            </property>
           </widget>
          </item>
@@ -204,7 +179,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>tag sequence as a fragment, if L &lt; x*&lt;L&gt;, where x is:</string>
+              <string>Tag sequence as a fragment, if L &lt; x*&lt;L&gt;, where x is:</string>
              </property>
             </widget>
            </item>
@@ -245,7 +220,7 @@
      </widget>
      <widget class="QWidget" name="rswTab">
       <attribute name="title">
-       <string>relative sequence weighting strategies</string>
+       <string>Relative weighting</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>
@@ -303,7 +278,7 @@
               <bool>false</bool>
              </property>
              <property name="text">
-              <string>identity cutoff:</string>
+              <string>Identity cutoff</string>
              </property>
             </widget>
            </item>
@@ -328,14 +303,14 @@
          <item>
           <widget class="QRadioButton" name="wnoneRSWRadioButton">
            <property name="text">
-            <string>don't do any relative weighting; set all to 1</string>
+            <string>Skip relative weighting; set all to 1</string>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QRadioButton" name="wgivenRSWRadioButton">
            <property name="text">
-            <string>use weights as given in MSA file</string>
+            <string>Use weights given in alignment file</string>
            </property>
           </widget>
          </item>
@@ -358,7 +333,7 @@
      </widget>
      <widget class="QWidget" name="eswTab">
       <attribute name="title">
-       <string>effective sequence weighting strategies</string>
+       <string>Effective weighting</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_9">
        <item>
@@ -366,7 +341,7 @@
          <item>
           <widget class="QRadioButton" name="eentESWRadioButton">
            <property name="text">
-            <string>adjust effective sequence number to achieve relative entropy target</string>
+            <string>Adjust effective sequence number to achieve relative entropy target</string>
            </property>
            <property name="checked">
             <bool>true</bool>
@@ -400,7 +375,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>set minimum relative entropy/position to:</string>
+              <string>Minimum relative entropy/position</string>
              </property>
             </widget>
            </item>
@@ -452,7 +427,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>set sigma parameter to:</string>
+              <string>Sigma parameter</string>
              </property>
             </widget>
            </item>
@@ -485,7 +460,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>effective sequence number is number of single linkage clusters</string>
+              <string>Use number of single linkage clusters as effective</string>
              </property>
             </widget>
            </item>
@@ -495,7 +470,7 @@
               <bool>false</bool>
              </property>
              <property name="text">
-              <string>fractional identity cutoff:</string>
+              <string>Fractional identity cutoff</string>
              </property>
             </widget>
            </item>
@@ -520,7 +495,7 @@
          <item>
           <widget class="QRadioButton" name="enoneESWRadioButton">
            <property name="text">
-            <string>no effective sequence number weighting: just use number of sequences</string>
+            <string>Use number of sequences as effective</string>
            </property>
           </widget>
          </item>
@@ -535,7 +510,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>set effective sequence number for all models to:</string>
+              <string>Effective sequence number for all models to</string>
              </property>
             </widget>
            </item>
@@ -573,7 +548,7 @@
      </widget>
      <widget class="QWidget" name="evalCalibratonTab">
       <attribute name="title">
-       <string>e-value calibration</string>
+       <string>E-value calibration</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_10">
        <item>
@@ -592,7 +567,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>length of sequences for MSV Gumbel mu fit:</string>
+              <string>Length of sequences for MSV Gumbel mu fit</string>
              </property>
             </widget>
            </item>
@@ -628,7 +603,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>number of sequences for MSV Gumbel mu fit:</string>
+              <string>Number of sequences for MSV Gumbel mu fit</string>
              </property>
             </widget>
            </item>
@@ -661,7 +636,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>length of sequences for Viterbi Gumbel mu fit:</string>
+              <string>Length of sequences for Viterbi Gumbel mu fit</string>
              </property>
             </widget>
            </item>
@@ -691,7 +666,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>number of sequences for Viterbi Gumbel mu fit:</string>
+              <string>Number of sequences for Viterbi Gumbel mu fit</string>
              </property>
             </widget>
            </item>
@@ -721,7 +696,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>length of sequences for Forward exp tail mu fit:</string>
+              <string>Length of sequences for Forward exp tail mu fit</string>
              </property>
             </widget>
            </item>
@@ -751,7 +726,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>number of sequences for Forward exp tail mu fit:</string>
+              <string>Number of sequences for Forward exp tail mu fit</string>
              </property>
             </widget>
            </item>
@@ -781,7 +756,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>tail mass for Forward exponential tail mu fit:</string>
+              <string>Tail mass for Forward exponential tail mu fit</string>
              </property>
             </widget>
            </item>
@@ -822,7 +797,7 @@
      </widget>
      <widget class="QWidget" name="otherTab">
       <attribute name="title">
-       <string>other</string>
+       <string>Other</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_12">
        <item>
@@ -838,7 +813,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>random generator seed:</string>
+              <string>Random generator seed</string>
              </property>
             </widget>
            </item>
@@ -881,7 +856,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>* if 0: one-time arbitrary seed used</string>
+              <string>* 0 means that one-time arbitrary seed will be used</string>
              </property>
             </widget>
            </item>
@@ -904,6 +879,13 @@
        </item>
       </layout>
      </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
     </widget>
    </item>
   </layout>

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,6 +35,15 @@ public:
     
     static bool getShowCoordsOnRuler();
     static void setShowCoordsOnRuler(bool what);
+
+    static bool getShowCoverageOnRuler();
+    static void setShowCoverageOnRuler(bool what);
+
+    static bool getReadHintEnabled();
+    static void setReadHintEnabled(bool what);
+
+    static bool getOptimizeRenderOnScroll();
+    static void setOptimizeRenderOnScroll(bool what);
     
 }; // AssemblyBrowserSettings
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,24 +23,38 @@
 #define _U2_TEXT_OBJECT_H_
 
 #include <U2Core/GObject.h>
+#include <U2Core/U2RawData.h>
+#include <U2Core/UdrRecord.h>
+
 #include "GObjectTypes.h"
 
 namespace U2 {
 
+class U2CORE_EXPORT U2Text : public U2RawData {
+public:
+    U2Text();
+    U2Text(const U2DbiRef &dbiRef);
+
+    U2DataType getType() const;
+};
+
 class U2CORE_EXPORT TextObject: public GObject {
     Q_OBJECT
 public:
-    TextObject(const QString& _text, const QString& objectName, const QVariantMap& hintsMap = QVariantMap()) 
-        : GObject(GObjectTypes::TEXT, objectName, hintsMap), text(_text){};
+    static TextObject * createInstance(const QString &text, const QString &objectName,
+        const U2DbiRef &dbiRef, U2OpStatus &os, const QVariantMap &hintsMap = QVariantMap());
 
-    virtual const QString& getText() const {return text;}
+    TextObject(const QString &objectName, const U2EntityRef &textRef,
+        const QVariantMap &hintsMap = QVariantMap());
 
-    virtual void setText(const QString& newText);
+    QString getText() const;
 
-    virtual GObject* clone(const U2DbiRef&, U2OpStatus&) const;
+    void setText(const QString &newText);
 
-protected:
-    QString text;
+    GObject * clone(const U2DbiRef &dstDbiRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap()) const;
+
+private:
+    void commitTextToDB(const QString &newText);
 };
 
 }//namespace

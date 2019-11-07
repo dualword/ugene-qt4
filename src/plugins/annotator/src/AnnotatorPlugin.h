@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include <U2Gui/ObjectViewModel.h>
 
 #include <QtCore/QMap>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 
 namespace U2 {
@@ -45,10 +49,13 @@ private:
 class AnnotatorViewContext: public GObjectViewWindowContext {
     Q_OBJECT
 public:
-    AnnotatorViewContext(QObject* p);
+    AnnotatorViewContext(QObject* p, bool customFeaturesAvailable);
+private:
+    bool customFeaturesAvailable;
 
 protected slots:
     void sl_showCollocationDialog();
+    void sl_showCustomAutoAnnotationDialog();
 
 protected:
     virtual void initViewContext(GObjectView* view);

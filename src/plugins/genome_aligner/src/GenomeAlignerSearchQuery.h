@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,8 +31,6 @@
 namespace U2 {
 
 class GenomeAlignerIndex;
-class FindInPartSubTask;
-class PrepareVectorsSubTask;
 
 class CacheResult {
 public:
@@ -71,12 +69,13 @@ public:
     SearchQuery *getRevCompl() {return revCompl;}
     void setRevCompl(SearchQuery *rc) {revCompl = rc;}
 
+    qint64 memoryHint() const;
 private:
     //U2AssemblyRead assRead;
     DNAQuality *quality;
     char *seq;
     char *name;
-    quint32 seqLength; 
+    quint32 seqLength;
     quint32 nameLength;
     bool dna;
     bool wroteResult;

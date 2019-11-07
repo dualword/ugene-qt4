@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,6 +48,7 @@ static const QString MAX_LEN("max-len");
 HMM2QDActor::HMM2QDActor( QDActorPrototype const* proto ) : QDActor(proto) {
     units["hmm"] = new QDSchemeUnit(this);
     cfg->setAnnotationKey("hmm_signal");
+    CHECK(NULL != proto->getEditor(), );
     PropertyDelegate* evpd = proto->getEditor()->getDelegate(DOM_E_ATTR);
     connect(evpd, SIGNAL(si_valueChanged(int)), SLOT(sl_evChanged(int)));
 }
@@ -105,9 +106,9 @@ Task* HMM2QDActor::getAlgorithmTask( const QVector<U2Region>& location ) {
 void HMM2QDActor::sl_onTaskFinished(Task*) {
     QString aname = cfg->getAnnotationKey();
     foreach(HMMSearchTask* t, offsets.keys()) {
-        QList<SharedAnnotationData> annotations = t->getResultsAsAnnotations(aname);
+        QList<SharedAnnotationData> annotations = t->getResultsAsAnnotations(U2FeatureTypes::MiscSignal, aname);
         int offset = offsets.value(t);
-        foreach(SharedAnnotationData d, annotations) {
+        foreach (const SharedAnnotationData &d, annotations) {
             U2Region r = d->location->regions.first();
             if (r.length < getMinResultLen() || r.length > getMaxResultLen()) {
                 continue;
@@ -125,6 +126,7 @@ void HMM2QDActor::sl_onTaskFinished(Task*) {
 }
 
 void HMM2QDActor::sl_evChanged(int i) {
+    CHECK(NULL != proto->getEditor(), );
     PropertyDelegate* pd = proto->getEditor()->getDelegate(DOM_E_ATTR);
     SpinBoxDelegate* evpd = qobject_cast<SpinBoxDelegate*>(pd);
     assert(evpd);

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -81,7 +81,7 @@ public:
     };
 
     //return 0 if at the end of file, -1 if error
-    virtual qint64 readUntil(char* buff, qint64 maxSize, const QBitArray& readTerminators, 
+    virtual qint64 readUntil(char* buff, qint64 maxSize, const QBitArray& readTerminators,
         TerminatorHandling th, bool* terminatorFound = 0);
 
     virtual bool getChar(char* buff) {return 1 == readBlock(buff, 1);}
@@ -107,15 +107,18 @@ public:
 
     /* Percent values in range 0..100, negative if unknown. */
     virtual int getProgress() const = 0;
-    
+
     bool isEof();
-    
+
     virtual qint64 bytesRead() const { return -1; }
-    
+
     virtual GUrl getURL() const = 0;
 
     virtual QString toString() const {return getURL().getURLString();}
-    
+
+    /* Returns a human-readable description of the last device error that occurred */
+    virtual QString errorString() const = 0;
+
 private:
     IOAdapterFactory* factory;
 };
@@ -141,6 +144,7 @@ public:
     static const IOAdapterId GZIPPED_HTTP_FILE;
     static const IOAdapterId VFS_FILE;
     static const IOAdapterId STRING;
+    static const IOAdapterId DATABASE_CONNECTION;
 };
 
 

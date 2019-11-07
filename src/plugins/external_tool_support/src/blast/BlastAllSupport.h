@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Gui/ObjectViewModel.h>
 
-#define BLASTALL_TOOL_NAME "BlastAll"
+#define ET_BLASTALL "BlastAll"
 #define BLASTALL_TMP_DIR    "blast_all"
 
 namespace U2 {

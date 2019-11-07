@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,12 +35,26 @@ public:
     ~PhyTreeGeneratorTask(){};
     void run();
     PhyTree getResult() { return result; }
-    const CreatePhyTreeSettings& getSettings() { return settings; } 
+    const CreatePhyTreeSettings& getSettings() { return settings; }
     ReportResult report();
 protected:
     const MAlignment&           inputMA;
     PhyTree                     result;
     CreatePhyTreeSettings       settings;
+};
+
+class SeqNamesConvertor {
+public:
+    SeqNamesConvertor() : lastIdStr("a") {}
+
+    void replaceNamesWithAlphabeticIds(MAlignment& ma);
+    void restoreNames(const PhyTree& tree);
+
+private:
+    const QString& generateNewAlphabeticId();
+
+    QString lastIdStr;
+    QMap<QString, QString> namesMap;
 };
 
 class U2ALGORITHM_EXPORT PhyTreeGeneratorLauncherTask: public Task{
@@ -52,12 +66,16 @@ public:
     void prepare();
     void run(){};
     ReportResult report();
+private slots:
+    void sl_onCalculationCanceled();
 private:
-    const MAlignment&           inputMA;
+    MAlignment                  inputMA;
     PhyTree                     result;
     CreatePhyTreeSettings       settings;
     PhyTreeGeneratorTask*       task;
+    SeqNamesConvertor           namesConvertor;
 };
+
 
 } //namespace
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,33 +19,47 @@
  * MA 02110-1301, USA.
  */
 
-#include "DocumentFormatRegistryImpl.h"
-
 #include <U2Core/AppContext.h>
 #include <U2Core/DbiDocumentFormat.h>
+#include <U2Core/RawDataUdrSchema.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <U2Formats/PlainTextFormat.h>
-#include <U2Formats/FastaFormat.h>
-#include <U2Formats/GenbankPlainTextFormat.h>
-#include <U2Formats/EMBLPlainTextFormat.h>
 #include <U2Formats/ABIFormat.h>
-#include <U2Formats/SCFFormat.h>
-#include <U2Formats/RawDNASequenceFormat.h>
+#include <U2Formats/ASNFormat.h>
+#include <U2Formats/AceFormat.h>
+#include <U2Formats/AceImporter.h>
+#include <U2Formats/BedFormat.h>
 #include <U2Formats/ClustalWAlnFormat.h>
-#include <U2Formats/StockholmFormat.h>
+#include <U2Formats/DatabaseConnectionFormat.h>
+#include <U2Formats/DifferentialFormat.h>
+#include <U2Formats/EMBLPlainTextFormat.h>
+#include <U2Formats/FastaFormat.h>
+#include <U2Formats/FastqFormat.h>
+#include <U2Formats/FpkmTrackingFormat.h>
+#include <U2Formats/GFFFormat.h>
+#include <U2Formats/GTFFormat.h>
+#include <U2Formats/GenbankPlainTextFormat.h>
+#include <U2Formats/MSFFormat.h>
+#include <U2Formats/MegaFormat.h>
+#include <U2Formats/MysqlDbi.h>
+#include <U2Formats/NEXUSFormat.h>
 #include <U2Formats/NewickFormat.h>
 #include <U2Formats/PDBFormat.h>
-#include <U2Formats/FastqFormat.h>
-#include <U2Formats/ASNFormat.h>
-#include <U2Formats/MSFFormat.h>
-#include <U2Formats/GFFFormat.h>
-#include <U2Formats/SAMFormat.h>
-#include <U2Formats/NEXUSFormat.h>
-#include <U2Formats/MegaFormat.h>
-#include <U2Formats/ACEFormat.h>
 #include <U2Formats/PDWFormat.h>
-#include <U2Formats/SwissProtPlainTextFormat.h>
+#include <U2Formats/PhylipFormat.h>
+#include <U2Formats/PlainTextFormat.h>
+#include <U2Formats/RawDNASequenceFormat.h>
+#include <U2Formats/SAMFormat.h>
+#include <U2Formats/SCFFormat.h>
 #include <U2Formats/SQLiteDbi.h>
+#include <U2Formats/SimpleSNPVariationFormat.h>
+#include <U2Formats/StockholmFormat.h>
+#include <U2Formats/SwissProtPlainTextFormat.h>
+#include <U2Formats/VCF4VariationFormat.h>
+#include <U2Formats/VectorNtiSequenceFormat.h>
+
+#include "DocumentFormatRegistryImpl.h"
 
 namespace U2 {
 
@@ -76,7 +90,8 @@ DocumentFormat* DocumentFormatRegistryImpl::selectFormatByFileExtension(const QS
     return NULL;
 }
 
-QList<DocumentFormatId> DocumentFormatRegistryImpl::selectFormats(const DocumentFormatConstraints& c) const {
+QList<DocumentFormatId> DocumentFormatRegistryImpl::selectFormats(const DocumentFormatConstraints& c) const
+{
     QList<DocumentFormatId> ids;
     foreach(DocumentFormat* df, formats) {
         if (df->checkConstraints(c)) {
@@ -106,11 +121,15 @@ DocumentFormat* DocumentFormatRegistryImpl::getFormatById(DocumentFormatId id) c
 
 
 void DocumentFormatRegistryImpl::init() {
+    U2OpStatusImpl os;
+    RawDataUdrSchema::init(os);
+    SAFE_POINT_OP(os, );
+
     PlainTextFormat* text = new PlainTextFormat(this);
-    registerFormat(text);   
+    registerFormat(text);
 
     FastaFormat* fasta = new FastaFormat(this);
-    registerFormat(fasta);  
+    registerFormat(fasta);
 
     GenbankPlainTextFormat* gb = new GenbankPlainTextFormat(this);
     registerFormat(gb);
@@ -138,7 +157,7 @@ void DocumentFormatRegistryImpl::init() {
 
     NewickFormat* nwf = new NewickFormat(this);
     registerFormat(nwf);
-    
+
     PDBFormat* pdb = new PDBFormat(this);
     registerFormat(pdb);
 
@@ -151,27 +170,59 @@ void DocumentFormatRegistryImpl::init() {
     MSFFormat* msf = new MSFFormat(this);
     registerFormat(msf);
 
+    BedFormat* bed = new BedFormat(this);
+    registerFormat(bed);
+
     GFFFormat *gff = new GFFFormat(this);
     registerFormat(gff);
+
+    GTFFormat* gtf = new GTFFormat(this);
+    registerFormat(gtf);
+
+    FpkmTrackingFormat* fpkmTr = new FpkmTrackingFormat(this);
+    registerFormat(fpkmTr);
 
     NEXUSFormat* nexus = new NEXUSFormat(this);
     registerFormat(nexus);
 
     SAMFormat *sam = new SAMFormat(this);
-    sam->setNeverDetect(true);
     registerFormat(sam);
 
     MegaFormat *meg = new MegaFormat(this);
     registerFormat(meg);
 
-    ACEFormat *ace = new ACEFormat(this);
-    registerFormat(ace);
+    ACEFormat *aceFormat = new ACEFormat(this);
+    registerFormat(aceFormat);
+
+    AceImporter *aceImporter = new AceImporter();
+    importSupport.addDocumentImporter(aceImporter);
 
     PDWFormat *pdw = new PDWFormat(this);
     registerFormat(pdw);
 
+    SimpleSNPVariationFormat *snp = new SimpleSNPVariationFormat(this);
+    registerFormat(snp);
+
+    VCF4VariationFormat *vcf4 = new VCF4VariationFormat(this);
+    registerFormat(vcf4);
+
+    DifferentialFormat *diff = new DifferentialFormat(this);
+    registerFormat(diff);
+
+    PhylipInterleavedFormat *phIn = new PhylipInterleavedFormat(this);
+    registerFormat(phIn);
+
+    PhylipSequentialFormat *phSeq = new PhylipSequentialFormat(this);
+    registerFormat(phSeq);
+
+    registerFormat(new DatabaseConnectionFormat(this));
+    registerFormat(new VectorNtiSequenceFormat(this));
+
     AppContext::getDbiRegistry()->registerDbiFactory(new SQLiteDbiFactory());
-    DbiDocumentFormat* sdbi = new DbiDocumentFormat(SQLiteDbiFactory::ID, "usqlite", tr("UGENE Database"), QStringList()<<"ugenedb" );
+    AppContext::getDbiRegistry()->registerDbiFactory(new MysqlDbiFactory());
+
+    DocumentFormatFlags flags(DocumentFormatFlag_SupportWriting);
+    DbiDocumentFormat* sdbi = new DbiDocumentFormat(SQLiteDbiFactory::ID, BaseDocumentFormats::UGENEDB, tr("UGENE Database"), QStringList()<<"ugenedb", flags);
     registerFormat(sdbi);
 }
 

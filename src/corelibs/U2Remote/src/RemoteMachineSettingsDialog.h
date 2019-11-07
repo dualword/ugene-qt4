@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,14 @@
 #ifndef _U2_REMOTE_MACHINE_SETTINGS_DIALOG_H_
 #define _U2_REMOTE_MACHINE_SETTINGS_DIALOG_H_
 
-#include <QtGui/QDialog>
-
 #include <U2Remote/RemoteMachine.h>
 #include <U2Remote/ProtocolUI.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 #include <ui/ui_RemoteMachineSettingsDialog.h>
 
@@ -36,19 +40,19 @@ class RemoteMachineSettingsDialog : public QDialog, public Ui::RemoteMachineSett
 public:
     RemoteMachineSettingsDialog(QWidget* parent, const RemoteMachineSettingsPtr& settings = RemoteMachineSettingsPtr());
     ~RemoteMachineSettingsDialog();
-    
+
     RemoteMachineSettingsPtr getMachineSettings() const;
 
 private slots:
     void sl_okPushButtonClicked();
-    
+
 private:
     void showErrorLabel(const QString& error);
     void createMachineSettings();
     RemoteMachineSettingsPtr        machineSettings;
     QString                         protoId;
     ProtocolUI*                     currentUi;
-    
+
 }; // RemoteMachineSettingsDialog
 
 } // U2

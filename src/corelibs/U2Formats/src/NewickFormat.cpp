@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,21 +19,23 @@
  * MA 02110-1301, USA.
  */
 
-#include "NewickFormat.h"
-
-#include <U2Core/U2OpStatus.h>
+#include <U2Core/DatatypeSerializeUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/TextUtils.h>
-#include <U2Core/U2SafePoints.h>
 #include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
+#include <U2Core/U2SafePoints.h>
+
+#include "NewickFormat.h"
 
 namespace U2 {
 
 /* TRANSLATOR U2::IOAdapter */
 /* TRANSLATOR U2::NewickFormat */
 
-NewickFormat::NewickFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags_W1) 
+NewickFormat::NewickFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags_W1)
 {
     fileExtensions << "nwk" << "newick" << "nh" << "ph";
     formatName = tr("Newick Standard");
@@ -44,41 +46,13 @@ NewickFormat::NewickFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags_W
 
 #define BUFF_SIZE 1024
 
-static QList<GObject*> parseTrees(IOAdapter* io, U2OpStatus& si);
+static QList<GObject*> parseTrees(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap &fs, U2OpStatus& si);
 
 Document* NewickFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os){
-    QList<GObject*> objects = parseTrees(io, os);
+    QList<GObject*> objects = parseTrees(io, dbiRef, fs, os);
     CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
     Document* d = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs);
     return d;
-}
-
-static void writeNode(IOAdapter* io, PhyNode* node) {
-    int branches = node->branches.size();
-    if (branches == 1 && (node->name == "" || node->name == "ROOT")) {
-        assert(node != node->branches[0]->node2);
-        writeNode(io, node->branches[0]->node2);
-        return;
-    }
-    if (branches > 1) {
-        io->writeBlock("(", 1);
-        bool first = true;
-        for (int i = 0; i < branches; ++i) {
-            if (node->branches[i]->node2 != node) {
-                if (first) {
-                    first = false;
-                } else {
-                    io->writeBlock(",", 1);
-                }
-                writeNode(io, node->branches[i]->node2);
-                io->writeBlock(":", 1);
-                io->writeBlock(QByteArray::number(node->branches[i]->distance));
-            }
-        }
-        io->writeBlock(")", 1);
-    } else {
-        io->writeBlock(node->name.replace(' ', '_').toAscii());
-    }
 }
 
 void NewickFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
@@ -88,8 +62,8 @@ void NewickFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
     foreach(GObject* obj, d->getObjects()) {
         PhyTreeObject* phyObj = qobject_cast<PhyTreeObject*>(obj);
         if (phyObj != NULL) {
-            writeNode(io, phyObj->getTree()->rootNode);
-            io->writeBlock(";\n", 2);
+            QByteArray data = NewickPhyTreeSerializer::serialize(phyObj->getTree());
+            io->writeBlock(data.constData(), data.size());
         }
     }
 }
@@ -104,7 +78,19 @@ FormatCheckResult NewickFormat::checkRawData(const QByteArray& rawData, const GU
     int brackets = 0;
     typedef enum { letter, letter_than_whites, any } Cases;
     Cases last = any;
+    bool quotedLabelStarted = false;
     for (int i = 0; i < size; ++i) {
+        if('\'' == data[i]) {
+            if(!quotedLabelStarted && i > 0 && (data[i-1] == '(' || data[i-1] == ',')) {
+                quotedLabelStarted = true;
+            } else if(quotedLabelStarted) {
+                quotedLabelStarted = false;
+            }
+            continue;
+        }
+        if(quotedLabelStarted) {
+            continue;
+        }
         switch (data[i]) {
             case '(':
                 ++brackets;
@@ -153,136 +139,24 @@ FormatCheckResult NewickFormat::checkRawData(const QByteArray& rawData, const GU
     return FormatDetection_HighSimilarity;
 }
 
-
-/* TODO:
- Unquoted labels may not contain blanks, parentheses, square brackets, single_quotes, colons, semicolons, or commas.
- Single quote characters in a quoted label are represented by two single quotes.
- Blanks or tabs may appear anywhere except within unquoted labels or branch_lengths.
- Newlines may appear anywhere except within labels or branch_lengths.
- Comments are enclosed in square brackets and may appear anywhere newlines are permitted. 
-*/
-static QList<GObject*> parseTrees(IOAdapter *io, U2OpStatus& si) {
+static QList<GObject*> parseTrees(IOAdapter *io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& si) {
     QList<GObject*> objects;
-    QByteArray block(BUFF_SIZE, '\0');
-    int blockLen;
-    bool done = true;
-    
-    QBitArray ops(256);
-    ops['('] = ops[')'] = ops[':']  = ops[','] = ops[';'] = true;
-    enum ReadState {RS_NAME, RS_WEIGHT};
-    ReadState state = RS_NAME;
-    QString lastStr;
-    PhyNode *rd = new PhyNode();
+    DbiOperationsBlock opBlock(dbiRef, si);
+    CHECK_OP(si, objects);
+    Q_UNUSED(opBlock);
+    QList<PhyTree> trees = NewickPhyTreeSerializer::parseTrees(io, si);
+    CHECK_OP(si, objects);
 
-    QStack<PhyNode*> nodeStack;
-    QStack<PhyBranch*>  branchStack;
-    nodeStack.push(rd);
-    while ((blockLen = io->readBlock(block.data(), BUFF_SIZE)) > 0) {
-        for (int i = 0; i < blockLen; ++i) {
-            unsigned char c = block[i];
-            if (TextUtils::WHITES[(uchar)c]) {
-                continue;
-            }
-            done = false;
-            if (!ops[(uchar)c]) { //not ops -> cache
-                lastStr.append(c);
-                continue;
-            }
-            // use cached value
-            if (state == RS_NAME) {
-                nodeStack.top()->name = lastStr.replace('_', ' ');
-            } else {
-                assert(state == RS_WEIGHT);
-                if (!branchStack.isEmpty()) { //ignore root node weight if present
-                    if (nodeStack.size() < 2) {
-                        si.setError(NewickFormat::tr("Unexpected weight: %1").arg(lastStr));
-                    }
-                    bool ok = false;
-                    branchStack.top()->distance = lastStr.toDouble(&ok);
-                    if (!ok) {
-                        si.setError(NewickFormat::tr("Error parsing weight: %1").arg(lastStr));
-                        break;
-                    }           
-                }
-            }
-            
-            // advance in state
-            if (c == '(') { //new child
-                assert(!nodeStack.isEmpty());
-                PhyNode* pn = new PhyNode();
-                PhyBranch* bd = PhyNode::addBranch(nodeStack.top(),pn, 0);
-                nodeStack.push(pn);
-                branchStack.push(bd);
-                state = RS_NAME;
-            } else if (c == ':') { //weight start
-                if (state == RS_WEIGHT) {
-                    si.setError(NewickFormat::tr("Unexpected weight start token: %1").arg(lastStr));
-                    break;
-                }
-                state = RS_WEIGHT;
-            } else if ( c == ',') { //new sibling
-                assert(!nodeStack.isEmpty());
-                assert(!branchStack.isEmpty());
-                if (nodeStack.isEmpty() || branchStack.isEmpty()) {
-                    si.setError(NewickFormat::tr("Unexpected new sibling %1").arg(lastStr));
-                    break;
-                }
-                nodeStack.pop();
-                branchStack.pop();
-                PhyNode* pn = new PhyNode();
-                PhyBranch* bd = PhyNode::addBranch(nodeStack.top(), pn, 0);
-                nodeStack.push(pn);
-                branchStack.push(bd);
-                state = RS_NAME;
-            } else if ( c == ')' ) { //end of the branch, go up
-                nodeStack.pop();
-                if (nodeStack.isEmpty()) {
-                    si.setError(NewickFormat::tr("Unexpected closing bracket :%1").arg(lastStr));
-                    break;
-                }
-                assert(!branchStack.isEmpty());
-                branchStack.pop();
-                state = RS_NAME;
-            } else if (c == ';') {
-                if (!branchStack.isEmpty() || nodeStack.size()!=1) {
-                    si.setError(NewickFormat::tr("Unexpected end of file"));
-                    break;
-                }
-                PhyTree tree(new PhyTreeData());
-                tree->rootNode = nodeStack.pop();
-                QString objName = (objects.size() == 0) ? QString("Tree") : QString("Tree%1").arg(objects.size() + 1);
-                objects.append(new PhyTreeObject(tree, objName));
-                nodeStack.push(rd = new PhyNode());
-                done = true;
-            } 
-            lastStr.clear();
-        }
-        if (si.isCoR()) {
-            delete rd;
-            rd = NULL;
-            break;
-        }
-        si.setProgress(io->getProgress());
+    for (int i=0; i<trees.size(); i++) {
+        PhyTree tree = trees[i];
+        QString objName = (0 == i) ? QString("Tree") : QString("Tree%1").arg(i + 1);
+        QVariantMap hints;
+        hints.insert(DocumentFormat::DBI_FOLDER_HINT, fs.value(DocumentFormat::DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER));
+        PhyTreeObject *obj = PhyTreeObject::createInstance(tree, objName, dbiRef, si, hints);
+        CHECK_OP(si, objects);
+        objects.append(obj);
     }
-    if (!si.isCoR()) {
-        if (!branchStack.isEmpty() || nodeStack.size()!=1) {
-            delete rd;
-            si.setError(NewickFormat::tr("Unexpected end of file"));
-            return objects;
-        }
-        if (!done) {
-            PhyNode *node = nodeStack.pop();
-            PhyTree tree(new PhyTreeData());
-            tree->rootNode = node;
-            QString objName = (objects.size() == 0) ? QString("Tree") : QString("Tree%1").arg(objects.size() + 1);
-            objects.append(new PhyTreeObject(tree, objName));
-        } else {
-            delete rd;
-            if (objects.empty()) {
-                si.setError(NewickFormat::tr("Empty file"));
-            }
-        }
-    }
+
     return objects;
 }
 

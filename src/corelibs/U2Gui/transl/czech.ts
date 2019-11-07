@@ -485,7 +485,7 @@
     <name>DownloadRemoteFileDialog</name>
     <message>
         <location filename="../src/util/ui/DownloadRemoteFileDialog.ui" line="14"/>
-        <source>Fetch data from remote database</source>
+        <source>Fetch Data from Remote Database</source>
         <translation>Natáhnout data ze vzdálené databáze</translation>
     </message>
     <message>
@@ -1516,7 +1516,7 @@ complement(5..15)</source>
     </message>
     <message>
         <location filename="../src/util/ExportImageDialog.cpp" line="248"/>
-        <source>Save image to...</source>
+        <source>Save Image As</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

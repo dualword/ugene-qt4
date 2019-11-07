@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,8 @@
 
 namespace U2 {
 
-    const QString BuiltInDistanceAlgorithms::HAMMING_ALGO("Hamming");
+    const QString BuiltInDistanceAlgorithms::HAMMING_ALGO("Hamming dissimilarity");
+	const QString BuiltInDistanceAlgorithms::SIMILARITY_ALGO("Identity");
     const QString BuiltInDistanceAlgorithms::HAMMING_REVCOMPL_ALGO("Hamming reverse-complement");
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,13 +27,21 @@
 #include "QueryPalette.h"
 #include "QDDocument.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsItem>
 #include <QtGui/QGraphicsTextItem>
+#include <QtGui/QGraphicsSceneMouseEvent>
+#else
+#include <QtWidgets/QGraphicsItem>
+#include <QtWidgets/QGraphicsTextItem>
+#include <QtWidgets/QGraphicsSceneMouseEvent>
+#endif
 #include <QtGui/QFontMetricsF>
 #include <QtGui/QKeyEvent>
-#include <QtGui/QGraphicsSceneMouseEvent>
 
 #include <QtCore/QFlag>
+
+#define GRID_STEP 40
 
 class QTextDocument;
 
@@ -41,14 +49,6 @@ namespace U2 {
 
 class QueryViewController;
 class QueryScene;
-
-#define GRID_STEP 40
-
-inline qreal round(qreal val, int step) {
-    int tmp = int(val) + step /2;
-    tmp -= tmp % step;
-    return qreal(tmp);
-}
 
 enum {
     QDElementType = QGraphicsItem::UserType + 1,
@@ -84,7 +84,7 @@ public:
     void setBoundingRect(const QRectF& r) { bound=r; }
     QRectF boundingRect() const { return bound; }
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget /* = 0 */);
-    
+
     void saveState(QDElementStatement* el) const;
     void loadState(QDElementStatement* el);
     //returns constraint's connection point in scene coords
@@ -102,7 +102,7 @@ public:
     void rememberSize();
 
     bool highlighted;
-    
+
     enum {Type = QDElementType};
     int type() const {return Type;}
     enum ResizeFlag {

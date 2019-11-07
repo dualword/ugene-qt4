@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,9 @@
 #define _U2_BOWTIE_TASK_H_
 
 #include <U2Algorithm/DnaAssemblyTask.h>
+#include <U2Core/ExternalToolRunTask.h>
 
-#include "ExternalToolRunTask.h"
+#include <QtCore/QTemporaryFile>
 
 namespace U2 {
 
@@ -119,9 +120,15 @@ public:
     static const QString OPTION_ALL;
     static const QString OPTION_COLORSPACE;
     static const QString OPTION_THREADS;
+
+    static const QStringList indexSuffixes;
+    static const QStringList largeIndexSuffixes;
 private:
     BowtieBuildIndexTask *buildIndexTask;
     BowtieAssembleTask *assembleTask;
+
+    Task* unzipTask;
+    QTemporaryFile temp;
 };
 
 class BowtieTaskFactory : public DnaAssemblyToRefTaskFactory {

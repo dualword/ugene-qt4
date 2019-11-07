@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,25 +25,67 @@
 #include <U2Lang/LocalDomain.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNASequence.h>
+#include <U2Core/DocumentModel.h>
 #include <U2Core/MAlignment.h>
 
 namespace U2 {
+
+class DatasetFilesIterator;
+
 namespace LocalWorkflow {
 
+class GenericDocReader : public BaseWorker {
+    Q_OBJECT
+public:
+    GenericDocReader(Actor *a) : BaseWorker(a), ch(NULL), files(NULL) {}
+    virtual ~GenericDocReader();
+
+    virtual void init();
+    virtual Task *tick();
+    virtual bool isDone() const;
+    virtual void cleanup() {}
+
+protected slots:
+    virtual void sl_datasetEnded();
+
+protected:
+    virtual void onTaskFinished(Task *task) = 0;
+    virtual Task * createReadTask(const QString &url, const QString &datasetName);
+    // The method is to be overridden in subclasses capable of reading from shared DBs.
+    // Returns a name of data for metadata.
+    virtual QString addReadDbObjectToData(const QString &objUrl, QVariantMap &data);
+
+    SharedDbiDataHandler getDbObjectHandlerByUrl(const QString &url) const;
+    QString getObjectName(const SharedDbiDataHandler &handler, const U2DataType &type) const;
+
+    CommunicationChannel *ch;
+    QList<Message> cache;
+    DataTypePtr mtype;
+    DatasetFilesIterator *files;
+
+private:
+    void readObjectFromDb(const QString &url, const QString &datasetName);
+
+private slots:
+    void sl_taskFinished();
+};
+
+/************************************************************************/
+/* Inherited classes */
+/************************************************************************/
 class DNASelector {
 public:
-    //DNASelector(const QString& acc):acc(acc){}
     bool matches(const DNASequence &);
     bool objectMatches(const U2SequenceObject *);
-    QString acc;
+    QString accExpr;
 };
 
 class LoadSeqTask : public Task {
     Q_OBJECT
 public:
-    LoadSeqTask(QString url, const QVariantMap& cfg, DNASelector* sel)
+    LoadSeqTask(QString url, const QVariantMap &cfg, DNASelector *sel, DbiDataStorage *storage)
         : Task(tr("Read sequences from %1").arg(url), TaskFlag_None),
-        url(url), selector(sel), cfg(cfg) {}
+        url(url), selector(sel), cfg(cfg), storage(storage), format(NULL) {}
     virtual void prepare();
     virtual void run();
 
@@ -51,53 +93,53 @@ public:
     DNASelector *selector;
     QVariantMap cfg;
     QList<QVariantMap> results;
+    DbiDataStorage *storage;
+    DocumentFormat *format;
 };
 
 class LoadMSATask : public Task {
     Q_OBJECT
 public:
-    LoadMSATask(QString url) : Task(tr("Read MSA from %1").arg(url), TaskFlag_None), url(url) {}
+    LoadMSATask(const QString &url, const QString &datasetName, DbiDataStorage *storage);
     virtual void prepare();
     virtual void run();
 
     QString url;
-    QList<MAlignment> results;
+    QString datasetName;
+    QVariantMap cfg;
+    QList<QVariant> results;
+    DbiDataStorage *storage;
 };
 
-
-class GenericMSAReader : public BaseWorker {
+class GenericMSAReader : public GenericDocReader {
     Q_OBJECT
 public:
-    GenericMSAReader(Actor* a) : BaseWorker(a), ch(NULL), done(false) {}
+    GenericMSAReader(Actor *a) : GenericDocReader(a) {}
     virtual void init() ;
-    virtual bool isReady();
-    virtual Task* tick() ;
-    virtual bool isDone() ;
     virtual void cleanup() {}
 
-protected slots:
-    virtual void sl_taskFinished();
+protected:
+    virtual void onTaskFinished(Task *task);
+    virtual QString addReadDbObjectToData(const QString &objUrl, QVariantMap &data);
 
 protected:
-    virtual Task* createReadTask(const QString& url) {return new LoadMSATask(url);}
-    CommunicationChannel* ch;
-    QList<QString> urls;
-    bool done;
-    QList<Message> cache;
-    DataTypePtr mtype;
+    virtual Task *createReadTask(const QString &url, const QString &datasetName) {
+        return new LoadMSATask(url, datasetName, context->getDataStorage());
+    }
 };
 
-class GenericSeqReader : public GenericMSAReader {
+class GenericSeqReader : public GenericDocReader {
     Q_OBJECT
 public:
-    GenericSeqReader(Actor* a) : GenericMSAReader(a){}
+    GenericSeqReader(Actor *a) : GenericDocReader(a){}
     virtual void init() ;
 
-protected slots:
-    virtual void sl_taskFinished();
+protected:
+    virtual void onTaskFinished(Task *task);
+    virtual QString addReadDbObjectToData(const QString &objUrl, QVariantMap &data);
 
 protected:
-    virtual Task* createReadTask(const QString& url) {return new LoadSeqTask(url, cfg, &selector);}
+    virtual Task * createReadTask(const QString &url, const QString &datasetName);
     QVariantMap cfg;
     DNASelector selector;
 };

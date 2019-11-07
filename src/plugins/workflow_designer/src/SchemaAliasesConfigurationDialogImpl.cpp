@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,13 @@
 
 #include <U2Lang/ActorModel.h>
 #include "SchemaAliasesConfigurationDialogImpl.h"
+#include <U2Gui/HelpButton.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QPushButton>
+#endif
+
 
 namespace U2 {
 namespace Workflow {
@@ -30,15 +37,24 @@ namespace Workflow {
 SchemaAliasesConfigurationDialogImpl::SchemaAliasesConfigurationDialogImpl( const Schema & schema, QWidget * p )
 : QDialog(p), procNameMaxSz(0) {
     setupUi(this);
-    
+    new HelpButton(this, buttonBox, "16122531");
+
+    QPushButton* cancelPushButton = buttonBox->button(QDialogButtonBox::Cancel);
+    QPushButton* okPushButton = buttonBox->button(QDialogButtonBox::Ok);
+
     connect( cancelPushButton, SIGNAL(clicked()), SLOT(reject()) );
     connect( okPushButton, SIGNAL(clicked()), SLOT(accept()));
-    
+
     okPushButton->setDefault(true);
     paramAliasesTableWidget->verticalHeader()->hide();
+
+#if (QT_VERSION < 0x050000) //Qt 5
     paramAliasesTableWidget->horizontalHeader()->setClickable(false);
+#else
+    paramAliasesTableWidget->horizontalHeader()->setSectionsClickable(false);
+#endif
     paramAliasesTableWidget->horizontalHeader()->setStretchLastSection( true );
-    
+
     foreach( Actor * actor, schema.getProcesses() ) {
         assert( actor != NULL );
         int pos = procsListWidget->count();
@@ -48,11 +64,12 @@ SchemaAliasesConfigurationDialogImpl::SchemaAliasesConfigurationDialogImpl( cons
         int pointSz = item->font().pointSize();
         procNameMaxSz = qMax(pointSz * actor->getLabel().size(), procNameMaxSz);
     }
-   
+
     connect( procsListWidget, SIGNAL(currentRowChanged( int )), SLOT(sl_procSelected( int )) );
     connect( paramAliasesTableWidget, SIGNAL( cellChanged(int, int) ), SLOT(sl_onDataChange(int, int)) );
-    
+
     initializeModel(schema);
+
 }
 
 void SchemaAliasesConfigurationDialogImpl::initializeModel( const Schema & schema ) {
@@ -117,28 +134,28 @@ void SchemaAliasesConfigurationDialogImpl::sl_procSelected( int row ) {
         return;
     }
     clearAliasTable();
-    
+
     assert( row >= 0 && row < procsListWidget->count() );
     ActorId currentActor = procListMap.value( row );
     assert( !currentActor.isEmpty() );
-    
+
     int rowInd = 0;
     QMap<Descriptor, QString> aliasMap = model.aliases.value( currentActor );
     QMap<Descriptor, QString>::const_iterator it = aliasMap.constBegin();
     while( it != aliasMap.constEnd() ) {
         paramAliasesTableWidget->insertRow(rowInd);
-        
+
         QTableWidgetItem * paramNameItem = new QTableWidgetItem(it.key().getDisplayName()) ;
         paramAliasesTableWidget->setItem( rowInd, 0, paramNameItem );
-        paramNameItem->setData( Qt::UserRole, qVariantFromValue<Descriptor>( it.key() ) );
+        paramNameItem->setData( Qt::UserRole, QVariant::fromValue( it.key() ) );
         paramNameItem->setFlags( paramNameItem->flags() ^ Qt::ItemIsSelectable ^ Qt::ItemIsEditable );
-        
+
         QTableWidgetItem * aliasItem = new QTableWidgetItem( it.value() );
         paramAliasesTableWidget->setItem( rowInd, 1, aliasItem );
-        
+
         QTableWidgetItem * helpItem = new QTableWidgetItem(model.help.value(currentActor).value(it.key()));
         paramAliasesTableWidget->setItem(rowInd, 2, helpItem);
-        
+
         rowInd++;
         ++it;
     }
@@ -156,11 +173,11 @@ void SchemaAliasesConfigurationDialogImpl::sl_onDataChange( int row, int col ) {
     if( col != 1 && col != 2) {
         return;
     }
-    
+
     ActorId id = procListMap.value( procsListWidget->currentRow() );
     assert( !id.isEmpty() );
-    
-    Descriptor desc = qVariantValue<Descriptor>( paramAliasesTableWidget->item( row, 0 )->data( Qt::UserRole ) );
+
+    Descriptor desc = paramAliasesTableWidget->item( row, 0 )->data( Qt::UserRole ).value<Descriptor>();
     assert(model.aliases.value(id).contains(desc));
     if(col == 1) {
         model.aliases[id][desc] = paramAliasesTableWidget->item( row, 1 )->text();

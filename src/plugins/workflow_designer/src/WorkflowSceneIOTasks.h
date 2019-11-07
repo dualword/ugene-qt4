@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,31 +37,33 @@ class SaveWorkflowSceneTask : public Task {
     Q_OBJECT
 public:
     static const QString SCHEMA_PATHS_SETTINGS_TAG;
-    
+
 public:
-    SaveWorkflowSceneTask(WorkflowScene* scene, const Metadata& meta);
-    Task::ReportResult report();
+    SaveWorkflowSceneTask(Schema *schema, const Metadata& meta);
     virtual void run();
-    
+
 private:
-    QPointer<WorkflowScene> scene;
+    Schema *schema;
     Metadata meta;
-    QString rawData;
 };
 
 class LoadWorkflowSceneTask : public Task {
     Q_OBJECT
 public:
-    LoadWorkflowSceneTask(WorkflowScene* scene, Metadata* meta, const QString& url);
+    LoadWorkflowSceneTask(Schema *schema, Metadata *meta, WorkflowScene *scene, const QString &url, bool noUrl = false);
     virtual void run();
     virtual Task::ReportResult report();
-    
+
 private:
-    WorkflowScene* scene;
-    Metadata * meta;
+    void resetSceneAndScheme( );
+
+    Schema *schema;
+    Metadata *meta;
+    WorkflowScene *scene;
     QString url;
     QString rawData;
     LoadWorkflowTask::FileFormat format;
+    bool noUrl;
 };
 
 } //namespace

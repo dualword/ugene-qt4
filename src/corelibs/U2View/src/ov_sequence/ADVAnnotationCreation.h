@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,14 +22,16 @@
 #ifndef _U2_ADVANNOTATION_CREATION_H_
 #define _U2_ADVANNOTATION_CREATION_H_
 
-#include <U2Core/Task.h>
-#include <U2Core/AnnotationTableObject.h>
+#include <QPointer>
 
-#include <QtGui/QAction>
-#include <QtCore/QPointer>
+#include <U2Core/AnnotationData.h>
+#include <U2Core/Task.h>
+
+class QAction;
 
 namespace U2 {
 
+class GObjectReference;
 class CreateAnnotationsTask;
 class AnnotatedDNAView;
 class U2SequenceObject;
@@ -50,12 +52,11 @@ private:
 };
 
 
-class U2VIEW_EXPORT  ADVCreateAnnotationsTask : public Task {
+class U2VIEW_EXPORT ADVCreateAnnotationsTask : public Task {
     Q_OBJECT
 public:
-    ADVCreateAnnotationsTask(AnnotatedDNAView* _ctx, const GObjectReference& aobjRef, 
-                            const QString& group, const QList<SharedAnnotationData>& data);
-        
+    ADVCreateAnnotationsTask(AnnotatedDNAView *ctx, const GObjectReference &aobjRef, const QString &group, const QList<SharedAnnotationData> &data);
+
     ReportResult report();
 
 private:
@@ -63,9 +64,6 @@ private:
     CreateAnnotationsTask* t;
 };
 
-
-} // namespace
-
-
+} // namespace U2
 
 #endif

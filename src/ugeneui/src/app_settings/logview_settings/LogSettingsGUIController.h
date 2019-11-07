@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 #include <LogSettings.h>
 #include <U2Gui/AppSettingsGUI.h>
 
-#include <QtGui/QTableWidgetItem>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
+#include <QtGui/QTableWidgetItem>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QTableWidgetItem>
+#endif
 #include <QtCore/QUrl>
 
 namespace U2 {
@@ -44,8 +49,11 @@ public:
 
     virtual AppSettingsGUIPageWidget* createWidget(AppSettingsGUIPageState* data);
 
+    const QString& getHelpPageId() const {return helpPageId;};
+
 private:
     LogSettingsHolder* target;
+    static const QString helpPageId;
 };
 
 
@@ -71,6 +79,8 @@ private slots:
     void sl_levelStateChanged(int state);
     void sl_catItemStateChanged(QTableWidgetItem *item);
     void sl_changeColor(const QString& v);
+    void sl_outFileStateChanged(int state);
+    void sl_browseFileClicked();
 
 private:
     void updateColorLabel(QLabel* l, const QString& color);

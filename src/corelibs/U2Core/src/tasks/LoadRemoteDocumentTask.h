@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,21 +22,28 @@
 #ifndef _U2_LOAD_REMOTE_DOCUMENT_TASK_H_
 #define _U2_LOAD_REMOTE_DOCUMENT_TASK_H_
 
-
 #include <U2Core/DocumentProviderTask.h>
 #include <U2Core/GUrl.h>
+#include <U2Core/NetworkConfiguration.h>
 
-#include <QtCore/QEventLoop>
 #include <QtCore/QUrl>
-
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkRequest>
 #include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QAuthenticator>
+#include <QtXml/QXmlReader>
 
-#include <QtXml/QXmlDefaultHandler>
-#include <QtXml/QXmlSimpleReader>
+class QEventLoop;
+class QTimer;
 
 namespace U2 {
+
+// Entrez tools variables
+#define ENSEBL_ID "ensembl"
+#define GENBANK_NUCLEOTIDE_ID "nucleotide"
+#define GENBANK_PROTEIN_ID "protein"
+#define GENBANK_FORMAT "gb"
+#define FASTA_FORMAT "fasta"
+#define GENBANK_WITH_PARTS "gbwithparts"
+#define FORCE_DOWNLOAD_SEQUENCE_HINT "gbwithparts"
 
 class Document;
 class CopyDataTask;
@@ -44,7 +51,7 @@ class LoadDocumentTask;
 class LoadDataFromEntrezTask;
 
 class U2CORE_EXPORT RemoteDBRegistry {
-    RemoteDBRegistry(); 
+    RemoteDBRegistry();
     QMap<QString,QString> queryDBs;
     QMap<QString,QString> httpDBs;
     QMap<QString,QString> hints;
@@ -54,9 +61,19 @@ public:
     QString getDbEntrezName(const QString& dbName);
     void convertAlias(QString& dbName);
     QList<QString> getDBs();
+    bool hasDbId(const QString& dbId);
     QString getHint(const QString& dbName);
     //TODO: move this to AppContext
     static RemoteDBRegistry& getRemoteDBRegistry();
+
+public:
+    static const QString ENSEMBL;
+    static const QString GENBANK_DNA;
+    static const QString GENBANK_PROTEIN;
+    static const QString PDB;
+    static const QString SWISS_PROT;
+    static const QString UNIPROTKB_SWISS_PROT;
+    static const QString UNIPROTKB_TREMBL;
 };
 
 
@@ -76,38 +93,98 @@ public:
 
 };
 
+class U2CORE_EXPORT EntrezUtils {
+public:
+    static const QString NCBI_ESEARCH_URL;
+    static const QString NCBI_ESUMMARY_URL;
+    static const QString NCBI_EFETCH_URL;
+    static const QString NCBI_DB_NUCLEOTIDE;
+    static const QString NCBI_DB_PROTEIN;
 
-class U2CORE_EXPORT LoadRemoteDocumentTask : public DocumentProviderTask {
+};
+
+
+//Base class for loading documents
+class U2CORE_EXPORT BaseLoadRemoteDocumentTask : public DocumentProviderTask {
     Q_OBJECT
 public:
-    static QString getFileFormat(const QString & dbName);
+    BaseLoadRemoteDocumentTask(const QString& downloadPath = QString(), const QVariantMap &hints = QVariantMap(), TaskFlags flags = TaskFlags(TaskFlags_NR_FOSCOE | TaskFlag_MinimizeSubtaskErrorText));
+    virtual void prepare();
+    QString getLocalUrl(){ return fullPath; }
 
-    bool prepareDownloadDirectory(QString &path);
+    virtual ReportResult report();
+
+    static bool prepareDownloadDirectory(QString &path);
     static QString getDefaultDownloadDirectory();
-    
+
+protected:
+    virtual QString getFileFormat(const QString & dbid) = 0;
+    virtual GUrl getSourceUrl() = 0;
+    virtual QString getFileName() = 0;
+
+
+protected:
+    bool isCached();
+    bool initLoadDocumentTask();
+    void createLoadedDocument();
+
+protected:
+    GUrl        sourceUrl;
+    QString     fileName;
+    QString     fullPath;
+    QString     downloadPath;
+    QString     format;
+    QVariantMap hints;
+
+    DocumentFormatId formatId;
+    CopyDataTask* copyDataTask;
+    LoadDocumentTask* loadDocumentTask;
+
+};
+
+class U2CORE_EXPORT LoadRemoteDocumentTask : public BaseLoadRemoteDocumentTask {
+    Q_OBJECT
 public:
     LoadRemoteDocumentTask(const GUrl& url);
-    LoadRemoteDocumentTask(const QString & accId, const QString & dbName, const QString & fullPathDir = QString());
+    LoadRemoteDocumentTask(const QString & accId, const QString & dbName, const QString & fullPathDir = "", const QString& fileFormat = "", const QVariantMap &hints = QVariantMap());
     virtual void prepare();
-    virtual ReportResult report();
-    QString getLocalUrl(){ return fullPath; }
-    
+
     QString getAccNumber() const { return accNumber; }
     QString getDBName() const { return dbName; }
 
 protected:
+    virtual QString getFileFormat(const QString & dbid);
+    virtual GUrl getSourceUrl();
+    virtual QString getFileName();
     QList<Task*> onSubTaskFinished(Task* subTask);
 
 private:
+    QString getRetType() const;
+
+    GUrl fileUrl;
     bool openView;
-    bool initLoadDocumentTask(); 
-    DocumentFormatId formatId;
-    CopyDataTask* copyDataTask;
-    LoadDocumentTask* loadDocumentTask;
     LoadDataFromEntrezTask* loadDataFromEntrezTask;
-    GUrl    sourceUrl;
-    QString accNumber, dbName, format;
-    QString fileName, fullPath;
+    QString accNumber, dbName;
+};
+
+class U2CORE_EXPORT BaseEntrezRequestTask : public Task {
+    Q_OBJECT
+public:
+    BaseEntrezRequestTask( const QString &taskName );
+    virtual ~BaseEntrezRequestTask( );
+
+protected slots:
+    virtual void sl_replyFinished( QNetworkReply *reply ) = 0;
+    void sl_onError( QNetworkReply::NetworkError error );
+    void sl_uploadProgress( qint64 bytesSent, qint64 bytesTotal );
+    virtual void onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*);
+
+protected:
+    // method should be called from the thread where @networkManager is actually used
+    void createLoopAndNetworkManager(const QString &queryString);
+
+    QEventLoop *loop;
+    QNetworkAccessManager *networkManager;
 };
 
 // This task makes queries to NCBI Entrez search engine, using eTools
@@ -115,23 +192,23 @@ private:
 // Second step: query eFetch to download file by index
 // About eTools: http://www.ncbi.nlm.nih.gov/bookshelf/br.fcgi?book=coursework&part=eutils
 
-class U2CORE_EXPORT LoadDataFromEntrezTask : public Task {
+class U2CORE_EXPORT LoadDataFromEntrezTask : public BaseEntrezRequestTask {
     Q_OBJECT
 public:
-    LoadDataFromEntrezTask(const QString& dbId, const QString& accNumber, const QString& retType, const QString& fullPath);
-    ~LoadDataFromEntrezTask();
-    
-    virtual void run();
-    
-public slots:
+    LoadDataFromEntrezTask(const QString& dbId,
+                           const QString& accNumber,
+                           const QString& retType,
+                           const QString& fullPath);
+
+    void run();
+
+private slots:
     void sl_replyFinished(QNetworkReply* reply);
-    void sl_onError(QNetworkReply::NetworkError error);
-    void sl_uploadProgress( qint64 bytesSent, qint64 bytesTotal);
+    void sl_cancelCheck();
+
 private:
-    QEventLoop* loop;
     QNetworkReply* searchReply;
     QNetworkReply* downloadReply;
-    QNetworkAccessManager* networkManager;
     QXmlSimpleReader xmlReader;
     QString db, accNumber;
     bool copyDataMode;
@@ -139,13 +216,30 @@ private:
     QString fullPath, format;
 };
 
+class U2CORE_EXPORT EntrezQueryTask : public BaseEntrezRequestTask {
+    Q_OBJECT
+public:
+    EntrezQueryTask( QXmlDefaultHandler* resultHandler, const QString& query );
+
+    void run();
+    const QXmlDefaultHandler* getResultHandler() const;
+
+private slots:
+    void sl_replyFinished(QNetworkReply* reply);
+
+private:
+    QNetworkReply* queryReply;
+    QXmlDefaultHandler* resultHandler;
+    QXmlSimpleReader xmlReader;
+    QString query;
+};
 
 // Helper class to parse NCBI Entrez eSearch results
-class ESearchResultHandler : public QXmlDefaultHandler {
+class U2CORE_EXPORT ESearchResultHandler : public QXmlDefaultHandler {
     bool metESearchResult;
     QString errorStr;
     QString curText;
-    QString index;
+    QList<QString> idList;
 public:
     ESearchResultHandler();
     bool startElement(const QString &namespaceURI, const QString &localName,
@@ -155,8 +249,38 @@ public:
     bool characters(const QString &str);
     bool fatalError(const QXmlParseException &exception);
     QString errorString() const { return errorStr; }
-    QString getResultIndex() const { return index; }
+    const QList<QString>& getIdList() const { return idList; }
 };
+
+
+struct EntrezSummary {
+    QString id;
+    QString name;
+    QString title;
+    int size;
+};
+
+// Helper class to parse NCBI Entrez ESummary results
+class U2CORE_EXPORT ESummaryResultHandler : public QXmlDefaultHandler {
+    bool metESummaryResult;
+    QString errorStr;
+    QString curText;
+    EntrezSummary currentSummary;
+    QXmlAttributes curAttributes;
+    QList<EntrezSummary> results;
+public:
+    ESummaryResultHandler();
+    bool startElement(const QString &namespaceURI, const QString &localName,
+        const QString &qName, const QXmlAttributes &attributes);
+    bool endElement(const QString &namespaceURI, const QString &localName,
+        const QString &qName);
+    bool characters(const QString &str);
+    bool fatalError(const QXmlParseException &exception);
+    QString errorString() const { return errorStr; }
+    const QList<EntrezSummary>& getResults() const { return results; }
+};
+
+
 
 } //namespace
 

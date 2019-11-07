@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,25 +22,23 @@
 #ifndef _U2_TREE_VIEWER_H_
 #define _U2_TREE_VIEWER_H_
 
-#include <QtGui/QGraphicsView>
-#include <QtGui/QToolBar>
-#include <QtGui/QToolButton>
-#include <QtGui/QScrollBar>
+#include <qglobal.h>
+
+#include <QGraphicsView>
+#include <QToolBar>
+#include <QToolButton>
+#include <QScrollBar>
+
 #include <QtCore/QMap>
 #include <U2Core/MAlignment.h>
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/PhyTree.h>
 #include <U2Core/Task.h>
-#include <U2Algorithm/PhyTreeGeneratorTask.h>
 #include <U2Algorithm/CreatePhyTreeSettings.h>
 #include <U2Gui/ObjectViewModel.h>
 
-#include <U2View/BranchSettingsDialog.h>
-#include <U2View/ButtonSettingsDialog.h>
-#include <U2View/TextSettingsDialog.h>
-#include <U2View/TreeSettingsDialog.h>
-
+#include "TreeSettings.h"
 
 #include <QtGui/QTransform>
 
@@ -62,10 +60,13 @@ public:
     virtual void buildStaticToolbar(QToolBar* tb);
     virtual void buildStaticMenu(QMenu* m);
 
+    void buildMSAEditorStaticToolbar(QToolBar* tb);
+
     void createActions();
 
     virtual QVariantMap saveState();
     virtual Task* updateViewTask(const QString& stateName, const QVariantMap& stateData);
+    virtual OptionsPanel* getOptionsPanel(){return optionsPanel;}
 
 
     QAction* getPrintAction() const { return printAction; }
@@ -83,6 +84,10 @@ public:
     QAction* getZoomToSelAction() const { return zoomToSelAction; }
     QAction* getZoomOutAction() const { return zoomOutAction; }
     QAction* getZoomToAllAction() const { return zoomToAllAction; }
+    QAction* getCollapseAction() const { return collapseAction; }
+    QAction* getRerootAction() const { return rerootAction; }
+    QAction* getSwapAction() const { return swapAction; }
+
 
     PhyTreeObject* getPhyObject() const { return phyObject; }
     GraphicsRectangularBranchItem* getRoot() const { return root; }
@@ -91,8 +96,11 @@ public:
     qreal getScale() const {return scale;}
     void setScale(qreal scale) {this->scale = scale;}
 
-    qreal getZoom() const;
-    void setZoom(qreal z);
+    qreal getHorizontalZoom() const;
+    void setHorizontalZoom(qreal z);
+
+    qreal getVerticalZoom() const;
+    void setVerticalZoom(qreal z);
 
     QTransform getTransform() const;
     void setTransform(const QTransform& m);
@@ -100,10 +108,13 @@ public:
     QVariantMap getSettingsState() const;
     void setSettingsState(const QVariantMap& m);
 
+    TreeViewerUI* getTreeViewerUI() {return ui;}
+
 protected:
     virtual QWidget* createWidget();
     virtual void onObjectRenamed(GObject* obj, const QString& oldName);
-
+private slots:
+    void sl_onPhyTreeChanged();
 private:
     QAction*            treeSettingsAction;
 
@@ -115,6 +126,7 @@ private:
     QAction*            branchesSettingsAction;
 
     QAction*            nameLabelsAction;
+    QAction*            nodeLabelsAction;
     QAction*            distanceLabelsAction;
     QAction*            textSettingsAction;
     QAction*            contAction;
@@ -127,7 +139,10 @@ private:
     QAction*            captureTreeAction;
     QAction*            exportAction;
 
-    TreeViewerUI*       ui;
+    QAction*            collapseAction;
+    QAction*            rerootAction;
+    QAction*            swapAction;
+
     QByteArray          state;
     PhyTreeObject*      phyObject;
     GraphicsRectangularBranchItem* root;
@@ -136,14 +151,17 @@ private:
     void setupLayoutSettingsMenu(QMenu* m);
     void setupShowLabelsMenu(QMenu* m);
     void setupCameraMenu(QMenu* m);
+protected:
+    TreeViewerUI*       ui;
 };
 
 class TreeViewerUI: public QGraphicsView {
     Q_OBJECT
+    Q_DISABLE_COPY(TreeViewerUI)
 
 public:
     TreeViewerUI(TreeViewer* treeViewer);
-    ~TreeViewerUI();
+    virtual ~TreeViewerUI();
 
     static const qreal ZOOM_COEF;
     static const qreal MINIMUM_ZOOM;
@@ -151,21 +169,28 @@ public:
     static const int MARGIN;
     static const qreal SIZE_COEF;
 
-    BranchSettings getBranchSettings() const;
-    ButtonSettings getButtonSettings() const;
-    TextSettings getTextSettings() const;
-    TreeSettings getTreeSettings() const;
+    const QMap<TreeViewOption, QVariant>& getSettings() const;
+    QVariant getOptionValue(TreeViewOption option) const;
+    void setOptionValue(TreeViewOption option, QVariant value);
 
-    void updateSettings(const BranchSettings &settings);
-    void updateSettings(const ButtonSettings &settings);
-    void updateSettings(const TextSettings &settings);
-    void updateSettings(const TreeSettings &settings);
+    void updateSettings(const OptionsMap &settings);
+    void changeOption(TreeViewOption option, const QVariant& newValue);
 
-    qreal getZoom() const {return zoom;}
-    void setZoom(qreal z) {zoom = z;}
+    qreal getHorizontalZoom() const {return horizontalScale;}
+    void setHorizontalZoom(qreal z) {horizontalScale = z;}
+
+    qreal getVerticalZoom() const {return verticalScale;}
+    void setVerticalZoom(qreal z) {verticalScale = z;}
 
     QVariantMap getSettingsState() const;
     void setSettingsState(const QVariantMap& m);
+
+    TreeLayout getTreeLayout() const;
+    bool layoutIsRectangular() const;
+
+    void onPhyTreeChanged();
+
+    bool isOnlyLeafSelected() const;
 
 protected:
     virtual void wheelEvent(QWheelEvent *e);
@@ -173,6 +198,24 @@ protected:
     virtual void mousePressEvent(QMouseEvent *e);
     virtual void mouseReleaseEvent(QMouseEvent *e);
 
+    virtual void setTreeLayout(TreeLayout newLayout);
+    GraphicsBranchItem* getRoot() {return root;}
+    GraphicsRectangularBranchItem* getRectRoot() {return rectRoot;}
+    void zooming(qreal newZoom);
+    void zooming(qreal horizontalZoom, qreal verticalZoom);
+    void defaultZoom();
+    void updateRect();
+
+    virtual void onLayoutChanged(const TreeLayout& ) {}
+    virtual void updateTreeSettings(bool setDefaultZoom = true);
+    virtual void onSettingsChanged(TreeViewOption option, const QVariant& newValue);
+signals:
+    void si_optionChanged(TreeViewOption option, const QVariant& value);
+protected slots:
+    virtual void sl_swapTriggered();
+    virtual void sl_collapseTriggered();
+    virtual void sl_rectLayoutRecomputed();
+    virtual void sl_onBranchCollapsed(GraphicsRectangularBranchItem*);
 private slots:
     void sl_printTriggered();
     void sl_captureTreeTriggered();
@@ -184,34 +227,29 @@ private slots:
     void sl_circularLayoutTriggered();
     void sl_unrootedLayoutTriggered();
     void sl_layoutRecomputed();
-    void sl_chrootTriggered();
-    void sl_swapTriggered();
-    void sl_collapseTriggered();
     void sl_textSettingsTriggered();
     void sl_treeSettingsTriggered();
+    void sl_rerootTriggered();
 
     void sl_setSettingsTriggered();
     void sl_branchSettings();
+    void sl_zoomToAll();
     void sl_zoomToSel();
     void sl_zoomOut();
-    void sl_zoomToAll();
 
 private:
-    enum TreeLayout {
-        TreeLayout_Rectangular,
-        TreeLayout_Circular,
-        TreeLayout_Unrooted,
-    };
     enum LabelType {
         LabelType_SequnceName = 1,
-        LabelType_Distance = 2,
+        LabelType_Distance = 2
     };
     typedef QFlags<LabelType> LabelTypes;
 
-    void updateRect();
     void paint(QPainter &painter);
     void showLabels(LabelTypes labelTypes);
-    void addLegend(qreal scale);
+//Scalebar
+    void addLegend();
+    void updateLegend();
+
     void collapseSelected();
 
     void updateSettings();
@@ -219,13 +257,11 @@ private:
     void updateLayout();
 
     void updateTextSettings();
-    void updateTreeSettings();
+
+    void updateBrachSettings();
 
     void redrawRectangularLayout();
     bool isSelectedCollapsed();
-
-    void zooming(qreal newzoom);
-    void defaultZoom();
 
     void setScale(qreal s) { view_scale = s;}
     qreal getScale() {return view_scale;}
@@ -234,25 +270,34 @@ private:
 
     qreal avgWidth();
 
-    void updateLabelsAlignment(bool on);
-    
+    void updateLabelsAlignment();
+
+    void determineBranchLengths();
+
+    int getBranchLength();
+
+    void changeLayout(TreeLayout newLayout);
+    void changeNamesDisplay();
+    void changeNodeValuesDisplay();
+    void changeLabelsAlignment();
+
+    void initializeSettings();
+
     PhyTreeObject*      phyObject;
     GraphicsBranchItem* root;
-    GraphicsRectangularBranchItem* rectRoot;
-    bool                contEnabled;
-    int                 maxNameWidth;
-    bool                showNameLabels;
-    bool                showDistanceLabels;
-    qreal               zoom;
+    qreal               maxNameWidth;
+    qreal               verticalScale;
+    qreal               horizontalScale;
     qreal               view_scale;
-    TreeLayout          layout;
     CreateBranchesTask* layoutTask;
-    QGraphicsItem*      legend;
+    QGraphicsLineItem*  legend;
+    QGraphicsSimpleTextItem* scalebarText;
     QMenu*              buttonPopup;
 
     const TreeViewer*   curTreeViewer;
 
     QAction*            swapAction;
+    QAction*            rerootAction;
     QAction*            zoomToAction;
     QAction*            zoomOutAction;
     QAction*            zoomToAllAction;
@@ -261,11 +306,12 @@ private:
     QAction*            captureAction;
     QAction*            exportAction;
 
-    BranchSettings      branchSettings;
-    ButtonSettings      buttonSettings;
-    TextSettings        textSettings;
-    TreeSettings        treeSettings;
+    OptionsMap settings;
+    bool updatingFromOP;
+protected:
+    GraphicsRectangularBranchItem* rectRoot;
 };
+
 
 }//namespace
 #endif

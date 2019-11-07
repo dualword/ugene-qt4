@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,9 +22,11 @@
 #include "DNATranslation.h"
 #include "DNAAlphabet.h"
 
+#include <U2Core/U2SafePoints.h>
+
 namespace U2 {
 
-DNATranslation::DNATranslation(const QString& _id, const QString& _name, DNAAlphabet* src, DNAAlphabet* dst) {
+DNATranslation::DNATranslation(const QString& _id, const QString& _name, const DNAAlphabet* src, const DNAAlphabet* dst) {
     name = _name;
     id = _id;
     srcAlphabet = src;
@@ -87,9 +89,25 @@ QStringList DNATranslationRegistry::getDNATranslationIds() const
 
 }
 
+QStringList DNATranslationRegistry::getDNATranslationIds(const QString& name) const
+{
+    QStringList l;
+    foreach(DNATranslation* t, translations) {
+        if (t->getTranslationName() == name) {
+            l<<t->getTranslationId();
+        }
+    }
+    return l;
+
+}
+
 
 void DNATranslationRegistry::registerDNATranslation(DNATranslation* t) {
     translations.push_back(t);
+}
+
+void DNATranslationRegistry::registerDNACodon(DNACodon* codon) {
+    codons.push_back(codon);
 }
 
 DNATranslationRegistry::~DNATranslationRegistry() {
@@ -97,9 +115,14 @@ DNATranslationRegistry::~DNATranslationRegistry() {
         delete t;
     }
     translations.clear();
+
+    foreach(DNACodon* c, codons) {
+        delete c;
+    }
+    codons.clear();
 }
 
-QList<DNATranslation*> DNATranslationRegistry::lookupTranslation(DNAAlphabet* srcAlphabet, DNATranslationType type) {
+QList<DNATranslation*> DNATranslationRegistry::lookupTranslation(const DNAAlphabet* srcAlphabet, DNATranslationType type) {
     QList<DNATranslation*> res;
     foreach(DNATranslation* t, translations) {
         if (t->getSrcAlphabet() == srcAlphabet && t->getDNATranslationType() == type) {
@@ -109,12 +132,28 @@ QList<DNATranslation*> DNATranslationRegistry::lookupTranslation(DNAAlphabet* sr
     return res;
 }
 
-DNATranslation* DNATranslationRegistry::lookupTranslation(DNAAlphabet* srcAlphabet, 
+DNATranslation* DNATranslationRegistry::getStandardGeneticCodeTranslation(const DNAAlphabet* srcAlphabet){
+    if (srcAlphabet->isNucleic()) {
+        return lookupTranslation(srcAlphabet, DNATranslationID(1));
+    }
+    FAIL("Standart genetic code is used only with source nucleic alphabet", NULL);
+}
+
+DNATranslation* DNATranslationRegistry::lookupTranslation(const DNAAlphabet* srcAlphabet,
                                                           DNATranslationType type,
-                                                          const QString& id) 
+                                                          const QString& id)
 {
     foreach(DNATranslation* t, translations) {
         if (t->getTranslationId() == id && t->getSrcAlphabet() == srcAlphabet && t->getDNATranslationType() == type) {
+            return t;
+        }
+    }
+    return NULL;
+}
+
+DNATranslation* DNATranslationRegistry::lookupTranslation(const DNAAlphabet* srcAlphabet, const QString& id){
+    foreach(DNATranslation* t, translations) {
+        if (t->getTranslationId() == id && srcAlphabet == t->getSrcAlphabet()) {
             return t;
         }
     }
@@ -130,14 +169,28 @@ DNATranslation* DNATranslationRegistry::lookupTranslation(const QString& id) {
     return NULL;
 }
 
-DNATranslation* DNATranslationRegistry::lookupComplementTranslation(DNAAlphabet* srcAlphabet) {
+DNATranslation* DNATranslationRegistry::lookupComplementTranslation(const DNAAlphabet* srcAlphabet) {
     assert(srcAlphabet->isNucleic());
-    QList<DNATranslation*> complTs = lookupTranslation(srcAlphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-    if (complTs.isEmpty()) {
-        return NULL;
+    if (srcAlphabet->getId() == BaseDNAAlphabetIds ::NUCL_DNA_DEFAULT()) {
+        return lookupTranslation(BaseDNATranslationIds::NUCL_DNA_DEFAULT_COMPLEMENT);
+    } else if (srcAlphabet->getId() == BaseDNAAlphabetIds ::NUCL_DNA_EXTENDED()) {
+        return lookupTranslation(BaseDNATranslationIds::NUCL_DNA_EXTENDED_COMPLEMENT);
+    } else if (srcAlphabet->getId() == BaseDNAAlphabetIds ::NUCL_RNA_DEFAULT()) {
+        return lookupTranslation(BaseDNATranslationIds::NUCL_RNA_DEFAULT_COMPLEMENT);
+    } else if (srcAlphabet->getId() == BaseDNAAlphabetIds ::NUCL_RNA_EXTENDED()) {
+        return lookupTranslation(BaseDNATranslationIds::NUCL_RNA_EXTENDED_COMPLEMENT);
+    } else {
+        FAIL("Complement translation not supported for alphabet", NULL);
     }
-    return complTs.first();
+}
 
+DNACodon* DNATranslationRegistry::lookupCodon(char symbol) {
+    foreach (DNACodon* c, codons) {
+        if (c->getSymbol() == symbol) {
+            return c;
+        }
+    }
+    return NULL;
 }
 
 }//namespace

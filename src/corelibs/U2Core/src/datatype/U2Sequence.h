@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,26 +28,25 @@
 
 namespace U2 {
 
-/** 
-    Sequence representation. 
+/**
+    Sequence representation.
     'Length' field contains the overall length of all sequence parts.
 */
 class U2CORE_EXPORT U2Sequence : public U2Object {
 public:
     U2Sequence() : length (0), circular(false){}
     U2Sequence(const U2DataId& id, const QString& dbId, qint64 version) : U2Object(id, dbId, version), length(0){}
-    
+
     /** Sequence alphabet id */
     U2AlphabetId    alphabet;
-    
+
     /** Length of the sequence */
     qint64          length;
-    
+
     /** A flag to mark that sequence is circular */
     bool            circular;
 
-    // implement U2Object
-    virtual U2DataType getType() { return U2Type::Sequence; }
+    U2DataType getType() const { return U2Type::Sequence; }
 };
 
 } // namespace

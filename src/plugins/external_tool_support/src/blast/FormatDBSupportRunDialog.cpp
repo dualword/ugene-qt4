@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,26 +20,43 @@
  */
 
 #include "FormatDBSupportRunDialog.h"
+#include "FormatDBSupport.h"
 
 #include <U2Core/DNAAlphabet.h>
-#include <U2Gui/LastUsedDirHelper.h>
 
-#include <QtGui/QFileDialog>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/HelpButton.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
 #include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QToolButton>
+#endif
 
 namespace U2 {
 
 ////////////////////////////////////////
 //FormatDBWithExtFileSpecifySupportRunDialog
-FormatDBSupportRunDialog::FormatDBSupportRunDialog(FormatDBSupportTaskSettings& _settings, QWidget* _parent) :
-        QDialog(_parent), settings(_settings)
+FormatDBSupportRunDialog::FormatDBSupportRunDialog(const QString &_name, FormatDBSupportTaskSettings &_settings, QWidget *_parent) :
+        QDialog(_parent), name(_name), settings(_settings)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122395");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Format"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+    formatButton = buttonBox->button(QDialogButtonBox::Ok);
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
 
     connect(inputFilesToolButton,SIGNAL(clicked()),SLOT(sl_onBrowseInputFiles()));
     connect(inputDirToolButton,SIGNAL(clicked()),SLOT(sl_onBrowseInputDir()));
     connect(databasePathToolButton,SIGNAL(clicked()),SLOT(sl_onBrowseDatabasePath()));
     connect(inputFilesLineEdit,SIGNAL(textChanged(QString)), SLOT(sl_lineEditChanged()));
+    connect(inputDirLineEdit,SIGNAL(textChanged(QString)), SLOT(sl_lineEditChanged()));
+    connect(inputFilesRadioButton,SIGNAL(toggled(bool)), SLOT(sl_lineEditChanged()));
+    connect(inputDirRadioButton,SIGNAL(toggled(bool)), SLOT(sl_lineEditChanged()));
     connect(databasePathLineEdit,SIGNAL(textChanged(QString)), SLOT(sl_lineEditChanged()));
     connect(databaseTitleLineEdit,SIGNAL(textChanged(QString)), SLOT(sl_lineEditChanged()));
     connect(baseNamelineEdit,SIGNAL(textChanged(QString)), SLOT(sl_lineEditChanged()));
@@ -47,22 +64,20 @@ FormatDBSupportRunDialog::FormatDBSupportRunDialog(FormatDBSupportTaskSettings& 
     if(!settings.inputFilesPath.isEmpty()){
         QString names=settings.inputFilesPath.join(";");
         inputFilesLineEdit->setText(names);
-        inputFilesLineEdit->setReadOnly(true);
-        inputFilesToolButton->setDisabled(true);
-        inputDirLineEdit->setDisabled(true);
-        inputDirRadioButton->setDisabled(true);
-        inputDirToolButton->setDisabled(true);
     }
-
+    if (!settings.isInputAmino) {
+        nucleotideTypeRadioButton->setChecked(true);
+    }
     formatButton->setEnabled(false);
-    connect(this->cancelButton,SIGNAL(clicked()),this,SLOT(reject()));
-    connect(this->formatButton,SIGNAL(clicked()),this,SLOT(sl_formatDB()));
+    connect(cancelButton,SIGNAL(clicked()),this,SLOT(reject()));
+    connect(formatButton,SIGNAL(clicked()),this,SLOT(sl_formatDB()));
+
 }
 
 void FormatDBSupportRunDialog::sl_onBrowseInputFiles(){
     LastUsedDirHelper lod("");
     QString name;
-    QStringList lst = QFileDialog::getOpenFileNames(NULL, tr("Select file(s)"), lod.dir, "");
+    QStringList lst = U2FileDialog::getOpenFileNames(NULL, tr("Select file(s)"), lod.dir, "");
     name = lst.join(";");
     if (!lst.isEmpty()) {
         lod.url = lst.first();
@@ -85,7 +100,7 @@ void FormatDBSupportRunDialog::sl_onBrowseInputDir(){
     LastUsedDirHelper lod("");
 
     QString name;
-    lod.url = name = QFileDialog::getExistingDirectory(NULL, tr("Select a directory with input files"), lod.dir);
+    lod.url = name = U2FileDialog::getExistingDirectory(NULL, tr("Select a directory with input files"), lod.dir);
     if (!name.isEmpty()) {
         inputDirLineEdit->setText(name);
     }
@@ -96,13 +111,43 @@ void FormatDBSupportRunDialog::sl_onBrowseDatabasePath(){
     LastUsedDirHelper lod("Database Directory");
 
     QString name;
-    lod.url = name = QFileDialog::getExistingDirectory(NULL, tr("Select a directory to save database files"), lod.dir);
+    lod.url = name = U2FileDialog::getExistingDirectory(NULL, tr("Select a directory to save database files"), lod.dir);
     if (!name.isEmpty()) {
         databasePathLineEdit->setText(name);
     }
     databasePathLineEdit->setFocus();
 }
 void FormatDBSupportRunDialog::sl_lineEditChanged(){
+    bool hasSpacesInInputFiles=false;
+    bool hasSpacesInOutputDBPath=false;
+    if(name == ET_FORMATDB){
+        if(inputFilesRadioButton->isChecked()){
+            bool warning = inputFilesLineEdit->text().contains(' ');
+            QString tooltip = warning ? tr("Input files paths contain space characters.") : "";
+            GUIUtils::setWidgetWarning(inputFilesLineEdit, warning);
+            inputFilesLineEdit->setToolTip(tooltip);
+            hasSpacesInInputFiles |= warning;
+        }else{
+            bool warning = inputDirLineEdit->text().contains(' ');
+            QString tooltip = warning ? tr("Input files paths contain space characters.") : "";
+            GUIUtils::setWidgetWarning(inputDirLineEdit, warning);
+            inputDirLineEdit->setToolTip(tooltip);
+            hasSpacesInInputFiles |= warning;
+        }
+    }
+    if(name == ET_MAKEBLASTDB){
+        bool pathWarning = databasePathLineEdit->text().contains(' ');
+        QString pathTooltip = pathWarning ? tr("Output database path contain space characters.") : "";
+        GUIUtils::setWidgetWarning(databasePathLineEdit, pathWarning);
+        databasePathLineEdit->setToolTip(pathTooltip);
+
+        bool nameWarning = baseNamelineEdit->text().contains(' ');
+        QString nameTooltip = nameWarning ? tr("Output database path contain space characters.") : "";
+        GUIUtils::setWidgetWarning(baseNamelineEdit, nameWarning);
+        baseNamelineEdit->setToolTip(nameTooltip);
+
+        hasSpacesInOutputDBPath = pathWarning || nameWarning;
+    }
     bool isFilledInputFilesOrDirLineEdit =
             (!inputFilesLineEdit->text().isEmpty() && inputFilesRadioButton->isChecked()) ||
             (!inputDirLineEdit->text().isEmpty() && inputDirRadioButton->isChecked());
@@ -112,7 +157,9 @@ void FormatDBSupportRunDialog::sl_lineEditChanged(){
     formatButton->setEnabled(isFilledBaseNamelineEdit &&
                              isFilledDatabasePathLineEdit &&
                              isFilledDatabaseTitleLineEdit &&
-                             isFilledInputFilesOrDirLineEdit);
+                             isFilledInputFilesOrDirLineEdit &&
+                             !hasSpacesInInputFiles &&
+                             !hasSpacesInOutputDBPath);
 }
 
 QStringList getAllFiles(QDir inputDir, QString filter, bool isIncludeFilter=true);
@@ -133,7 +180,7 @@ void FormatDBSupportRunDialog::sl_formatDB(){
     }else{
         settings.outputPath=databasePathLineEdit->text()+baseNamelineEdit->text();
     }
-    settings.typeOfFile=proteinTypeRadioButton->isChecked();
+    settings.isInputAmino=proteinTypeRadioButton->isChecked();
 
     accept();
 }

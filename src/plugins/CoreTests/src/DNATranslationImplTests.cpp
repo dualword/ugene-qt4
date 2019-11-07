@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,6 @@
 #include <U2Core/IOAdapter.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/GObject.h>
-
-#include <U2Core/LoadDocumentTask.h>
 
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNATranslationImpl.h>
@@ -53,7 +51,7 @@ void GTest_DNATranslation3to1Test::init(XMLTestFormat *tf, const QDomElement& el
     if (v.isEmpty()) {
         failMissingValue(START_ATTR);
         return;
-    } 
+    }
     bool ok = false;
     strFrom = v.toInt(&ok);
     if (!ok) {
@@ -64,7 +62,7 @@ void GTest_DNATranslation3to1Test::init(XMLTestFormat *tf, const QDomElement& el
     if (e.isEmpty()) {
         failMissingValue(END_ATTR);
         return;
-    } 
+    }
     ok = false;
     strTo = e.toInt(&ok);
     if (!ok) {
@@ -75,14 +73,14 @@ void GTest_DNATranslation3to1Test::init(XMLTestFormat *tf, const QDomElement& el
     if (stringValue.isEmpty()) {
         failMissingValue(VALUE_ATTR);
         return;
-    } 
+    }
 }
 
 Task::ReportResult GTest_DNATranslation3to1Test::report() {
     GObject *obj = getContext<GObject>(this, objContextName);
     if (obj==NULL){
         stateInfo.setError(QString("wrong value: %1").arg(OBJ_ATTR));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
 
     U2SequenceObject * mySequence = qobject_cast<U2SequenceObject*>(obj);
@@ -92,7 +90,7 @@ Task::ReportResult GTest_DNATranslation3to1Test::report() {
     }
     if(!(mySequence->getAlphabet()->isNucleic())){
         stateInfo.setError(QString("error Alphabet is not Nucleic: %1").arg(mySequence->getAlphabet()->getId()));
-        return ReportResult_Finished; 
+        return ReportResult_Finished;
     }
 
     DNATranslation* aminoTransl = 0;
@@ -101,7 +99,7 @@ Task::ReportResult GTest_DNATranslation3to1Test::report() {
 
     QList<DNATranslation*> aminoTs = tr->lookupTranslation(mySequence->getAlphabet(), DNATranslationType_NUCL_2_AMINO);
     if (!aminoTs.empty()) {
-        aminoTransl = aminoTs.first();
+        aminoTransl = tr->getStandardGeneticCodeTranslation(mySequence->getAlphabet());
     }
     int tempValue;
     if(strTo == -1){
@@ -111,10 +109,10 @@ Task::ReportResult GTest_DNATranslation3to1Test::report() {
     }
     QByteArray myByteArray = mySequence->getSequenceData(U2Region(strFrom,tempValue));
     QByteArray rezult(myByteArray.length() / 3, 0);
-    int n = aminoTransl->translate(myByteArray, myByteArray.length(), rezult.data(), rezult.length());    
+    int n = aminoTransl->translate(myByteArray, myByteArray.length(), rezult.data(), rezult.length());
     assert(n == rezult.length()); Q_UNUSED(n);
 
-    if(rezult != stringValue.toAscii()){
+    if(rezult != stringValue.toLatin1()){
         stateInfo.setError(QString("translated sequence not matched: %1, expected %2 ").arg(rezult.data()).arg(stringValue));
         return ReportResult_Finished;
     }

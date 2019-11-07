@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,25 @@
 namespace U2 {
 
 void TaskStarter::registerTask() {
+    switch (condition) {
+        case NoProject:
+            if (NULL != AppContext::getProject()) {
+                delete t; t = NULL;
+                return;
+            }
+            break;
+
+        case NoCondition:
+        default:
+            break;
+    }
+
     if (t) {
         AppContext::getTaskScheduler()->registerTopLevelTask(t);
         t = NULL;
     }
+
+    deleteLater();
 }
 
 } //namespace

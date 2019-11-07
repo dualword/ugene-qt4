@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,23 +22,13 @@
 #ifndef _U2_GRAPHICS_BRANCH_ITEM_H_
 #define _U2_GRAPHICS_BRANCH_ITEM_H_
 
-#include <QtGui/QAbstractGraphicsShapeItem>
+#include <QAbstractGraphicsShapeItem>
+#include "TreeSettings.h"
 
 namespace U2 {
 
 class PhyNode;
 class GraphicsButtonItem;
-
-class BranchSettings {
-public:
-    BranchSettings();
-
-    QColor branchColor;
-    int branchThickness;
-
-    static QColor defaultColor;
-    static int defaultThickness;
-};
 
 class GraphicsBranchItem: public QAbstractGraphicsShapeItem {
 public:
@@ -47,12 +37,12 @@ public:
     static const int TextSpace;
     static const int SelectedPenWidth;
 
-    BranchSettings settings;
-
 private:
     GraphicsBranchItem* correspondingItem;
     GraphicsButtonItem* buttonItem;
     void initText(qreal d);
+    int branchLength;
+    QGraphicsEllipseItem*    nameItemSelection;
 
 protected:
 
@@ -61,14 +51,21 @@ protected:
     qreal width;
     qreal dist;
     bool collapsed;
+    int lengthCoef;
+
+    OptionsMap settings;
 
     GraphicsBranchItem(const QString& name);
-    GraphicsBranchItem(qreal d, bool withButton = true);
+    GraphicsBranchItem(qreal d, bool withButton = true, double nodeValue = -1.0);
+    virtual void paint(QPainter * painter,const QStyleOptionGraphicsItem* option, QWidget* widget = NULL);
+
+    virtual void setLabelPositions();
 
 public:
-    GraphicsBranchItem(bool withButton = true);
+    GraphicsBranchItem(bool withButton = true, double nodeValue = -1.0);
 
     GraphicsButtonItem* getButton() const { return buttonItem; }
+    qreal getNodeLabel() const;
     QGraphicsSimpleTextItem* getDistanceText() const { return distanceText; }
     QGraphicsSimpleTextItem* getNameText() const { return nameText; }
     qreal getWidth() const { return width; }
@@ -78,14 +75,30 @@ public:
     void setWidth(qreal w);
     void setDist (qreal d) { dist = d; }
     virtual void collapse();
-    void setSelectedRecurs(bool sel, bool recursively);
-    bool isCollapsed();
+    void setSelectedRecurs(bool sel, bool selectChilds);
+    void setSelected(bool sel);
+    bool isCollapsed() const;
 
-    void updateSettings(const BranchSettings& branchSettings);
+    void updateSettings(const OptionsMap& settings);
+    void updateChildSettings(const OptionsMap& settings);
     void updateTextSettings(const QFont& font, const QColor& color);
 
-    GraphicsBranchItem* getCorrespondingItem() {return correspondingItem;}
+    const OptionsMap& getSettings() const;
+
+    GraphicsBranchItem* getCorrespondingItem() const {return correspondingItem;}
     void setCorrespondingItem(GraphicsBranchItem* cItem) {correspondingItem = cItem;}
+
+    const QList<QGraphicsItem*> getChildItems() const {return childItems();}
+
+    void setBranchLength(int newLength) {branchLength = newLength;}
+    int getBranchLength() const {return branchLength;}
+
+    QGraphicsItem* getParentItem() const {return parentItem();}
+
+    void setLenghtCoef(int newCoef) {lengthCoef = newCoef;}
+    int getLengthCoef() const {return lengthCoef;}
+
+    QRectF visibleChildrenBoundingRect (const QTransform& viewTransform) const;
 };
 
 }//namespace;

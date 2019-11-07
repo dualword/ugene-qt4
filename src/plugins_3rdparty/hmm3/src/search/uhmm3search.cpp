@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -58,11 +58,11 @@ UHMM3SearchResult UHMM3Search::search( const P7_HMM* hmm, const char* sq, int sq
         return res;
     }
     if( NULL == hmm ) {
-        tsi.setError( tr( "no_hmm_given" ) );
+        tsi.setError( tr( "Bad HMM profile given" ) );
         return res;
     }
     if( NULL == sq || 0 >= sqLen ) {
-        tsi.setError( tr( "no_sequence_given" ) );
+        tsi.setError( tr( "Empty sequence given" ) );
         return res;
     }
     
@@ -70,41 +70,41 @@ UHMM3SearchResult UHMM3Search::search( const P7_HMM* hmm, const char* sq, int sq
         // preparing...
 		dbsq = esl_sq_CreateFrom( NULL, sq, sqLen, NULL, NULL, NULL );
         if( NULL == dbsq ) {
-            errStr = tr( "no_memory:cannot_convert_sequence" ).toAscii();
+            errStr = tr( "Run out of memory (creation of sequence failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         int dbsqAbcType = eslUNKNOWN;
         esl_sq_GuessAlphabet( dbsq, &dbsqAbcType );
         if( eslUNKNOWN != dbsqAbcType && dbsqAbcType != hmm->abc->type ) { /* if we can recognize */
-            errStr = tr( "sequence_and_hmm_alphabets_not_match" ).toAscii();
+            errStr = tr( "Profile HMM and sequence alphabets no matched" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
         abc = esl_alphabet_Create( hmm->abc->type );
         if( NULL == abc ) {
-            errStr = tr( "no_memory:cannot_create_alphabet" ).toAscii();
+            errStr = tr( "Run out of memory (creation of alphabet failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         esl_sq_Digitize( abc, dbsq );
         if( NULL == dbsq || NULL == dbsq->dsq ) {
-            errStr = tr( "cannot_digitize_sequence" ).toAscii();
+            errStr = tr( "Run out of memory (digitizing of sequence failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
         bg = p7_bg_Create( abc );
         if( NULL == bg ) {
-            errStr = tr( "no_memory:cannot_create_null_model" ).toAscii();
+            errStr = tr( "Run out of memory (creation of null model failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
         gm = p7_profile_Create (hmm->M, abc);
         if( NULL == gm ) {
-            errStr = tr( "no_memory:cannot_create_profile" ).toAscii();
+            errStr = tr( "Run out of memory" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         om = p7_oprofile_Create(hmm->M, abc);
         if( NULL == om ) {
-            errStr = tr( "no_memory:cannot_create_optimized_profile" ).toAscii();
+            errStr = tr( "Run out of memory (creation of optimized profile failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         p7_ProfileConfig(hmm, bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
@@ -113,12 +113,12 @@ UHMM3SearchResult UHMM3Search::search( const P7_HMM* hmm, const char* sq, int sq
         /* Create processing pipeline and hit list */
         pli = p7_pipeline_Create( &settings, om->M, 100, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
         if( NULL == pli ) {
-            errStr = tr( "no_memory:cannot_create_pipeline" ).toAscii();
+            errStr = tr( "Run out of memory" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         th  = p7_tophits_Create();
         if( NULL == th ) {
-            errStr = tr( "no_memory:cannot_create_tophits" ).toAscii();
+            errStr = tr( "Run out of memory (top hits list creation failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
@@ -135,7 +135,7 @@ UHMM3SearchResult UHMM3Search::search( const P7_HMM* hmm, const char* sq, int sq
         tsi.progress = 0;
         int ret = p7_Pipeline( pli, om, bg, dbsq, th, SEARCH_PERCENT_PER_FILTERS, tsi, wholeSeqSz );
         if( eslCANCELED == ret ) {
-            errStr = tr( HMMER3_CANCELED_ERROR ).toAscii();
+            errStr = tr( HMMER3_CANCELED_ERROR ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         assert( eslOK == ret );

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseActorCategories.h>
+#include <U2Lang/NoFailTaskWrapper.h>
 #include <U2Designer/DelegateEditors.h>
 #include <U2Lang/CoreLibConstants.h>
 #include <U2Core/AppContext.h>
@@ -61,16 +62,16 @@ const QString TMP_DIR_PATH("temp-dir");
 void ClustalWWorkerFactory::init() {
     QList<PortDescriptor*> p; QList<Attribute*> a;
     Descriptor ind(BasePorts::IN_MSA_PORT_ID(), ClustalWWorker::tr("Input MSA"), ClustalWWorker::tr("Input MSA to process."));
-    Descriptor oud(BasePorts::OUT_MSA_PORT_ID(), ClustalWWorker::tr("ClustalW result MSA"), 
+    Descriptor oud(BasePorts::OUT_MSA_PORT_ID(), ClustalWWorker::tr("ClustalW result MSA"),
         ClustalWWorker::tr("The result of the ClustalW alignment."));
-    
+
     QMap<Descriptor, DataTypePtr> inM;
     inM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(ind, DataTypePtr(new MapDataType("clustal.in.msa", inM)), true /*input*/);
     QMap<Descriptor, DataTypePtr> outM;
     outM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(oud, DataTypePtr(new MapDataType("clustal.out.msa", outM)), false /*input*/, true /*multi*/);
-    
+
     Descriptor gop(GAP_OPEN_PENALTY, ClustalWWorker::tr("Gap open penalty"),
                     ClustalWWorker::tr("The penalty for opening a gap."));
     Descriptor gep(GAP_EXT_PENALTY, ClustalWWorker::tr("Gap extension penalty"),
@@ -88,7 +89,7 @@ void ClustalWWorkerFactory::init() {
                            <ul> \
                            <li>None - No iteration;</li> \
                            <li>Tree - Iteration at each step of alignment process;</li> \
-                           <li>Alignment - Iteation only on final alignment.</li> \
+                           <li>Alignment - Iteration only on final alignment.</li> \
                            </ul>"));
     Descriptor ni(NUM_ITERATIONS, ClustalWWorker::tr("Number of iterations"),
                     ClustalWWorker::tr("The maximum number of iterations to perform."));
@@ -163,12 +164,13 @@ void ClustalWWorkerFactory::init() {
         vm["ID"] = 5;
         delegates[MATRIX] = new ComboBoxDelegate(vm);
     }
-    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false);
+    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false, false, false);
     delegates[TMP_DIR_PATH] = new URLDelegate("", "TmpDir", false, true);
 
     proto->setEditor(new DelegateEditor(delegates));
     proto->setPrompter(new ClustalWPrompter());
     proto->setIconPath(":external_tool_support/images/clustalx.png");
+    proto->addExternalTool(ET_CLUSTAL, EXT_TOOL_PATH);
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_ALIGNMENT(), proto);
 
     DomainFactory* localDomain = WorkflowEnv::getDomainRegistry()->getById(LocalDomainFactory::ID);
@@ -183,7 +185,7 @@ ClustalWPrompter::ClustalWPrompter(Actor* p) : PrompterBase<ClustalWPrompter>(p)
 QString ClustalWPrompter::composeRichDoc() {
     IntegralBusPort* input = qobject_cast<IntegralBusPort*>(target->getPort(BasePorts::IN_MSA_PORT_ID()));
     Actor* producer = input->getProducer(BasePorts::IN_MSA_PORT_ID());
-    QString producerName = producer ? tr(" from %1").arg(producer->getLabel()) : "";    
+    QString producerName = producer ? tr(" from %1").arg(producer->getLabel()) : "";
     QString doc = tr("Aligns each MSA supplied <u>%1</u> with \"<u>ClustalW</u>\".")
         .arg(producerName);
 
@@ -200,78 +202,102 @@ void ClustalWWorker::init() {
     output = ports.value(BasePorts::OUT_MSA_PORT_ID());
 }
 
-bool ClustalWWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* ClustalWWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
-    cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
-    cfg.gapDist=actor->getParameter(GAP_DIST)->getAttributeValue<float>(context);
-    cfg.endGaps=actor->getParameter(END_GAPS)->getAttributeValue<bool>(context);
-    cfg.noHGaps=actor->getParameter(NO_HGAPS)->getAttributeValue<bool>(context);
-    cfg.noPGaps=actor->getParameter(NO_PGAPS)->getAttributeValue<bool>(context);
-    if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) != 0){
-        if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) == 1){
-            cfg.iterationType="TREE";
-        }else if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) == 2){
-            cfg.iterationType="ALIGNMENT";
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
         }
-        if(actor->getParameter(NUM_ITERATIONS)->getAttributeValue<int>(context) != 3){
-            cfg.numIterations=actor->getParameter(NUM_ITERATIONS)->getAttributeValue<int>(context);
+        cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
+        cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
+        cfg.gapDist=actor->getParameter(GAP_DIST)->getAttributeValue<float>(context);
+        cfg.endGaps=actor->getParameter(END_GAPS)->getAttributeValue<bool>(context);
+        cfg.noHGaps=actor->getParameter(NO_HGAPS)->getAttributeValue<bool>(context);
+        cfg.noPGaps=actor->getParameter(NO_PGAPS)->getAttributeValue<bool>(context);
+        if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) != 0){
+            if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) == 1){
+                cfg.iterationType="TREE";
+            }else if(actor->getParameter(ITERATION)->getAttributeValue<int>(context) == 2){
+                cfg.iterationType="ALIGNMENT";
+            }
+            if(actor->getParameter(NUM_ITERATIONS)->getAttributeValue<int>(context) != 3){
+                cfg.numIterations=actor->getParameter(NUM_ITERATIONS)->getAttributeValue<int>(context);
+            }
         }
-    }
-    if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == -1){
-        if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 0){
-            cfg.matrix="IUB";
-        }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 1){
-            cfg.matrix="CLUSTALW";
-        }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 2){
-            cfg.matrix="BLOSUM";
-        }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 3){
-            cfg.matrix="PAM";
-        }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 4){
-            cfg.matrix="GONNET";
-        }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 5){
-            cfg.matrix="ID";
+        if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == -1){
+            if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 0){
+                cfg.matrix="IUB";
+            }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 1){
+                cfg.matrix="CLUSTALW";
+            }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 2){
+                cfg.matrix="BLOSUM";
+            }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 3){
+                cfg.matrix="PAM";
+            }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 4){
+                cfg.matrix="GONNET";
+            }else if(actor->getParameter(MATRIX)->getAttributeValue<int>(context) == 5){
+                cfg.matrix="ID";
+            }
         }
-    }
 
-    QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getExternalToolRegistry()->getByName(CLUSTAL_TOOL_NAME)->setPath(path);
+        QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getExternalToolRegistry()->getByName(ET_CLUSTAL)->setPath(path);
+        }
+        path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
+        }
+
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        if (msa.isEmpty()) {
+            algoLog.error(tr("An empty MSA '%1' has been supplied to ClustalW.").arg(msa.getName()));
+            return NULL;
+        }
+        ClustalWSupportTask* supportTask = new ClustalWSupportTask(msa, GObjectReference(), cfg);
+        supportTask->addListeners(createLogListeners());
+        Task *t = new NoFailTaskWrapper(supportTask);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
-    }
-    MAlignment msa = inputMessage.getData().toMap().value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    
-    if( msa.isEmpty() ) {
-        return new FailTask(tr("An empty MSA has been supplied to ClustalW."));
-    }
-    Task* t = new ClustalWSupportTask(new MAlignmentObject(msa), cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void ClustalWWorker::sl_taskFinished() {
-    ClustalWSupportTask* t = qobject_cast<ClustalWSupportTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
-    QVariant v = qVariantFromValue<MAlignment>(t->resultMA);
-    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), v));
-    if (input->isEnded()) {
-        output->setEnded();
+    NoFailTaskWrapper *wrapper = qobject_cast<NoFailTaskWrapper*>(sender());
+    CHECK(wrapper->isFinished(), );
+    ClustalWSupportTask* t = qobject_cast<ClustalWSupportTask*>(wrapper->originalTask());
+    if (t->isCanceled()){
+        return;
     }
+    if (t->hasError()) {
+        coreLog.error(t->getError());
+        return;
+    }
+
+    SAFE_POINT(NULL != output, "NULL output!", );
+    send(t->resultMA);
     algoLog.info(tr("Aligned %1 with ClustalW").arg(t->resultMA.getName()));
 }
 
-bool ClustalWWorker::isDone() {
-    return !input || input->isEnded();
+void ClustalWWorker::cleanup() {
 }
 
-void ClustalWWorker::cleanup() {
+void ClustalWWorker::send(const MAlignment &msa) {
+    SAFE_POINT(NULL != output, "NULL output!", );
+    SharedDbiDataHandler msaId = context->getDataStorage()->putAlignment(msa);
+    QVariantMap m;
+    m[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(msaId);
+    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), m));
 }
 
 } //namespace LocalWorkflow

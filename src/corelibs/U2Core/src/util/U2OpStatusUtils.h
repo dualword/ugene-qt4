@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,8 @@
 
 namespace U2 {
 
-/** 
-    Default helper stub for U2OpStatus 
+/**
+    Default helper stub for U2OpStatus
     Note: implementation is not thread safe!
 */
 class U2CORE_EXPORT U2OpStatusImpl : public U2OpStatus {
@@ -44,7 +44,7 @@ public:
         }
     }
     void markChecked() const {checked = true;}
-#else 
+#else
     U2OpStatusImpl() : cancelFlag(false), progress(-1) {}
     void markChecked() const {}
 #endif
@@ -63,11 +63,18 @@ public:
     virtual QString getDescription() const {return statusDesc;}
     virtual void setDescription(const QString& desc)  {statusDesc = desc;}
 
-private:
+    virtual bool hasWarnings() const { return !warnings.isEmpty(); }
+    virtual void addWarning(const QString &w) { warnings << w; }
+    virtual QStringList getWarnings() const { return warnings; }
+    virtual void addWarnings(const QStringList &wList) { warnings << wList; }
+
+protected:
     /** Keeps error message if operation failed */
     QString error;
     /** Keeps current operation state description */
     QString statusDesc;
+    /** Keeps warning message */
+    QStringList warnings;
     /** Indicates if operation is canceled or not. If yes - processing must be stopped */
     int     cancelFlag;
     /** Current operation progress. -1 - unknown */
@@ -88,20 +95,62 @@ private:
     }
 
 
-/** 
-    Used to dump error ops to coreLog. 
+/**
+    Used to dump error ops to coreLog.
     LogLevel is specified as param. Default is ERROR
 */
 class U2CORE_EXPORT U2OpStatus2Log : public U2OpStatusImpl {
 public:
     U2OpStatus2Log(LogLevel l = LogLevel_ERROR) : level (l){}
-    virtual ~U2OpStatus2Log() {
-        if (hasError()) {
-            coreLog.message(level, getError());
-        }
+    virtual void setError(const QString &err) {
+        U2OpStatusImpl::setError(err);
+        coreLog.message(level, err);
     }
+
 private:
     LogLevel level;
+};
+
+class U2OpStatusMapping{
+public:
+    U2OpStatusMapping(int _start, int _len):start(_start),len(_len){}
+    int start;
+    int len;
+
+};
+
+class U2OpStatusChildImpl : public U2OpStatusImpl{
+public:
+    U2OpStatusChildImpl(U2OpStatus* _parent = 0, const U2OpStatusMapping& _mapping = U2OpStatusMapping(0, 100)):parent(_parent), mapping(_mapping){}
+    virtual void setError(const QString & err) {
+        parent->setError(err);
+        error = err;
+    }
+
+    virtual bool hasError() const {
+        return parent->hasError() || !error.isEmpty();
+    }
+
+    virtual bool isCanceled() const {
+        return parent->isCanceled() || cancelFlag != 0;
+    }
+    virtual void setCanceled(bool v)  {
+        parent->setCanceled(v);
+        cancelFlag = v;
+    }
+
+    virtual void setProgress(int v)  {
+        parent->setProgress(mapping.start + v * mapping.len / 100);
+        progress = v;
+    }
+
+    virtual void setDescription(const QString& desc)  {
+        parent->setDescription(desc);
+        statusDesc = desc;
+    }
+private:
+    U2OpStatus* parent;
+    U2OpStatusMapping mapping;
 };
 
 }// namespace

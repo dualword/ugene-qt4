@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,9 +27,13 @@
 #include <U2Core/DNASequenceObject.h>
 #include <U2Gui/CreateAnnotationWidgetController.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
-#include "RemoteBLASTTask.h" 
+#include "RemoteBLASTTask.h"
 #include "RemoteBLASTConsts.h"
 
 
@@ -38,12 +42,13 @@ namespace U2 {
 class CreateAnnotationWidgetController;
 class AnnotationTableObject;
 
-class SendSelectionDialog: public QDialog, Ui_Dialog {
+class SendSelectionDialog: public QDialog, Ui_RemoteBLASTDialog {
     Q_OBJECT
 public:
     SendSelectionDialog( const U2SequenceObject* dnaso, bool _isAminoSeq, QWidget *p = NULL );
     QString getGroupName() const;
-    AnnotationTableObject* getAnnotationObject() const;
+    const QString &getAnnotationDescription() const;
+    AnnotationTableObject * getAnnotationObject() const;
     const CreateAnnotationModel *getModel() const;
     QString getUrl() const;
 private slots:

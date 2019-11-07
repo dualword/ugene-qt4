@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,13 @@
 #define __OPENCL_SUPPORT_SETTINGS_CONTROLLER__
 
 #include <QtCore/QVector>
-#include <QtGui/QCheckBox>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
+#include <QtGui/QCheckBox>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QCheckBox>
+#endif
 
 #include <U2Gui/AppSettingsGUI.h>
 
@@ -43,8 +48,11 @@ public:
 
     virtual AppSettingsGUIPageWidget * createWidget( AppSettingsGUIPageState* state );
 
+    const QString& getHelpPageId() const {return helpPageId;};
+
 private:
     QString displayMsg;
+    static const QString helpPageId;
 };
 
 class OpenCLSupportSettingsPageState : public AppSettingsGUIPageState {

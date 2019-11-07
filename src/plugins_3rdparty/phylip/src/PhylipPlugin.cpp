@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,8 +34,13 @@
 #include <U2Test/GTest.h>
 #include <U2Test/GTestFrameworkComponents.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
-#include <QtGui/QFileDialog>
+#include <QtGui/QMenu>
+#else
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QMenu>
+#endif
 
 #include "PhylipPluginTests.h"
 #include "NeighborJoinAdapter.h"
@@ -52,7 +57,7 @@ const QString PhylipPlugin::PHYLIP_NEIGHBOUR_JOIN("PHYLIP Neighbor Joining");
 
 PhylipPlugin::PhylipPlugin() 
 : Plugin(tr("PHYLIP"), tr("PHYLIP (the PHYLogeny Inference Package) is a package of programs for inferring phylogenies (evolutionary trees)."
-         " Original version at: http://evolution.genetics.washington.edu/phylip.html"))
+         " Original version at: http://evolution.genetics.washington.edu/phylip.html"), false)
 {
 
     PhyTreeGeneratorRegistry* registry = AppContext::getPhyTreeGeneratorRegistry();

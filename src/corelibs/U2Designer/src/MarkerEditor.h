@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,31 +37,32 @@ class MarkerGroupListCfgModel;
 /**
  * base class for marker-actors' configuration editor
  */
-class U2DESIGNER_EXPORT MarkerEditor : public QObject, public ActorConfigurationEditor {
+class U2DESIGNER_EXPORT MarkerEditor : public ActorConfigurationEditor {
     Q_OBJECT
 public:
     MarkerEditor();
-    MarkerEditor(const MarkerEditor &) : QObject(), markerModel(NULL) {}
+    MarkerEditor(const MarkerEditor &) : ActorConfigurationEditor(), markerModel(NULL) {}
     virtual ~MarkerEditor();
     virtual QWidget *getWidget();
     virtual void setConfiguration(Actor *actor);
     virtual ConfigurationEditor *clone() {return new MarkerEditor(*this);}
 
 public slots:
-    void sl_onMarkerEdited(const QString &markerId, const QString &oldMarkerName);
-    void sl_onMarkerAdded(const QString &markerId);
-    void sl_onMarkerRemoved(const QString &markerId, const QString &markerName);
+    void sl_onMarkerEdited(const QString &newMarkerName, const QString &oldMarkerName);
+    void sl_onMarkerAdded(const QString &markerName);
+    void sl_onMarkerRemoved(const QString &markerName);
 
 private:
     MarkerGroupListCfgModel *markerModel;
 
-    QWidget *createGUI();
+private:
+    QWidget * createGUI();
 }; // MarkerEditor
 
 class MarkerGroupListCfgModel : public QAbstractTableModel {
     Q_OBJECT
 public:
-    MarkerGroupListCfgModel(QObject *parent, QMap<QString, Marker*> &markers);
+    MarkerGroupListCfgModel(QObject *parent, QList<Marker*> &markers);
 
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
@@ -71,18 +72,21 @@ public:
     Qt::ItemFlags flags( const QModelIndex & index ) const;
     bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex());
 
-    Marker *getMarker(int row);
-    QMap<QString, Marker*> &getMarkers();
+    Marker * getMarker(int row) const;
+    Marker * getMarker(const QString &markerName) const;
+    QList<Marker*> & getMarkers();
     void addMarker(Marker *newMarker);
     void replaceMarker(int row, Marker *newMarker);
+    QString suggestName(const QString &type);
+    bool containsName(const QString &name);
 
 signals:
-    void si_markerEdited(const QString &markerId, const QString &oldMarkerName);
-    void si_markerAdded(const QString &markerId);
-    void si_markerRemoved(const QString &markerId, const QString &markerName);
+    void si_markerEdited(const QString &newMarkerName, const QString &oldMarkerName);
+    void si_markerAdded(const QString &markerName);
+    void si_markerRemoved(const QString &markerName);
 
 private:
-    QMap<QString, Marker*> &markers;
+    QList<Marker*> &markers;
 };
 
 } // Workflow

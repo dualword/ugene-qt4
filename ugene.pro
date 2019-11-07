@@ -1,7 +1,9 @@
 include( src/ugene_globals.pri )
 
-TEMPLATE = subdirs 
+TEMPLATE = subdirs
+
 CONFIG += ordered debug_and_release
+
 use_bundled_zlib() {
     SUBDIRS += src/libs_3rdparty/zlib
 }
@@ -10,6 +12,7 @@ SUBDIRS += \
           src/libs_3rdparty/qscore \
           src/libs_3rdparty/sqlite3 \
           src/libs_3rdparty/gtest \
+          src/libs_3rdparty/samtools \
           src/corelibs/U2Core \
           src/corelibs/U2Test \
           src/corelibs/U2Algorithm \
@@ -20,9 +23,11 @@ SUBDIRS += \
           src/corelibs/U2Remote \
           src/corelibs/U2View \
           src/corelibs/U2Designer \
+          src/corelibs/U2Script \
           src/ugeneui \
           src/ugenecl \
           src/ugenem \
+          src/plugins_checker \
           src/plugins_3rdparty/ball \
           src/plugins_3rdparty/sitecon \
           src/plugins_3rdparty/umuscle \
@@ -32,6 +37,7 @@ SUBDIRS += \
           src/plugins_3rdparty/phylip \
           src/plugins_3rdparty/kalign \
           src/plugins_3rdparty/ptools \
+          src/plugins_3rdparty/variants \
           src/plugins/biostruct3d_view \
           src/plugins/chroma_view \
           src/plugins/circular_view \
@@ -42,6 +48,7 @@ SUBDIRS += \
           src/plugins/dna_flexibility \
           src/plugins/dna_graphpack \
           src/plugins/orf_marker \
+          src/plugins/pcr \
           src/plugins/workflow_designer \
           src/plugins/repeat_finder \
           src/plugins/test_runner \
@@ -58,13 +65,17 @@ SUBDIRS += \
           src/plugins/expert_discovery \
           src/plugins/remote_service \
           src/plugins/CoreTests \
-          src/plugins/api_tests
+          src/plugins/api_tests \
+          src/plugins/GUITestBase \
+          src/plugins/browser_support \
+          src/plugins/linkdata_support
 
 use_cuda() {
     SUBDIRS += src/plugins/cuda_support
 }
 
 use_opencl() {
+    DEFINES += OPENCL_SUPPORT
     SUBDIRS += src/plugins/opencl_support
 }
 
@@ -76,8 +87,13 @@ exclude_list_enabled() {
     SUBDIRS -= src/plugins/CoreTests
     SUBDIRS -= src/plugins/test_runner
     SUBDIRS -= src/plugins/perf_monitor
+    SUBDIRS -= src/plugins/GUITestBase
+    SUBDIRS -= src/plugins/api_tests
 }
-
+without_non_free() {
+    SUBDIRS -= src/plugins_3rdparty/psipred
+    SUBDIRS -= src/plugins_3rdparty/phylip
+}
 
 #create target directories
 win32 {
@@ -152,7 +168,10 @@ unix {
     ugene_starter.files = ./src/_release/ugene
     ugene_starter.path = $$UGENE_INSTALL_DIR
 
-    transl.files = ./src/_release/transl_en.qm ./src/_release/transl_ru.qm
+    transl.files = ./src/_release/transl_en.qm
+    transl.files += ./src/_release/transl_ru.qm
+    transl.files += ./src/_release/transl_cs.qm
+    transl.files += ./src/_release/transl_zh.qm
     transl.path = $$UGENE_INSTALL_DIR
     
     plugins.files = ./src/_release/plugins/*
@@ -167,12 +186,19 @@ unix {
     desktop.files += installer/_common_data/ugene.desktop
     desktop.path = $$UGENE_INSTALL_DESKTOP
 
-    icons.files += installer/_common_data/ugene.png installer/_common_data/ugene.xpm
-    icons.path = $$UGENE_INSTALL_PIXMAPS
+    pixmaps.files += installer/_common_data/ugene.png installer/_common_data/ugene.xpm
+    pixmaps.path = $$UGENE_INSTALL_PIXMAPS
 
     manual.files += installer/_common_data/ugene.1.gz
     manual.path = $$UGENE_INSTALL_MAN
 
-    INSTALLS += binscript ugene_starter transl plugins scripts data desktop icons manual
+    mime.files += installer/_common_data/application-x-ugene.xml
+    mime.path = $$UGENE_INSTALL_MIME
+
+    icons.files += installer/_common_data/application-x-ugene-ext.png
+    icons.path = $$UGENE_INSTALL_ICONS
+
+
+    INSTALLS += binscript ugene_starter transl plugins scripts data desktop pixmaps mime icons manual
 }
  

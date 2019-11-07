@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,39 @@
  * MA 02110-1301, USA.
  */
 
+#include <QLibraryInfo>
+
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
+#endif
 #include <QtCore/QTextStream>
 #include "SendReportDialog.h"
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_UNIX ) && defined(Q_WS_X11)
 #include <X11/Xlib.h>
 #endif
+#include "Utils.h"
+
+namespace {
+    QString loadReport(int argc, char *argv[]) {
+        QCoreApplication app(argc, argv);
+
+        if (Utils::hasReportUrl()) {
+            return Utils::loadReportFromUrl(Utils::getReportUrl());
+        } else if (argc > 1) {
+            return QString::fromUtf8(QByteArray::fromBase64(argv[argc-1]));
+        }
+        return "";
+    }
+}
 
 int main(int argc, char *argv[]){
-    QString message;
-    if(argc > 1) {
-        message = QString::fromUtf8(QByteArray::fromBase64(argv[1]));
-    } else {
-        message = "";
-    }
-#ifdef Q_OS_LINUX
+    QString message = loadReport(argc, argv);
+#if defined(Q_OS_UNIX) && defined(Q_WS_X11)
     if(XOpenDisplay(NULL) == NULL) {
         QCoreApplication a(argc, argv);
         QTextStream stream(stdin);
@@ -55,8 +72,16 @@ int main(int argc, char *argv[]){
     }
 #else
     QApplication a(argc, argv);
+
+#ifdef Q_OS_MAC
+    // A workaround to avoid using non-bundled plugins
+    QCoreApplication::removeLibraryPath(QLibraryInfo::location(QLibraryInfo::PluginsPath));
+    QCoreApplication::addLibraryPath("../PlugIns");
+#endif
+
     SendReportDialog dlg(message);
     dlg.setWindowIcon(QIcon(":ugenem/images/crash_icon.png"));
+
     dlg.exec();
 #endif
     return 0;

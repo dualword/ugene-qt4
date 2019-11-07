@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,16 +35,22 @@
 #include <U2Algorithm/SWResultFilterRegistry.h>
 #include <U2Algorithm/SmithWatermanTaskFactoryRegistry.h>
 
+#include <U2Algorithm/SWMulAlignResultNamesTagsRegistry.h>
+
 #include <U2Gui/RegionSelector.h>
+
+class QCheckBox;
 
 namespace U2 {
 
 class SmithWatermanDialog: public QDialog, public Ui::SmithWatermanDialogBase {
     Q_OBJECT
 public:
-    SmithWatermanDialog(QWidget* p, 
+    SmithWatermanDialog(QWidget* p,
                         ADVSequenceObjectContext* ctx,
                         SWDialogConfig* dialogConfig);
+    ~SmithWatermanDialog();
+    virtual bool eventFilter(QObject * object, QEvent * event);
 
 private slots:
     void sl_bttnViewMatrix();
@@ -54,13 +60,17 @@ private slots:
 
     //void sl_remoteRunButtonClicked();
     void sl_patternChanged();
-    
+    void sl_resultViewChanged(const QString & text);
+    void sl_browseAlignFilesDir();
+    void sl_templateButtonPressed(); // suppose that template buttons have the following label: "[tag] tag_name"
+    void sl_cancelButton();
+
 private:
     void clearAll();
     void loadDialogConfig();
     void saveDialogConfig();
     bool readParameters();
-    void updateVisualState();
+    void updatePatternFieldVisualState();
 
     bool readPattern(DNATranslation* aminoTT);
     bool readRegion();
@@ -72,6 +82,18 @@ private:
     void setParameters();
     void connectGUI();
     void addAnnotationWidget();
+    void templateEditInFocus();
+    void templateEditLostFocus();
+
+    void changeResultSavingWidgets(const QString & currentText);
+    void initResultDirPath();
+    void fillTemplateButtonsList();
+    void connectTemplateButtonsGui();
+    void fillTemplateNamesFieldsByDefault();
+    QString validateResultDirPath() const;
+
+    static bool checkTemplateButtonName(const QString & name);
+    static void stripFormatSymbolsFromPattern(QString & pattern);
 
     SubstMatrixRegistry* substMatrixRegistry;
     SWResultFilterRegistry* swResultFilterRegistry;
@@ -82,9 +104,18 @@ private:
     SmithWatermanTaskFactory* realization;
 
     ADVSequenceObjectContext* ctxSeq;
-    CreateAnnotationWidgetController* ac;
+    CreateAnnotationWidgetController* annotationController;
+    QCheckBox *addPatternContentQualifier;
 
-    RegionSelector* rs;
+    RegionSelector* regionSelector;
+
+    SWMulAlignResultNamesTagsRegistry *tagsRegistry;
+    QList<QPushButton *> *templateButtons;
+    QBitArray *templateButtonsApplicability;
+
+    QPushButton* bttnRun;
+    QPushButton* bttnCancel;
+    QPushButton* remoteRunPushButton;
 };
 
 } // namespace

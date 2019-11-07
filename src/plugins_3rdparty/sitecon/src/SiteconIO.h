@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -49,7 +49,7 @@ class SiteconReadTask: public Task {
     Q_OBJECT
 public:
     SiteconReadTask(const QString& url) 
-        : Task(tr("Read SITECON model"), TaskFlag_None), url(url) {}
+        : Task(tr("Read SITECON Model"), TaskFlag_None), url(url) {}
     void run();
     SiteconModel getResult() const {return model;}
     QString getURL() const {return url;}

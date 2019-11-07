@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,13 @@
 
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenuBar>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMenuBar>
+#include <QtWidgets/QMenu>
+#endif
 #include <QtCore/QEvent>
 
 namespace U2 {
@@ -33,19 +38,23 @@ namespace U2 {
 class MWMenuManagerImpl: public QObject {
     Q_OBJECT
 public:
-	MWMenuManagerImpl(QObject* p, QMenuBar* mb);
+    MWMenuManagerImpl(QObject* p, QMenuBar* mb);
 
-	QMenu* getTopLevelMenu(const QString& sysName) const ;
+    QMenu* getTopLevelMenu(const QString& sysName) const;
+    void setMenuBarEnabled(bool enable);
+    void registerAction(QAction *action);
 
 protected:
-	bool eventFilter(QObject *obj, QEvent *event);
+    bool eventFilter(QObject *obj, QEvent *event);
+
 private:
-	void unlinkTopLevelMenu(QMenu*);
-	void linkTopLevelMenu(QMenu*);
-	QMenu* createTopLevelMenu(const QString& sysName, const QString& title, const QString& afterSysName = QString::null);
-	void updateTopLevelMenuVisibility(QMenu* m);
-	QMenuBar* menuBar;
-	QList<QMenu*> toplevelMenus;
+    void unlinkTopLevelMenu(QMenu*);
+    void linkTopLevelMenu(QMenu*);
+    QMenu* createTopLevelMenu(const QString& sysName, const QString& title, const QString& afterSysName = QString::null);
+    void updateTopLevelMenuVisibility(QMenu* m);
+    QMenuBar* menuBar;
+    QList<QMenu*> toplevelMenus;
+    QList<QPointer<QAction> > additionalActions;
 };
 
 }//namespace

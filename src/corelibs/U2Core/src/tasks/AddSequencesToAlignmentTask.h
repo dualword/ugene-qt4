@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +22,16 @@
 #ifndef _U2_ADD_SEQUENCES_TO_ALIGNMENT_TASK_H_
 #define _U2_ADD_SEQUENCES_TO_ALIGNMENT_TASK_H_
 
+#include <QPointer>
+
 #include <U2Core/Task.h>
 #include <U2Core/MAlignmentObject.h>
 
-#include <QtCore/QPointer>
-
-
 namespace U2 {
 
-class LoadDocumentTask;
 class StateLock;
+class LoadDocumentTask;
+class U2SequenceObject;
 
 class U2CORE_EXPORT AddSequencesToAlignmentTask : public Task {
     Q_OBJECT
@@ -43,9 +43,24 @@ public:
     ReportResult report();
 
     QPointer<MAlignmentObject>  maObj;
-    MAlignment                  bufMa;
     QStringList                 urls;
     StateLock*                  stateLock;
+private slots:
+    void sl_onCancel();
+private:
+    const DNAAlphabet *msaAlphabet;
+    QList<U2SequenceObject*>    seqList;
+    QStringList                 errorList;
+    LoadDocumentTask* loadTask;
+
+    static const int maxErrorListSize;
+
+private:
+    /** Returns the max length of the rows including trailing gaps */
+    qint64 createRows(QList<U2MsaRow>& rows);
+    void addRows(QList<U2MsaRow> &rows, qint64 len);
+    void setupError();
+    void releaseLock();
 };
 
 }// namespace

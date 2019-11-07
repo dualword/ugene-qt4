@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -136,7 +136,7 @@ Marker *MarkerFactory::createInstanse(const QString &type, const QVariant &addit
         m = new SequenceMarker(type, "NewSequenceMarker");
     }
 
-    if (m->hasAdditionalParameter()) {
+    if (NONE != m->hasAdditionalParameter()) {
         m->setAdditionalParameter(additionalParam);
     }
 
@@ -163,8 +163,8 @@ void Marker::addValue(QString name, QString value) {
     values.insert(name, value);
 }
 
-bool Marker::hasAdditionalParameter() {
-    return false;
+ParameterState Marker::hasAdditionalParameter() {
+    return NONE;
 }
 
 void Marker::setAdditionalParameter(const QVariant &) {
@@ -319,7 +319,7 @@ const QString Marker::toString() const {
 /* SequencerMarker */
 /************************************************************************/
 QString SequenceMarker::getMarkingResult(const QVariant &object) {
-    DNASequence seq = qVariantValue<DNASequence>(object);
+    DNASequence seq = object.value<DNASequence>();
 
     if (MarkerTypes::SEQ_LENGTH_MARKER_ID == type) {
         return Marker::getMarkingResult(seq.length());
@@ -343,10 +343,16 @@ Marker *SequenceMarker::clone() {
 /* QualifierMarker */
 /************************************************************************/
 QString QualifierMarker::getMarkingResult(const QVariant &object) {
-    QList<SharedAnnotationData> anns = QVariantUtils::var2ftl(object.toList());
+    const QString rest = values.value(MarkerUtils::REST_OPERATION);
 
-    foreach (SharedAnnotationData ann, anns) {
-        foreach (U2Qualifier qual, ann->qualifiers) {
+    QList<SharedAnnotationData> anns;
+    foreach (const QVariant &ann, object.toList()) {
+        SAFE_POINT(ann.canConvert<SharedAnnotationData>(), "Invalid annotation data encountered!", QString());
+        anns << ann.value<SharedAnnotationData>();
+    }
+
+    foreach (const SharedAnnotationData &ann, anns) {
+        foreach (const U2Qualifier &qual, ann->qualifiers) {
             if (qual.name == qualName) {
                 bool ok = false;
                 QVariant value;
@@ -358,16 +364,17 @@ QString QualifierMarker::getMarkingResult(const QVariant &object) {
                     value = qVariantFromValue(qual.value);
                     ok = true;
                 } else {
-                    assert(0);
-                    return values.value(MarkerUtils::REST_OPERATION);
+                    FAIL("Unexpected marker type!", rest);
                 }
-                assert(ok);
-                return Marker::getMarkingResult(value);
+                SAFE_POINT(ok, "Variant conversion error!", QString());
+                QString mark = Marker::getMarkingResult(value);
+                if (rest != mark) {
+                    return mark;
+                }
             }
         }
     }
-
-    return values.value(MarkerUtils::REST_OPERATION);
+    return rest;
 }
 
 MarkerGroup QualifierMarker::getGroup() {
@@ -382,8 +389,8 @@ Marker *QualifierMarker::clone() {
     return new QualifierMarker(*this);
 }
 
-bool QualifierMarker::hasAdditionalParameter() {
-    return true;
+ParameterState QualifierMarker::hasAdditionalParameter() {
+    return REQUIRED;
 }
 
 void QualifierMarker::setAdditionalParameter(const QVariant &param) {
@@ -402,14 +409,18 @@ QString QualifierMarker::getAdditionalParameterName() {
 /* AnnotationMarker */
 /************************************************************************/
 QString AnnotationMarker::getMarkingResult(const QVariant &object) {
-    QList<SharedAnnotationData> anns = QVariantUtils::var2ftl(object.toList());
+    QList<SharedAnnotationData> anns;
+    foreach (const QVariant &ann, object.toList()) {
+        SAFE_POINT(ann.canConvert<SharedAnnotationData>(), "Invalid annotation data encountered!", QString());
+        anns << ann.value<SharedAnnotationData>();
+    }
 
     if (MarkerTypes::ANNOTATION_COUNT_MARKER_ID == type) {
         int count = 0;
         if (annName.isEmpty()) {
             count = anns.size();
         } else {
-            foreach (SharedAnnotationData ann, anns) {
+            foreach (const SharedAnnotationData &ann, anns) {
                 if (ann->name == annName) {
                     count++;
                 }
@@ -437,8 +448,8 @@ Marker *AnnotationMarker::clone() {
     return new AnnotationMarker(*this);
 }
 
-bool AnnotationMarker::hasAdditionalParameter() {
-    return true;
+ParameterState AnnotationMarker::hasAdditionalParameter() {
+    return NOT_REQUIRED;
 }
 
 void AnnotationMarker::setAdditionalParameter(const QVariant &param) {

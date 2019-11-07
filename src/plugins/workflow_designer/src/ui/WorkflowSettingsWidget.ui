@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>487</width>
-    <height>465</height>
+    <height>508</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -99,6 +99,16 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="debuggerBox">
+        <property name="text">
+         <string>Enable debugger</string>
+        </property>
+        <property name="tristate">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -108,6 +118,27 @@
       <string>Directories</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QLabel" name="label_7">
+        <property name="text">
+         <string>Use directory for output files</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <item>
+         <widget class="QLineEdit" name="workflowOutputEdit"/>
+        </item>
+        <item>
+         <widget class="QToolButton" name="workflowOutputButton">
+          <property name="text">
+           <string notr="true">...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
       <item>
        <widget class="QLabel" name="label_4">
         <property name="text">
@@ -150,14 +181,28 @@
         </item>
        </layout>
       </item>
+      <item>
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Directory for included schema elements</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <item>
+         <widget class="QLineEdit" name="includedlDirEdit"/>
+        </item>
+        <item>
+         <widget class="QToolButton" name="includedDirButton">
+          <property name="text">
+           <string notr="true">...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QCheckBox" name="runInSeparateProcessBox">
-     <property name="text">
-      <string>Run tasks in separate process</string>
-     </property>
     </widget>
    </item>
    <item>

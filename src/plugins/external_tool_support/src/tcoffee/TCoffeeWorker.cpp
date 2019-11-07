@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseActorCategories.h>
+#include <U2Lang/NoFailTaskWrapper.h>
 #include <U2Designer/DelegateEditors.h>
 #include <U2Lang/CoreLibConstants.h>
 #include <U2Core/AppContext.h>
@@ -57,25 +58,25 @@ void TCoffeeWorkerFactory::init() {
     QList<PortDescriptor*> p; QList<Attribute*> a;
     Descriptor ind(BasePorts::IN_MSA_PORT_ID(), TCoffeeWorker::tr("Input MSA"), TCoffeeWorker::tr("Multiple sequence alignment to be processed."));
     Descriptor oud(BasePorts::OUT_MSA_PORT_ID(), TCoffeeWorker::tr("Multiple sequence alignment"), TCoffeeWorker::tr("Result of alignment."));
-    
+
     QMap<Descriptor, DataTypePtr> inM;
     inM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(ind, DataTypePtr(new MapDataType("tcoffee.in.msa", inM)), true /*input*/);
     QMap<Descriptor, DataTypePtr> outM;
     outM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(oud, DataTypePtr(new MapDataType("tcoffee.out.msa", outM)), false /*input*/, true /*multi*/);
-    
+
     Descriptor gop(GAP_OPEN_PENALTY, TCoffeeWorker::tr("Gap Open Penalty"),
                    TCoffeeWorker::tr("Gap Open Penalty. Must be negative, best matches get a score of 1000."));
     Descriptor gep(GAP_EXT_PENALTY, TCoffeeWorker::tr("Gap Extension Penalty"),
                    TCoffeeWorker::tr("Gap Extension Penalty. Positive values give rewards to gaps and prevent the alignment of unrelated segments."));
     Descriptor tgp(NUM_ITER, TCoffeeWorker::tr("Max Iteration"),
-                   TCoffeeWorker::tr("Number of iteration on the progressive alignment<br>"
-                                     "0 - no iteration, -1 - Nseq iterations"));
+                   TCoffeeWorker::tr("Number of iteration on the progressive alignment.<br>"
+                                     "0 - no iteration, -1 - Nseq iterations."));
     Descriptor etp(EXT_TOOL_PATH, TCoffeeWorker::tr("Tool Path"),
-                   TCoffeeWorker::tr("External tool path"));
+                   TCoffeeWorker::tr("External tool path."));
     Descriptor tdp(TMP_DIR_PATH, TCoffeeWorker::tr("Temporary directory"),
-                   TCoffeeWorker::tr("Directory for temporary files"));
+                   TCoffeeWorker::tr("Directory for temporary file.s"));
 
     a << new Attribute(gop, BaseTypes::NUM_TYPE(), false, QVariant(-50));
     a << new Attribute(gep, BaseTypes::NUM_TYPE(), false, QVariant(0));
@@ -100,12 +101,13 @@ void TCoffeeWorkerFactory::init() {
         QVariantMap m; m["minimum"] = int(-1); m["maximum"] = int(100);
         delegates[NUM_ITER] = new SpinBoxDelegate(m);
     }
-    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false);
+    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false, false, false);
     delegates[TMP_DIR_PATH] = new URLDelegate("", "TmpDir", false, true);
 
     proto->setEditor(new DelegateEditor(delegates));
     proto->setPrompter(new TCoffeePrompter());
     proto->setIconPath(":external_tool_support/images/tcoffee.png");
+    proto->addExternalTool(ET_TCOFFEE, EXT_TOOL_PATH);
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_ALIGNMENT(), proto);
 
     DomainFactory* localDomain = WorkflowEnv::getDomainRegistry()->getById(LocalDomainFactory::ID);
@@ -138,46 +140,66 @@ void TCoffeeWorker::init() {
     output = ports.value(BasePorts::OUT_MSA_PORT_ID());
 }
 
-bool TCoffeeWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* TCoffeeWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
-    cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
-    cfg.numIterations=actor->getParameter(NUM_ITER)->getAttributeValue<int>(context);
-    QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getExternalToolRegistry()->getByName(TCOFFEE_TOOL_NAME)->setPath(path);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
+        cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
+        cfg.numIterations=actor->getParameter(NUM_ITER)->getAttributeValue<int>(context);
+
+        QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getExternalToolRegistry()->getByName(ET_TCOFFEE)->setPath(path);
+        }
+        path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
+        }
+
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        if (msa.isEmpty()) {
+            algoLog.error(tr("An empty MSA '%1' has been supplied to T-Coffee.").arg(msa.getName()));
+            return NULL;
+        }
+        TCoffeeSupportTask* supportTask = new TCoffeeSupportTask(msa, GObjectReference(), cfg);
+        supportTask->addListeners(createLogListeners());
+        Task *t = new NoFailTaskWrapper(supportTask);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
-    }
-    MAlignment msa = inputMessage.getData().toMap().value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    
-    if( msa.isEmpty() ) {
-        return new FailTask(tr("Empty msa supplied to tcoffee"));
-    }
-    Task* t = new TCoffeeSupportTask(new MAlignmentObject(msa), cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void TCoffeeWorker::sl_taskFinished() {
-    TCoffeeSupportTask* t = qobject_cast<TCoffeeSupportTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
-    QVariant v = qVariantFromValue<MAlignment>(t->resultMA);
-    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), v));
-    if (input->isEnded()) {
-        output->setEnded();
+    NoFailTaskWrapper *wrapper = qobject_cast<NoFailTaskWrapper*>(sender());
+    CHECK(wrapper->isFinished(), );
+    TCoffeeSupportTask* t = qobject_cast<TCoffeeSupportTask*>(wrapper->originalTask());
+    if (t->isCanceled()) {
+        return;
     }
-    algoLog.info(tr("Aligned %1 with T-Coffee").arg(t->resultMA.getName()));
-}
+    if (t->hasError()) {
+        coreLog.error(t->getError());
+        return;
+    }
 
-bool TCoffeeWorker::isDone() {
-    return !input || input->isEnded();
+    SAFE_POINT(NULL != output, "NULL output!", );
+    SharedDbiDataHandler msaId = context->getDataStorage()->putAlignment(t->resultMA);
+    QVariantMap msgData;
+    msgData[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(msaId);
+    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), msgData));
+    algoLog.info(tr("Aligned %1 with T-Coffee").arg(t->resultMA.getName()));
 }
 
 void TCoffeeWorker::cleanup() {

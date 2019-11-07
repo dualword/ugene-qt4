@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,19 +22,23 @@
 #include "MSAEditorConsensusCache.h"
 
 #include <U2Core/MAlignmentObject.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Algorithm/MSAConsensusAlgorithm.h>
 
 namespace U2 {
 
-MSAEditorConsensusCache::MSAEditorConsensusCache(QObject* p, MAlignmentObject* o, MSAConsensusAlgorithmFactory* factory) 
-: QObject(p), currentVersion(1), aliObj(o), algorithm(NULL)
+MSAEditorConsensusCache::MSAEditorConsensusCache(QObject* p, MAlignmentObject* o, MSAConsensusAlgorithmFactory* factory)
+: QObject(p), curCacheSize(0), aliObj(o), algorithm(NULL)
 {
     setConsensusAlgorithm(factory);
-    
+
     connect(aliObj, SIGNAL(si_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)),
         SLOT(sl_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)));
+    connect(aliObj, SIGNAL(si_invalidateAlignmentObject()), SLOT(sl_invalidateAlignmentObject()));
 
-    cache.resize(aliObj->getMAlignment().getLength());
+    curCacheSize = aliObj->getLength();
+    updateMap.resize(curCacheSize);
+    cache.resize(curCacheSize);
 }
 
 MSAEditorConsensusCache::~MSAEditorConsensusCache() {
@@ -47,30 +51,35 @@ void MSAEditorConsensusCache::setConsensusAlgorithm(MSAConsensusAlgorithmFactory
     algorithm = NULL;
     algorithm = factory->createAlgorithm(aliObj->getMAlignment());
     connect(algorithm, SIGNAL(si_thresholdChanged(int)), SLOT(sl_thresholdChanged(int)));
-    currentVersion++;
+    updateMap.fill(false);
 }
 
 void MSAEditorConsensusCache::sl_alignmentChanged(const MAlignment&, const MAlignmentModInfo&) {
-    cache.resize(aliObj->getMAlignment().getLength());
-    currentVersion++;
+    if(curCacheSize != aliObj->getLength()) {
+        curCacheSize = aliObj->getLength();
+        updateMap.resize(curCacheSize);
+        cache.resize(aliObj->getLength());
+    }
+    updateMap.fill(false);
 }
 
 void MSAEditorConsensusCache::updateCacheItem(int pos) {
-    const MAlignment& ma = aliObj->getMAlignment();
-    assert(pos >= 0 && pos < ma.getLength());
-    assert(pos < cache.size() && cache.size() == ma.getLength());
-    const CacheItem& cci = cache[pos];
-    if (cci.version == currentVersion) {
-        return;
-    }
-    CacheItem& ci = cache[pos];
-    int count = 0;
-    int nSeq = ma.getNumRows();
+    if(!updateMap.at(pos) && aliObj != NULL) {
+        const MAlignment& ma = aliObj->getMAlignment();
+        QString errorMessage = tr("Can not update consensus chache item");
+        SAFE_POINT(pos >= 0 && pos < curCacheSize, errorMessage,);
+        SAFE_POINT(curCacheSize == ma.getLength(), errorMessage,);
 
-    ci.topChar = algorithm->getConsensusCharAndScore(ma, pos, count);
-    ci.topPercent = (char)qRound(count * 100 / nSeq);
-    assert(ci.topPercent >=0 && ci.topPercent<=100);
-    ci.version = currentVersion;
+        CacheItem& ci = cache[pos];
+        int count = 0;
+        int nSeq = ma.getNumRows();
+        SAFE_POINT(0 != nSeq, errorMessage,);
+
+        ci.topChar = algorithm->getConsensusCharAndScore(ma, pos, count);
+        ci.topPercent = (char)qRound(count * 100. / nSeq);
+        assert(ci.topPercent >=0 && ci.topPercent<=100);
+        updateMap.setBit(pos, true);
+    }
 }
 
 char MSAEditorConsensusCache::getConsensusChar(int pos) {
@@ -99,7 +108,11 @@ QByteArray MSAEditorConsensusCache::getConsensusLine(bool withGaps) {
 
 void MSAEditorConsensusCache::sl_thresholdChanged(int newValue) {
     Q_UNUSED(newValue);
-    currentVersion++;
+    updateMap.fill(false);
+}
+
+void MSAEditorConsensusCache::sl_invalidateAlignmentObject() {
+    aliObj = NULL;
 }
 
 }//namespace

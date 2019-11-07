@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,42 +29,42 @@
 
 namespace U2 {
 
-/** 
+/**
  * CIGAR string operation.
  * CIGAR string represents complex ins/del model for short-reads.
  *
  * Meanings of the operations are the following:
  *
- * - M - 'alignment match' 
+ * - M - 'alignment match'
  *   Either match or mismatch to reference.
  *
  * - I - 'insertion'
- *   Insertion to the reference. Residues marked as 'I' must be skipped when 
- *   counting 'real' read length and must be skipped when read is aligned to 
- *   reference. 
+ *   Insertion to the reference. Residues marked as 'I' must be skipped when
+ *   counting 'real' read length and must be skipped when read is aligned to
+ *   reference.
  *
  * - D - 'deletion'
  *   Deletion from the reference. Gaps must be inserted to the read when read
- *   is aligned to reference. Deleted regions must be added to the 'real' 
+ *   is aligned to reference. Deleted regions must be added to the 'real'
  *   read length.
  *
  * - N - 'skip'
  *   Skipped region from the reference. Skips behave exactly as deletions,
- *   however have different biological meaning: they make sense _only_ in 
+ *   however have different biological meaning: they make sense _only_ in
  *   mRNA-to-genome alignment where represent an intron.
  *
  * - S - 'soft clipping'
  *   Regions which do not match to the reference, behave exactly as insertions.
- *   Must be located at the start or the end of the read (see 
+ *   Must be located at the start or the end of the read (see
  *   SAM spec and CigarValidator)
  *
  * - H - 'hard clipping'
- *   Regions which do not match to the reference, skipped by hardware (not 
- *   present in read sequence). Hard clipping does not affects read length or 
+ *   Regions which do not match to the reference, skipped by hardware (not
+ *   present in read sequence). Hard clipping does not affects read length or
  *   visualization
  *
  * - P - 'padding' (TODO)
- *   Silent Deletion from padded reference. Someday we should find out how to 
+ *   Silent Deletion from padded reference. Someday we should find out how to
  *   handle this. Padding does not affect read length.
  *
  * - = - 'sequence match'
@@ -77,18 +77,18 @@ namespace U2 {
  */
 enum U2CigarOp {
     U2CigarOp_Invalid = 0,
-    U2CigarOp_D = 1, // deleted
-    U2CigarOp_I = 2, // inserted
-    U2CigarOp_H = 3, // hard-clipped
-    U2CigarOp_M = 4, // alignment match
-    U2CigarOp_N = 5, // skipped
-    U2CigarOp_P = 6, // padded
+    U2CigarOp_D = 1,  // deleted
+    U2CigarOp_I = 2,  // inserted
+    U2CigarOp_H = 3,  // hard-clipped
+    U2CigarOp_M = 4,  // alignment match
+    U2CigarOp_N = 5,  // skipped
+    U2CigarOp_P = 6,  // padded
     U2CigarOp_S = 7,  // soft-clipped
-    U2CigarOp_EQ = 8,  // sequence match
-    U2CigarOp_X = 9,  // sequence mismatch
+    U2CigarOp_EQ = 8, // sequence match
+    U2CigarOp_X = 9   // sequence mismatch
 };
 
-/** 
+/**
     CIGAR token: operation + count
 */
 class U2CORE_EXPORT U2CigarToken  {
@@ -100,11 +100,11 @@ public:
     int       count;
 };
 
-/** 
+/**
     assembly read flags
 */
 enum ReadFlag {
-    None = 0, 
+    None = 0,
     Fragmented = 1 << 0,
     FragmentsAligned = 1 << 1,
     Unmapped = 1 << 2,
@@ -119,7 +119,7 @@ enum ReadFlag {
     DnaExtAlphabet = 1 << 16
 };
 
-/** 
+/**
     Utility class to work with flags
  */
 class ReadFlagsUtils {
@@ -141,20 +141,36 @@ public:
     }
 };
 
-/** 
+/**
+  * Auxiliary data from BAM/SAM.
+  */
+class U2CORE_EXPORT U2AuxData {
+public:
+    U2AuxData() : type(0), subType(0) {}
+    /** Two bytes for tag */
+    char tag[2];
+    /** One byte for type: AcCsSiIfZHB */
+    char type;
+    /** Value size depends on the type */
+    QByteArray value;
+    /** Type of array data. Only for array auxes */
+    char subType;
+};
+
+/**
     Row of assembly: sequence, leftmost position and CIGAR
 */
 class U2CORE_EXPORT U2AssemblyReadData : public U2Entity, public QSharedData {
 public:
-    U2AssemblyReadData() : leftmostPos(0), effectiveLen(0), 
-        packedViewRow(0), mappingQuality(255){}
+    U2AssemblyReadData() : leftmostPos(0), effectiveLen(0),
+        packedViewRow(0), mappingQuality(255), flags(0), rnext("*"), pnext(0){}
 
 
     /** Name of the read, ASCII string */
     QByteArray          name;
-    
-    /**  
-        Left-most position of the read 
+
+    /**
+        Zero-based left-most position of the read
     */
     qint64              leftmostPos;
 
@@ -166,12 +182,12 @@ public:
     */
     qint64              packedViewRow;
 
-    /** 
-        CIGAR info for the read  
+    /**
+        CIGAR info for the read
     */
     QList<U2CigarToken> cigar;
-    
-    /** 
+
+    /**
         Sequence of the read.
         The array is not empty only if sequence is embedded into the read
     */
@@ -179,17 +195,26 @@ public:
 
     /** Quality string */
     QByteArray          quality;
-    
+
     /** Mapping quality */
     quint8              mappingQuality;
-    
+
     /** Read flags */
     qint64              flags;
+
+    /** Reference sequence name of the next mate read */
+    QByteArray rnext;
+
+    /** Left-most position of the next mate read */
+    qint64 pnext;
+
+    /** The list of auxiliary data of BAM/SAM formats */
+    QList<U2AuxData> aux;
 };
 
 typedef QSharedDataPointer<U2AssemblyReadData> U2AssemblyRead;
 
-/**                                           
+/**
     Assembly representation
 */
 class U2CORE_EXPORT U2Assembly : public U2Object {
@@ -199,8 +224,7 @@ public:
 
     U2DataId        referenceId;
 
-    // implement U2Object
-    virtual U2DataType getType() { return U2Type::Assembly; }
+    U2DataType getType() const { return U2Type::Assembly; }
 };
 
 /** Statistics information collected during the reads packing algorithm */
@@ -217,7 +241,7 @@ public:
 class U2AssemblyCoverageStat {
 public:
     U2AssemblyCoverageStat() {}
-    
+
     QVector< U2Range<int> > coverage;
 };
 

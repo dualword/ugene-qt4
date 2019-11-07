@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,13 +35,17 @@
 #include <U2Lang/Datatype.h>
 #include <U2Lang/Descriptor.h>
 #include <U2Lang/ScriptLibrary.h>
+#include <U2Lang/SupportClass.h>
 #include <U2Lang/WorkflowContext.h>
 #include <U2Lang/WorkflowScriptEngine.h>
+
+#include "PortRelation.h"
 
 namespace U2 {
 
 typedef QString ActorId;
 inline ActorId str2aid(const QString& s) {return s;}
+inline QString aid2str(const ActorId& s) {return s;}
 
 /**
  * attribute value can be obtained from script
@@ -50,32 +54,33 @@ class U2LANG_EXPORT AttributeScript {
 public:
     AttributeScript(const QString & text);
     AttributeScript() {}
-    
+
     bool isEmpty() const;
-    
+
     void setScriptText(const QString & t);
     const QString & getScriptText() const;
-    
+
     void setScriptVar(const Descriptor & desc, const QVariant & val);
     const QMap<Descriptor, QVariant> & getScriptVars() const;
     void clearScriptVars();
-    
+
     bool hasVarWithId(const QString & varName)const;
     bool hasVarWithDesc(const QString & varName)const;
     void setVarValueWithId(const QString & varName, const QVariant & value);
-    
+
 private:
     QString                         text;
     QMap<Descriptor, QVariant>      vars; // (desc, val)
-    
+
 }; // AttributeScript
 
 /**
- * Existing types of attibutes
+ * Existing types of attributes
  */
 enum AttributeGroup {
     COMMON_GROUP,
-    MARKER_GROUP
+    MARKER_GROUP,
+    GROUPER_SLOT_GROUP
 };
 
 /**
@@ -84,16 +89,19 @@ enum AttributeGroup {
 class U2LANG_EXPORT Attribute : public Descriptor {
 public:
     Attribute(const Descriptor& d, const DataTypePtr type, bool required = false, const QVariant & defaultValue = QVariant());
-    
+
     // getters/setters
     const DataTypePtr getAttributeType()const;
     bool isRequiredAttribute() const;
-    
+
     virtual void setAttributeValue(const QVariant & newVal);
     // attribute value is kept in qvariant
     // but it can be transformed to value of specific type using scripting or not (see getAttributeValue)
-    virtual const QVariant & getAttributePureValue() const;
-    
+    virtual const QVariant &getAttributePureValue() const;
+    virtual const QVariant &getDefaultPureValue() const;
+    virtual bool isDefaultValue() const;
+
+
     // base realization without scripting. to support scripting for other types: see template realizations
     template<typename T> T getAttributeValue(Workflow::WorkflowContext *) const {
         return getAttributeValueWithoutScript<T>();
@@ -102,31 +110,41 @@ public:
     template<typename T> T getAttributeValueWithoutScript() const {
         return value.value<T>();
     }
-    
+
     const AttributeScript & getAttributeScript() const;
     // used to change script data
     AttributeScript & getAttributeScript();
-    
+
     // stores value and script data in variant
     // used in saving schema to xml
     QVariant toVariant() const;
     // reads value and script from variant
     // used in reading schema from xml
     bool fromVariant(const QVariant& variant);
-    
-    bool isEmpty() const;
     bool isEmptyString() const;
     void addRelation(const AttributeRelation *relation);
     QVector<const AttributeRelation*> &getRelations();
 
-    virtual Attribute *clone();
+    void addPortRelation(const PortRelationDescriptor& relationDesc);
 
+    const QList<PortRelationDescriptor>& getPortRelations() const;
+
+    virtual bool isEmpty() const;
+    virtual Attribute *clone();
     virtual AttributeGroup getGroup();
 
-    
+    /**
+     * Ids of actors in the scheme can be changed (after copy-paste, for example).
+     * It is needed to update all of ids which are used by this attribute
+     */
+    virtual void updateActorIds(const QMap<ActorId, ActorId> &actorIdsMap);
+
+    virtual bool validate(ProblemList &problemList);
+
+
 private:
     void debugCheckAttributeId() const;
-    
+
 protected:
     // type of value
     const DataTypePtr   type;
@@ -134,14 +152,16 @@ protected:
     // values of required attributes cannot be empty
     // used in configuration validations
     const bool          required;
-    // pure value. if script exists, value should be processed throw it
+    // pure value and default pure value. if script exists, value should be processed throw it
     QVariant            value;
+    QVariant            defaultValue;
     // script text and variable values for script evaluating
     // script variables get values only in runtime
     AttributeScript     scriptData;
 
     QVector<const AttributeRelation*> relations;
-    
+    QList<PortRelationDescriptor>     portRelations;
+
 }; // Attribute
 
 
@@ -158,11 +178,11 @@ inline QString Attribute::getAttributeValue(Workflow::WorkflowContext *ctx) cons
         assert(!key.getId().isEmpty());
         scriptVars[key.getId()] = engine.newVariant(scriptData.getScriptVars().value(key));
     }
-    
+
     TaskStateInfo tsi;
     WorkflowScriptLibrary::initEngine(&engine);
     QScriptValue scriptResult = ScriptTask::runScript(&engine, scriptVars, scriptData.getScriptText(), tsi);
-    
+
     // FIXME: report errors!
     // FIXME: write to log
     if( tsi.cancelFlag ) {
@@ -171,12 +191,13 @@ inline QString Attribute::getAttributeValue(Workflow::WorkflowContext *ctx) cons
         }
     }
     if(tsi.hasError()) {
+        scriptLog.error(tsi.getError());
         return QString();
     }
     if( scriptResult.isString() ) {
         return scriptResult.toString();
     }
-    
+
     return QString();
 }
 
@@ -194,8 +215,7 @@ inline int Attribute::getAttributeValue(Workflow::WorkflowContext *ctx) const {
     }
 
     TaskStateInfo tsi;
-
-
+    WorkflowScriptLibrary::initEngine(&engine);
     QScriptValue scriptResult = ScriptTask::runScript(&engine, scriptVars, scriptData.getScriptText(), tsi);
 
     if( tsi.cancelFlag ) {
@@ -204,6 +224,7 @@ inline int Attribute::getAttributeValue(Workflow::WorkflowContext *ctx) const {
         }
     }
     if(tsi.hasError()) {
+        scriptLog.error(tsi.getError());
         return 0;
     }
     if( scriptResult.isNumber() ) {

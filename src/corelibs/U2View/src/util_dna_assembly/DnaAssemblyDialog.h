@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,11 +29,33 @@
 #include <QtCore/QVariant>
 #include <QtCore/QStringList>
 
+#include <U2Algorithm/DnaAssemblyMultiTask.h>
+
 
 namespace U2 {
 
 class DnaAssemblyAlgRegistry;
 class DnaAssemblyAlgorithmMainWidget;
+
+
+class ShortReadsTableItem : public QTreeWidgetItem {
+
+    QComboBox* mateTypeBox;
+
+private:
+    void updateState();
+
+public:
+    ShortReadsTableItem(QTreeWidget* widget, const QString& url);
+    GUrl getUrl() const;
+    ShortReadSet::LibraryType getType() const;
+    ShortReadSet::MateOrder getOrder() const;
+    void setLibraryType(const QString& libraryType);
+
+
+    static void addItemToTable(ShortReadsTableItem* item, QTreeWidget* treeWidget);
+};
+
 
 class DnaAssemblyDialog : public QDialog, private Ui::AssemblyToRefDialog {
     Q_OBJECT
@@ -41,11 +63,12 @@ class DnaAssemblyDialog : public QDialog, private Ui::AssemblyToRefDialog {
 public:
     DnaAssemblyDialog(QWidget* p = NULL, const QStringList& shortReadsUrls = QStringList(), const QString& refSeqUrl = QString());
     const GUrl getRefSeqUrl();
-    const QList<GUrl> getShortReadUrls();
+    const QList<ShortReadSet> getShortReadSets();
     const QString getAlgorithmName();
     const QString getResultFileName();
-    bool isPrebuiltIndex() const;
+    bool isPaired() const;
     bool isSamOutput() const;
+    bool isPrebuiltIndex() const;
     QMap<QString,QVariant> getCustomSettings();
 
 protected:
@@ -57,13 +80,13 @@ private slots:
     void sl_onRemoveShortReadsButtonClicked();
     void sl_onSetResultFileNameButtonClicked();
     void sl_onAlgorithmChanged(const QString &text);
-    void sl_onPrebuiltIndexBoxClicked();
     void sl_onSamBoxClicked();
+    void sl_onLibraryTypeChanged();
 
 private:
     void updateState();
     void addGuiExtension();
-    void buildResultUrl(const GUrl& url);
+    void buildResultUrl(const GUrl& url, bool ignoreExtension = false);
     void accept();
 
 

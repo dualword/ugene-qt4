@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,42 +19,44 @@
  * MA 02110-1301, USA.
  */
 
-#include "QDWorker.h"
-#include "QDSceneIOTasks.h"
-#include "QueryDesignerPlugin.h"
+#include <QScopedPointer>
 
-#include <U2Core/L10n.h>
-#include <U2Core/TaskSignalMapper.h>
-#include <U2Core/MultiTask.h>
-#include <U2Core/DNASequenceObject.h>
+#include <U2Core/AnnotationData.h>
 #include <U2Core/AnnotationTableObject.h>
+#include <U2Core/DNASequenceObject.h>
 #include <U2Core/FailTask.h>
 #include <U2Core/GObjectTypes.h>
-
-#include <U2Lang/IntegralBusModel.h>
-#include <U2Lang/WorkflowEnv.h>
-#include <U2Lang/ActorPrototypeRegistry.h>
-#include <U2Lang/CoreLibConstants.h>
-#include <U2Lang/BaseSlots.h>
-#include <U2Lang/BaseTypes.h>
-#include <U2Lang/BasePorts.h>
-#include <U2Lang/BaseAttributes.h>
-#include <U2Lang/BaseActorCategories.h>
-#include <U2Lang/QDScheme.h>
+#include <U2Core/GenbankFeatures.h>
+#include <U2Core/L10n.h>
+#include <U2Core/MultiTask.h>
+#include <U2Core/TaskSignalMapper.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Designer/DelegateEditors.h>
 #include <U2Designer/QDScheduler.h>
 
 #include <U2Gui/DialogUtils.h>
 
-#include <U2Formats/GenbankFeatures.h>
+#include <U2Lang/ActorPrototypeRegistry.h>
+#include <U2Lang/BaseActorCategories.h>
+#include <U2Lang/BaseAttributes.h>
+#include <U2Lang/BasePorts.h>
+#include <U2Lang/BaseSlots.h>
+#include <U2Lang/BaseTypes.h>
+#include <U2Lang/CoreLibConstants.h>
+#include <U2Lang/IntegralBusModel.h>
+#include <U2Lang/QDScheme.h>
+#include <U2Lang/WorkflowEnv.h>
 
+#include "QDSceneIOTasks.h"
+#include "QDWorker.h"
+#include "QueryDesignerPlugin.h"
 
 namespace U2 {
 namespace LocalWorkflow {
 
 /*************************************************************************
-* QDWorkerFactory                                                      
+* QDWorkerFactory
 *************************************************************************/
 
 static const QString SCHEMA_ATTR(BaseAttributes::URL_IN_ATTRIBUTE().getId());
@@ -68,11 +70,11 @@ void QDWorkerFactory::init() {
 
     {
         Descriptor id(BasePorts::IN_SEQ_PORT_ID(),
-            QDWorker::tr("Input sequences"), 
+            QDWorker::tr("Input sequences"),
             QDWorker::tr("A nucleotide sequence to analyze."));
 
         Descriptor od(BasePorts::OUT_ANNOTATIONS_PORT_ID(),
-            QDWorker::tr("Result annotations"), 
+            QDWorker::tr("Result annotations"),
             QDWorker::tr("A set of annotations marking found results."));
 
         QMap<Descriptor, DataTypePtr> inM;
@@ -84,7 +86,7 @@ void QDWorkerFactory::init() {
         p << new PortDescriptor(od, DataTypePtr(new MapDataType("query.annotations", outM)), false /*input*/, true /*multi*/);
     }
     {
-        Descriptor sd(SCHEMA_ATTR, QDWorker::tr("Schema"), QDWorker::tr("Schema file"));
+        Descriptor sd(SCHEMA_ATTR, QDWorker::tr("Schema"), QDWorker::tr("Schema file."));
         Descriptor od(OFFSET_ATTR, QDWorker::tr("Offset"),
             QDWorker::tr("Specifies left and right offsets for merged annotation (if 'Merge' parameter is set to true)."));
         Descriptor sad(OUTPUT_ATTR, QDWorker::tr("Merge"),
@@ -95,19 +97,18 @@ void QDWorkerFactory::init() {
         a << new Attribute(sad, BaseTypes::BOOL_TYPE(), false, false);
     }
 
-    Descriptor desc(ACTOR_ID, QDWorker::tr("Annotate with UQL"), 
+    Descriptor desc(ACTOR_ID, QDWorker::tr("Annotate with UQL"),
         QDWorker::tr("Analyzes a nucleotide sequence using different algorithms"
                      "(Repeat finder, ORF finder, etc.) imposing constraints"
                      " on the positional relationship of the results."));
 
     ActorPrototype* proto = new IntegralBusActorPrototype(desc, p, a);
-
     QMap<QString, PropertyDelegate*> delegates;
     {
         delegates[SCHEMA_ATTR] = new URLDelegate(
             DialogUtils::prepareFileFilter(QDWorker::tr("Query schemes"), QStringList(QUERY_SCHEME_EXTENSION), true),
             QUERY_DESIGNER_ID,
-            false);
+            false, false, false);
 
         QVariantMap m;
         m["minimum"] = 0; m["maximum"] = INT_MAX;
@@ -151,17 +152,13 @@ void QDWorker::init() {
     output = ports.value(BasePorts::OUT_ANNOTATIONS_PORT_ID());
 }
 
-bool QDWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* QDWorker::tick() {
     QString schemaUri = actor->getParameter(SCHEMA_ATTR)->getAttributePureValue().toString();
     QDDocument doc;
 
     QFileInfo fi(schemaUri);
     if (!fi.exists()) {
-        QString defaultDir = QDir::searchPaths( PATH_PREFIX_DATA ).first() + QUERY_SAMPLES_PATH;
+        QString defaultDir = QDir::searchPaths(PATH_PREFIX_DATA).first() + QUERY_SAMPLES_PATH;
         QDir dir(defaultDir);
         QStringList names(QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
         foreach(const QFileInfo& fi, dir.entryInfoList(names, QDir::Files|QDir::NoSymLinks)) {
@@ -171,7 +168,7 @@ Task* QDWorker::tick() {
             }
         }
     }
-    
+
     QFile f(schemaUri);
     if (!f.open(QIODevice::ReadOnly)) {
         return new FailTask(L10N::errorOpeningFileRead(schemaUri));
@@ -186,7 +183,7 @@ Task* QDWorker::tick() {
     }
 
     scheme = new QDScheme;
-    
+
     QList<QDDocument*> docs;
     docs << &doc;
     bool ok = QDSceneSerializer::doc2scheme(docs, scheme);
@@ -194,62 +191,71 @@ Task* QDWorker::tick() {
         return NULL;
     }
 
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    QVariantMap map = inputMessage.getData().toMap();
-    U2DataId seqId = map.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return NULL;
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        QVariantMap map = inputMessage.getData().toMap();
+        SharedDbiDataHandler seqId = map.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        if (seqObj.isNull()) {
+            return NULL;
+        }
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        CHECK_OP(os, new FailTask(os.getError()));
+
+        QDRunSettings settings;
+        settings.annotationsObj = new AnnotationTableObject(GObjectTypes::getTypeInfo(GObjectTypes::ANNOTATION_TABLE).name,
+            context->getDataStorage()->getDbiRef());
+        settings.scheme = scheme;
+        settings.dnaSequence = seq;
+        settings.region = U2Region(0, seq.length());
+        scheme->setSequence(settings.dnaSequence);
+        scheme->setEntityRef(seqObj->getSequenceRef());
+        bool outputType = actor->getParameter(OUTPUT_ATTR)->getAttributeValueWithoutScript<bool>();
+        if (outputType) {
+            settings.outputType = QDRunSettings::Single;
+            settings.offset = actor->getParameter(OFFSET_ATTR)->getAttributeValueWithoutScript<int>();
+        } else {
+            settings.outputType = QDRunSettings::Group;
+        }
+
+        QDScheduler* scheduler = new QDScheduler(settings);
+        connect(new TaskSignalMapper(scheduler), SIGNAL(si_taskFinished(Task*)), SLOT(sl_taskFinished(Task*)));
+        return scheduler;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    DNASequence seq = seqObj->getWholeSequence();
-
-    QDRunSettings settings;
-    settings.annotationsObj = new AnnotationTableObject(GObjectTypes::getTypeInfo(GObjectTypes::ANNOTATION_TABLE).name);
-    settings.scheme = scheme;
-    settings.dnaSequence = seq;
-    settings.region = U2Region(0, seq.length());
-    scheme->setSequence(settings.dnaSequence);
-    bool outputType = actor->getParameter(OUTPUT_ATTR)->getAttributeValueWithoutScript<bool>();
-    if (outputType) {
-        settings.outputType = QDRunSettings::Single;
-        settings.offset = actor->getParameter(OFFSET_ATTR)->getAttributeValueWithoutScript<int>();
-    } else {
-        settings.outputType = QDRunSettings::Group;
-    }
-
-    QDScheduler* scheduler = new QDScheduler(settings);
-    connect(new TaskSignalMapper(scheduler), SIGNAL(si_taskFinished(Task*)), SLOT(sl_taskFinished(Task*)));
-    return scheduler;
-}
-
-bool QDWorker::isDone() {
-    return !input || input->isEnded();
+    return NULL;
 }
 
 void QDWorker::cleanup() {
 }
 
-void annObjToAnnDataList(AnnotationTableObject* annObj, QList<SharedAnnotationData>& result) {
-    foreach(Annotation* a, annObj->getAnnotations()) {
-        foreach(AnnotationGroup* grp, a->getGroups()) {
-            a->addQualifier(GBFeatureUtils::QUALIFIER_GROUP, grp->getGroupName());
-        }
-        result.append(a->data());
+void annObjToAnnDataList(AnnotationTableObject *annObj, QList<SharedAnnotationData> &result) {
+    foreach (Annotation *a, annObj->getAnnotations()) {
+        a->addQualifier(U2Qualifier(GBFeatureUtils::QUALIFIER_GROUP, a->getGroup()->getName()));
+        result.append(a->getData());
     }
 }
 
 void QDWorker::sl_taskFinished(Task* t) {
     delete scheme;
+    SAFE_POINT(NULL != t, "Invalid task is encountered",);
+    if (t->isCanceled()) {
+        return;
+    }
     if (output) {
         QDScheduler* sched = qobject_cast<QDScheduler*>(t);
         QList<SharedAnnotationData> res;
-        AnnotationTableObject* ao = sched->getSettings().annotationsObj;
+        AnnotationTableObject *ao = sched->getSettings().annotationsObj;
         annObjToAnnDataList(ao, res);
         QVariant v = qVariantFromValue< QList<SharedAnnotationData> >(res);
         output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v));
-        if (input->isEnded()) {
-            output->setEnded();
-        }
     }
 }
 

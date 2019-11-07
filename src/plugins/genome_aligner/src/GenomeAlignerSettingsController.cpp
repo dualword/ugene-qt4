@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,12 @@
  * MA 02110-1301, USA.
  */
 
-#include <QFileDialog>
-
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/Settings.h>
 #include <U2Core/UserApplicationsSettings.h>
+
+#include <U2Gui/U2FileDialog.h>
 
 #include "GenomeAlignerSettingsController.h"
 
@@ -35,7 +35,7 @@ namespace U2 {
 
 QString GenomeAlignerSettingsUtils::getIndexDir() {
     QString defaultDir = AppContext::getAppSettings()->getUserAppsSettings()->getCurrentProcessTemporaryDirPath("aligner");
-    QString res = AppContext::getSettings()->getValue(SETTINGS_ROOT + INDEX_DIR, defaultDir).toString();
+    QString res = AppContext::getSettings()->getValue(SETTINGS_ROOT + INDEX_DIR, defaultDir, true).toString();
 
     return res;
 }
@@ -43,7 +43,7 @@ QString GenomeAlignerSettingsUtils::getIndexDir() {
 void GenomeAlignerSettingsUtils::setIndexDir(const QString &indexDir) {
     QString defaultDir = AppContext::getAppSettings()->getUserAppsSettings()->getCurrentProcessTemporaryDirPath("aligner");
     if (defaultDir != indexDir) {
-        AppContext::getSettings()->setValue(SETTINGS_ROOT + INDEX_DIR, indexDir);
+        AppContext::getSettings()->setValue(SETTINGS_ROOT + INDEX_DIR, indexDir, true);
     }
 }
 
@@ -51,7 +51,7 @@ void GenomeAlignerSettingsUtils::setIndexDir(const QString &indexDir) {
 /* Genome Aligner Settings Controller                                   */
 /************************************************************************/
 
-GenomeAlignerSettingsPageController::GenomeAlignerSettingsPageController(QObject* p) 
+GenomeAlignerSettingsPageController::GenomeAlignerSettingsPageController(QObject* p)
 : AppSettingsGUIPageController(tr("Genome Aligner"), GenomeAlignerSettingsPageId, p) {}
 
 
@@ -73,6 +73,8 @@ AppSettingsGUIPageWidget* GenomeAlignerSettingsPageController::createWidget(AppS
     return r;
 }
 
+const QString GenomeAlignerSettingsPageController::helpPageId = QString("4227276");
+
 GenomeAlignerSettingsPageWidget::GenomeAlignerSettingsPageWidget(GenomeAlignerSettingsPageController* ) {
     setupUi(this);
     connect(indexDirButton, SIGNAL(clicked()), SLOT(sl_onIndexDirButton()));
@@ -91,7 +93,7 @@ AppSettingsGUIPageState* GenomeAlignerSettingsPageWidget::getState(QString& ) co
 
 void GenomeAlignerSettingsPageWidget::sl_onIndexDirButton() {
     QString path = indexDirEdit->text();
-    QString dir = QFileDialog::getExistingDirectory(this, tr("Choose Directory"), path,
+    QString dir = U2FileDialog::getExistingDirectory(this, tr("Choose Directory"), path,
         QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
     if (!dir.isEmpty()) {
         indexDirEdit->setText(dir);

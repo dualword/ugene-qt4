@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,25 +26,23 @@
 
 namespace U2 {
 
-class Task;
-class ExportSequencesDialog;
-class ExportSequenceTaskSettings;
 class AbstractExportTask;
 class Annotation;
 class DocumentProviderTask;
+class ExportSequenceTaskSettings;
+class ExportSequencesDialog;
+class Task;
 
 class ExportUtils: public QObject {
     Q_OBJECT
 public:
 
-    static void loadDNAExportSettingsFromDlg(ExportSequenceTaskSettings& s, const ExportSequencesDialog& d);
+    static void loadDNAExportSettingsFromDlg(ExportSequenceTaskSettings& s, U2::ExportSequencesDialog *d);
 
     static Task* wrapExportTask(DocumentProviderTask* t, bool addToProject);
 
     // generates unique name using prefix + numbers
     static QString genUniqueName(const QSet<QString>& names, QString prefix);
-    
-    static Task * saveAnnotationsTask(const QString & filepath, const DocumentFormatId & format, const QList<Annotation*> & annList);
 };
 
 }//namespace

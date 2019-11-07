@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,10 +27,7 @@
 
 #include "ptools/superpose.h"
 
-#include <memory>
 #include <exception>
-
-using std::auto_ptr;
 
 namespace U2 {
 
@@ -114,8 +111,8 @@ StructuralAlignment PToolsAligner::align(const StructuralAlignmentTaskSettings &
 
     StructuralAlignment result;
     try {
-        auto_ptr<PTools::Rigidbody> prefBody(createRigidBody(settings.ref));
-        auto_ptr<PTools::Rigidbody> paltBody(createRigidBody(settings.alt));
+        QScopedPointer<PTools::Rigidbody> prefBody(createRigidBody(settings.ref));
+        QScopedPointer<PTools::Rigidbody> paltBody(createRigidBody(settings.alt));
 
         if (prefBody->Size() != paltBody->Size()) {
             error = QString("Failed to align, subsets turn to RigidBodies of a different size");

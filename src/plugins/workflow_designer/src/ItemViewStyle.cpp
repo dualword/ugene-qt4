@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,18 +22,28 @@
 #include <qmath.h>
 #include <QtGui/QBitmap>
 #include <QtGui/QPainter>
-#include <QtGui/QGraphicsTextItem>
-#include <QtGui/QGraphicsSimpleTextItem>
-#include <QtGui/QGraphicsSceneMouseEvent>
-#include <QtGui/QStyleOptionGraphicsItem>
-#include <QtGui/QGraphicsView>
 #include <QtGui/QRadialGradient>
 #include <QtGui/QTextDocument>
+#include <QtGui/QAbstractTextDocumentLayout>
+
+#include <QtXml/QDomDocument>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QGraphicsTextItem>
+#include <QtGui/QGraphicsSimpleTextItem>
+#include <QtGui/QStyleOptionGraphicsItem>
+#include <QtGui/QGraphicsView>
 #include <QtGui/QColorDialog>
 #include <QtGui/QFontDialog>
-#include <QtGui/QFontDialog>
-#include <QtGui/QAbstractTextDocumentLayout>
-#include <QtXml/QDomDocument>
+#include <QtGui/QGraphicsSceneMouseEvent>
+#else
+#include <QtWidgets/QGraphicsTextItem>
+#include <QtWidgets/QGraphicsSimpleTextItem>
+#include <QtWidgets/QStyleOptionGraphicsItem>
+#include <QtWidgets/QGraphicsView>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QFontDialog>
+#include <QtWidgets/QGraphicsSceneMouseEvent>
+#endif
 
 #include <U2Core/Log.h>
 #include <U2Lang/ActorModel.h>
@@ -52,7 +62,12 @@ const StyleId ItemStyles::EXTENDED = "ext";
 #define BGC QString("-bgc")
 #define FONT QString("-font")
 
-ItemViewStyle::ItemViewStyle(WorkflowProcessItem* p, const QString& id) : QGraphicsObject(p), defFont(WorkflowSettings::defaultFont()), id(id) {
+const QColor ITEM_WITH_ENABLED_BREAKPOINT_BORDER_COLOR = QColor(178, 34, 34);
+const QColor ITEM_WITH_DISABLED_BREAKPOINT_BORDER_COLOR = QColor(184, 134, 11);
+
+ItemViewStyle::ItemViewStyle(WorkflowProcessItem* p, const QString& id) : QGraphicsObject(p),
+    defFont(WorkflowSettings::defaultFont()), id(id)
+{
     setVisible(false);
     bgColorAction = new QAction(tr("Background color"), this);
     connect(bgColorAction, SIGNAL(triggered()), SLOT(selectBGColor()));
@@ -137,12 +152,19 @@ void SimpleProcStyle::paint(QPainter *painter,
     painter->setRenderHint(QPainter::Antialiasing);
     QPainterPath contour;
     contour.addEllipse(QPointF(0,0), R, R);
+
+    QPen pen;
+    if(owner->isBreakpointInserted()) {
+        const QColor borderColor = (owner->isBreakpointEnabled())
+            ? ITEM_WITH_ENABLED_BREAKPOINT_BORDER_COLOR
+            : ITEM_WITH_DISABLED_BREAKPOINT_BORDER_COLOR;
+        pen.setColor(borderColor);
+    }
     if (owner->isSelected()) {
-        QPen pen;
         pen.setWidthF(2);
         pen.setStyle(Qt::DashLine);
-        painter->setPen(pen);
     }
+    painter->setPen(pen);
 
     QRadialGradient rg(R/2, -R/2, R*2);
     rg.setColorAt(1, bgColor);
@@ -150,11 +172,15 @@ void SimpleProcStyle::paint(QPainter *painter,
     QBrush procBrush(rg);
     painter->drawPath(contour);
     painter->fillPath(contour, procBrush);
-    
+
     painter->save();
     QTextDocument d;
     d.setDefaultFont(defFont);
+#if (QT_VERSION < 0x050000) //Qt 5
     d.setHtml("<center>" + Qt::escape(owner->getProcess()->getLabel()) + "</center>");
+#else
+    d.setHtml("<center>" + owner->getProcess()->getLabel().toHtmlEscaped() + "</center>");
+#endif
     d.setTextWidth(R*2);
     //d.setDefaultTextOption(QTextOption(Qt::AlignHCenter));
     painter->translate(-d.size().width()/2, -d.size().height()/2);
@@ -218,7 +244,7 @@ void ExtendedProcStyle::refresh() {
                 h = roundUp(h, GRID_STEP);
             }
             //printf("ideal=%f, actual=%f\n",doc->idealWidth(),w);
-            
+
             // try to improve docFrame proportions
             if (++cycle > 2) {
                 break;
@@ -226,7 +252,7 @@ void ExtendedProcStyle::refresh() {
             if ((h/w < 0.6 && w > (MINW+MAXW)/2)  //doc is disproportionately wide
                 || (h/w > 1.6 && w < MAXW)        //doc is disproportionately long and can be widen
                 || (w < MINW || w > MAXW)) {      //width is out of bounds
-                doc->setTextWidth(qBound(MINW, (qreal)(h/1.6), MAXW-MARGIN*2));            
+                doc->setTextWidth(qBound(MINW, (qreal)(h/1.6), MAXW-MARGIN*2));
             }
         } while (true);
 
@@ -254,7 +280,7 @@ void ExtendedProcStyle::paint(QPainter *painter,
     bgColor.setAlpha(64);
     QRectF tb = boundingRect();
     painter->fillRect(tb, QBrush(bgColor));
-    
+
     painter->setRenderHint(QPainter::Antialiasing);
 
     if (doc->pageCount() > 1) {
@@ -270,8 +296,8 @@ void ExtendedProcStyle::paint(QPainter *painter,
 
         // draw 3 dots at corner
         QPointF dt(tp.x() - 7, tp.y() - 5);
-        QPainterPath dot; dot.addEllipse(dt, 1.2,1.2); 
-        dot.addEllipse(dt - QPointF(4,0), 1.2,1.2); 
+        QPainterPath dot; dot.addEllipse(dt, 1.2,1.2);
+        dot.addEllipse(dt - QPointF(4,0), 1.2,1.2);
         dot.addEllipse(dt - QPointF(8,0), 1.2,1.2);
         painter->fillPath(dot, QBrush(QColor(0x33, 0x33, 0x33)));
     }
@@ -281,6 +307,13 @@ void ExtendedProcStyle::paint(QPainter *painter,
     if (owner->isSelected()) {
         pen.setStyle(Qt::DashLine);
     }
+    if(owner->isBreakpointInserted()) {
+        const QColor borderColor = (owner->isBreakpointEnabled())
+            ? ITEM_WITH_ENABLED_BREAKPOINT_BORDER_COLOR
+            : ITEM_WITH_DISABLED_BREAKPOINT_BORDER_COLOR;
+        pen.setColor(borderColor);
+    }
+
     painter->setPen(pen);
     painter->drawRoundedRect(tb, MARGIN, MARGIN);
 }
@@ -297,12 +330,12 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
     case QEvent::GraphicsSceneHoverEnter:
     case QEvent::GraphicsSceneHoverMove:
         {
-            QGraphicsSceneHoverEvent* he = static_cast<QGraphicsSceneHoverEvent*>(event);
+            QGraphicsSceneHoverEvent* he = dynamic_cast<QGraphicsSceneHoverEvent*>(event);
             ret = updateCursor(he->pos());
         }
         break;
     case QEvent::GraphicsSceneMouseRelease:
-        desc->mouseReleaseEvent(event);
+        desc->mouseReleaseEvent(dynamic_cast<QGraphicsSceneMouseEvent *>(event));
     case QEvent::GraphicsSceneHoverLeave:
         if (resizing) {
             owner->unsetCursor();
@@ -311,7 +344,7 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
         break;
     case QEvent::GraphicsSceneMouseMove:
         if (resizing && event->spontaneous()) {
-            QGraphicsSceneMouseEvent* me = (static_cast<QGraphicsSceneMouseEvent *>(event));
+            QGraphicsSceneMouseEvent* me = (dynamic_cast<QGraphicsSceneMouseEvent *>(event));
             WorkflowSettings::setSnap2Grid(false);
             QPointF newPos;
             if ((me->buttons() & Qt::LeftButton)) {
@@ -319,25 +352,27 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
                 QRectF b2 = bounds;
                 QPointF p = me->pos();
                 QPointF p2 = p - me->lastPos();
-                
-                if (resizing & RightResize 
+
+                if (resizing & RightResize
                     &&  // border is either "pulled" or "pushed" by mouse pointer
                         // in the latter case pointer should be close to the border
-                        ((p2.x() < 0 && b2.right() > p.x()) 
+                        ((p2.x() < 0 && b2.right() > p.x())
                         || (p2.x() > 0 && b2.right() < p.x())
                         || (qAbs(b2.right() - p.x()) < RESIZE_AREA)))
                 {
-                    
+
                     qreal rb = b2.right() + p2.x();
                     b2.setRight(rb);
-                    
+
+                    owner->updatePorts();
+
                     if (b2.width() < MARGIN*2 + R) {
                         return true;
                     }
                 }
 
-                if (resizing & LeftResize 
-                    &&  ((p2.x() < 0 && b2.left() > p.x()) 
+                if (resizing & LeftResize
+                    &&  ((p2.x() < 0 && b2.left() > p.x())
                         || (p2.x() > 0 && b2.left() < p.x())
                         || (qAbs(b2.left() - p.x()) < RESIZE_AREA)))
                 {
@@ -354,7 +389,7 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
                 }
 
                 if(resizing & TopResize &&
-                    ((p2.y() < 0 && b2.top() > p.y()) 
+                    ((p2.y() < 0 && b2.top() > p.y())
                     || (p2.y() > 0 && b2.top() < p.y())
                     || (qAbs(b2.top() - p.y()) < RESIZE_AREA))) {
 
@@ -374,12 +409,13 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
                     owner->setPos(newPos);
                 }
 
-                if (resizing & BottomResize 
-                    && ((p2.y() < 0 && b2.bottom() > p.y()) 
+                if (resizing & BottomResize
+                    && ((p2.y() < 0 && b2.bottom() > p.y())
                         || (p2.y() > 0 && b2.bottom() < p.y())
                         || (qAbs(b2.bottom() - p.y()) < RESIZE_AREA)))
                 {
                     b2.setBottom(b2.bottom() + p2.y());
+                    owner->updatePorts();
                 }
                 //qreal minHeight = qMax(doc->size().height(), R) + MARGIN*2;
                 qreal minHeight = R + MARGIN*2;
@@ -388,7 +424,7 @@ bool ExtendedProcStyle::sceneEventFilter( QGraphicsItem * watched, QEvent * even
                 }
 
                 setFixedBounds(b2);
-                
+
                 WorkflowScene * sc = qobject_cast<WorkflowScene*>(owner->scene());
                 if(sc != NULL) {
                     sc->setModified(true);
@@ -471,7 +507,7 @@ void ExtendedProcStyle::setFixedBounds( const QRectF& b)
     if (bounds != b) {
         bounds = b;
         owner->prepareUpdate();
-        
+
         foreach(WorkflowPortItem* pit, owner->getPortItems()) {
             pit->adaptOwnerShape();
         }
@@ -582,7 +618,7 @@ void HintItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event) {
             initPos = pos();
             dragging = true;
         }
-        
+
         QPointF delta = event->screenPos() - event->buttonDownScreenPos(Qt::LeftButton);
         setPos(initPos + delta);
     } else {
@@ -604,6 +640,7 @@ DescriptionItem::DescriptionItem(ExtendedProcStyle* p) : QGraphicsTextItem(p) {
 
 QRectF DescriptionItem::boundingRect() const {
     QRectF bounds = parentItem()->boundingRect();
+    bounds.setBottomRight(bounds.bottomRight() - QPointF(MARGIN, MARGIN));
     bounds.translate(R - MARGIN, R - MARGIN);
     return bounds;
 }
@@ -614,10 +651,9 @@ void DescriptionItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
     QGraphicsTextItem::paint(painter, &deselectedOption, widget);
 }
 
-void DescriptionItem::mouseReleaseEvent(QEvent *event) {
-    QGraphicsSceneMouseEvent* e = static_cast<QGraphicsSceneMouseEvent*>(event);
-    e->setPos(mapFromParent(e->pos()));
-    QGraphicsTextItem::mouseReleaseEvent(e);
+void DescriptionItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event) {
+    event->setPos(mapFromParent(event->pos()));
+    QGraphicsTextItem::mouseReleaseEvent(event);
 }
 
 bool DescriptionItem::sceneEvent(QEvent *event) {
@@ -647,7 +683,7 @@ void DescriptionItem::contextMenuEvent( QGraphicsSceneContextMenuEvent *event ) 
         event->ignore();
         return;
     }
-    
+
     ItemViewStyle* style = qgraphicsitem_cast<ItemViewStyle*>(parentItem());
     WorkflowProcessItem const* procItem = style->getOwner();
     Actor* actor = procItem->getProcess();

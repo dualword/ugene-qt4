@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,13 +47,16 @@ public:
     bool loadPart(int part);
     void alignShortRead(SearchQuery *qu, BMType bitValue, int startPos, BinarySearchResult firstResult, AlignContext *settings, BMType bitFilter, int w);
     BinarySearchResult bitMaskBinarySearch(BMType bitValue, BMType bitFilter);
-    BinarySearchResult *bitMaskBinarySearchOpenCL(const BMType *bitValues, int size, quint64 BMType);
-    BinarySearchResult *findBitValuesUsingCUDA(BMType *bitValues, int size, BMType filter);
+#ifdef OPENCL_SUPPORT
+    BinarySearchResult *bitMaskBinarySearchOpenCL(const BMType *bitValues, int size, const int *windowSizes);
+#endif
     QString getSeqName() const {return seqObjName;}
     int getPartCount() const {return indexPart.partCount;}
     SAType getSArraySize() const {return indexPart.saLengths[currentPart];}
     SAType getSeqLength() const {return seqLength;}
     IndexPart& getLoadedPart() { return indexPart; }
+
+    void setBaseFileName(const QString& baseName) {baseFileName = baseName;}
 
 private:
     quint32         seqLength;      //reference sequence's length

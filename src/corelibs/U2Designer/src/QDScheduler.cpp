@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,24 @@
  * MA 02110-1301, USA.
  */
 
-#include "QDScheduler.h"
-
-#include <U2Lang/QDConstraint.h>
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/AppResources.h>
+#include <U2Core/AppSettings.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/Timer.h>
+#include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2SafePoints.h>
 
 #include <U2Gui/ObjectViewModel.h>
 
-#include <U2Core/Log.h>
-#include <U2Core/Timer.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/U2SafePoints.h>
+#include <U2Lang/QDConstraint.h>
 
+#include "QDScheduler.h"
 
 namespace U2 {
 //QDScheduler
@@ -43,7 +45,7 @@ static int PROCESSING_PROGRESS_WEIGHT(80);
 
 QDScheduler::QDScheduler(const QDRunSettings& _settings)
 : Task(tr("QDScheduler"), TaskFlags_NR_FOSCOE), settings(_settings) {
-    GCOUNTER( cvar, tvar, "QueryDesignerScheduler" );
+    GCOUNTER(cvar, tvar, "QueryDesignerScheduler");
     loadTask = NULL;
     createAnnsTask = NULL;
     linker = new QDResultLinker(this);
@@ -85,12 +87,16 @@ QList<Task*> QDScheduler::onSubTaskFinished(Task* subTask) {
     QList<Task*> subs;
     propagateSubtaskError();
     CHECK_OP(stateInfo, subs);
-    if (linker->isCancelled() || subTask == createAnnsTask) {
+    if (linker->isCancelled()){
+        setError(linker->getCancelMessage());
         return subs;
     }
-    
+    if (subTask == createAnnsTask) {
+        return subs;
+    }
+
     if (subTask == loadTask) {
-        settings.annotationsObj = qobject_cast<AnnotationTableObject*>(loadTask->getDocument()->findGObjectByName(settings.annotationsObjRef.objName));
+        settings.annotationsObj = qobject_cast<AnnotationTableObject *>(loadTask->getDocument()->findGObjectByName(settings.annotationsObjRef.objName));
         return subs;
     }
     if (settings.annotationsObj == NULL) {
@@ -110,12 +116,12 @@ QList<Task*> QDScheduler::onSubTaskFinished(Task* subTask) {
     return subs;
 }
 
-#define PUSH_WEIGTH ( 1.0f - PROCESSING_PROGRESS_WEIGHT / 100.0f )
+#define PUSH_WEIGTH (1.0f - PROCESSING_PROGRESS_WEIGHT / 100.0f)
 void QDScheduler::sl_updateProgress() {
     Task* sub = qobject_cast<Task*>(sender());
     int numProcessed = currentStep->getLinkedActors().size();
     if (numProcessed < settings.scheme->getActors().size()) {
-        stateInfo.progress = progressDelta * ( numProcessed + sub->getProgress()/100.0f );
+        stateInfo.progress = progressDelta * (numProcessed + sub->getProgress()/100.0f);
     } else {
         stateInfo.progress = PROCESSING_PROGRESS_WEIGHT + PUSH_WEIGTH * sub->getProgress();
     }
@@ -141,7 +147,14 @@ Task::ReportResult QDScheduler::report() {
 //////////////////////////////////////////////////////////////////////////
 QDResultLinker::QDResultLinker(QDScheduler* _sched)
 : scheme(_sched->getSettings().scheme), sched(_sched), cancelled(false), currentStep(NULL),
-needInit(true) {}
+needInit(true), maxMemorySizeInMB(-1) {
+    const AppSettings* appSettings = AppContext::getAppSettings();
+    SAFE_POINT_EXT(NULL != appSettings, taskLog.error(QDScheduler::tr("Invalid applications settings detected")), );
+
+    AppResourcePool* appResourcePool = appSettings->getAppResourcePool();
+    SAFE_POINT_EXT(NULL != appResourcePool, taskLog.error(QDScheduler::tr("Invalid users applications settings detected")), );
+    maxMemorySizeInMB=AppContext::getAppSettings()->getAppResourcePool()->getMaxMemorySizeInMB();
+}
 
 QString QDResultLinker::prepareAnnotationName(const QDResultUnit& res) {
     QString aname = res->owner->getActor()->annotateAs();
@@ -186,7 +199,7 @@ QVector<U2Region> joinRegions(QVector<U2Region>& regions) {
 
 QVector<U2Region> QDResultLinker::findLocation(QDStep* step) {
     QVector<U2Region> res;
-    if (candidates.isEmpty()) {
+    if (candidates.isEmpty() || cancelled) {
         res << U2Region(0, scheme->getSequence().length());
         return res;
     }
@@ -259,7 +272,7 @@ void QDResultLinker::updateCandidates(QDStep* step, int& progress) {
 }
 
 template<class T>
-QList<T> addNextSelection(const QList<T>& prev, const QList<T>& source, QList< QList<T> >& result) {    
+QList<T> addNextSelection(const QList<T>& prev, const QList<T>& source, QList< QList<T> >& result) {
     int idx = prev.size()-1;
     while (idx>=0) {
         const T& item = prev.at(idx);
@@ -323,7 +336,10 @@ void QDResultLinker::formGroupResults() {
     }
     currentGroupResults.clear();
 }
-
+void QDResultLinker::cleanupCandidates(){
+    qDeleteAll(candidates);
+    candidates.clear();
+}
 void QDResultLinker::processNewResults(int& progress) {
     if(needInit) {
         initCandidates(progress);
@@ -339,8 +355,13 @@ void QDResultLinker::processNewResults(int& progress) {
         end = GTimer::currentTimeMicros();
         perfLog.details(QString("Updating groups finished in %1 ms").arg(GTimer::millisBetween(start,end)));
     }
-    if (candidates.isEmpty()) {
+
+    if (candidates.isEmpty() && !cancelled) {
+        cancelMeassage = QDScheduler::tr("No results have been found for this scheme");
         cancelled = true;
+    }
+    if (!candidates.isEmpty() && cancelled) {
+        cleanupCandidates();
     }
 }
 
@@ -394,17 +415,20 @@ QDStrandOption QDResultLinker::findResultStrand(QDResultGroup* actorRes) {
 void QDResultLinker::updateCandidates(int& progress) {
     QList<QDResultGroup*> newCandidates;
     int i = 0;
-    
+
     foreach(QDResultGroup* candidate, candidates) {
         foreach(QDResultGroup* actorRes, currentResults) {
             if (sched->isCanceled()) {
+                cleanupCandidates();
+                qDeleteAll(newCandidates);
+                newCandidates.clear();
                 return;
             }
 
             bool matches = false;
             //define for what schema strand result is
             QDStrandOption resStrand = findResultStrand(actorRes);
-            if ( resStrand!=QDStrand_Both && candidate->strand!=QDStrand_Both && resStrand!=candidate->strand ) {
+            if (resStrand!=QDStrand_Both && candidate->strand!=QDStrand_Both && resStrand!=candidate->strand) {
                 continue;
             }
             //
@@ -432,7 +456,7 @@ void QDResultLinker::updateCandidates(int& progress) {
                     }
                 }
             }
-            
+
             if (matches) {
                 QDResultGroup* newCandidate = new QDResultGroup(*candidate);
                 newCandidate->add(actorRes->getResultsList());
@@ -449,8 +473,17 @@ void QDResultLinker::updateCandidates(int& progress) {
                     newCandidate->strand = complement ? QDStrand_ComplementOnly : QDStrand_DirectOnly;
                 }
                 newCandidates.append(newCandidate);
+                if (maxMemorySizeInMB <= (candidates.size()+newCandidates.size())*0.00025){ //0.0002 is empirically calculated coefficient
+                    cancelMeassage = QDScheduler::tr("Too many results have been found for this scheme. Try to set stricter search conditions.").arg(newCandidates.size());
+                    taskLog.error(cancelMeassage);
+                    qDeleteAll(newCandidates);
+                    newCandidates.clear();
+                    cancelled = true;
+                    return;
+                }
             }
         }
+        candidates.replace(candidates.indexOf(candidate), NULL);
         delete candidate;
         progress = 100 * ++i / candidates.size();
     }
@@ -480,7 +513,7 @@ bool QDResultLinker::canAdd(QDResultGroup* actorResult, QDResultGroup* candidate
     return true;
 }
 
-QList<QDResultUnit> QDResultLinker::prepareComplResults( QDResultGroup* src ) const {
+QList<QDResultUnit> QDResultLinker::prepareComplResults(QDResultGroup* src) const {
     QList<QDResultUnit> res = src->getResultsList();
     QList<QDActor*> simActors;
     foreach (QDResultUnit ru, res) {
@@ -513,7 +546,7 @@ void QDResultLinker::prepareAnnotations() {
     perfLog.details(QString("%1 groups").arg(candidates.size()));
     start = GTimer::currentTimeMicros();
 
-    if (sched->getSettings().outputType == QDRunSettings::Single ) {
+    if (sched->getSettings().outputType == QDRunSettings::Single) {
         createMergedAnnotations(RESULT_PREFIX);
     } else {
         createAnnotations(RESULT_PREFIX);
@@ -527,46 +560,49 @@ void QDResultLinker::createAnnotations(const QString& groupPrefix) {
     int counter = 0;
     foreach(QDResultGroup* candidate, candidates) {
         if (sched->isCanceled()) {
+            cleanupCandidates();
             return;
         }
         const QString& grpName = QString("%1 %2")
             .arg(groupPrefix)
             .arg(QString::number(++counter));
 
-        QList<Annotation*> groupAnns;
-        
+        QList<SharedAnnotationData> groupAnns;
+
         foreach(const QDResultUnit& res, candidate->getResultsList()) {
-            Annotation* a = result2annotation.value(res, NULL);
-            if (a == NULL) {
-                SharedAnnotationData ad(new AnnotationData());
+            SharedAnnotationData a = result2annotation.value(res, SharedAnnotationData());
+            if (a == SharedAnnotationData()) {
+                SharedAnnotationData ad(new AnnotationData);
                 ad->name = prepareAnnotationName(res);
                 ad->setStrand(res->strand);
                 ad->location->regions.append(res->region);
                 ad->qualifiers = res->quals;
-                a = new Annotation(ad);
+                a = ad;
                 result2annotation[res] = a;
             }
             groupAnns.append(a);
         }
         annotations[grpName] = groupAnns;
+        candidates.replace(candidates.indexOf(candidate), NULL);
         delete candidate;
     }
     candidates.clear();
 }
 
-void QDResultLinker::createMergedAnnotations(const QString& groupPrefix) {
-    const QDRunSettings& settings = sched->getSettings();
+void QDResultLinker::createMergedAnnotations(const QString &groupPrefix) {
+    const QDRunSettings &settings = sched->getSettings();
     int offset = settings.offset;
     U2Region seqRange(0, scheme->getSequence().length());
-    QList<Annotation*> anns;
-    foreach(QDResultGroup* candidate, candidates) {
+    QList<SharedAnnotationData> anns;
+    foreach (QDResultGroup *candidate, candidates) {
         if (sched->isCanceled()) {
+            cleanupCandidates();
             return;
         }
 
         qint64 startPos = candidate->getResultsList().first()->region.startPos;
         qint64 endPos = candidate->getResultsList().first()->region.endPos();
-        foreach(QDResultUnit ru, candidate->getResultsList()) {
+        foreach (const QDResultUnit &ru, candidate->getResultsList()) {
             startPos = qMin(startPos, ru->region.startPos);
             endPos = qMax(endPos, ru->region.endPos());
         }
@@ -574,10 +610,11 @@ void QDResultLinker::createMergedAnnotations(const QString& groupPrefix) {
         endPos = qMin(seqRange.endPos(), endPos + offset);
         U2Region r(startPos, endPos-startPos);
 
-        SharedAnnotationData ad(new AnnotationData());
+        SharedAnnotationData ad;
         ad->name = groupPrefix;
         ad->location->regions.append(r);
-        anns.append(new Annotation(ad));
+        anns.append(ad);
+        candidates.replace(candidates.indexOf(candidate), NULL);
         delete candidate;
     }
     candidates.clear();
@@ -585,27 +622,25 @@ void QDResultLinker::createMergedAnnotations(const QString& groupPrefix) {
 }
 
 void QDResultLinker::pushToTable() {
-    const QDRunSettings& settings = sched->getSettings();
-    AnnotationTableObject* ao = settings.annotationsObj;
-    assert(ao != NULL);
+    const QDRunSettings &settings = sched->getSettings();
+    AnnotationTableObject *ao = settings.annotationsObj;
+    SAFE_POINT(NULL != ao, "Invalid annotation table detected!",);
 
-    AnnotationGroup* root = ao->getRootGroup();
+    AnnotationGroup *root = ao->getRootGroup();
     if (!settings.groupName.isEmpty()) {
         root = root->getSubgroup(settings.groupName, true);
     }
 
-    QMapIterator< QString, QList<Annotation*> > iter(annotations);
+    QMapIterator<QString, QList<SharedAnnotationData> > iter(annotations);
     while (iter.hasNext()) {
         iter.next();
-        AnnotationGroup* ag = NULL;
-        if (iter.key().isEmpty()) {
-            ag = root;
-        } else {
+        AnnotationGroup *ag = root;
+        if (!iter.key().isEmpty()) {
             ag = root->getSubgroup(iter.key(), true);
         }
-        foreach(Annotation* a, iter.value()) {
-            ag->addAnnotation(a);
-        }
+        QList<SharedAnnotationData> data = iter.value();
+        U1AnnotationUtils::addDescriptionQualifier(data, settings.annDescription);
+        ag->addAnnotations(data);
     }
 }
 
@@ -631,22 +666,7 @@ void QDStep::initTotalMap() {
             if (sharedConstraints.isEmpty()) {
                 const QList<QDPath*>& paths = scheme->findPaths(srcSu, dstSu);
                 //use only paths containing no linked units except source(destination)
-                /*QList<QDPath*> allowedPaths = paths;
-                foreach(QDPath* path, paths) {
-                    const QList<QDSchemeUnit*>& pathUnits = path->getSchemeUnits();
-                    bool containsLinked = false;
-                    foreach(QDSchemeUnit* su, linkedUnits) {
-                        if (pathUnits.contains(su)) {
-                            if (containsLinked) {
-                                allowedPaths.removeOne(path);
-                                break;
-                            } else {
-                                containsLinked = true;
-                            }
-                        }
-                    }
-                }*/
-                QList<QDPath*> allowedPaths = paths;//
+                QList<QDPath*> allowedPaths = paths;
                 //remove paths containing optional items
                 QMutableListIterator<QDPath*> i(allowedPaths);
                 while(i.hasNext()) {
@@ -669,8 +689,7 @@ void QDStep::initTotalMap() {
                     for (int i=1, n=allowedPaths.size(); i<n; i++) {
                         QDPath* curPath = allowedPaths.at(i);
                         QDDistanceConstraint* curDc = curPath->toConstraint();
-                        //assert(curDc->distanceType()==overallConstraint->distanceType());
-                        
+
                         if (curDc->getSource()!=overallConstraint->getSource()) {
                             curDc->invert();
                         }
@@ -690,10 +709,9 @@ void QDStep::initTotalMap() {
     }
 }
 
-QList<QDConstraint*> QDStep::getConstraints(QDSchemeUnit* subj, QDSchemeUnit* linked) const {    
+QList<QDConstraint*> QDStep::getConstraints(QDSchemeUnit* subj, QDSchemeUnit* linked) const {
     const QPair<QDSchemeUnit*, QDSchemeUnit*>& pair = qMakePair(subj, linked);
     assert(constraintsMap.contains(pair));
-    //assert(actor->getSchemeUnits().contains(subj));
     return constraintsMap.value(pair);
 }
 
@@ -725,7 +743,7 @@ bool QDStep::hasPrev() const {
 
 //QDTask
 //////////////////////////////////////////////////////////////////////////
-QDTask::QDTask(QDStep* _step, QDResultLinker* _linker) 
+QDTask::QDTask(QDStep* _step, QDResultLinker* _linker)
 : Task(tr("Query task: %1").arg(_step->getActor()->getParameters()->getLabel()), TaskFlag_NoRun), step(_step), linker(_linker), runTask(NULL) {
     tpm = Progress_Manual;
     stateInfo.progress = 0;

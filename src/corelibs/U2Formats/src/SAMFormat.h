@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,10 +41,12 @@ public:
 
     virtual void storeDocument(Document* d, IOAdapter* io, U2OpStatus& os);
 
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
+
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& = GUrl()) const;
 
-    bool storeHeader(IOAdapter* io, const QVector<QByteArray> &names, const QVector<int> &lengths);
-    
+    bool storeHeader(IOAdapter* io, const QVector<QByteArray> &names, const QVector<int> &lengths, bool coordinateSorted);
+
     bool storeAlignedRead(int offset, const DNASequence& read, IOAdapter* io, const QByteArray& refName, int refLength, bool first, bool useCigar = false, const QByteArray &cigar = "");
 
     /** Temporary method to avoid conflict of SAM and importer */
@@ -72,7 +74,7 @@ private:
     static const QByteArray VERSION;
 
     static const QByteArray SAM_SECTION_START;
- 
+
     static const QByteArray SECTION_HEADER; //Header
     static const QByteArray SECTION_SEQUENCE; //Sequence dictionary
     static const QByteArray SECTION_READ_GROUP; //read group

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,48 +19,46 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QFileInfo>
+
+#include <QtXml/QDomDocument>
+
 #include "TBlastXPlusSupportTask.h"
 #include "BlastPlusSupport.h"
 
 #include <U2Core/AppContext.h>
-#include <U2Core/AppSettings.h>
-#include <U2Core/UserApplicationsSettings.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/AppSettings.h>
+#include <U2Core/CreateAnnotationTask.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Core/Log.h>
 #include <U2Core/ProjectModel.h>
-
-#include <QtXml/QDomDocument>
-
-#include <U2Core/CreateAnnotationTask.h>
-//#include <U2Core/AddDocumentTask.h>
+#include <U2Core/UserApplicationsSettings.h>
 
 namespace U2 {
 
 ExternalToolRunTask* TBlastXPlusSupportTask::createBlastPlusTask(){
 
     QStringList arguments;
-    //arguments <<"-p"<< settings.programName; //taskname
-//    if(!settings.filter.isEmpty()){
-//        arguments <<"-F"<<settings.filter;
-//    }
+
     arguments <<"-db"<< settings.databaseNameAndPath;
     arguments <<"-evalue"<< QString::number(settings.expectValue);
-//    arguments <<"-task"<< (settings.megablast ? "megablast" : "blastn");
     if(settings.wordSize <= 0){
         arguments <<"-word_size"<< "3";
     }else{
         arguments <<"-word_size"<< QString::number(settings.wordSize);
     }
-    if(!settings.isDefaultCosts){
-        arguments <<"-gapopen"<< QString::number(settings.gapOpenCost);
-        arguments <<"-gapextend"<< QString::number(settings.gapExtendCost);
+
+    if (settings.directStrand == TriState_Yes) {
+        arguments << "-strand" << "plus";
+    } else if (settings.directStrand == TriState_No) {
+        arguments << "-strand" << "minus";
     }
+
     if(settings.isNucleotideSeq && (!settings.isDefautScores)){
         assert(NULL);
-        arguments <<"-penalty"<< QString::number(settings.mismatchPenalty);
-        arguments <<"-reward"<< QString::number(settings.matchReward);
+        coreLog.error(tr("Unexpected settings combination"));
     }else{
         if(!settings.isDefaultMatrix){
             arguments <<"-matrix"<< settings.matrix;
@@ -82,10 +80,7 @@ ExternalToolRunTask* TBlastXPlusSupportTask::createBlastPlusTask(){
     {
         arguments << "-window_size" << QString::number(settings.windowSize);
     }
-    //I always get error from BLAST+:
-    //ncbi-blast-2.2.24+-src/c++/src/corelib/ncbithr.cpp", line 649: Fatal: ncbi::CThread::Run()
-    //- Assertion failed: (0) CThread::Run() -- system does not support threads
-    //arguments <<"-num_threads"<< QString::number(settings.numberOfProcessors);
+    arguments <<"-num_threads"<< QString::number(settings.numberOfProcessors);
     arguments <<"-outfmt"<< QString::number(settings.outputType);//"5";//Set output file format to xml
     if(settings.outputOriginalFile.isEmpty()){
         arguments <<"-out"<< url+".xml";
@@ -95,9 +90,14 @@ ExternalToolRunTask* TBlastXPlusSupportTask::createBlastPlusTask(){
     }
 
 
-    algoLog.trace("Blastall arguments: "+arguments.join(" "));
+    algoLog.trace("TBlastX+ arguments: "+arguments.join(" "));
     logParser=new ExternalToolLogParser();
     QString workingDirectory=QFileInfo(url).absolutePath();
-    return new ExternalToolRunTask(TBLASTX_TOOL_NAME, arguments, logParser, workingDirectory);
+
+    ExternalToolRunTask* runTask = new ExternalToolRunTask(ET_TBLASTX, arguments, logParser, workingDirectory);
+    setListenerForTask(runTask);
+    return runTask;
 }
-}//namespace
+
+} // namespace U2
+

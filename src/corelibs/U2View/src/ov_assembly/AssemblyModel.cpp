@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,37 +19,44 @@
  * MA 02110-1301, USA.
  */
 
-#include "AssemblyModel.h"
-#include "AssemblyBrowser.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QApplication>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
+#endif
 
-#include <U2Core/U2AssemblyDbi.h>
-#include <U2Core/U2AssemblyUtils.h>
-#include <U2Core/U2SequenceDbi.h>
-#include <U2Core/U2AttributeDbi.h>
-#include <U2Core/U2OpStatusUtils.h>
-#include <U2Core/U2CrossDatabaseReferenceDbi.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/U2DbiRegistry.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/AddDocumentTask.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/ProjectModel.h>
 #include <U2Core/TaskSignalMapper.h>
-#include <U2Core/U2AttributeUtils.h>
-#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2AssemblyDbi.h>
 #include <U2Core/U2AssemblyUtils.h>
+#include <U2Core/U2AttributeDbi.h>
+#include <U2Core/U2AttributeUtils.h>
+#include <U2Core/U2CoreAttributes.h>
+#include <U2Core/U2CrossDatabaseReferenceDbi.h>
+#include <U2Core/U2DbiRegistry.h>
 #include <U2Core/U2DbiUtils.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/GObjectTypes.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2SequenceDbi.h>
+#include <U2Core/U2SqlHelpers.h>
+#include <U2Core/VariantTrackObject.h>
 
 #include <U2Gui/ObjectViewTasks.h>
 
-#include <QtGui/QMessageBox>
-#include <QtGui/QApplication>
-
-#include <memory>
+#include "AssemblyBrowser.h"
+#include "AssemblyModel.h"
 
 namespace U2 {
 
@@ -57,15 +64,17 @@ namespace U2 {
 // AssemblyModel
 //==============================================================================
 
-AssemblyModel::AssemblyModel(const DbiConnection& dbiCon_) : 
+const QByteArray AssemblyModel::COVERAGE_STAT_ATTRIBUTE_NAME(U2BaseAttributeName::coverage_statistics.toLatin1());
+
+AssemblyModel::AssemblyModel(const DbiConnection& dbiCon_) :
 cachedModelLength(NO_VAL), cachedModelHeight(NO_VAL), assemblyDbi(0), dbiHandle(dbiCon_),
 loadingReference(false), refObj(NULL), md5Retrieved(false), cachedReadsNumber(NO_VAL), speciesRetrieved(false),
 uriRetrieved(false)
 {
     Project * prj = AppContext::getProject();
     if (prj != NULL) {
-        connect(prj, SIGNAL(si_documentRemoved(Document*)), SLOT(sl_referenceDocRemoved(Document*)));
-        connect(prj, SIGNAL(si_documentAdded(Document*)), SLOT(sl_referenceDocAdded(Document*)));
+        connect(prj, SIGNAL(si_documentRemoved(Document*)), SLOT(sl_docRemoved(Document*)));
+        connect(prj, SIGNAL(si_documentAdded(Document*)), SLOT(sl_docAdded(Document*)));
     }
 }
 
@@ -77,17 +86,55 @@ void AssemblyModel::unsetReference() {
     refObj = NULL;
 }
 
+void AssemblyModel::dissociateReference() {
+    if(!assembly.referenceId.isEmpty()) {
+        CHECK(checkPermissions(QFile::WriteUser, false), );
+
+        const U2DataId refId = assembly.referenceId;
+
+        U2OpStatusImpl status;
+        assembly.referenceId.clear();
+        assemblyDbi->updateAssemblyObject(assembly, status);
+        LOG_OP(status);
+        unsetReference();
+
+        removeCrossDatabaseReference(refId);
+
+        emit si_referenceChanged();
+    }
+}
+
 bool AssemblyModel::isEmpty() const {
     return assemblyDbi == NULL;
 }
 
 QList<U2AssemblyRead> AssemblyModel::getReadsFromAssembly(const U2Region & r, qint64 minRow, qint64 maxRow, U2OpStatus & os) {
-    std::auto_ptr< U2DbiIterator<U2AssemblyRead> > it(assemblyDbi->getReadsByRow(assembly.id, r, minRow, maxRow, os));
-    return U2DbiUtils::toList(it.get());
+    QScopedPointer< U2DbiIterator<U2AssemblyRead> > it(assemblyDbi->getReadsByRow(assembly.id, r, minRow, maxRow, os));
+    return U2DbiUtils::toList(it.data());
+}
+
+U2DbiIterator<U2AssemblyRead>* AssemblyModel::getReads(const U2Region & r, U2OpStatus & os) {
+    return assemblyDbi->getReads(assembly.id, r, os);
 }
 
 void AssemblyModel::calculateCoverageStat(const U2Region & r, U2AssemblyCoverageStat & stat, U2OpStatus & os) {
     return assemblyDbi->calculateCoverage(assembly.id, r, stat, os);
+}
+
+bool AssemblyModel::hasCachedCoverageStat() {
+    if(!cachedCoverageStat.coverage.isEmpty()) {
+        return true;
+    }
+    U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
+    if(NULL != attributeDbi) {
+        U2OpStatusImpl status;
+        U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, COVERAGE_STAT_ATTRIBUTE_NAME, status);
+        if(!status.isCoR() && attr.hasValidId()) {
+            // TODO: check version
+            return true;
+        }
+    }
+    return false;
 }
 
 const U2AssemblyCoverageStat &AssemblyModel::getCoverageStat(U2OpStatus & os) {
@@ -96,7 +143,6 @@ const U2AssemblyCoverageStat &AssemblyModel::getCoverageStat(U2OpStatus & os) {
     if(cachedCoverageStat.coverage.isEmpty()) {
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
         if(NULL != attributeDbi) {
-            static const QByteArray COVERAGE_STAT_ATTRIBUTE_NAME("coverageStat");
             U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, COVERAGE_STAT_ATTRIBUTE_NAME, os);
             if(!os.isCoR()) {
                 if(attr.hasValidId()) {
@@ -138,16 +184,15 @@ qint64 AssemblyModel::getModelLength(U2OpStatus & os) {
     if(NO_VAL == cachedModelLength) {
         // try to set length from attributes
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
-        static const QByteArray REFERENCE_ATTRIBUTE_NAME("reference_length_attribute");
         if(attributeDbi != NULL) {
-            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, REFERENCE_ATTRIBUTE_NAME, os);
+            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, U2BaseAttributeName::reference_length, os);
             LOG_OP(os);
             if(attr.hasValidId()) {
                 cachedModelLength = attr.value;
             }
             // ignore incorrect attribute value and remove corrupted attribute (auto-fix incorrectly converted ugenedb)
             if(cachedModelLength == 0) {
-                coreLog.details(QString("ignored incorrect value of attribute %1: should be > 0, got %2. Bad attribute removed!").arg(QString(REFERENCE_ATTRIBUTE_NAME)).arg(cachedModelLength));
+                coreLog.details(QString("ignored incorrect value of attribute %1: should be > 0, got %2. Bad attribute removed!").arg(QString(U2BaseAttributeName::reference_length)).arg(cachedModelLength));
                 cachedModelLength = NO_VAL;
                 U2AttributeUtils::removeAttribute(attributeDbi, attr.id, os);
             }
@@ -161,9 +206,13 @@ qint64 AssemblyModel::getModelLength(U2OpStatus & os) {
 
             // and save in attribute
             U2IntegerAttribute attr;
-            U2AttributeUtils::init(attr, assembly, REFERENCE_ATTRIBUTE_NAME);
+            U2AttributeUtils::init(attr, assembly, U2BaseAttributeName::reference_length);
             attr.value = cachedModelLength;
             attributeDbi->createIntegerAttribute(attr, os);
+        }
+        if(cachedModelLength == NO_VAL){
+            os.setError("Can't get model length, database is corrupted");
+            LOG_OP(os);
         }
     }
     return cachedModelLength;
@@ -173,9 +222,8 @@ QByteArray AssemblyModel::getReferenceMd5(U2OpStatus& os) {
     if(!md5Retrieved) {
         md5Retrieved = true;
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
-        static const QByteArray MD5_ATTRIBUTE_NAME("reference_md5_attribute");
         if (attributeDbi != NULL) {
-            U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, MD5_ATTRIBUTE_NAME, os);
+            U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, U2BaseAttributeName::reference_md5, os);
             if(attr.hasValidId()) {
                 referenceMd5 = attr.value;
             }
@@ -187,14 +235,13 @@ QByteArray AssemblyModel::getReferenceMd5(U2OpStatus& os) {
 qint64 AssemblyModel::getModelHeight(U2OpStatus & os) {
     if(NO_VAL == cachedModelHeight) {
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
-        static const QByteArray MAX_PROW_ATTRIBUTE_NAME("max_prow_attribute");
         if(attributeDbi != NULL) {
-            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, MAX_PROW_ATTRIBUTE_NAME, os);
+            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, U2BaseAttributeName::max_prow, os);
             LOG_OP(os);
             if(attr.hasValidId()) {
                 if(attr.version == assembly.version) {
                     cachedModelHeight = attr.value;
-                } else {
+                } else if(checkPermissions(QFile::WriteUser,false)) {
                     U2AttributeUtils::removeAttribute(attributeDbi, attr.id, os);
                     LOG_OP(os);
                 }
@@ -207,10 +254,14 @@ qint64 AssemblyModel::getModelHeight(U2OpStatus & os) {
             if(! os.isCoR()) {
                 // ...and store it in a new attribure
                 U2IntegerAttribute attr;
-                U2AttributeUtils::init(attr, assembly, MAX_PROW_ATTRIBUTE_NAME);
+                U2AttributeUtils::init(attr, assembly, U2BaseAttributeName::max_prow);
                 attr.value = cachedModelHeight;
                 attributeDbi->createIntegerAttribute(attr, os);
             }
+        }
+        if(cachedModelHeight  == NO_VAL){
+            os.setError("Can't get model height, database is corrupted");
+            LOG_OP(os);
         }
     }
     return cachedModelHeight;
@@ -221,47 +272,71 @@ void AssemblyModel::setAssembly(U2AssemblyDbi * dbi, const U2Assembly & assm) {
     assert(assemblyDbi == NULL);
     assemblyDbi = dbi;
     assembly = assm;
-    
+
     // check if have reference
     if(!assembly.referenceId.isEmpty()) {
-        // 1. get cross reference by ref id
-        U2CrossDatabaseReferenceDbi * crossDbi = dbiHandle.dbi->getCrossDatabaseReferenceDbi();
-        U2OpStatusImpl status;
-        U2CrossDatabaseReference crossRef = crossDbi->getCrossReference(assembly.referenceId, status);
-        SAFE_POINT_OP(status,); 
-        
-        // 2. find project and load reference doc to project
-        Project * prj = AppContext::getProject();
-        SAFE_POINT(prj!=NULL, tr("No active project found!"), );
+        switch (U2DbiUtils::toType(assembly.referenceId)) {
+            case U2Type::Sequence: {
+                Project * prj = AppContext::getProject();
+                SAFE_POINT(prj != NULL, tr("No active project found!"), );
 
-        Document* refDoc = prj->findDocumentByURL(crossRef.dataRef.dbiRef.dbiId);
-        Task * t = NULL;
-        if( refDoc != NULL ) { // document already in project, load if it is not loaded
-            if (refDoc->isLoaded()) {
-                sl_referenceLoaded();
-            } else {
-                t = new LoadUnloadedDocumentTask(refDoc);
+                Document* refDoc = prj->findDocumentByURL(U2DbiUtils::ref2Url(dbiHandle.dbi->getDbiRef()));
+                SAFE_POINT(refDoc != NULL, tr("No reference document found in the project"), );
+
+                U2SequenceObject* refObj = qobject_cast<U2SequenceObject*>(refDoc->getObjectById(assembly.referenceId));
+                SAFE_POINT(refObj != NULL, tr("No reference object found in the project"), );
+
+                setReference(refObj);
+                break;
             }
 
-            connect(refDoc, SIGNAL(si_loadedStateChanged()), SLOT(sl_referenceDocLoadedStateChanged()));
-        } else { // no document at project -> create doc, add it to project and load it
-            t = createLoadReferenceAndAddToProjectTask(crossRef);
-            if (NULL == t) {
-                QString refUrl = crossRef.dataRef.dbiRef.dbiId;
-                QString refName = crossRef.dataRef.entityId;
+            case U2Type::CrossDatabaseReference: {
+                // 1. get cross reference by ref id
+                U2CrossDatabaseReferenceDbi * crossDbi = dbiHandle.dbi->getCrossDatabaseReferenceDbi();
+                U2OpStatusImpl status;
+                U2CrossDatabaseReference crossRef = crossDbi->getCrossReference(assembly.referenceId, status);
+                SAFE_POINT_OP(status,);
 
-                QMessageBox::warning(QApplication::activeWindow(), tr("Warning"),
-                    tr("A file '%1' with the reference sequence '%2' not found!\n"
-                    "Try to open another file with a reference sequence and associate it with the assembly.").arg(refUrl).arg(refName),
-                    QMessageBox::Ok, QMessageBox::Ok);
+                // 2. find project and load reference doc to project
+                Project * prj = AppContext::getProject();
+                SAFE_POINT(prj!=NULL, tr("No active project found!"), );
 
-                sl_unassociateReference();
+                Document* refDoc = prj->findDocumentByURL(crossRef.dataRef.dbiRef.dbiId);
+                Task * t = NULL;
+                if( refDoc != NULL ) { // document already in project, load if it is not loaded
+                    if (refDoc->isLoaded()) {
+                        sl_referenceLoaded();
+                    } else {
+                        t = new LoadUnloadedDocumentTask(refDoc);
+                    }
+
+                    connect(refDoc, SIGNAL(si_loadedStateChanged()), SLOT(sl_referenceDocLoadedStateChanged()));
+                } else { // no document at project -> create doc, add it to project and load it
+                    t = createLoadReferenceAndAddToProjectTask(crossRef);
+                    if (NULL == t) {
+                        QString refUrl = crossRef.dataRef.dbiRef.dbiId;
+                        QString refName = crossRef.dataRef.entityId;
+
+                        QMessageBox::warning(QApplication::activeWindow(), tr("Warning"),
+                                             tr("A file '%1' with the reference sequence '%2' not found!\n"
+                                                "Try to open another file with a reference sequence and associate it with the assembly.").arg(refUrl).arg(refName),
+                                             QMessageBox::Ok, QMessageBox::Ok);
+                        dissociateReference();
+                    }
+                }
+
+                // 4. run task and wait for finished in referenceLoaded()
+                if(t != NULL) {
+                    startLoadReferenceTask(t);
+                }
+
+                break;
             }
-        }
-        
-        // 4. run task and wait for finished in referenceLoaded()
-        if(t != NULL) {
-            startLoadReferenceTask(t);
+
+            default: {
+                dissociateReference();
+                FAIL(tr("Unexected object is set as reference"), );
+            }
         }
     }
 }
@@ -296,9 +371,9 @@ void AssemblyModel::sl_referenceLoadingFailed() {
 void AssemblyModel::onReferenceRemoved() {
     QMessageBox::StandardButtons fl = QMessageBox::Yes | QMessageBox::No;
     QMessageBox::StandardButton btn = QMessageBox::question(QApplication::activeWindow(), tr("Errors"),
-        tr("Remove association of '%1' sequence with '%2' assembly?").arg(refObj->getGObjectName()).arg(assembly.visualName),fl, QMessageBox::Yes);
+        tr("The '%1' sequence is associated with the '%2' assembly?\nDo you want to remove the association?").arg(refObj->getGObjectName()).arg(assembly.visualName),fl, QMessageBox::Yes);
     if (btn == QMessageBox::Yes) {
-        sl_unassociateReference();
+        dissociateReference();
     } else {
         refObj->getDocument()->disconnect(this);
         unsetReference();
@@ -306,10 +381,45 @@ void AssemblyModel::onReferenceRemoved() {
     }
 }
 
+void AssemblyModel::removeCrossDatabaseReference(const U2DataId &refId) {
+    CHECK(!refId.isEmpty(), );
+    CHECK(U2Type::CrossDatabaseReference == U2DbiUtils::toType(refId), );
+
+    U2OpStatus2Log status;
+    dbiHandle.dbi->getObjectDbi()->removeObject(refId, status);
+}
+
+namespace {
+    bool isAssemblyDoc(const Document *doc, const U2Assembly &assembly) {
+        CHECK(NULL != doc, false);
+        foreach (const GObject *obj, doc->findGObjectByType(GObjectTypes::ASSEMBLY)) {
+            if (NULL == obj) {
+                continue;
+            }
+            const U2EntityRef &ent = obj->getEntityRef();
+            if ((ent.entityId == assembly.id) && (ent.dbiRef.dbiId == assembly.dbiId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 // when reference doc removed from project
-void AssemblyModel::sl_referenceDocRemoved(Document* d) {
+void AssemblyModel::sl_docRemoved(Document* d) {
     if (d != NULL && refObj != NULL && refObj->getDocument() == d) {
-        onReferenceRemoved();
+        if (!isAssemblyDoc(d, assembly)) {
+            onReferenceRemoved();
+        }else{
+            unsetReference();
+        }
+    }
+
+    foreach (VariantTrackObject *trackObj, trackObjList) {
+        if (trackObj->getDocument() == d) {
+            trackObjList.removeOne(trackObj);
+            emit si_trackRemoved(trackObj);
+        }
     }
 }
 
@@ -321,14 +431,14 @@ void AssemblyModel::sl_referenceObjRemoved(GObject* o) {
 }
 
 // when reference doc added to project
-void AssemblyModel::sl_referenceDocAdded(Document * d) {
+void AssemblyModel::sl_docAdded(Document * d) {
     SAFE_POINT(d, "Reference document is NULL!", );
 
     if (refObj == NULL && !assembly.referenceId.isEmpty()) {
         U2OpStatusImpl status;
         U2CrossDatabaseReference ref = dbiHandle.dbi->getCrossDatabaseReferenceDbi()->getCrossReference(assembly.referenceId, status);
         SAFE_POINT_OP(status,);
-        
+
         if (ref.dataRef.dbiRef.dbiId == d->getURLString()) {
             connect(d, SIGNAL(si_loadedStateChanged()), SLOT(sl_referenceDocLoadedStateChanged()));
         }
@@ -339,7 +449,7 @@ void AssemblyModel::sl_referenceDocAdded(Document * d) {
 void AssemblyModel::sl_referenceDocLoadedStateChanged() {
     Document * doc = qobject_cast<Document*>(sender());
     SAFE_POINT(doc, "Reference document is NULL!", );
-    
+
     if(doc->isLoaded()) {
         if (!loadingReference) {
             sl_referenceLoaded();
@@ -385,11 +495,26 @@ QByteArray AssemblyModel::getReferenceRegion(const U2Region& region, U2OpStatus&
     return refObj->getSequenceData(region);
 }
 
-void AssemblyModel::associateWithReference(const U2CrossDatabaseReference & ref) {
+QByteArray AssemblyModel::getReferenceRegionOrEmpty(const U2Region& region) {
+    if(hasReference()) {
+        U2OpStatusImpl status;
+        QByteArray referenceRegion = getReferenceRegion(region, status);
+        if(status.isCoR()) {
+            LOG_OP(status);
+            return QByteArray();
+        } else {
+            return referenceRegion;
+        }
+    }
+    return QByteArray();
+}
+
+void AssemblyModel::associateWithReference(const U2DataId& refId) {
     assert(hasReference());
     assert(assemblyDbi != NULL);
     // save cross reference id to assembly
-    assembly.referenceId = ref.id;
+
+    assembly.referenceId = refId;
     U2OpStatusImpl status;
     assemblyDbi->updateAssemblyObject(assembly, status);
     LOG_OP(status);
@@ -399,16 +524,15 @@ qint64 AssemblyModel::getReadsNumber(U2OpStatus & os) {
     if(cachedReadsNumber == NO_VAL) {
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
         //U2OpStatusImpl os;
-        static const QByteArray READS_COUNT_ATTRIBUTE_NAME("count_reads_attribute");
         if(attributeDbi != NULL) {
-            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, READS_COUNT_ATTRIBUTE_NAME, os);
+            U2IntegerAttribute attr = U2AttributeUtils::findIntegerAttribute(attributeDbi, assembly.id, U2BaseAttributeName::count_reads, os);
             LOG_OP(os);
             // If attribute found...
             if(attr.hasValidId()) {
                 // ...check its version...
                 if(attr.version == assembly.version) {
                     cachedReadsNumber = attr.value;
-                } else {
+                } else if(checkPermissions(QFile::WriteUser, false)) {
                     // ...and remove if it's obsolete
                     U2AttributeUtils::removeAttribute(attributeDbi, attr.id, os);
                     LOG_OP(os);
@@ -422,10 +546,14 @@ qint64 AssemblyModel::getReadsNumber(U2OpStatus & os) {
             if(! os.isCoR()) {
                 // ...and store it in a new attribure
                 U2IntegerAttribute attr;
-                U2AttributeUtils::init(attr, assembly, READS_COUNT_ATTRIBUTE_NAME);
+                U2AttributeUtils::init(attr, assembly, U2BaseAttributeName::count_reads);
                 attr.value = cachedReadsNumber;
                 attributeDbi->createIntegerAttribute(attr, os);
             }
+        }
+        if(cachedReadsNumber  == NO_VAL){
+            os.setError("Can't get reads number, database is corrupted");
+            LOG_OP(os);
         }
     }
     return cachedReadsNumber;
@@ -444,7 +572,7 @@ QList<U2AssemblyRead> AssemblyModel::findMateReads(U2AssemblyRead read, U2OpStat
         return result;
     }
 
-    std::auto_ptr<U2DbiIterator<U2AssemblyRead> > it(assemblyDbi->getReadsByName(assembly.id, read->name, os));
+    QScopedPointer<U2DbiIterator<U2AssemblyRead> > it(assemblyDbi->getReadsByName(assembly.id, read->name, os));
     CHECK_OP(os, result);
 
     while (it->hasNext()) {
@@ -456,13 +584,34 @@ QList<U2AssemblyRead> AssemblyModel::findMateReads(U2AssemblyRead read, U2OpStat
     return result;
 }
 
+const QList<VariantTrackObject*> &AssemblyModel::getTrackList() const {
+    return trackObjList;
+}
+
+void AssemblyModel::addTrackObject(VariantTrackObject *trackObj) {
+    CHECK(trackObj != NULL, );
+    if (!trackObjList.contains(trackObj)) {
+        trackObjList << trackObj;
+
+        connect(trackObj->getDocument(), SIGNAL(si_objectRemoved(GObject*)), SLOT(sl_trackObjRemoved(GObject*)));
+        emit si_trackAdded(trackObj);
+    }
+}
+
+void AssemblyModel::sl_trackObjRemoved(GObject *o) {
+    VariantTrackObject *trackObj = qobject_cast<VariantTrackObject*>(o);
+    if (NULL != trackObj) {
+        trackObjList.removeOne(trackObj);
+        emit si_trackRemoved(trackObj);
+    }
+}
+
 QByteArray AssemblyModel::getReferenceSpecies(U2OpStatus & os) {
     if(!speciesRetrieved) {
         speciesRetrieved = true;
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
-        static const QByteArray SPECIES_ATTRIBUTE_NAME("reference_species_attribute");
         if (attributeDbi != NULL) {
-            U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, SPECIES_ATTRIBUTE_NAME, os);
+            U2ByteArrayAttribute attr = U2AttributeUtils::findByteArrayAttribute(attributeDbi, assembly.id, U2BaseAttributeName::reference_species, os);
             if(attr.hasValidId()) {
                 referenceSpecies = attr.value;
             }
@@ -475,9 +624,8 @@ QString AssemblyModel::getReferenceUri(U2OpStatus & os) {
     if(!uriRetrieved) {
         uriRetrieved = true;
         U2AttributeDbi * attributeDbi = dbiHandle.dbi->getAttributeDbi();
-        static const QByteArray URI_ATTRIBUTE_NAME("reference_uri_attribute");
         if(attributeDbi != NULL) {
-            U2StringAttribute attr = U2AttributeUtils::findStringAttribute(attributeDbi, assembly.id, URI_ATTRIBUTE_NAME, os);
+            U2StringAttribute attr = U2AttributeUtils::findStringAttribute(attributeDbi, assembly.id, U2BaseAttributeName::reference_uri, os);
             if(attr.hasValidId()) {
                 referenceUri = attr.value;
             }
@@ -486,15 +634,36 @@ QString AssemblyModel::getReferenceUri(U2OpStatus & os) {
     return referenceUri;
 }
 
-void AssemblyModel::sl_unassociateReference() {
-    if(!assembly.referenceId.isEmpty()) {
-        assembly.referenceId.clear();
-        U2OpStatusImpl status;
-        assemblyDbi->updateAssemblyObject(assembly, status);
-        LOG_OP(status);
-        unsetReference();
-        emit si_referenceChanged();
+bool AssemblyModel::checkPermissions(QFile::Permission permission, bool showDialog) const {
+    bool res = assemblyDbi->getRootDbi()->isReadOnly();
+    QFile f(assembly.dbiId);
+    QFile::Permissions perm = f.permissions();
+
+    if (f.exists() && !perm.testFlag(permission)) {
+        if(showDialog){
+            QMessageBox::warning(QApplication::activeWindow(), tr("Warning"),
+                                 tr("This action requires changing file:\n%1\nYou don't have enough rights to change file").arg(assembly.dbiId),
+                                QMessageBox::Ok, QMessageBox::Ok);
+        }
+       return false;
     }
+    if(res){
+        QMessageBox::warning(QApplication::activeWindow(),tr("Warning"),
+                             tr("Database is opened in read-only mode. It might happen because file \n%1\n is read only. If not try to reload file").arg(assembly.dbiId));
+        return false;
+    }
+    return true;
+}
+
+U2EntityRef AssemblyModel::getRefereneceEntityRef(){
+    if (hasReference()){
+        return refObj->getEntityRef();
+    }
+    return U2EntityRef();
+}
+
+U2SequenceObject* AssemblyModel::getRefObj() const {
+    return refObj;
 }
 
 } // U2

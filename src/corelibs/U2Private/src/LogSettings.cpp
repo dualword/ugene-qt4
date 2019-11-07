@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -60,21 +60,23 @@ void LogSettings::reinitAll() {
 
     for (int i=0; i < LogLevel_NumLevels; i++) {
         if (i == LogLevel_TRACE) {
-            levelColors[i] = QColor(Qt::darkGray).name();                
+            levelColors[i] = QColor(Qt::darkGray).name();
         } else if (i == LogLevel_INFO) {
-            levelColors[i] = QColor(Qt::darkBlue).name();                
+            levelColors[i] = QColor(Qt::darkBlue).name();
         } else if (i == LogLevel_ERROR) {
-            levelColors[i] = QColor(Qt::darkRed).name();                
+            levelColors[i] = QColor(Qt::darkRed).name();
         } else {
             levelColors[i] = QColor(Qt::black).name();
         }
     }
-    
+
     showDate = s->getValue(SETTINGS_ROOT + "showDate", true).toBool();
     showLevel = s->getValue(SETTINGS_ROOT + "showLevel", true).toBool();
     showCategory = s->getValue(SETTINGS_ROOT + "showCategory", false).toBool();
     logPattern = s->getValue(SETTINGS_ROOT + "datePattern", "hh:mm").toString();
     enableColor = s->getValue(SETTINGS_ROOT + "enableColor", true).toBool();
+    toFile = s->getValue(SETTINGS_ROOT + "logToFile", false).toBool();
+    outputFile = s->getValue(SETTINGS_ROOT + "outFilePath", QString("")).toString();
 
     reinitCategories();
 }
@@ -131,6 +133,8 @@ void LogSettings::save() {
     s->setValue(SETTINGS_ROOT + "showCategory", showCategory);
     s->setValue(SETTINGS_ROOT + "enableColor", enableColor);
     s->setValue(SETTINGS_ROOT + "datePattern", logPattern);
+    s->setValue(SETTINGS_ROOT + "logToFile", toFile);
+    s->setValue(SETTINGS_ROOT + "outFilePath", outputFile);
 }
 
 bool LogSettings::operator==(const LogSettings& other) const {

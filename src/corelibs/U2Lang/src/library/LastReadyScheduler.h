@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,25 +33,36 @@ namespace LocalWorkflow {
  * seeks the nearest to the end of the workflow worker and ticks it
  * uses workflow's actors bindings graph
  */
-class U2LANG_EXPORT LastReadyScheduler : public Scheduler {
+class ElapsedTimeUpdater;
+class LastReadyScheduler : public Scheduler {
 public:
     LastReadyScheduler(Schema *sh);
     virtual ~LastReadyScheduler();
 
     // reimplemented from Worker
     virtual void init();
-    virtual bool isReady();
+    virtual bool isReady() const;
     virtual Task *tick();
-    virtual bool isDone();
+    virtual bool isDone() const;
     virtual void cleanup();
 
-    virtual WorkerState getWorkerState(ActorId);
+    virtual WorkerState getWorkerState(const ActorId &actor);
+    virtual Task * replayLastWorkerTick();
+    virtual bool cancelCurrentTaskIfAllowed();
+    virtual void makeOneTick(const ActorId &actor);
 
-private:
-    Schema *schema;
-    QMap<int, QList<Actor*> > topologicSortedGraph;
+protected:
+    virtual WorkerState getWorkerState(const Actor *a);
+    ActorId actorId() const;
+    bool hasValidFinishedTask() const;
+    qint64 lastTaskTimeSec() const;
+    void measuredTick();
+
+    QMap<int, QList<Actor *> > topologicSortedGraph;
     BaseWorker *lastWorker;
-    Task *lastTask;
+    bool canLastTaskBeCanceled;
+    ActorId requestedActorForNextTick;
+    ElapsedTimeUpdater* timeUpdater;
 };
 
 } // LocalWorkflow

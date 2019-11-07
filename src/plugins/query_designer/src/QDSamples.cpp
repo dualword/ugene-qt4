@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ Q_DECLARE_METATYPE(QTextDocument*);
 namespace U2 {
 
 QList<QDSample> QDSamplesRegistry::data;
-    
+
 QDLoadSamplesTask::QDLoadSamplesTask(const QStringList& _dirs)
 : Task(tr("Load query samples"), TaskFlag_NoRun) {
     foreach(const QString& s, _dirs) {
@@ -60,10 +60,12 @@ QList<Task*> QDLoadSamplesTask::onSubTaskFinished(Task* subTask) {
     assert(loadTask);
     QDSample sample;
     sample.content = loadTask->getDocument();
-    sample.d.setId(idMap.value(loadTask));
-    sample.d.setDisplayName(sample.content->getName());
-    sample.d.setDocumentation(sample.content->getDocDesc());
-    result.append(sample);
+    if (sample.content) {
+        sample.d.setId(idMap.value(loadTask));
+        sample.d.setDisplayName(sample.content->getName());
+        sample.d.setDocumentation(sample.content->getDocDesc());
+        result.append(sample);
+    }
     return st;
 }
 
@@ -109,7 +111,7 @@ void QDSamplesWidget::sl_onItemChanged(QListWidgetItem* item) {
 }
 
 void QDSamplesWidget::sl_onItemSelected(QListWidgetItem* item) {
-    QDDocument* doc = qVariantValue<QDDocument*>(item->data(DATA_ROLE));
+    QDDocument* doc = item->data(DATA_ROLE).value<QDDocument *>();
     assert(doc);
     emit itemActivated(doc);
 }

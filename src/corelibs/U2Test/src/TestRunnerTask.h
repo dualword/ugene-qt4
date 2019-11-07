@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,9 +40,9 @@ class U2TEST_EXPORT TestRunnerTask : public Task {
 public:
     TestRunnerTask(const QList<GTestState*>& tests, const GTestEnvironment* env, int testSizeToRun=5);
 
-    
+
     virtual void cleanup();
-    
+
     const QMap<GTest*, GTestState*>& getStateByTestMap() const {return stateByTest;}
 
 protected:
@@ -61,9 +61,9 @@ class U2TEST_EXPORT LoadTestTask : public Task {
     Q_OBJECT
 public:
     LoadTestTask(GTestState* test);
-    
+
     void run();
-    
+
     GTestState* testState;
 
     QByteArray testData;
@@ -71,4 +71,4 @@ public:
 
 } //namespace
 
-#endif 
+#endif

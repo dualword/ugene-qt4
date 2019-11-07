@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,13 @@
 #include <cassert>
 
 #include <QtCore/QtAlgorithms>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
 #include <QtGui/QCheckBox>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QCheckBox>
+#endif
 
 #include <U2Core/AppContext.h>
 #include <U2Remote/ProtocolInfo.h>
@@ -38,7 +43,7 @@ RemoteMachineScanDialogImpl::RemoteMachineScanDialogImpl() {
     setupUi( this );
     ProtocolInfoRegistry * pir = AppContext::getProtocolInfoRegistry();
     assert( NULL != pir );
-    
+
     QList< ProtocolInfo * > protocolInfos = pir->getProtocolInfos();
     foreach( ProtocolInfo * pi, protocolInfos ) {
         Q_UNUSED(pi);
@@ -47,10 +52,10 @@ RemoteMachineScanDialogImpl::RemoteMachineScanDialogImpl() {
 //             protocolComboBox->addItem( pi->getId() );
 //         }
      }
-    
+
     connect( cancelPushButton, SIGNAL( clicked() ), SLOT( sl_cancelPushButtonClicked() ) );
     connect( okPushButton, SIGNAL( clicked() ), SLOT( sl_okPushButtonClicked() ) );
-    
+
     if( 0 == protocolComboBox->count() ) {
         okPushButton->setEnabled( false );
         QLabel * errorLable = new QLabel( tr( "No protocols that supports scanning found!" ), this );
@@ -59,18 +64,23 @@ RemoteMachineScanDialogImpl::RemoteMachineScanDialogImpl() {
         topLayout->insertWidget( 1, errorLable );
         return;
     }
-    
+
     connect( protocolComboBox, SIGNAL( activated( const QString & ) ), SLOT( sl_startScan( const QString & ) ) );
     connect( &updateTimer, SIGNAL( timeout() ), SLOT( sl_updatePushButtonClicked() ) );
     updateTimer.start( SCAN_UPDATE_TIME );
-    
+
     machinesTableWidget->horizontalHeader()->setHighlightSections( false );
+#if (QT_VERSION < 0x050000) //Qt 5
     machinesTableWidget->horizontalHeader()->setClickable( false );
     machinesTableWidget->verticalHeader()->setClickable( false );
+#else
+    machinesTableWidget->horizontalHeader()->setSectionsClickable( false );
+    machinesTableWidget->verticalHeader()->setSectionsClickable( false );
+#endif
     machinesTableWidget->setSelectionMode( QAbstractItemView::NoSelection );
     machinesTableWidget->setEditTriggers( QAbstractItemView::NoEditTriggers );
     resizeTable();
-    
+
     sl_startScan( protocolComboBox->currentText() );
 }
 
@@ -97,13 +107,13 @@ void RemoteMachineScanDialogImpl::sl_okPushButtonClicked() {
             delIndexes << i;
         }
     }
-    
+
     qSort( delIndexes.begin(), delIndexes.end(), qGreater<int>() );
     sz = delIndexes.size();
     for( int i = 0; i < sz; ++i ) {
         delete model.takeAt( delIndexes.at( i ) );
     }
-    
+
     accept();
 }
 
@@ -137,7 +147,7 @@ void RemoteMachineScanDialogImpl::addNextMachineToTable( RemoteMachineSettings *
     assert( NULL != settings );
     int sz = machinesTableWidget->rowCount();
     machinesTableWidget->insertRow( sz );
-    
+
     QCheckBox * checkBox = new QCheckBox();
     checkBox->setCheckState( Qt::Checked );
     machinesTableWidget->setCellWidget( sz, 0, checkBox );
@@ -170,8 +180,13 @@ RemoteMachineScanDialogModel RemoteMachineScanDialogImpl::getModel() const {
 }
 
 void RemoteMachineScanDialogImpl::resizeTable() {
+
+#if (QT_VERSION < 0x050000) //Qt 5
     machinesTableWidget->horizontalHeader()->setResizeMode( 1, QHeaderView::Stretch );
-    machinesTableWidget->horizontalHeader()->resizeSections( QHeaderView::ResizeToContents );    
+#else
+    machinesTableWidget->horizontalHeader()->setSectionResizeMode( 1, QHeaderView::Stretch );
+#endif
+    machinesTableWidget->horizontalHeader()->resizeSections( QHeaderView::ResizeToContents );
 }
 
 } // U2

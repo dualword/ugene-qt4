@@ -1,3 +1,24 @@
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
 #pragma once
 
 #include "DDisc/Extractor.h"
@@ -7,20 +28,21 @@
 #include "ExpertDiscoveryCSUtil.h"
 #include "ExpertDiscoveryView.h"
 
-
-#include <U2Core/AppContext.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectSelection.h>
-#include <U2View/AnnotatedDNAView.h>
-
-#include <U2Core/Task.h>
-#include <U2Core/GObject.h>
-#include <U2Gui/ObjectViewTasks.h>
-#include <U2Core/GObjectReference.h>
-#include <U2Core/AutoAnnotationsSupport.h>
 #include <U2Core/AnnotationData.h>
-#include <U2Core/SequenceWalkerTask.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/AutoAnnotationsSupport.h>
+#include <U2Core/BackgroundTaskRunner.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObject.h>
+#include <U2Core/GObjectSelection.h>
+#include <U2Core/GObjectReference.h>
 #include <U2Core/U2Region.h>
+#include <U2Core/SequenceWalkerTask.h>
+#include <U2Core/Task.h>
+
+#include <U2Gui/ObjectViewTasks.h>
+
+#include <U2View/AnnotatedDNAView.h>
 
 #include <QtCore/QMutex>
 
@@ -31,8 +53,7 @@ class Document;
 class ExpertDiscoveryLoadPosNegTask: public Task{
     Q_OBJECT
 public:
-    ExpertDiscoveryLoadPosNegTask(QString firstF, QString secondF, bool generateNeg);
-    ~ExpertDiscoveryLoadPosNegTask();
+    ExpertDiscoveryLoadPosNegTask(QString firstF, QString secondF, bool generateNeg, int negPerPositive);
 
     void run(){};
     void prepare();
@@ -44,6 +65,7 @@ public:
 private:
     QString firstFile, secondFile;
     bool generateNeg;
+    int negPerPositive;
     QList<Document*> docs;
 
     Document* loadFile(QString inFile);
@@ -63,7 +85,6 @@ class ExpertDiscoveryLoadControlTask: public Task{
     Q_OBJECT
 public:
     ExpertDiscoveryLoadControlTask(QString firstF);
-    ~ExpertDiscoveryLoadControlTask();
 
     void run(){};
     void prepare();
@@ -89,6 +110,8 @@ public:
     void prepare();
     ReportResult report();
 
+    static bool loadAnnotationFromUgeneDocument(MarkingBase& base, const SequenceBase& seqBase, Document* doc);
+
 private:
     QString firstFile, secondFile, thirdFile;
     bool generateDescr;
@@ -98,9 +121,6 @@ private:
     ExpertDiscoveryData& edData;
     Document* posDoc;
     Document* negDoc;
-
-    bool loadAnnotationFromUgeneDocument(MarkingBase& base, const SequenceBase& seqBase, Document* doc);
-    //Document* loadFile(QString inFile);
 
 signals:
     void si_stateChanged(Task* task);
@@ -113,12 +133,12 @@ public:
 
     void run(){};
     void prepare();
+    ReportResult report();
 
 private:
     QString firstFile;
     ExpertDiscoveryData& edData;
-
-    //Document* loadFile(QString inFile);
+    Document* conDoc;
 
 signals:
     void si_stateChanged(Task* task);
@@ -148,24 +168,6 @@ signals:
     void si_newFolder(const QString& folderName);
 };
 
-class ExpertDiscoveryCreateADVTask: public Task{
-    Q_OBJECT
-public:
-    ExpertDiscoveryCreateADVTask(const MultiGSelection& selObjects);
-
-    AnnotatedDNAView* getView() {return adv;}
-
-    void run();
-    void prepare() {};
-private:
-    const MultiGSelection& multiSelection;
-    AnnotatedDNAView* adv;
-
-signals:
-    void si_stateChanged(Task* task);
-};
-
-
 // error messages and dialogs
 class ExpertDiscoveryErrors: QObject {
     Q_OBJECT
@@ -191,7 +193,7 @@ private:
 };
 
 class ExpertDiscoverySignalsAutoAnnotationUpdater : public AutoAnnotationsUpdater{
-	Q_OBJECT
+    Q_OBJECT
 public:
     ExpertDiscoverySignalsAutoAnnotationUpdater();
     Task* createAutoAnnotationsUpdateTask(const AutoAnnotationObject* aa);
@@ -303,96 +305,6 @@ private:
     void addSignalMarkup(SequenceBase& rBase, MarkingBase& rAnn, bool isPos);
 };
 
-/**
- * Simple template task which allows to grab its result.
- * Intended to be used as a base class for tasks for BackgroundTaskRunner.
- */
-template<class Result>
-class BackgroundTask : public Task {
-public:
-    inline Result getResult() const {return result;};
-protected:
-    BackgroundTask(const QString& _name, TaskFlags f) : Task(_name, f){};
-    Result result;
-};
-
-
-/**
- * Stub containing Q_OBJECT macro, signals&slots. Classes with signal/slot related
- * stuff can't be templates, so everything needed for BackgroundTaskRunner is moved here
- */
-class BackgroundTaskRunner_base: public QObject {
-    Q_OBJECT
-public:
-    virtual ~BackgroundTaskRunner_base(){};
-    virtual void emitFinished(){emit(si_finished());};
-signals:
-    void si_finished();
-private slots:
-    virtual void sl_finished() = 0;
-};
-
-/**
- * Simple manager for background tasks. 
- * Allows running only one background task at a time, canceling previous task
- * when the new one is queued with run(). Emits si_finished() (defined in the base)
- * when the queued task is finished. Cancels current task in destructor.
- */
-template<class Result>
-class BackgroundTaskRunner : public BackgroundTaskRunner_base {
-public:
-    BackgroundTaskRunner() : task(0) {}
-
-    virtual ~BackgroundTaskRunner() {
-        if(task) {
-            task->cancel();
-        }
-    }
-
-    void run(BackgroundTask<Result> * newTask)  {
-        if(task) {
-            task->cancel();
-        }
-        task = newTask;
-        connect(task, SIGNAL(si_stateChanged()), SLOT(sl_finished()));
-        AppContext::getTaskScheduler()->registerTopLevelTask(task);
-    }
-
-    inline Result getResult() const {
-        if(task) {
-            return Result();
-        }
-        return result;
-    }
-
-    inline bool isFinished() {
-        return !task;
-    }
-
-private:
-    virtual void sl_finished() {
-        BackgroundTask<Result> * senderr = dynamic_cast<BackgroundTask<Result>*>(sender());
-        assert(senderr);
-        if(task != senderr) {
-            return;
-        }
-        if(Task::State_Finished != senderr->getState()) {
-            return;
-        }
-        result = task->getResult();
-        task = NULL;
-        emitFinished();
-    }
-
-private:
-    BackgroundTask<Result> * task;
-    Result result;
-
-private:
-    BackgroundTaskRunner(const BackgroundTaskRunner &);
-    BackgroundTaskRunner operator=(const BackgroundTaskRunner &);
-};
-
 struct ErrorsInfo{
     ErrorsInfo(): maxErrorVal(0), minErrorVal(0){;}
 
@@ -412,35 +324,26 @@ struct CalculateErrorTaskInfo{
 };
 
 class ExpertDiscoveryCalculateErrors : public BackgroundTask<ErrorsInfo>{
+    Q_OBJECT
 public:
     ExpertDiscoveryCalculateErrors(const CalculateErrorTaskInfo& settings);
     void run();
 private:
     CalculateErrorTaskInfo settings;
-};   
+};
 
 //search
 class ExpertDiscoverySearchResult {
 public:
     ExpertDiscoverySearchResult() : strand(U2Strand::Direct), score(0){}
 
-    SharedAnnotationData toAnnotation(const QString& name) const {
-        SharedAnnotationData data;
-        data = new AnnotationData;
+    SharedAnnotationData toAnnotation(const QString &name) const {
+        SharedAnnotationData data(new AnnotationData);
         data->name = name;
         data->location->regions << region;
         data->setStrand(strand);
         data->qualifiers.append(U2Qualifier("score", QString::number(score)));
         return data;
-    }
-
-    static QList<SharedAnnotationData> toTable(const QList<ExpertDiscoverySearchResult>& res, const QString& name)
-    {
-        QList<SharedAnnotationData> list;
-        foreach (const ExpertDiscoverySearchResult& f, res) {
-            list.append(f.toAnnotation(name));
-        }
-        return list;
     }
 
     U2Region region;
@@ -478,5 +381,15 @@ private:
     int                                 curLeft;
 };
 
-        
-}//namespace
+class ExpertDiscoveryExportSequences : public Task{
+    Q_OBJECT
+public:
+    ExpertDiscoveryExportSequences(const SequenceBase& base);
+    void prepare();
+    void run();
+private:
+    const SequenceBase& base;
+    QString fileName;
+};
+
+} // namespace

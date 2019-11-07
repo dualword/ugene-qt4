@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -19,16 +19,17 @@
 * MA 02110-1301, USA.
 */
 
-#include <U2Core/Task.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/IOAdapterUtils.h>
+#include <U2Core/Task.h>
 
-#include <memory>
-#include "Reader.h"
-#include "Index.h"
+#include <U2Formats/BAMUtils.h>
+
 #include "BaiReader.h"
-#include "LoadBamInfoTask.h"
 #include "Exception.h"
+#include "Index.h"
+#include "LoadBamInfoTask.h"
+#include "Reader.h"
 #include "SamReader.h"
 
 namespace U2 {
@@ -44,17 +45,17 @@ const GUrl& LoadInfoTask::getSourceUrl() const {
     return sourceUrl;
 }
 
-void LoadInfoTask::run() {        
+void LoadInfoTask::run() {
     try {
-        std::auto_ptr<IOAdapter> ioAdapter;
+        QScopedPointer<IOAdapter> ioAdapter;
         {
             IOAdapterFactory *factory = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(sourceUrl));
             ioAdapter.reset(factory->createIOAdapter());
         }
 
-        GUrl baiUrl(sourceUrl.getURLString() + ".bai");
-        bool hasIndex = true;
-        std::auto_ptr<IOAdapter> ioIndexAdapter;
+        GUrl baiUrl = BAMUtils::getBamIndexUrl(sourceUrl);
+
+        QScopedPointer<IOAdapter> ioIndexAdapter;
         IOAdapterFactory *factory = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(baiUrl));
         ioIndexAdapter.reset(factory->createIOAdapter());
 
@@ -63,15 +64,14 @@ void LoadInfoTask::run() {
             return;
         }
 
+        bool hasIndex = false;
         if (sam) {
             hasIndex = false;
         } else {
-            if(!ioIndexAdapter->open(baiUrl, IOAdapterMode_Read)) {
-                hasIndex = false;
-            }
+            hasIndex = ioIndexAdapter->open(baiUrl, IOAdapterMode_Read);
         }
 
-        std::auto_ptr<Reader> reader(NULL);
+        QScopedPointer<Reader> reader(NULL);
         if (sam) {
             reader.reset(new SamReader(*ioAdapter));
         } else {
@@ -80,7 +80,7 @@ void LoadInfoTask::run() {
         bamInfo.setHeader(reader->getHeader());
 
         if (!sam) {
-            std::auto_ptr<BaiReader> baiReader(new BaiReader(*ioIndexAdapter));
+            QScopedPointer<BaiReader> baiReader(new BaiReader(*ioIndexAdapter));
             Index index;
             if(hasIndex) {
                 index = baiReader->readIndex();

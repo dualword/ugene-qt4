@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,14 +26,12 @@
 #include <QtCore/QHash>
 #include <QtCore/QMutex>
 
-#include <memory>
-
 namespace U2 {
 
 class AsnNode;
 
 enum ResidueType {
-    DEOXYRIBONUCLEOTIDE, RIBONUCLEOTIDE, AMINO_ACID, OTHER = 255  
+    DEOXYRIBONUCLEOTIDE, RIBONUCLEOTIDE, AMINO_ACID, OTHER = 255
 };
 
 struct StdBond {
@@ -60,7 +58,7 @@ class StdResidueDictionary {
     void buildDictionaryFromAsnTree(AsnNode* rootElem);
     bool validate() const;
     static QMutex standardDictionaryLock;
-    static std::auto_ptr<StdResidueDictionary> standardDictionary;
+    static QScopedPointer<StdResidueDictionary> standardDictionary;
 public:
     ~StdResidueDictionary();
     static StdResidueDictionary* createStandardDictionary();

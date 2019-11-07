@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,8 @@
 
 #include "GObjectTypes.h"
 
+const int GAP_COLUMN_ONLY = -1;
+
 namespace U2 {
 
 class GHints;
@@ -35,71 +37,152 @@ class DNASequence;
 
 class MAlignmentModInfo {
 public:
-    MAlignmentModInfo() : sequenceContentChanged(true), sequenceListChanged(true) {}
+    MAlignmentModInfo()
+        : sequenceContentChanged(true),
+          sequenceListChanged(true),
+          alignmentLengthChanged(true),
+          middleState(false) {}
     bool sequenceContentChanged;
     bool sequenceListChanged;
+    bool alignmentLengthChanged;
+    bool middleState;
     QVariantMap hints;
+    QList<qint64> modifiedRowIds;
 
 private:
     static bool registerMeta;
 };
 
+class MSAMemento{
+public:
+    ~MSAMemento(){}
+private:
+    friend class MAlignmentObject;
+    MSAMemento();
+    MAlignment getState() const;
+    void setState(const MAlignment&);
+private:
+    MAlignment lastState;
+};
+
 class U2CORE_EXPORT MAlignmentObject : public GObject {
     Q_OBJECT
+
 public:
+    MAlignmentObject(const QString& name, const U2EntityRef& msaRef, const QVariantMap& hintsMap = QVariantMap(),
+        const MAlignment &alnData = MAlignment());
+    ~MAlignmentObject();
 
-    explicit MAlignmentObject(const MAlignment& a, const QVariantMap& hintsMap = QVariantMap())
-        : GObject(GObjectTypes::MULTIPLE_ALIGNMENT, a.getName(), hintsMap), msa(a){};
+    /** Sets type of modifications tracking for the alignment */
+    void setTrackMod(U2TrackModType trackMod, U2OpStatus& os);
 
-    const MAlignment& getMAlignment() const {return msa;}
+    const MAlignment & getMAlignment() const;
+    void setMAlignment(const MAlignment& ma, MAlignmentModInfo mi = MAlignmentModInfo(), const QVariantMap& hints = QVariantMap());
+    void copyGapModel(const QList<MAlignmentRow> &copyRows);
 
-    char charAt(int seqNum, int pos) const {return msa.charAt(seqNum, pos);}
-
-    bool isRegionEmpty(int x, int y, int width, int height) const;
-
-    virtual GObject* clone(const U2DbiRef&, U2OpStatus&) const;
-
-    void insertGap(int seqNum, int pos, int nGaps);
-    
-    void insertGap(int pos, int nGaps);
-
-    void insertGap(U2Region seqences, int pos, int nGaps);
-
-    int deleteGap(int seqNum, int pos, int maxGaps);
-    
-    int deleteGap(int pos, int maxGaps);
-
-    void addRow(const DNASequence& seq, int seqIdx = -1);
-
-    void removeRow(int seqNum);
-
-    void renameRow(int seqNum, const QString& newName);
-
-    void removeRegion(int startPos, int startRow, int nBases, int nRows, bool removeEmptyRows, bool changeAlignment = true);
-
-    void crop(U2Region window, const QSet<QString>& rowNames);
-
-    void setMAlignment(const MAlignment& ma, const QVariantMap& hints = QVariantMap());
-
-    DNAAlphabet* getAlphabet() const { return msa.getAlphabet(); }
-
+    /** GObject methods */
+    virtual GObject* clone(const U2DbiRef &dstDbiRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap()) const;
     virtual void setGObjectName(const QString& newName);
 
-    void moveRowsBlock( int firstRow, int numRows, int delta);
+    /** Const getters */
+    char charAt(int seqNum, int pos) const;
+    bool isRegionEmpty(int x, int y, int width, int height) const;
+    const DNAAlphabet* getAlphabet() const;
+    qint64 getLength() const;
+    qint64 getNumRows() const;
+    const MAlignmentRow& getRow(int row) const;
+    int getRowPosById(qint64 rowId) const;
 
-    bool shiftRegion( int startPos, int startRow, int nBases, int nRows, int shift);
+    /** Methods that modify the gap model only */
+    void insertGap(U2Region rows, int pos, int nGaps);
 
-    int getLength() const {return msa.getLength();}
+    /**
+     * Removes gap region that extends from the @pos column and is no longer than @maxGaps.
+     * If the region starting from @pos and having width of @maxGaps includes any non-gap symbols
+     * then its longest subset starting from @pos and containing gaps only is removed.
+     *
+     * If the given region is a subset of a trailing gaps area then nothing happens.
+     */
+    int deleteGap(const U2Region &rows, int pos, int maxGaps, U2OpStatus &os);
 
-    void deleteGapsByAbsoluteVal(int val);
-    
-    void deleteAllGapColumn();
+    /**
+     * Updates a gap model of the alignment.
+     * The map must contain valid row IDs and corresponding gap models.
+     */
+    void updateGapModel(QMap<qint64, QList<U2MsaGap> > rowsGapModel, U2OpStatus& os);
+
+    QMap<qint64, QList<U2MsaGap> > getGapModel() const;
+
+    /** Methods to work with rows */
+    void addRow(U2MsaRow& rowInDb, const DNASequence& sequence, int rowIdx = -1);
+    void removeRow(int rowIdx);
+    void updateRow(int rowIdx, const QString& name, const QByteArray& seqBytes, const QList<U2MsaGap>& gapModel, U2OpStatus& os);
+    void renameRow(int rowIdx, const QString& newName);
+    void moveRowsBlock(int firstRow, int numRows, int delta);
+
+    /**
+     * Updates the rows order.
+     * There must be one-to-one correspondence between the specified rows IDs
+     * and rows IDs of the alignment.
+     */
+    void updateRowsOrder(const QList<qint64>& rowIds, U2OpStatus& os);
+
+
+    /** Method that affect the whole alignment, including sequences
+     */
+    void removeRegion(int startPos, int startRow, int nBases, int nRows, bool removeEmptyRows, bool track = true);
+    void crop(U2Region window, const QSet<QString>& rowNames);
+    /**
+     * Performs shift of the region specified by parameters @startPos (leftmost column number),
+     * @startRow (top row number), @nBases (region width), @nRows (region height) in no more
+     * than @shift bases.
+     *
+     * @startPos and @startRow must be non-negative numbers, @nBases and @nRows - strictly
+     * positive. The sign of @shift parameter specifies the direction of shifting: positive
+     * for right direction, negative for left one. If 0 == @shift nothing happens.
+     *
+     * Shifting to the left may be performed only if a region preceding the selection
+     * and having the same height consists of gaps only. In this case selected region
+     * is moved to the left in the width of the preceding gap region but no more
+     * than |@shift| bases.
+     *
+     * Returns shift size, besides sign of the returning value specifies direction of the shift
+     */
+    int shiftRegion(int startPos, int startRow, int nBases, int nRows, int shift);
+    void deleteColumnWithGaps(int requiredGapCount, U2OpStatus &os);
+    void deleteColumnWithGaps(int requiredGapCount = GAP_COLUMN_ONLY);
+    QList<qint64> getColumnsWithGaps(int requiredGapCount = GAP_COLUMN_ONLY) const;
+    void updateCachedMAlignment(const MAlignmentModInfo &mi = MAlignmentModInfo(),
+        const QList<qint64> &removedRowIds = QList<qint64>());
+    void sortRowsByList(const QStringList& order);
+
+    void saveState();
+    void releaseState();
 
 signals:
+    void si_startMsaUpdating();
     void si_alignmentChanged(const MAlignment& maBefore, const MAlignmentModInfo& modInfo);
-    
+    void si_alignmentBecomesEmpty(bool isEmpty);
+    void si_completeStateChanged(bool complete);
+    void si_rowsRemoved(const QList<qint64> &rowIds);
+    void si_invalidateAlignmentObject();
+
 protected:
-    MAlignment msa;
+    void loadDataCore(U2OpStatus &os);
+    void loadAlignment(U2OpStatus &os);
+
+private:
+    /**
+     * Returns maximum count of subsequent gap columns in the region that starts from column
+     * with @pos number, has width of @maxGaps and includes the rows specified by @rows.
+     * @maxGaps, @pos are to be non-negative numbers. Gap columns should finish in column
+     * having @pos + @maxGaps number, otherwise 0 is returned. If the region is located
+     * in the MSA trailing gaps area, then 0 is returned.
+     */
+    int getMaxWidthOfGapRegion( const U2Region &rows, int pos, int maxGaps, U2OpStatus &os );
+
+    MAlignment      cachedMAlignment;
+    MSAMemento*     memento;
 };
 
 

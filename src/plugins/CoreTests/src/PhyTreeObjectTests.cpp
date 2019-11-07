@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,21 +20,19 @@
  */
 
 #include <QtCore/QDir>
-#include <QtCore/QFileInfoList>
-
 
 #include <U2Core/AppContext.h>
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/MAlignmentObject.h>
+#include <U2Core/U2DbiRegistry.h>
 #include <U2Algorithm/PhyTreeGeneratorRegistry.h>
 #include <U2Algorithm/PhyTreeGeneratorTask.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/DocumentModel.h>
 
 #include "PhyTreeObjectTests.h"
 
-namespace U2 { 
+namespace U2 {
 
 #define ALGORITHM_ATTR      "algorithm"
 #define INDEX_ATTR          "index"
@@ -50,7 +48,7 @@ namespace U2 {
 void GTest_CalculateTreeFromAligment::init(XMLTestFormat *tf, const QDomElement& el)  {
     Q_UNUSED(tf);
 
-    task = NULL; 
+    task = NULL;
     objContextName = el.attribute(OBJ_ATTR);
     if (objContextName.isEmpty()) {
         failMissingValue(OBJ_ATTR);
@@ -75,7 +73,7 @@ void GTest_CalculateTreeFromAligment::prepare() {
     GObject *obj = getContext<GObject>(this, objContextName);
     if(obj==NULL){
         stateInfo.setError(QString("wrong value: %1").arg(objContextName));
-        return;  
+        return;
     }
 
     MAlignmentObject* maObj = qobject_cast<MAlignmentObject*>(obj);
@@ -100,7 +98,7 @@ void GTest_CalculateTreeFromAligment::prepare() {
         stateInfo.setError(QString("Algorithm %1 not found").arg(algName));
         return;
     }
-    addSubTask(task);   
+    addSubTask(task);
 }
 
 
@@ -112,9 +110,12 @@ Task::ReportResult GTest_CalculateTreeFromAligment::report()
 
     if (!task->hasError()) {
         PhyTree tree = task->getResult();
-        PhyTreeObject* obj = new PhyTreeObject(tree, treeObjContextName);
+        U2DbiRef dbiRef = AppContext::getDbiRegistry()->getSessionTmpDbiRef(stateInfo);
+        CHECK_OP(stateInfo, ReportResult_Finished);
+        PhyTreeObject *obj = PhyTreeObject::createInstance(tree, treeObjContextName, dbiRef, stateInfo);
+        CHECK_OP(stateInfo, ReportResult_Finished);
         addContext(treeObjContextName,obj);
-    }        
+    }
 
     return ReportResult_Finished;
 }
@@ -142,7 +143,7 @@ void GTest_CheckPhyNodeHasSibling::init(XMLTestFormat *tf, const QDomElement& el
     if (siblingName.isEmpty()) {
         failMissingValue(SIBLING_ATTR);
         return;
-    } 
+    }
 
 
 }
@@ -161,23 +162,23 @@ Task::ReportResult GTest_CheckPhyNodeHasSibling::report()
         stateInfo.setError(QString("Node %1 not found in tree").arg(nodeName));
         return ReportResult_Finished;
     }
-    
+
     bool foundSibling = false;
-    
-    const QList<PhyBranch*> branches = node->branches;
-    assert(branches.count() == 1);
-    const PhyBranch* parentBranch = branches.at(0);
+
+    assert(node->branchCount() == 1);
+    const PhyBranch* parentBranch = node->getBranch(0);
     const PhyNode* parent = parentBranch->node1 == node ? parentBranch->node2 : parentBranch->node1;
-    
-    foreach(const PhyBranch* branch, parent->branches) {
-        if ( (parent == branch->node1 && branch->node2->name == siblingName) ||
-             ((branch->node1->name == siblingName) && (node == branch->node1)) )    
+
+    for (int i=0; i<parent->branchCount(); i++) {
+        const PhyBranch *branch = parent->getBranch(i);
+        if ( (parent == branch->node1 && branch->node2->getName() == siblingName) ||
+             ((branch->node1->getName() == siblingName) && (node == branch->node1)) )
         {
                 foundSibling = true;
                 break;
         }
     }
-    
+
     if (!foundSibling) {
         stateInfo.setError(QString("Node %1 doesn't have sibling %2").arg(nodeName).arg(siblingName));
         return ReportResult_Finished;
@@ -200,13 +201,13 @@ void GTest_CheckPhyNodeBranchDistance::init(XMLTestFormat *tf, const QDomElement
     if (nodeName.isEmpty()) {
         failMissingValue(PHYNODE_ATTR);
         return;
-    } 
+    }
 
     QString v = el.attribute(VALUE_ATTR);
     if (v.isEmpty()) {
         failMissingValue(VALUE_ATTR);
         return;
-    }    
+    }
 
     bool ok = false;
     distance = v.toDouble(&ok);
@@ -225,7 +226,7 @@ Task::ReportResult GTest_CheckPhyNodeBranchDistance::report()
     PhyTreeObject *treeObj = getContext<PhyTreeObject>(this, treeContextName);
     if(NULL == treeObj){
         stateInfo.setError(QString("wrong value: %1").arg(treeContextName));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
 
     const PhyNode* node = treeObj->findPhyNodeByName(nodeName);
@@ -234,9 +235,8 @@ Task::ReportResult GTest_CheckPhyNodeBranchDistance::report()
         return ReportResult_Finished;
     }
 
-    const QList<PhyBranch*> branches = node->branches;
-    assert(branches.count() == 1);
-    const PhyBranch* parentBranch = branches.at(0);
+    assert(node->branchCount() == 1);
+    const PhyBranch* parentBranch = node->getBranch(0);
     double chkDistance = parentBranch->distance;
     if (distance - chkDistance > EPS) {
         stateInfo.setError(QString("Distances don't match! Expected %1, real dist is %2").arg(distance).arg(chkDistance));
@@ -259,7 +259,7 @@ void GTest_CompareTreesInTwoObjects::init(XMLTestFormat *tf, const QDomElement& 
     if (secondDocContextName.isEmpty()) {
         failMissingValue(VALUE_ATTR);
         return;
-    } 
+    }
 }
 
 Task::ReportResult GTest_CompareTreesInTwoObjects::report() {
@@ -312,7 +312,7 @@ QList<XMLTestFactory*> PhyTreeObjectTests::createTestFactories()
     res.append(GTest_CheckPhyNodeHasSibling::createFactory());
     res.append(GTest_CheckPhyNodeBranchDistance::createFactory());
     res.append(GTest_CompareTreesInTwoObjects::createFactory());
-    
+
     return res;
 
 }

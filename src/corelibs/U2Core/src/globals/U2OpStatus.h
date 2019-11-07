@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@ namespace U2 {
 class U2CORE_EXPORT U2OpStatus {
 public:
     virtual ~U2OpStatus(){}
-    
+
     virtual void setError(const QString & err) = 0;
     virtual QString getError() const  = 0;
     virtual bool hasError() const = 0;
@@ -50,6 +50,12 @@ public:
 
     virtual QString getDescription() const = 0;
     virtual void setDescription(const QString& desc)  = 0;
+
+    virtual bool hasWarnings() const = 0;
+    virtual QStringList getWarnings() const = 0;
+    virtual void addWarning(const QString& w) = 0;
+    virtual void addWarnings(const QStringList& wList) = 0;
+
 };
 
 } //namespace

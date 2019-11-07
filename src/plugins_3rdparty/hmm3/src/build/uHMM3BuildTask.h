@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,6 @@
 
 #include <U2Core/Task.h>
 #include <U2Core/DocumentModel.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Core/MAlignment.h>
 
@@ -35,6 +34,8 @@
 #include <hmmer3/hmmer.h>
 
 namespace U2 {
+
+class LoadDocumentTask;
 
 /* if we build multi-malignments file and error occurs while building -> we will return empty hmm list */
 class UHMM3BuildTask : public Task {
@@ -85,7 +86,7 @@ private:
     UHMM3BuildTaskSettings      settings;
     QString                     inFile;
     QList< MAlignment >         msas;
-    QList< P7_HMM* >            hmms;
+    QList<const P7_HMM* >            hmms;
     LoadDocumentTask*           loadTask;
     QList< UHMM3BuildTask* >    buildTasks;
     SaveDocumentTask*           saveHmmFileTask;

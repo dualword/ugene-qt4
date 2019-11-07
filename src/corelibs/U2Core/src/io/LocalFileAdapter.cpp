@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ IOAdapter* LocalFileAdapterFactory::createIOAdapter() {
     return new LocalFileAdapter(this);
 }
 
-GzippedLocalFileAdapterFactory::GzippedLocalFileAdapterFactory(QObject* o) 
+GzippedLocalFileAdapterFactory::GzippedLocalFileAdapterFactory(QObject* o)
 : LocalFileAdapterFactory(o) {
     name = tr("GZIP file");
 }
@@ -97,6 +97,10 @@ qint64 LocalFileAdapter::readBlock(char* data, qint64 size) {
         while (l < size) {
             if (currentPos == bufLen) {
                 bufLen = f->read(bufData, BUF_SIZE);
+                if (bufLen == -1){
+                    //error
+                    return -1;
+                }
                 currentPos = 0;
             }
             copySize = qMin(bufLen - currentPos, size - l);
@@ -165,6 +169,10 @@ qint64 LocalFileAdapter::bytesRead() const {
 
 GUrl LocalFileAdapter::getURL() const {
     return GUrl(f->fileName(), GUrl_File);
+}
+
+QString LocalFileAdapter::errorString() const{
+    return f->errorString();
 }
 
 };//namespace

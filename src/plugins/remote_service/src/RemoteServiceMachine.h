@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,18 +26,16 @@
 #include <QtCore/QPointer>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkProxy>
+#include <QtNetwork/QAuthenticator>
 
 #ifndef QT_NO_OPENSSL
 #include <QtNetwork/QSslError>
-#endif 
-
-#include <memory>
+#endif
 
 #include <U2Remote/RemoteMachine.h>
 #include "WebTransportProtocol.h"
 
 namespace U2 {
-
 
 class RemoteServiceMachineSettings : public RemoteMachineSettings {
 public:
@@ -47,8 +45,8 @@ public:
     virtual bool operator==( const RemoteMachineSettings& machine ) const;
 
     QString getUrl()const {return url; }
-    QString getUserName() const; 
-    QString getPasswd() const; 
+    QString getUserName() const;
+    QString getPasswd() const;
     QString getSessionId() const { return sessionId; }
     void setSessionId(const QString& id) { sessionId = id; }
     bool usesGuestAccount() const;
@@ -72,7 +70,7 @@ class RemoteServiceMachine : public QObject, public RemoteMachine {
 public:
     RemoteServiceMachine(const RemoteServiceSettingsPtr& s);
     virtual ~RemoteServiceMachine();
-    
+
     // Runs task on remote machine. Returns remote taskId
     virtual qint64 runTask( TaskStateInfo& si, const QString & taskFactoryId, const QVariant & settings);
 
@@ -88,7 +86,7 @@ public:
     // Retrieves remote task result
     virtual void getTaskResult(TaskStateInfo& si, qint64 taskId, const QStringList& resultUrls, const QString& urlPrefix );
 
-    // Retrieves remote task error message 
+    // Retrieves remote task error message
     virtual QString getTaskErrorMessage(TaskStateInfo& si, qint64 taskId);
 
     // Returns remote machine server name. TODO: refactor
@@ -100,11 +98,11 @@ public:
     // Pings remote machine
     virtual void ping(TaskStateInfo& si);
 
-    virtual RemoteMachineSettingsPtr getSettings(); 
+    virtual RemoteMachineSettingsPtr getSettings();
 
     //non-virtual methods -> TODO: refactor or add to the base interface
     void initSession(TaskStateInfo& si);
-    
+
     // for the given task property names fills values
     void getTaskProperties(TaskStateInfo& si, qint64 taskId, QMap<QString,QString>& properties);
 
@@ -117,11 +115,11 @@ public:
 #ifndef QT_NO_OPENSSL
 private slots:
     void sl_onSslErrors( QNetworkReply* reply, const QList<QSslError> & errors );
-#endif 
+#endif
 
 private:
     QMap<QString,UctpElementData> sendRequest(TaskStateInfo& si, UctpRequestBuilder& requestBuilder);
-    void saveResult(const QByteArray& result, const QString& path); 
+    void saveResult(const QByteArray& result, const QString& path);
     void updateGlobalSettings();
     bool replyContainsData(const QString& dataName);
 
@@ -131,10 +129,10 @@ private:
 
 #ifndef QT_NO_OPENSSL
     QSsl::SslProtocol                   sslProtocol;
-#endif    
+#endif
     QNetworkProxy                       proxy;
-    std::auto_ptr<Uctp>                 protocolHandler;
-    std::auto_ptr<UctpSession>          session;
+    QScopedPointer<Uctp>                 protocolHandler;
+    QScopedPointer<UctpSession>          session;
     QString                             remoteServiceUrl;
     qlonglong                           parentThreadId;
 };
@@ -143,7 +141,7 @@ private:
 class RemoteServiceMachineReplyHandler : public QObject {
     Q_OBJECT
 public:
-    RemoteServiceMachineReplyHandler(Uctp* _ph, QEventLoop* _el, QMap<QString,UctpElementData>* _rd, 
+    RemoteServiceMachineReplyHandler(Uctp* _ph, QEventLoop* _el, QMap<QString,UctpElementData>* _rd,
                                     const QByteArray& _ac, TaskStateInfo* _si, QNetworkReply* _reply, const int _requestTimeout)
     : requestTimeout(_requestTimeout), protocolHandler(_ph), eventLoop(_el), replyData(_rd), command(_ac), si(_si), reply(_reply),
     inactiveCount(0) {}
@@ -152,6 +150,7 @@ private slots:
     void sl_onUploadProgress(qint64 bytesSent, qint64 bytesTotal);
     void sl_onDownloadProgress(qint64 bytesSent, qint64 bytesTotal);
     void sl_onTimer();
+    void onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*);
 private:
     const int                       requestTimeout;
     Uctp*                           protocolHandler;

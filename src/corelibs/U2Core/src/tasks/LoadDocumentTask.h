@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,13 +41,18 @@ class LoadDocumentTask;
 //NOTE: the default impl can create only limited set of objects
 class U2CORE_EXPORT LDTObjectFactory : public QObject {
 public:
-    LDTObjectFactory(QObject* p) : QObject(p){}
-    virtual GObject* create(const GObjectReference& ref);
+    LDTObjectFactory( QObject *p )
+        : QObject( p )
+    {
+
+    }
+
+    virtual GObject * create( const GObjectReference &ref );
 };
 
 class U2CORE_EXPORT LoadDocumentTaskConfig {
 public:
-    LoadDocumentTaskConfig(bool _createDoc = false, const GObjectReference& _ref = GObjectReference(), 
+    LoadDocumentTaskConfig(bool _createDoc = false, const GObjectReference& _ref = GObjectReference(),
         LDTObjectFactory* _f = NULL)
         : createDoc(_createDoc), checkObjRef(_ref), objFactory(_f){}
 
@@ -60,22 +65,22 @@ class U2CORE_EXPORT LoadUnloadedDocumentTask : public DocumentProviderTask {
     Q_OBJECT
 public:
     LoadUnloadedDocumentTask(Document* d, const LoadDocumentTaskConfig& config = LoadDocumentTaskConfig());
-    
+
     virtual void prepare();
     virtual ReportResult report();
-    virtual Document* getDocument(bool mainThread = true); 
+    virtual Document* getDocument(bool mainThread = true);
 
 
     static QString getResourceName(Document* d);
-   
+
     const LoadDocumentTaskConfig& getConfig() const {return config;}
-    
+
     static LoadUnloadedDocumentTask* findActiveLoadingTask(Document* d);
     static bool addLoadingSubtask(Task* t, const LoadDocumentTaskConfig& config);
 
 private:
     void clearResourceUse();
-    
+
     LoadDocumentTask*       loadTask;
     QPointer<Document>      unloadedDoc;
     QString                 resName;
@@ -85,36 +90,33 @@ private:
 class U2CORE_EXPORT LoadDocumentTask : public DocumentProviderTask {
     Q_OBJECT
 public:
-    static LoadDocumentTask * getDefaultLoadDocTask( const GUrl & url );
-    
+    static LoadDocumentTask * getDefaultLoadDocTask( const GUrl & url, const QVariantMap & hints = QVariantMap() );
+    static DocumentProviderTask * getCommonLoadDocTask( const GUrl & url );
+
 public:
     LoadDocumentTask(DocumentFormatId format, const GUrl& url,
-                IOAdapterFactory* iof, const QVariantMap& hints = QVariantMap(), 
+                IOAdapterFactory* iof, const QVariantMap& hints = QVariantMap(),
                 const LoadDocumentTaskConfig& config = LoadDocumentTaskConfig());
 
     LoadDocumentTask(DocumentFormat* format, const GUrl& url,
-        IOAdapterFactory* iof, const QVariantMap& hints = QVariantMap(), 
+        IOAdapterFactory* iof, const QVariantMap& hints = QVariantMap(),
         const LoadDocumentTaskConfig& config = LoadDocumentTaskConfig());
 
 
     virtual void run();
     virtual void prepare();
     virtual ReportResult report();
-    
+
     const GUrl& getURL() const {return url;}
     QString getURLString() const;
 
 private:
     void init();
     void processObjRef();
+    int calculateMemory() const;
 
-    /** Creates new document that contains data from original one restructured to new form according to document hints
-        For example: combines all sequences to alignment, merge sequences, etc
-        Return NULL if no restructuring was made
-        */
-    static Document* createCopyRestructuredWithHints(const Document* doc, U2OpStatus& os);
     static void renameObjects(Document* doc, const QStringList& names);
-    
+
 
     DocumentFormat*         format;
     const GUrl              url;

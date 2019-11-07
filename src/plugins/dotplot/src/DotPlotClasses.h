@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,9 +22,16 @@
 #ifndef _U2_DOT_PLOT_CLASSES_H_
 #define _U2_DOT_PLOT_CLASSES_H_
 
-#include <U2Algorithm/RepeatFinderSettings.h>
+#include "DotPlotFilterDialog.h"
 
+#include <U2Algorithm/RepeatFinderSettings.h>
+#include <U2Core/U2Region.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 #include <QtGui/QPainter>
 #include <QtCore/QMutex>
 
@@ -39,32 +46,31 @@ public:
     QRectF getBoundary() const;
     QPointF fromMiniMap(const QPointF &p, const QPointF &zoom) const;
 
+    void updatePosition(int bigMapW, int bigMapH);
+
 private:
     int x, y, w, h;
     float ratio;
 };
 
-// error messages and dialogs
-class DotPlotDialogs: QObject {
-    Q_OBJECT
-public:
-    enum Errors {ErrorOpen, ErrorNames, NoErrors};
-
-    static void taskRunning();
-    static int saveDotPlot();
-    static void fileOpenError(const QString &filename);
-    static void filesOpenError();
-    static int loadDifferent();
-    static void loadWrongFormat();
-    static void wrongAlphabetTypes();
-    static void tooManyResults();
-};
+enum DotPlotErrors {ErrorOpen, ErrorNames, NoErrors};
 
 struct DotPlotResults {
     DotPlotResults(): x(0), y(0), len(0){};
     DotPlotResults(int _x, int _y, int _len):x(_x), y(_y), len(_len){};
 
     int x, y, len;
+
+    inline bool intersectRegion(const U2Region& r, const FilterIntersectionParameter& currentIntersParam){
+        qint64 sd = - r.startPos;
+        if(currentIntersParam == SequenceY){
+            sd += y;
+        }else{
+            sd += x;
+        }
+        return (sd >= 0) ? (sd < r.length) : (-sd < len);
+
+    }
 };
 
 // Listener which collect results from an algorithm
@@ -73,7 +79,7 @@ class DotPlotResultsListener : public RFResultsListener {
 
 public:
     DotPlotResultsListener();
-    ~DotPlotResultsListener();
+    virtual ~DotPlotResultsListener();
 
     void setTask(Task *);
 
@@ -96,7 +102,7 @@ public:
     DotPlotRevComplResultsListener() : xLen(0) {}
     virtual void onResult(const RFResult& r);
     virtual void onResults(const QVector<RFResult>& v);
-   
+
     int xLen;
 };
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,8 +35,6 @@ public:
     virtual DocumentFormatId getFormatId() const {return BaseDocumentFormats::PLAIN_TEXT;}
 
     virtual const QString& getFormatName() const {return formatName;}
-
-    virtual Document* createNewLoadedDocument(IOAdapterFactory* io, const QString& url, const QVariantMap& fs = QVariantMap());
 
     virtual void storeDocument(Document* d, IOAdapter* io, U2OpStatus& os);
 

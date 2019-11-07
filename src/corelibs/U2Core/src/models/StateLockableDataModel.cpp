@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,13 @@
  * MA 02110-1301, USA.
  */
 
-#include "StateLockableDataModel.h"
+#include <QCoreApplication>
+#include <QThread>
 
+#include <U2Core/L10n.h>
 #include <U2Core/U2SafePoints.h>
 
-#include <QtCore/QThread>
-#include <QtCore/QCoreApplication>
+#include "StateLockableDataModel.h"
 
 namespace U2 {
 
@@ -53,9 +54,9 @@ static void checkThread(const StateLockableItem* i) {
         assert(appThread == thisThread);
         assert(appThread == itemThread);
     }
-#else 
+#else
     Q_UNUSED(i);
-#endif    
+#endif
 }
 
 
@@ -75,7 +76,7 @@ void StateLockableItem::unlockState(StateLock* lock) {
     checkThread(this);
 
     locks.removeOne(lock);
-    
+
     if (locks.isEmpty()) {
         emit si_lockedStateChanged();
     }
@@ -110,11 +111,14 @@ StateLockableTreeItem::~StateLockableTreeItem() {
 }
 
 bool StateLockableTreeItem::isStateLocked() const {
-    return StateLockableItem::isStateLocked() || (parentStateLockItem != NULL ? parentStateLockItem->isStateLocked() : false);
+    StateLockableTreeItem* parentItem = qobject_cast<StateLockableTreeItem*>(parent());
+    return StateLockableItem::isStateLocked() || (parentItem != NULL ? parentItem->isStateLocked() : false);
 }
 
 bool StateLockableTreeItem::isMainThreadModificationOnly() const {
-    return StateLockableItem::isMainThreadModificationOnly() || (parentStateLockItem != NULL && parentStateLockItem->isMainThreadModificationOnly()); 
+    StateLockableTreeItem* parentItem = qobject_cast<StateLockableTreeItem*>(parent());
+    return StateLockableItem::isMainThreadModificationOnly() ||
+            (NULL != parentItem && parentItem->isMainThreadModificationOnly());
 }
 
 void StateLockableTreeItem::lockState(StateLock* lock) {
@@ -123,8 +127,8 @@ void StateLockableTreeItem::lockState(StateLock* lock) {
 
     bool wasUnlocked = !isStateLocked();
 
-    locks.append(lock); 
-    
+    locks.append(lock);
+
     //notify all children on parent lock state change
     if (wasUnlocked) {
         foreach(StateLockableTreeItem* c, childItems) {
@@ -170,12 +174,12 @@ void StateLockableTreeItem::onParentStateLocked() {
 void StateLockableTreeItem::onParentStateUnlocked() {
     //parent has become unlocked -> check if my state is changed
     if (!locks.isEmpty()) {
-        return; //nothing changed - was still locked 
+        return; //nothing changed - was still locked
     }
 
     //notify children
     assert(!isStateLocked());
-    
+
     emit si_lockedStateChanged();
 
     foreach(StateLockableTreeItem* c, childItems) {
@@ -183,17 +187,20 @@ void StateLockableTreeItem::onParentStateUnlocked() {
     }
 }
 
-void StateLockableTreeItem::setParentStateLockItem(StateLockableTreeItem* newParent) { 
+void StateLockableTreeItem::setParentStateLockItem(StateLockableTreeItem* newParent) {
+    StateLockableTreeItem* parentStateLockItem = qobject_cast<StateLockableTreeItem*>(parent());
     SAFE_POINT(parentStateLockItem == NULL || newParent == NULL, "Parent item is already assigned", );
-    SAFE_POINT(newParent == NULL || newParent->isModificationAllowed(StateLockModType_AddChild), 
+    SAFE_POINT(newParent == NULL || newParent->isModificationAllowed(StateLockModType_AddChild),
         "Add-child modification is not allowed for new parent item!",);
-    SAFE_POINT(parentStateLockItem == NULL || parentStateLockItem->isModificationAllowed(StateLockModType_AddChild), 
+    SAFE_POINT(parentStateLockItem == NULL || parentStateLockItem->isModificationAllowed(StateLockModType_AddChild),
         "Add-child modification is not allowed for old parent item!",);
+    SAFE_POINT((NULL == newParent) || (newParent->thread() == thread()),
+        "Parent item has a different thread",);
 
-    StateLockableTreeItem* oldParent = parentStateLockItem; 
+    StateLockableTreeItem* oldParent = parentStateLockItem;
     parentStateLockItem = newParent;
     setParent(newParent);
-    
+
     bool treeMod = isTreeItemModified();
     if (newParent!=NULL) {
         setMainThreadModificationOnly(newParent->isMainThreadModificationOnly());
@@ -225,8 +232,9 @@ void StateLockableTreeItem::setModified(bool newModifiedState, const QString& mo
     }
     itemIsModified = newModifiedState;
 
-    bool parentUpdate = parentStateLockItem && numModifiedChildren == 0;
-    
+    StateLockableTreeItem* parentStateLockItem = qobject_cast<StateLockableTreeItem*>(parent());
+    bool parentUpdate = (NULL != parentStateLockItem && numModifiedChildren == 0);
+
     if (itemIsModified && parentUpdate) { // let parent become modified first
         parentStateLockItem->increaseNumModifiedChilds(1);
     }
@@ -248,7 +256,8 @@ void StateLockableTreeItem::increaseNumModifiedChilds(int n) {
     numModifiedChildren+=n;
 
     bool becomeModified = numModifiedChildren == n && !itemIsModified;
-    if (parentStateLockItem) {
+    StateLockableTreeItem* parentStateLockItem = qobject_cast<StateLockableTreeItem*>(parent());
+    if (NULL != parentStateLockItem) {
         parentStateLockItem->increaseNumModifiedChilds(n + (becomeModified  ? 1 : 0) );
     }
     if (becomeModified) {
@@ -265,7 +274,8 @@ void StateLockableTreeItem::decreaseNumModifiedChilds(int n) {
 
     bool becomeClean = numModifiedChildren == 0 && !itemIsModified;
 
-    if (parentStateLockItem) {
+    StateLockableTreeItem* parentStateLockItem = qobject_cast<StateLockableTreeItem*>(parent());
+    if (NULL != parentStateLockItem) {
         parentStateLockItem->decreaseNumModifiedChilds(n + (becomeClean ? 1 : 0));
     }
 
@@ -287,7 +297,8 @@ QList<StateLock*> StateLockableTreeItem::findLocks(StateLockableTreeItemBranchFl
             }
         }
     }
-    
+
+    StateLockableTreeItem* parentStateLockItem = qobject_cast<StateLockableTreeItem*>(parent());
     if (tf.testFlag(StateLockableTreeItemBranch_Parents) && parentStateLockItem!=NULL) {
         StateLockableTreeItemBranchFlags tflags(StateLockableTreeItemBranch_Parents | StateLockableTreeItemBranch_Item);
         res+=parentStateLockItem->findLocks(tflags, lf);
@@ -303,6 +314,19 @@ QList<StateLock*> StateLockableTreeItem::findLocks(StateLockableTreeItemBranchFl
     return res;
 }
 
+StateLocker::StateLocker(StateLockableItem *lockableItem, StateLock *lock) :
+    lockableItem(lockableItem),
+    lock(NULL == lock ? lock = new StateLock() : lock)
+{
+    SAFE_POINT(NULL != lockableItem, L10N::nullPointerError("StateLockableItem"), );
+    SAFE_POINT(NULL != lock, L10N::nullPointerError("StateLock"), );
+    lockableItem->lockState(lock);
+}
+
+StateLocker::~StateLocker() {
+    lockableItem->unlockState(lock);
+    delete lock;
+}
 
 }//namespace
 

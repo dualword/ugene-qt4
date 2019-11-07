@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,11 +23,22 @@
 
 namespace U2{
 
-CreatePhyTreeSettings::CreatePhyTreeSettings() : algorithmId(""), matrixId(""),
-useGammaDistributionRates(false), bootstrap(false), consensusID(""),mb_ngen(1),mrBayesSettingsScript("")
-
+CreatePhyTreeSettings::CreatePhyTreeSettings() :
+    algorithmId(""),
+    matrixId(""),
+    displayWithAlignmentEditor(true),
+    syncAlignmentWithTree(true),
+    useGammaDistributionRates(false),
+    alphaFactor(0),
+    ttRatio(0),
+    bootstrap(false),
+    replicates(0),
+    seed(0),
+    fraction(0),
+    consensusID(""),
+    mb_ngen(1),
+    mrBayesSettingsScript("")
 {
-
 }
 
 }

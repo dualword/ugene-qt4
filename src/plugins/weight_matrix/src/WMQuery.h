@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@
 
 namespace U2 {
 
-class PWMatrixReadTask;    
+class PWMatrixReadTask;
 class WMQDTask : public Task {
     Q_OBJECT
 public:
@@ -48,7 +48,7 @@ private:
     QList<WeightMatrixSearchResult> res;
     QVector<U2Region> location;
 };
-    
+
 class QDWMActor : public QDActor {
     Q_OBJECT
 public:

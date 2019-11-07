@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,44 +19,47 @@
  * MA 02110-1301, USA.
  */
 
-#include "RemovePartFromSequenceDialogController.h"
-#include "ui/ui_RemovePartFromSequenceDialog.h"
+#include <QDir>
+#include <QMessageBox>
+#include <QPushButton>
 
-#include <U2Core/BaseDocumentFormats.h>
-#include <U2Core/AppContext.h>
 #include <U2Core/AnnotationData.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentModel.h>
 #include <U2Core/ModifySequenceObjectTask.h>
 
 #include <U2Formats/GenbankLocationParser.h>
 
-#include <U2Gui/LastUsedDirHelper.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtCore/QFileInfo>
-#include <QtCore/QDir>
-
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-
-
+#include "RemovePartFromSequenceDialogController.h"
+#include "ui/ui_RemovePartFromSequenceDialog.h"
 
 namespace U2{
 
 RemovePartFromSequenceDialogController::RemovePartFromSequenceDialogController(U2Region _toDelete, 
                                                                                U2Region _source, 
-                                                                               const QString & docUrl, QWidget *p )
-:QDialog(p), filter(""), toDelete(_toDelete), source(_source)
+                                                                               const QString & docUrl, QWidget *p)
+    :QDialog(p), filter(""), toDelete(_toDelete), source(_source)
 {
     ui = new Ui_RemovePartFromSequenceDialog;
     ui->setupUi(this);
+    new HelpButton(this, ui->buttonBox, "16122161");
+
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Remove"));
+    ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
     
     QFileInfo fi(docUrl);
     ui->filepathEdit->setText(fi.absoluteDir().absolutePath() + "/" + fi.baseName() + "_new" + "." + fi.completeSuffix());
     
     connect(ui->browseButton, SIGNAL(clicked()), SLOT(sl_browseButtonClicked()));
-    AnnotationData ad;
-    ad.location->regions << toDelete;
-    ui->removeLocationEdit->setText(Genbank::LocationParser::buildLocationString(&ad));
+    SharedAnnotationData ad(new AnnotationData);
+    ad->location->regions << toDelete;
+    ui->removeLocationEdit->setText(U1AnnotationUtils::buildLocationString(ad));
 
     connect(ui->formatBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sl_indexChanged(int)));
 
@@ -66,10 +69,10 @@ RemovePartFromSequenceDialogController::RemovePartFromSequenceDialogController(U
     sl_indexChanged(0);
 }
 
-void RemovePartFromSequenceDialogController::accept(){
+void RemovePartFromSequenceDialogController::accept() {
     QString genbankRegion = ui->removeLocationEdit->text();
     U2Location location;
-    Genbank::LocationParser::parseLocation(genbankRegion.toAscii().constData(), genbankRegion.length(), location);
+    Genbank::LocationParser::parseLocation(genbankRegion.toLatin1().constData(), genbankRegion.length(), location);
     if (location->isMultiRegion()){
         QMessageBox::critical(this, this->windowTitle(), tr("There must be only one region to delete"));
         return;
@@ -97,7 +100,7 @@ void RemovePartFromSequenceDialogController::accept(){
 void RemovePartFromSequenceDialogController::sl_browseButtonClicked(){
     LastUsedDirHelper h;
     
-    h.url = QFileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
+    h.url = U2FileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
     ui->filepathEdit->setText(h.url);
     sl_indexChanged(ui->formatBox->currentIndex());
 }
@@ -109,6 +112,14 @@ U1AnnotationUtils::AnnotationStrategyForResize RemovePartFromSequenceDialogContr
         assert(ui->resizeRB->isChecked());
         return U1AnnotationUtils::AnnotationStrategyForResize_Resize;
     }
+}
+
+U2Region RemovePartFromSequenceDialogController::getRegionToDelete() const {
+    return toDelete;
+}
+
+bool RemovePartFromSequenceDialogController::recalculateQualifiers() const {
+    return ui->recalculateQualsCheckBox->isChecked();
 }
 
 void RemovePartFromSequenceDialogController::sl_indexChanged( int index){

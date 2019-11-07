@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>641</width>
-    <height>629</height>
+    <height>424</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -69,7 +69,7 @@
          <string>Multiple documents</string>
         </property>
         <attribute name="buttonGroup">
-         <string>buttonGroup</string>
+         <string notr="true">buttonGroup</string>
         </attribute>
        </widget>
       </item>
@@ -79,83 +79,9 @@
          <string>Tabbed documents</string>
         </property>
         <attribute name="buttonGroup">
-         <string>buttonGroup</string>
+         <string notr="true">buttonGroup</string>
         </attribute>
        </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="groupBox">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="minimumSize">
-      <size>
-       <width>300</width>
-       <height>85</height>
-      </size>
-     </property>
-     <property name="title">
-      <string>web_browser</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
-      <item>
-       <layout class="QGridLayout" name="gridLayout">
-        <property name="sizeConstraint">
-         <enum>QLayout::SetNoConstraint</enum>
-        </property>
-        <item row="0" column="0">
-         <widget class="QRadioButton" name="defaultWebBrowser">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>use_default_web_browser</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QRadioButton" name="customWebBrowser">
-          <property name="text">
-           <string>web_browser_path</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QLineEdit" name="webBrowserEdit">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QToolButton" name="webBrowserButton">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>24</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>...</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
       </item>
      </layout>
     </widget>
@@ -169,39 +95,27 @@
       <item>
        <widget class="QCheckBox" name="autoOpenProjectBox">
         <property name="text">
-         <string>auto_open_project_at_startup</string>
+         <string>Open last project at startup</string>
         </property>
        </widget>
       </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="groupBox_3">
-     <property name="title">
-      <string>Path to downloaded data:</string>
-     </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <layout class="QHBoxLayout" name="horizontalLayout_11">
         <item>
-         <widget class="QLineEdit" name="downloadsDirPathEdit"/>
+         <widget class="QComboBox" name="askToSaveProject"/>
         </item>
         <item>
-         <widget class="QToolButton" name="browseDownloadDirButton">
-          <property name="minimumSize">
+         <spacer name="horizontalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
            <size>
-            <width>24</width>
-            <height>25</height>
+            <width>40</width>
+            <height>20</height>
            </size>
           </property>
-          <property name="toolTip">
-           <string/>
-          </property>
-          <property name="text">
-           <string>...</string>
-          </property>
-         </widget>
+         </spacer>
         </item>
        </layout>
       </item>
@@ -225,45 +139,17 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="tmpDirGroupBox">
+    <widget class="QGroupBox" name="reset">
      <property name="title">
-      <string>Path for temporary files</string>
+      <string>Default settings</string>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_6">
+     <layout class="QVBoxLayout" name="verticalLayout_5">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_5">
-        <item>
-         <widget class="QLineEdit" name="tmpDirPathEdit"/>
-        </item>
-        <item>
-         <widget class="QToolButton" name="browseTmpDirButton">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>24</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>24</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>...</string>
-          </property>
-          <property name="iconSize">
-           <size>
-            <width>16</width>
-            <height>16</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <widget class="QCheckBox" name="resetSettingsBox">
+        <property name="text">
+         <string>Reset settings to default on the next run</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>
@@ -275,8 +161,8 @@
      </property>
      <property name="sizeHint" stdset="0">
       <size>
-       <width>20</width>
-       <height>40</height>
+       <width>0</width>
+       <height>0</height>
       </size>
      </property>
     </spacer>
@@ -284,40 +170,7 @@
   </layout>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>defaultWebBrowser</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>webBrowserEdit</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>96</x>
-     <y>41</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>323</x>
-     <y>67</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>defaultWebBrowser</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>webBrowserButton</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>96</x>
-     <y>41</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>487</x>
-     <y>67</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
  <buttongroups>
   <buttongroup name="buttonGroup"/>
  </buttongroups>

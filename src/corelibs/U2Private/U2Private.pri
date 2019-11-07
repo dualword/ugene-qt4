@@ -26,3 +26,14 @@ unix {
     INSTALLS += target
 }
 
+freebsd {
+    LIBS += -lexecinfo
+}
+
+win32 {
+    LIBS += Advapi32.lib
+}
+
+win32-msvc2013 {
+    DEFINES += NOMINMAX
+}

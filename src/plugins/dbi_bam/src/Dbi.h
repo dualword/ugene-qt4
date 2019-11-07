@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,6 @@
 
 #include "Reader.h"
 
-#include <memory>
-
 namespace U2 {
 namespace BAM {
 
@@ -42,7 +40,7 @@ public:
     virtual void init(const QHash<QString, QString> &properties, const QVariantMap &persistentData, U2OpStatus &os);
 
     virtual QVariantMap shutdown(U2OpStatus &os);
-    
+
     virtual QHash<QString, QString> getDbiMetaInfo(U2OpStatus &);
 
     virtual U2DataType getEntityTypeById(const U2DataId& id) const;
@@ -50,6 +48,8 @@ public:
     virtual U2ObjectDbi *getObjectDbi();
 
     virtual U2AssemblyDbi *getAssemblyDbi();
+
+    virtual bool isReadOnly() const;
 
 private:
     void buildIndex(U2OpStatus &os);
@@ -61,10 +61,10 @@ private:
     GUrl sqliteUrl;
     DbRef dbRef;
     int assembliesCount;
-    std::auto_ptr<IOAdapter> ioAdapter;
-    std::auto_ptr<BamReader> reader;
-    std::auto_ptr<ObjectDbi> objectDbi;
-    std::auto_ptr<AssemblyDbi> assemblyDbi;
+    QScopedPointer<IOAdapter> ioAdapter;
+    QScopedPointer<BamReader> reader;
+    QScopedPointer<ObjectDbi> objectDbi;
+    QScopedPointer<AssemblyDbi> assemblyDbi;
 };
 
 class DbiFactory : public U2DbiFactory {
@@ -78,7 +78,7 @@ public:
     virtual FormatCheckResult isValidDbi(const QHash<QString, QString> &properties, const QByteArray &rawData, U2OpStatus &os) const;
 
     virtual GUrl id2Url(const U2DbiId& id) const {return GUrl(id, GUrl_File);}
-    
+
     virtual bool isDbiExists(const U2DbiId& id) const;
 
 public:
@@ -92,6 +92,8 @@ public:
     virtual qint64 countObjects(U2OpStatus &os);
 
     virtual qint64 countObjects(U2DataType type, U2OpStatus &os);
+
+    virtual QHash<U2DataId, QString> getObjectNames(qint64 offset, qint64 count, U2OpStatus &os);
 
     virtual QList<U2DataId> getObjects(qint64 offset, qint64 count, U2OpStatus &os);
 
@@ -115,6 +117,9 @@ public:
 
     virtual U2DbiIterator<U2DataId>* getObjectsByVisualName(const QString& visualName, U2DataType type, U2OpStatus& os);
 
+    virtual void renameObject(const U2DataId &id, const QString &newName, U2OpStatus &os);
+
+    virtual void setObjectRank(const U2DataId &objectId, U2DbiObjectRank newRank, U2OpStatus &os);
 
 private:
     Dbi &dbi;
@@ -124,16 +129,16 @@ private:
 
 class AssemblyDbi : public U2SimpleAssemblyDbi {
 public:
-    AssemblyDbi(Dbi &dbi, BamReader &reader, DbRef &dbRef, int assembliesCount, QList<qint64> maxReadLengths);
+    AssemblyDbi(Dbi &dbi, BamReader &reader, DbRef &dbRef, QList<qint64> maxReadLengths);
 
     virtual U2Assembly getAssemblyObject(const U2DataId& id, U2OpStatus &os);
 
     virtual qint64 countReads(const U2DataId& assemblyId, const U2Region &r, U2OpStatus &os);
 
-    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os);
+    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os, bool sortedHint = false);
 
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByRow(const U2DataId& assemblyId, const U2Region& r, qint64 minRow, qint64 maxRow, U2OpStatus& os);
-    
+
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByName(const U2DataId& assemblyId, const QByteArray& name, U2OpStatus& os);
 
     virtual qint64 getMaxPackedRow(const U2DataId& assemblyId, const U2Region &r, U2OpStatus &os);
@@ -144,6 +149,7 @@ public:
 
     U2AssemblyRead getReadById(const U2DataId& rowId, U2OpStatus &os);
 
+
 private:
     qint64 getMaxReadLength(const U2DataId& assemblyId, const U2Region &r);
     U2AssemblyRead getReadById(const U2DataId& rowId, qint64 packedRow, U2OpStatus &os);
@@ -152,7 +158,6 @@ private:
     Dbi &dbi;
     BamReader &reader;
     DbRef &dbRef;
-    int assembliesCount;
     QList<qint64> maxReadLengths;
 };
 

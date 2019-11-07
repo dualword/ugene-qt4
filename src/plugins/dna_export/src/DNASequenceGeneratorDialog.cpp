@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -19,21 +19,23 @@
 * MA 02110-1301, USA.
 */
 
-#include "DNASequenceGeneratorDialog.h"
-#include "DNASequenceGenerator.h"
+#include <QMessageBox>
+#include <QPushButton>
 
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/DNAAlphabet.h>
+#include <U2Core/GObjectTypes.h>
 #include <U2Core/Settings.h>
 
-#include <U2Gui/SaveDocumentGroupController.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/SaveDocumentGroupController.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
+#include "DNASequenceGenerator.h"
+#include "DNASequenceGeneratorDialog.h"
 
 namespace U2 {
 
@@ -53,6 +55,10 @@ QMap<char, qreal> DNASequenceGeneratorDialog::content = initContent();
 
 DNASequenceGeneratorDialog::DNASequenceGeneratorDialog(QWidget* p) : QDialog(p) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122402");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Generate"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     seedSpinBox->setEnabled(false);
 
     referenceButton->setChecked(true);
@@ -61,7 +67,8 @@ DNASequenceGeneratorDialog::DNASequenceGeneratorDialog(QWidget* p) : QDialog(p) 
     SaveDocumentGroupControllerConfig conf;
     conf.dfc.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
     conf.dfc.addFlagToSupport(DocumentFormatFlag_SupportWriting);
-    conf.dfc.supportedObjectTypes += GObjectTypes::SEQUENCE;
+    conf.dfc.supportedObjectTypes << GObjectTypes::SEQUENCE << GObjectTypes::MULTIPLE_ALIGNMENT;
+    conf.dfc.allowPartialTypeMapping = true;
     conf.parentWidget = this;
     conf.fileNameEdit = outputEdit;
     conf.formatCombo = formatCombo;
@@ -71,12 +78,15 @@ DNASequenceGeneratorDialog::DNASequenceGeneratorDialog(QWidget* p) : QDialog(p) 
     conf.saveTitle = tr("Save sequences");
     saveGroupContoller = new SaveDocumentGroupController(conf, this);
 
+    generateButton = buttonBox->button(QDialogButtonBox::Ok);
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(inputButton, SIGNAL(clicked()), SLOT(sl_browseReference()));
     connect(configureButton, SIGNAL(clicked()), SLOT(sl_configureContent()));
     connect(generateButton, SIGNAL(clicked()), SLOT(sl_generate()));
     connect(cancelButton, SIGNAL(clicked()), SLOT(reject()));
     connect(referenceButton, SIGNAL(toggled(bool)), SLOT(sl_refButtonToggled(bool)));
     connect(seedCheckBox, SIGNAL(stateChanged (int)), SLOT(sl_stateChanged(int)));
+
 }
 
 void DNASequenceGeneratorDialog::sl_stateChanged(int state) {
@@ -90,13 +100,13 @@ void DNASequenceGeneratorDialog::sl_stateChanged(int state) {
 void DNASequenceGeneratorDialog::sl_browseReference() {
     LastUsedDirHelper lod;
     QString filter = DNASequenceGenerator::prepareReferenceFileFilter();
-    lod.url = QFileDialog::getOpenFileName(this, tr("Open file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Open file"), lod.dir, filter);
     inputEdit->setText(lod.url);
 }
 
 void DNASequenceGeneratorDialog::sl_configureContent() {
-    BaseContentDialog bcDlg(content, this);
-    bcDlg.exec();
+    QObjectScopedPointer<BaseContentDialog> bcDlg = new BaseContentDialog(content, this);
+    bcDlg->exec();
 }
 
 void DNASequenceGeneratorDialog::sl_generate() {
@@ -120,7 +130,7 @@ void DNASequenceGeneratorDialog::sl_generate() {
         QMessageBox::critical(this, tr("DNA Sequence Generator"), tr("Windows size bigger than sequence length"));
         return;
     }
-        
+
     if (!cfg.useRef) {
         cfg.alphabet = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT());
     }
@@ -149,6 +159,9 @@ void DNASequenceGeneratorDialog::sl_refButtonToggled(bool checked) {
 BaseContentDialog::BaseContentDialog(QMap<char, qreal>& percentMap_, QWidget* p)
 : QDialog(p), percentMap(percentMap_) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122402");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Save"));
+
     percentASpin->setValue(percentMap.value('A')*100.0);
     percentCSpin->setValue(percentMap.value('C')*100.0);
     percentGSpin->setValue(percentMap.value('G')*100.0);
@@ -159,7 +172,9 @@ BaseContentDialog::BaseContentDialog(QMap<char, qreal>& percentMap_, QWidget* p)
     gcSkew = (float(iGCSkew))/100.0;
     percentGCSpin->setValue(gcSkew);
     gcSkewPrev = gcSkew;
-    
+
+    saveButton = buttonBox->button(QDialogButtonBox::Ok);
+
     connect(saveButton, SIGNAL(clicked()), SLOT(sl_save()));
     connect(baseContentRadioButton, SIGNAL(clicked()), SLOT(sl_baseClicked()));
     connect(gcSkewRadioButton, SIGNAL(clicked()), SLOT(sl_gcSkewClicked()));
@@ -182,6 +197,7 @@ BaseContentDialog::BaseContentDialog(QMap<char, qreal>& percentMap_, QWidget* p)
     }
     baseContentRadioButton->setChecked(!gc);
     gcSkewRadioButton->setChecked(gc);
+
 }
 
 void BaseContentDialog::sl_baseClicked() {
@@ -223,7 +239,7 @@ void BaseContentDialog::sl_save() {
             percentCi = (float)percentCi / sum * 100;
             percentTi = (float)percentTi / sum * 100;
             int CG = percentGi + percentCi;
-            
+
             percentCi = (1 - gcSkew)* CG / 2;
             percentGi = percentCi + gcSkew * CG;
             if(percentCi < 0 || percentCi > 100 || percentGi < 0 || percentGi > 100) {
@@ -240,7 +256,7 @@ void BaseContentDialog::sl_save() {
             percentASpin->setValue(percentAi);
             percentCSpin->setValue(percentCi);
             percentGSpin->setValue(percentGi);
-            percentTSpin->setValue(percentTi);  
+            percentTSpin->setValue(percentTi);
         } else {
             percentA = percentASpin->value();
             percentC = percentCSpin->value();

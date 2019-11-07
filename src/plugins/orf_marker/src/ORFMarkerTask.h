@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,6 @@
 
 #ifndef _U2_ORF_MARKER_TASK_H_
 #define _U2_ORF_MARKER_TASK_H_
-
 
 #include <QtCore/QPointer>
 
@@ -44,43 +43,40 @@ public:
     static const QString MUST_INIT;
     static const QString ALLOW_ALT_START;
     static const QString ALLOW_OVERLAP;
-	static const QString INCLUDE_STOP_CODON;
+    static const QString INCLUDE_STOP_CODON;
     static const QString CIRCULAR_SEARCH;
-	static const QString MAX_RESULT;
-	static const QString IS_RESULT_LIMITED;
-	
+    static const QString MAX_RESULT;
+    static const QString IS_RESULT_LIMITED;
+
     static void save(const ORFAlgorithmSettings& cfg, Settings* st);
     static void read(ORFAlgorithmSettings& cfg, const Settings* st);
 };
 
- class FindORFsToAnnotationsTask: public Task {
-     Q_OBJECT
- public:
-     FindORFsToAnnotationsTask(AnnotationTableObject* aobj,const U2EntityRef& entityRef, 
-         const ORFAlgorithmSettings& settings, const QString& groupName = QString());
-	 
-     void run();
-     ReportResult report();
-     
- private:
-     QList<SharedAnnotationData>        aData;
-     QPointer<AnnotationTableObject>    aObj;
-     ORFFindTask*                       fTask;
-     ORFAlgorithmSettings               cfg;
+class FindORFsToAnnotationsTask :      public Task
+{
+    Q_OBJECT
+public:
+                                        FindORFsToAnnotationsTask(AnnotationTableObject *aobj, const U2EntityRef &entityRef,
+                                            const ORFAlgorithmSettings &settings, const QString &groupName = QString(), const QString &annDescription = "");
+
+    QList<Task *>                       onSubTaskFinished(Task *subTask);
+
+private:
+    QPointer<AnnotationTableObject>     aObj;
+    ORFFindTask *                       fTask;
+    ORFAlgorithmSettings                cfg;
     QString                             groupName;
-     U2EntityRef						entityRef;
- };
- 
- 
+    const QString                       annDescription;
+    U2EntityRef                         entityRef;
+};
+
 class ORFAutoAnnotationsUpdater : public AutoAnnotationsUpdater {
-	Q_OBJECT
+    Q_OBJECT
 public:
      ORFAutoAnnotationsUpdater();
      Task* createAutoAnnotationsUpdateTask(const AutoAnnotationObject* aa);
      bool checkConstraints(const AutoAnnotationConstraints& constraints);
 };
-
-
 
 } //namespace
 

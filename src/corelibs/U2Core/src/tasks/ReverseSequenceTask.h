@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,21 +32,56 @@ class AnnotationTableObject;
 class DNATranslation;
 class DNASequenceSelection;
 
+class U2CORE_EXPORT ReverseComplementSequenceTask : public Task
+{
+    Q_OBJECT
+public:
+    ReverseComplementSequenceTask( U2SequenceObject *dnaObj,
+                                   const QList<AnnotationTableObject *> &annotations,
+                                   DNASequenceSelection *selection,
+                                   DNATranslation *complTT );
+private:
+    U2SequenceObject *              seqObj;
+    QList<AnnotationTableObject *>    aObjs;
+    DNASequenceSelection *          selection;
+    DNATranslation *                complTT;
+
+};
+
 class U2CORE_EXPORT ReverseSequenceTask : public Task
 {
     Q_OBJECT
 public:
-    ReverseSequenceTask(U2SequenceObject* dnaObj, QList<AnnotationTableObject*> annotations, DNASequenceSelection* selection, DNATranslation* complTT);
-    ReportResult report();
-private:
-    U2SequenceObject* seqObj;
-    QList<AnnotationTableObject*> aObjs;
-    DNASequenceSelection* selection;
-    DNATranslation* complTr;
+    ReverseSequenceTask( U2SequenceObject *seqObj,
+                         const QList< AnnotationTableObject* > &annotations,
+                         DNASequenceSelection *selection);
+    ReportResult                    report( );
 
+private:
+    U2SequenceObject*               seqObj;
+    QList< AnnotationTableObject* > aObjs;
+    DNASequenceSelection*           selection;
 };
 
-}//ns
+class U2CORE_EXPORT ComplementSequenceTask : public Task
+{
+    Q_OBJECT
+public:
+    ComplementSequenceTask( U2SequenceObject *seqObj,
+                            const QList< AnnotationTableObject* > &annotations,
+                            DNASequenceSelection *selection,
+                            DNATranslation *complTT);
+    ReportResult                    report( );
+
+private:
+    U2SequenceObject*               seqObj;
+    QList< AnnotationTableObject* > aObjs;
+    DNASequenceSelection*           selection;
+    DNATranslation*                 complTT;
+};
+
+
+} // namespace U2
 
 #endif // _U2_REVERSE_SEQUENCE_TASK_H_
 

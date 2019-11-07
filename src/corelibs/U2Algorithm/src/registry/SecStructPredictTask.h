@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,9 +31,10 @@ class U2ALGORITHM_EXPORT SecStructPredictTask : public Task {
     Q_OBJECT
 public:
     SecStructPredictTask(const QByteArray& seq);
-    const QList<SharedAnnotationData>& getResults() const { return results; }
+    void prepare();
+    const QList<SharedAnnotationData> & getResults() const { return results; }
     const QByteArray getSSFormatResults() const { return output; }
-    
+
 protected:
     QByteArray sequence, output;
     QList<SharedAnnotationData> results;

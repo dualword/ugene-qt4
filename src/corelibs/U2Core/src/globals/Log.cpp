@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,13 +21,15 @@
 
 #include "Log.h"
 #include <U2Core/Timer.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/LogCache.h>
 
 #include <QtCore/QSet>
 
 namespace U2 {
 
 
-LogServer::LogServer() {
+LogServer::LogServer() : listenerMutex(QMutex::Recursive) {
     qRegisterMetaType<LogMessage>("LogMessage");
 }
 
@@ -47,12 +49,49 @@ QStringList LogServer::getCategories() const {
             result.append(category);
             uniqueNames.insert(category);
         }
-        
+
     }
     return result;
 }
 
+void LogServer::addListener(LogListener* listner)
+{
+    QMutexLocker l(&listenerMutex);
+
+    SAFE_POINT(NULL != listner, "Internal error during adding a log listner: NULL listner!",);
+    SAFE_POINT(!listeners.contains(listner),
+        "Internal error during adding a log listner: the listener is already added!",);
+    listeners.append(listner);
+}
+
+void LogServer::removeListener(LogListener* listener)
+{
+    QMutexLocker l(&listenerMutex);
+
+    int numOfListenersRemoved = listeners.removeAll(listener);
+    SAFE_POINT(1 == numOfListenersRemoved, QString("Internal error during removing a log listener:"
+        " unexpected number '%1' of listeners!").arg(numOfListenersRemoved),);
+}
+
+void LogServer::message(const LogMessage& m)
+{
+    QMutexLocker l(&listenerMutex);
+    foreach (LogListener* listner, listeners)
+    {
+        listner->onMessage(m);
+    }
+}
+
+void LogServer::message(const LogMessage& m, LogListener* listener)
+{
+    QMutexLocker l(&listenerMutex);
+    listener->onMessage(m);
+}
+
+
 Logger::Logger(const QString& category1) {
+    static int test = 0;
+    test++;
     categoryNames << category1;
     init();
 }
@@ -86,12 +125,11 @@ Logger::~Logger() {
 // TODO possible race condition at shutdown -> log service could already be destroyed
 //    LogServer* s = LogServer::getInstance();
 //    s->categories.removeOne(this);
-    categoryNames.clear();
+//    categoryNames.clear();
 }
 
-
-LogMessage::LogMessage(const QStringList& cat, LogLevel l, const QString& m) 
-: categories(cat), level(l), text(m), time(GTimer::currentTimeMicros()) 
+LogMessage::LogMessage(const QStringList& cat, LogLevel l, const QString& m)
+: categories(cat), level(l), text(m), time(GTimer::currentTimeMicros())
 {
 }
 

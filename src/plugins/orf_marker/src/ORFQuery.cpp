@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,8 +35,11 @@
 
 #include <U2Algorithm/ORFAlgorithmTask.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
-
+#else
+#include <QtWidgets/QApplication>
+#endif
 
 namespace U2 {
 
@@ -121,15 +124,18 @@ Task* QDORFActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
     settings.mustFit = params.value(FIT_ATTR)->getAttributePureValue().toBool();
     settings.mustInit = params.value(INIT_ATTR)->getAttributePureValue().toBool();
     settings.allowAltStart = params.value(ALT_ATTR)->getAttributePureValue().toBool();
-	settings.maxResult2Search = params.value(RES_ATTR)->getAttributePureValue().toInt();
+    settings.maxResult2Search = params.value(RES_ATTR)->getAttributePureValue().toInt();
 
     settings.searchRegion = U2Region(0, dnaSeq.length());
 
     if (settings.strand != ORFAlgorithmStrand_Direct) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-            lookupTranslation(dnaSeq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!compTTs.isEmpty()) {
-            settings.complementTT = compTTs.first();
+        DNATranslation* compTT = NULL;
+        if (dnaSeq.alphabet->isNucleic()) {
+            compTT = AppContext::getDNATranslationRegistry()->
+                lookupComplementTranslation(dnaSeq.alphabet);
+        }
+        if (compTT != NULL) {
+            settings.complementTT = compTT;
         } else {
             settings.strand = ORFAlgorithmStrand_Direct;
         }
@@ -142,7 +148,7 @@ Task* QDORFActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
     if (!settings.proteinTT) {
         return new FailTask(tr("Bad sequence"));
     }
-    
+
     t = new Task(tr("ORF find"), TaskFlag_NoRun);
     assert(orfTasks.isEmpty());
     foreach(const U2Region& r, searchLocation) {
@@ -163,8 +169,8 @@ void QDORFActor::sl_onAlgorithmTaskFinished(Task*) {
         res << oft->popResults();
     }
     QList<SharedAnnotationData> dataList = ORFFindResult::toTable(res, "1");
-    foreach(const SharedAnnotationData& ad, dataList) {
-        const U2Region& first = ad->location->regions[0];
+    foreach (const SharedAnnotationData &ad, dataList) {
+        const U2Region &first = ad->location->regions[0];
         if (first.length > getMaxResultLen()) {
             continue;
         }
@@ -188,7 +194,7 @@ int QDORFActor::getMaxResultLen() const {
 QDORFActorPrototype::QDORFActorPrototype() {
      descriptor.setId("orf");
      descriptor.setDisplayName(QDORFActor::tr("ORF"));
-     descriptor.setDocumentation(QDORFActor::tr("Finds Open Reading Frames (ORFs) in supplied nucleotide sequence, stores found regions as annotations." 
+     descriptor.setDocumentation(QDORFActor::tr("Finds Open Reading Frames (ORFs) in supplied nucleotide sequence, stores found regions as annotations."
          "<p>Protein sequences are skipped if any."
          "<p><dfn>ORFs are DNA sequence regions that could potentially encode a protein,"
          " and usually give a good indication of the presence of a gene in the surrounding sequence.</dfn></p>"
@@ -197,15 +203,15 @@ QDORFActorPrototype::QDORFActorPrototype() {
          );
 
      Descriptor ttd(ID_ATTR, QDORFActor::tr("Genetic code"), QDORFActor::tr("Which genetic code should be used for translating the input nucleotide sequence."));
-     Descriptor ld(LEN_ATTR, QDORFActor::tr("Min length, bp:"), QApplication::translate("ORFDialogBase", "Ignore ORFs shorter than the specified length", 0, QApplication::UnicodeUTF8));
-     Descriptor ind(INIT_ATTR, QDORFActor::tr("Require init codon"), QApplication::translate("ORFDialogBase", "\n""Ignore boundary ORFs which last beyond the search region\n""(i.e. have no stop codon within the range).\n", 0, QApplication::UnicodeUTF8));
+     Descriptor ld(LEN_ATTR, QDORFActor::tr("Min length, bp:"), QApplication::translate("ORFDialogBase", "Ignore ORFs shorter than the specified length", 0));
+     Descriptor ind(INIT_ATTR, QDORFActor::tr("Require init codon"), QApplication::translate("ORFDialogBase", "\n""Ignore boundary ORFs which last beyond the search region\n""(i.e. have no stop codon within the range).\n", 0));
      Descriptor ad(ALT_ATTR, QDORFActor::tr("Allow alternative codons"), QApplication::translate("ORFDialogBase", "\n"
      "               Allow ORFs starting with alternative initiation codons,\n"
-     "               accordingly to the current translation table.\n", 0, QApplication::UnicodeUTF8));
+     "               accordingly to the current translation table.\n", 0));
      Descriptor mld(MAX_LENGTH_ATTR, QDORFActor::tr("Max length"), QDORFActor::tr("Maximum length of annotation allowed."));
-     Descriptor fd(FIT_ATTR, QDORFActor::tr("Require stop codon"), QDORFActor::tr("Require stop codon"));
-	 Descriptor mr(RES_ATTR,QDORFActor::tr("Max result"),QDORFActor::tr("Find results not achieved by specified count"));
-	 Descriptor lr(LIMIT_ATTR,QDORFActor::tr("Limit results"),QDORFActor::tr("The amount of results will be limited id that option is setted"));
+     Descriptor fd(FIT_ATTR, QDORFActor::tr("Require stop codon"), QDORFActor::tr("Require stop codon."));
+     Descriptor mr(RES_ATTR,QDORFActor::tr("Max result"),QDORFActor::tr("Find results not achieved by specified count."));
+     Descriptor lr(LIMIT_ATTR,QDORFActor::tr("Limit results"),QDORFActor::tr("The amount of results will be limited id that option is setted"));
 
      attributes << new Attribute(ttd, BaseTypes::STRING_TYPE(), false, QVariant(DNATranslationID(1)));
      attributes << new Attribute(ld, BaseTypes::NUM_TYPE(), true, QVariant(100));
@@ -213,21 +219,21 @@ QDORFActorPrototype::QDORFActorPrototype() {
      attributes << new Attribute(ad, BaseTypes::BOOL_TYPE(), false, QVariant(false));
      attributes << new Attribute(mld, BaseTypes::NUM_TYPE(), true, QVariant(QDActor::DEFAULT_MAX_RESULT_LENGTH));
      attributes << new Attribute(fd, BaseTypes::BOOL_TYPE(), false, QVariant(false));
-	 attributes << new Attribute(mr,BaseTypes::NUM_TYPE(),false,100000);
-	 attributes << new Attribute(lr,BaseTypes::BOOL_TYPE(),false,QVariant(true));
+     attributes << new Attribute(mr,BaseTypes::NUM_TYPE(),false,100000);
+     attributes << new Attribute(lr,BaseTypes::BOOL_TYPE(),false,QVariant(true));
 
      QMap<QString, PropertyDelegate*> delegates;
 
      QVariantMap lenMap;
      lenMap["minimum"] = QVariant(0);
-     lenMap["maximum"] = QVariant(INT_MAX); 
+     lenMap["maximum"] = QVariant(INT_MAX);
      lenMap["suffix"] = L10N::suffixBp();
      delegates[LEN_ATTR] = new SpinBoxDelegate(lenMap);
      delegates[MAX_LENGTH_ATTR] = new SpinBoxDelegate(lenMap);
 
      QVariantMap idMap;
      QList<DNATranslation*> TTs = AppContext::getDNATranslationRegistry()->
-         lookupTranslation(AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT()), 
+         lookupTranslation(AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT()),
          DNATranslationType_NUCL_2_AMINO);
      foreach(DNATranslation* tt, TTs) {
          idMap[tt->getTranslationName()] = tt->getTranslationId();

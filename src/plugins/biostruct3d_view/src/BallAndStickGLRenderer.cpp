@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,13 +32,31 @@
 
 #include <U2Core/Log.h>
 
-namespace U2 { 
+namespace U2 {
+
 
 const QString BallAndStickGLRenderer::ID(QObject::tr("Ball-and-Stick"));
+QList<GLuint> BallAndStickGLRenderer::dlIndexStorage;
+QMutex BallAndStickGLRenderer::mutex;
+
+#define MAX_OPEN_VIEWS_NUMBER 8086
 
 BallAndStickGLRenderer::BallAndStickGLRenderer(const BioStruct3D& struc, const BioStruct3DColorScheme* s, const QList<int> &shownModels, const BioStruct3DRendererSettings *settings)
-    : BioStruct3DGLRenderer(struc,s,shownModels,settings), dl(0)
+    : BioStruct3DGLRenderer(struc,s,shownModels,settings)
 {
+    {
+        QMutexLocker lock(&mutex);
+        if (dlIndexStorage.size() == 0) {
+            dl = glGenLists(MAX_OPEN_VIEWS_NUMBER);
+            for (GLuint idx = dl+1; idx <= dl + MAX_OPEN_VIEWS_NUMBER; ++idx) {
+                dlIndexStorage.push_back(idx);
+            }
+        } else {
+            dl = dlIndexStorage.takeFirst();
+        }
+
+    }
+
     create();
 }
 
@@ -46,6 +64,10 @@ BallAndStickGLRenderer::~BallAndStickGLRenderer() {
     if (glIsList(dl)) {
         glDeleteLists(dl, 1);
     }
+
+    QMutexLocker lock(&mutex);
+    dlIndexStorage.push_back(dl);
+
 }
 
 void BallAndStickGLRenderer::create() {
@@ -131,7 +153,10 @@ static void drawAtomsBonds(const Color4f &viewAtomColor, float renderDetailLevel
 
 void BallAndStickGLRenderer::createDisplayList()
 {
-    dl = glGenLists(1);
+    if (glIsList(dl)) {
+        glDeleteLists(dl, 1);
+    }
+
     float renderDetailLevel = settings->detailLevel;
 
     QList<Color4f> colors;
@@ -140,7 +165,7 @@ void BallAndStickGLRenderer::createDisplayList()
 
     foreach (const SharedMolecule mol, bioStruct.moleculeMap) {
         foreach (int index, shownModels) {
-            const Molecule3DModel& model = mol->models.at(index);
+            const Molecule3DModel& model = mol->models.value(index);
 
             colors.clear();
 

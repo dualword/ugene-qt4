@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,6 +39,7 @@ public:
     static const QString        OT_PNAME;
     static const QString        OT_SIGN;
     static const QString        OT_ICON;
+    static const QString        OT_LOCKED_ICON;
     static const GObjectType    UHMM_OT;
     
     UHMMObject( P7_HMM* hmm, const QString& name );
@@ -47,7 +48,7 @@ public:
     const P7_HMM* getHMM() const;
     P7_HMM* takeHMM();
     
-    virtual GObject* clone(const U2DbiRef& ref, U2OpStatus& os) const;
+    virtual GObject* clone(const U2DbiRef& ref, U2OpStatus& os, const QVariantMap &hints = QVariantMap()) const;
     
 private:
     P7_HMM* hmm;

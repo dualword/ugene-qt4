@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,10 +55,10 @@ class U2CORE_EXPORT Service : public QObject {
     friend class ServiceLock;
     Q_OBJECT
 public:
-    Service(ServiceType t, const QString& _name, const QString& _desc, 
+    Service(ServiceType t, const QString& _name, const QString& _desc,
         const QList<ServiceType>& parentServices = QList<ServiceType>(),
         ServiceFlags flags = ServiceFlag_None);
-    
+
     const QList<ServiceType>& getParentServiceTypes() const {return parentServices;}
 
     ServiceType getType() const {return type;}
@@ -109,15 +109,15 @@ public:
 
     /// registers the service in a registry and initiates enabling task if all parent services are enabled
     /// if service started successfully - checks all child services if new services can be started
-    virtual Task* registerServiceTask(Service* s) = 0;
+    virtual Task* registerServiceTask(Service* s, bool lockServiceResource = true) = 0;
 
     /// unregisters the service in a registry.
-    /// if the service is enabled -> initiates service disabling task first 
-    virtual Task* unregisterServiceTask(Service* s) = 0;
+    /// if the service is enabled -> initiates service disabling task first
+    virtual Task* unregisterServiceTask(Service* s, bool lockServiceResource = true) = 0;
 
-    virtual Task* enableServiceTask(Service* s) = 0;
+    virtual Task* enableServiceTask(Service* s, bool lockServiceResource = true) = 0;
 
-    virtual Task* disableServiceTask(Service* s) = 0;
+    virtual Task* disableServiceTask(Service* s, bool lockServiceResource = true) = 0;
 
 protected:
     void _setServiceState(Service* s, ServiceState state);

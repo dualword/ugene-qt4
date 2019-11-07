@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,17 @@
  * MA 02110-1301, USA.
  */
 
+#include "GTest.h"
+
 #include <assert.h>
 
-#include <QtCore/QFile>
-
 #include <U2Core/AppContext.h>
-#include "GTest.h"
+#include <U2Core/Timer.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <QtCore/QFile>
+#include <QMap>
+
 
 namespace U2 {
 
@@ -33,11 +38,12 @@ namespace U2 {
 //////////////////////////////////////////////////////////////////////////
 // GTest
 
-GTest::GTest(const QString& taskName, GTest* cp, const GTestEnvironment* _env, 
+GTest::GTest(const QString& taskName, GTest* cp, const GTestEnvironment* _env,
              TaskFlags flags, const QList<GTest*>& subtasks)
 : Task(taskName, flags), contextProvider(cp), env(_env)
 {
     assert(env!=NULL);
+
     foreach(Task* t, subtasks) {
         addSubTask(t);
     }
@@ -69,7 +75,10 @@ void GTest::failMissingValue( const QString& name) {
 
 GTestSuite::~GTestSuite() {
     qDeleteAll(tests);
-    qDeleteAll(excluded);
+    QMap<GTestRef*, QString>::iterator iter;
+    for(iter = excluded.begin(); iter != excluded.end(); ++iter){
+        delete iter.key();
+    }
 }
 
 
@@ -80,15 +89,15 @@ static QStringList findAllFiles(const QString& dirPath, const QString& ext, bool
         return res;
     }
     QDir dir(dirPath);
-    
+
     //add files first
     QStringList files = ext.isEmpty() ? dir.entryList(QDir::Files) : dir.entryList(ext.split(":"), QDir::Files);
     foreach(const QString& file, files) {
         QFileInfo fi(dir.absolutePath() + "/" + file);
         res.append(fi.absoluteFilePath());
     }
-    
-    
+
+
     //process subdirs if needed
     if (recursive) {
         QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
@@ -99,15 +108,6 @@ static QStringList findAllFiles(const QString& dirPath, const QString& ext, bool
         }
     }
     return res;
-}
-
-static bool exclude(const QList<QRegExp>& xlist, const QString& url) {
-    foreach(const QRegExp& r, xlist) {
-        if (r.exactMatch(url)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 static QString addExcludeTests(const QString & fullTestDirPath, const QString & str, QList<QRegExp> & xList) {
@@ -131,7 +131,7 @@ static QString addExcludeTests(const QString & fullTestDirPath, const QString & 
 GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
     QFile f(url);
     if (!f.open(QIODevice::ReadOnly)) {
-        err = ("cant_open_file");
+        err = QString("cant_open_file %1").arg(url);
         return NULL;
     }
     QByteArray  xmlData = f.readAll();
@@ -143,7 +143,7 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
         err = ("not_an_xml_suite_file");
         return NULL;
     }
-    
+
     if (suiteDoc.doctype().name()!="UGENE_TEST_FRAMEWORK_SUITE") {
         err = ("not_a_test_suite_file");
         return NULL;
@@ -154,8 +154,8 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
         err = ("suite_elem_not_found");
         return NULL;
     }
-    
-    //Name 
+
+    //Name
     QString suiteName = suiteEl.attribute("name");
     if (suiteName.isEmpty()) {
         err = ("suite_name_is_empty");
@@ -190,8 +190,13 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
     QFileInfo suiteUrl(url);
     QString suiteDir = suiteUrl.absoluteDir().absolutePath();
     QList<GTestRef*> suiteTests;
-    QList<GTestRef*> excluded;
+    QMap<GTestRef*, QString> excluded;
+
+
+    QString dirPath = "";
+    QString testFormatName;
     QDomNodeList testDirEls = suiteEl.elementsByTagName("test-dir");
+
     for(int i=0;i<testDirEls.size(); i++) {
         QDomNode n = testDirEls.item(i);
         assert(n.isElement());
@@ -199,7 +204,7 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
             continue;
         }
         QDomElement testDirEl = n.toElement();
-        QString dirPath = testDirEl.attribute("path");
+        dirPath = testDirEl.attribute("path");
         if (dirPath.isEmpty()) {
             err = ("path_attribute_not_found");
             break;
@@ -210,21 +215,28 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
             err = QString("test_dir_not_exists %1").arg(fullTestDirPath);
             break;
         }
-        
+
         QList<QRegExp> xlist;
         err = addExcludeTests(fullTestDirPath, testDirEl.attribute("exclude"), xlist);
         if(!err.isEmpty()) {
             break;
         }
-        
+
         if(sizeof(void*) == 8) { // means that it is 64 bit system
             err = addExcludeTests(fullTestDirPath, testDirEl.attribute("exclude_64"), xlist);
             if(!err.isEmpty()) {
                 break;
             }
         }
-        
-        QString testFormatName = testDirEl.attribute("test-format");
+
+        if(sizeof(void*) == 4) { // means that it is 32 bit system
+            err = addExcludeTests(fullTestDirPath, testDirEl.attribute("exclude_32"), xlist);
+            if(!err.isEmpty()) {
+                break;
+            }
+        }
+
+        testFormatName = testDirEl.attribute("test-format");
         bool recursive = testDirEl.attribute("recursive") != "false";
         QString testExt = testDirEl.attribute("test-ext");
         QStringList testURLs = findAllFiles(fullTestDirPath, testExt, recursive, 0);
@@ -233,19 +245,52 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
             assert(shortNameLen > 0);
             QString tShortName = tUrl.right(shortNameLen);
             GTestRef* tref = new GTestRef(tUrl, tShortName, testFormatName);
-            if (exclude(xlist, tUrl)) {
-                excluded << tref;
-            } else {
-                suiteTests << tref;
+            //all tests appended
+            suiteTests << tref;
+        }
+    }
+
+    //excluded
+    QDomNodeList excludedEls = suiteEl.elementsByTagName("excluded");
+    for(int i=0;i<excludedEls.size(); i++){
+        QDomNode n = excludedEls.item(i);
+        assert(n.isElement());
+        if (!n.isElement()) {
+            continue;
+        }
+        QDomElement excludedEl = n.toElement();
+        QString testName = excludedEl.attribute("test");
+
+        QString fullTestPath = suiteDir + "/" + dirPath + "/" + testName;
+
+        GTestRef* tref = new GTestRef(fullTestPath, testName, testFormatName);
+        QString reason = excludedEl.attribute("reason");
+
+        if(!excluded.contains(tref)){
+            excluded.insert(tref, reason);
+        }
+    }
+
+    //take excluded from all tests
+    foreach(GTestRef* test, suiteTests){
+        QMap<GTestRef*, QString>::iterator iter;
+        for(iter = excluded.begin(); iter != excluded.end(); ++iter){
+            GTestRef* ref = dynamic_cast<GTestRef*>(iter.key());
+            if(*test == *ref){
+                suiteTests.removeOne(test);
             }
         }
     }
+
     if (!err.isEmpty()) {
         qDeleteAll(suiteTests);
-        qDeleteAll(excluded);
+        QMap<GTestRef*, QString>::iterator iter;
+        for(iter = excluded.begin(); iter != excluded.end(); ++iter){
+            delete iter.key();
+        }
         return NULL;
     }
-    
+
     GTestSuite* suite = new GTestSuite();
     suite->url = suiteUrl.absoluteFilePath();
     suite->name = suiteName;
@@ -259,10 +304,10 @@ GTestSuite* GTestSuite::readTestSuite(const QString& url, QString& err) {
     foreach( GTestRef * r, suiteTests ) {
         r->setSuite( suite );
     }
-    foreach( GTestRef * r, excluded ) {
+    foreach( GTestRef * r, excluded.keys() ) {
         r->setSuite( suite );
     }
-    
+
     return suite;
 }
 
@@ -274,11 +319,18 @@ QList<GTestSuite*> GTestSuite::readTestSuiteList( const QString& url, QStringLis
     //QString dir = AppContext::getSettings()->getValue(SETTINGS_ROOT + "lastDir", QString()).toString();
     QString dir = QFileInfo(url).dir().absolutePath();
     if (suitListFile!=NULL){
-        suitListFile->open(QIODevice::ReadOnly | QIODevice::Text);
+        if(!suitListFile->open(QIODevice::ReadOnly | QIODevice::Text)){
+            printf("%s\n",tr("Can't load suite list %1").arg(url).toLatin1().constData());
+            errs << tr("Can't open suite list %1").arg(url);
+            return result;
+        }
         QString suiteFileContent = suitListFile->readAll();
         QStringList suiteNamesList = suiteFileContent.split(QRegExp("\\s+"));
         QString suiteName;
         foreach(suiteName,suiteNamesList){
+            if(suiteName.isEmpty()){
+                continue;
+            }
             suiteName = suiteName.trimmed();
             if (suiteName.startsWith("#")) { //this is a comment line
                 continue;
@@ -306,7 +358,7 @@ void GTestState::clearState() {
         assert(errMessage.isEmpty());
         return;
     }
-    errMessage.clear(); 
+    errMessage.clear();
     state = TriState_Unknown;
     emit si_stateChanged(this);
 }
@@ -318,8 +370,8 @@ void GTestState::setFailed(const QString& err) {
     }
     assert(!err.isEmpty());
     assert(errMessage.isEmpty());
-    
-    errMessage = err; 
+
+    errMessage = err;
     state = TriState_No;
     emit si_stateChanged(this);
 }
@@ -329,9 +381,99 @@ void GTestState::setPassed() {
         assert(errMessage.isEmpty());
         return;
     }
-    errMessage.clear(); 
+    errMessage.clear();
     state = TriState_Yes;
     emit si_stateChanged(this);
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+// GTestLogHelper
+GTestLogHelper::GTestLogHelper()
+    : statusWasVerified(false)
+{
+
+}
+
+GTestLogHelper::~GTestLogHelper(){
+
+}
+
+void GTestLogHelper::initMessages(const QStringList& expectedList, const QStringList& unexpectedList)
+{
+    statusWasVerified = false;
+    foreach (QString message, expectedList) {
+        expectedMessages[message] = false; // i.e. not detected yet
+    }
+
+    foreach (QString message, unexpectedList) {
+        unexpectedMessages[message] = false;
+    }
+
+    logHelperStartTime = GTimer::currentTimeMicros();
+    LogServer::getInstance()->addListener(this);
+}
+
+
+GTestLogHelperStatus GTestLogHelper::verifyStatus()
+{
+    LogServer::getInstance()->removeListener(this);
+    GTestLogHelperStatus status = GTest_LogHelper_Valid;
+
+    foreach (const QString& str, expectedMessages.keys()) {
+        if (false == expectedMessages[str]) {
+            status = GTest_LogHelper_Invalid;
+            coreLog.error(QString("GTestLogHelper: no expected message \"%1\" in the log!").arg(str));
+        }
+    }
+
+    foreach (const QString& str, unexpectedMessages.keys()) {
+        if (true == unexpectedMessages[str]) {
+            status = GTest_LogHelper_Invalid;
+            coreLog.error(QString("GTestLogHelper: message \"%1\" is present in the log unexpectedly!").arg(str));
+        }
+    }
+
+    statusWasVerified = true;
+    logHelperEndTime = GTimer::currentTimeMicros();
+
+    return status;
+}
+
+
+void GTestLogHelper::onMessage(const LogMessage& logMessage)
+{
+    qint64 currentTime = GTimer::currentTimeMicros();
+
+    SAFE_POINT(logMessage.time >= logHelperStartTime,
+        QString("Internal error in GTestLogHelper (incorrect start time): message '%1' with time '%2' appeared"
+            " in log at time '%3'. GTestLogHelper start time is '%4'.").arg(logMessage.text)
+                .arg(logMessage.time)
+                .arg(currentTime)
+                .arg(logHelperStartTime),
+                );
+
+    if (statusWasVerified) {
+        FAIL(QString("Internal error in GTestLogHelper (got a message after verifying the status):"
+            " message '%1' with time '%2' appeared"
+            " in log at time '%3'. GTestLogHelper end time is '%4'.").arg(logMessage.text)
+            .arg(logMessage.time)
+            .arg(currentTime)
+            .arg(logHelperEndTime),
+            );
+    }
+
+    foreach (const QString& str, expectedMessages.keys()) {
+        if (logMessage.text.contains(str)) {
+            expectedMessages[str] = true;
+        }
+    }
+
+    foreach (const QString& str, unexpectedMessages.keys()) {
+        if (logMessage.text.contains(str)) {
+            unexpectedMessages[str] = true;
+        }
+    }
 }
 
 }//namespace

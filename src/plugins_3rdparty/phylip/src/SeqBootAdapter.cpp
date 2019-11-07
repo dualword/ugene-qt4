@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -111,7 +111,7 @@ void SeqBoot::generateSequencesFromAlignment( const MAlignment& ma, const Create
     for (int k=0; k<spp; k++){
         for(int j=0; j<sites; j++) {
             const MAlignmentRow& rowK = ma.getRow(k);
-            nodep_boot[k][j] = rowK.chatAt(j);
+            nodep_boot[k][j] = rowK.charAt(j);
         }
     }
 

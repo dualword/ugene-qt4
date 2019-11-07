@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,24 +21,29 @@
 
 #include "KalignException.h"
 #include <assert.h>
-#include <memory>
 #include <string.h>
 
 extern "C" void throwKalignException(char *message) {
-	throw U2::KalignException(message);
+    throw U2::KalignException(message);
+}
+
+extern "C" void checkAllocatedMemory(void *ptr) {
+    if (NULL == ptr) {
+        throw U2::KalignException("Not enough memory to finish KAlign task");
+    }
 }
 
 namespace U2 {
 
 KalignException::KalignException(const char* _str) {
-	int len = strlen(_str);
-	assert(len < 4096);
-	memcpy(str, _str, len);
-	str[len] = '\0';
+    int len = strlen(_str);
+    assert(len < 4096);
+    memcpy(str, _str, len);
+    str[len] = '\0';
 }
 
 KalignException::KalignException() {
-	memset(str, 4096, '\0');
+    memset(str, '\0', 4096);
 }
 
 } // namespace U2

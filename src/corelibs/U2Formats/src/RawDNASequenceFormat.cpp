@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,20 +19,22 @@
  * MA 02110-1301, USA.
  */
 
-#include "RawDNASequenceFormat.h"
+#include <QtCore/QBuffer>
+
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/TextUtils.h>
+#include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2SequenceUtils.h>
 
 #include "DocumentFormatUtils.h"
 #include "PlainTextFormat.h"
-
-#include <U2Core/U2OpStatus.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/U2SafePoints.h>
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/U1AnnotationUtils.h>
-#include <U2Core/U2SequenceUtils.h>
-
-#include <U2Core/TextUtils.h>
+#include "RawDNASequenceFormat.h"
 
 namespace U2 {
 
@@ -49,9 +51,13 @@ RawDNASequenceFormat::RawDNASequenceFormat(QObject* p) : DocumentFormat(p, Docum
 
 
 static void load(IOAdapter* io, const U2DbiRef& dbiRef,  QList<GObject*>& objects, const QVariantMap& fs, U2OpStatus& os) {
+    DbiOperationsBlock opBlock(dbiRef, os);
+    CHECK_OP(os, );
+    Q_UNUSED(opBlock);
     static const int READ_BUFF_SIZE = 4096;
 
-    U2SequenceImporter  seqImporter(fs);
+    U2SequenceImporter seqImporter(fs, true);
+    const QString folder = fs.value(DocumentFormat::DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
 
     QByteArray readBuffer(READ_BUFF_SIZE, '\0');
     char* buff  = readBuffer.data();
@@ -59,7 +65,7 @@ static void load(IOAdapter* io, const U2DbiRef& dbiRef,  QList<GObject*>& object
     const QBitArray& ALPHAS = TextUtils::ALPHA_NUMS;
 
     QByteArray seq;
-
+    QString seqName(io->getURL().baseFileName());
     //reading sequence
     QBuffer writer(&seq);
     writer.open(QIODevice::WriteOnly);
@@ -74,7 +80,7 @@ static void load(IOAdapter* io, const U2DbiRef& dbiRef,  QList<GObject*>& object
         if (os.isCoR()) {
             break;
         }
-        
+
         for (int i=0; i<len && ok; i++) {
             char c = buff[i];
             if (ALPHAS[(uchar)c]) {
@@ -83,7 +89,7 @@ static void load(IOAdapter* io, const U2DbiRef& dbiRef,  QList<GObject*>& object
         }
         if(seq.size()>0 && isStarted == false ){
             isStarted = true;
-            seqImporter.startSequence(dbiRef,"Sequence",false,os);
+            seqImporter.startSequence(dbiRef, folder, seqName, false, os);
         }
         if(isStarted){
             seqImporter.addBlock(seq.data(),seq.size(),os);
@@ -103,8 +109,8 @@ static void load(IOAdapter* io, const U2DbiRef& dbiRef,  QList<GObject*>& object
     dbiObjects.objects << u2seq.id;
     CHECK_OP(os, );
 
-    GObjectReference sequenceRef(io->getURL().getURLString(), u2seq.visualName, GObjectTypes::SEQUENCE);
-    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL);
+    GObjectReference sequenceRef(io->getURL().getURLString(), u2seq.visualName, GObjectTypes::SEQUENCE, U2EntityRef(dbiRef, u2seq.id));
+    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL, fs);
 
     objects << new U2SequenceObject(u2seq.visualName,U2EntityRef(dbiRef, u2seq.id));
 }
@@ -125,21 +131,31 @@ FormatCheckResult RawDNASequenceFormat::checkRawData(const QByteArray& rawData, 
     }
     bool hasBinaryData = TextUtils::contains(TextUtils::BINARY, data, size);
     //returning 'very low chance' here just because it's impossible to have 100% detection for this format
-    return hasBinaryData ? FormatDetection_NotMatched : FormatDetection_VeryLowSimilarity; 
+    return hasBinaryData ? FormatDetection_NotMatched : FormatDetection_VeryLowSimilarity;
 }
 
 void RawDNASequenceFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
     QList<GObject*> objects = d->findGObjectByType(GObjectTypes::SEQUENCE);
-    assert(objects.size() == 1);
+    CHECK(objects.size() == 1, );
     GObject* obj = objects.first();
     U2SequenceObject* so = qobject_cast<U2SequenceObject*>(obj);
-    assert(so!=NULL);
-    PlainTextFormat::storeRawData(so->getWholeSequenceData(), os, io);
+    SAFE_POINT(NULL != so, L10N::nullPointerError("Sequence object"), );
+    QByteArray seqData = so->getWholeSequenceData(os);
+    SAFE_POINT_OP(os, );
+    PlainTextFormat::storeRawData(seqData, os, io);
 }
 
-void RawDNASequenceFormat::storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os) {
-    Q_UNUSED(anns);
-    PlainTextFormat::storeRawData(seq->getWholeSequenceData(), os, io);
+void RawDNASequenceFormat::storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os) {
+    SAFE_POINT(objectsMap.contains(GObjectTypes::SEQUENCE), "Raw sequence entry storing: no sequences", );
+    const QList<GObject*> &seqs = objectsMap[GObjectTypes::SEQUENCE];
+    SAFE_POINT(1 == seqs.size(), "Raw sequence entry storing: sequence objects count error", );
+
+    U2SequenceObject *seq = dynamic_cast<U2SequenceObject*>(seqs.first());
+    SAFE_POINT(NULL != seq, "Raw sequence entry storing: NULL sequence object", );
+
+    QByteArray seqData = seq->getWholeSequenceData(os);
+    SAFE_POINT_OP(os, );
+    PlainTextFormat::storeRawData(seqData, os, io);
     CHECK_OP(os, );
 
     io->writeBlock("\n", 1);

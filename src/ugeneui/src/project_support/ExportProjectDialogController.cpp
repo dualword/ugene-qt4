@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,25 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportProjectDialogController.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
 #include <U2Core/GUrlUtils.h>
 #include <U2Core/ProjectModel.h>
 #include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include "ExportProjectDialogController.h"
 
 namespace U2{
 
@@ -45,15 +54,23 @@ static QString fixProjectFile(const QString& name) {
 ExportProjectDialogController::ExportProjectDialogController(QWidget *p, const QString& defaultProjectFileName) 
 : QDialog(p) 
 {
-	setupUi(this);
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122077");
+
     setModal(true);
     projectFile = fixProjectFile(defaultProjectFileName);
     projectFileEdit->setText(projectFile);
     Project* proj = AppContext::getProject();
-    if (proj == NULL || !proj->isItemModified()) {
+    setFixedHeight(height());
+    if (proj == NULL || !proj->isItemModified() || proj->getProjectURL().isEmpty()) {
         warningLabel->setVisible(false);
     }
-	connect(browseButton, SIGNAL(clicked()), this, SLOT(sl_onBrowseButton()));
+    connect(browseButton, SIGNAL(clicked()), this, SLOT(sl_onBrowseButton()));
+
+    SAFE_POINT(buttonBox, "buttonBox not initialized", );
+    QPushButton *b = buttonBox->button(QDialogButtonBox::Ok);
+    SAFE_POINT(b, "buttonBox without OK button", );
+    b->setText(tr("Export"));
 }
 
 void ExportProjectDialogController::accept(){
@@ -72,7 +89,7 @@ void ExportProjectDialogController::accept(){
 
 void ExportProjectDialogController::sl_onBrowseButton(){
 	LastUsedDirHelper h;
-	QString folder = QFileDialog::getExistingDirectory(this, tr("Choose Directory"), h.dir);
+	QString folder = U2FileDialog::getExistingDirectory(this, tr("Choose Directory"), h.dir);
     if (folder.isEmpty()) {
         return;
     }

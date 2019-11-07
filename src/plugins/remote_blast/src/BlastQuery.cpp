@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ int QDCDDActor::getMinResultLen() const {
 }
 
 QString QDCDDActor::getText() const {
-    return tr("Searches through the NCBI CDD database for annotations.");;
+    return tr("Searches through the NCBI CDD database for annotations.");
 }
 
 Task* QDCDDActor::getAlgorithmTask(const QVector<U2Region>& location) {
@@ -72,7 +72,7 @@ Task* QDCDDActor::getAlgorithmTask(const QVector<U2Region>& location) {
 
     settings.retries = 60;
 
-    DNAAlphabet* alph = dnaSeq.alphabet;
+    const DNAAlphabet* alph = dnaSeq.alphabet;
     settings.complT = GObjectUtils::findComplementTT(dnaSeq.alphabet);
     settings.aminoT = NULL;
     if (!alph->isAmino()) {
@@ -84,7 +84,7 @@ Task* QDCDDActor::getAlgorithmTask(const QVector<U2Region>& location) {
         }
         QList<DNATranslation*> TTs = AppContext::getDNATranslationRegistry()->lookupTranslation(alph, tt);
         if (!TTs.isEmpty()) {
-            settings.aminoT = TTs.first();
+             settings.aminoT = AppContext::getDNATranslationRegistry()->getStandardGeneticCodeTranslation(alph);
         } else {
             return new FailTask(tr("Bad sequence."));
         }
@@ -124,7 +124,7 @@ void QDCDDActor::sl_onAlgorithmTaskFinished() {
     int minLen = cfg->getParameter(MIN_RES_LEN)->getAttributeValueWithoutScript<int>();
     int maxLen = cfg->getParameter(MAX_RES_LEN)->getAttributeValueWithoutScript<int>();
     const QString& qualVal = cfg->getParameter(QUAL_ATTR)->getAttributeValueWithoutScript<QString>();
-    foreach(const SharedAnnotationData& ad, res) {
+    foreach (const SharedAnnotationData& ad, res) {
         const U2Region& reg = ad->location->regions.first();
         if (reg.length < minLen || reg.length > maxLen) {
             continue;
@@ -161,7 +161,7 @@ QDCDDActorPrototype::QDCDDActorPrototype() {
     attributes << new Attribute(maxResLen, BaseTypes::NUM_TYPE(), false, 5000);
     attributes << new Attribute(qual, BaseTypes::STRING_TYPE(), true);
 
-    QMap<QString, PropertyDelegate*> delegates; 
+    QMap<QString, PropertyDelegate*> delegates;
     {
         QVariantMap m;
         m["1e-100"] = 1e-100;
@@ -176,7 +176,7 @@ QDCDDActorPrototype::QDCDDActorPrototype() {
     {
         QVariantMap lenMap;
         lenMap["minimum"] = QVariant(0);
-        lenMap["maximum"] = QVariant(INT_MAX); 
+        lenMap["maximum"] = QVariant(INT_MAX);
         lenMap["suffix"] = L10N::suffixBp();
         delegates[MIN_RES_LEN] = new SpinBoxDelegate(lenMap);
         delegates[MAX_RES_LEN] = new SpinBoxDelegate(lenMap);

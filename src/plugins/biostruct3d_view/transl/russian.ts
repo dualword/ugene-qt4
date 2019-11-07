@@ -6,27 +6,27 @@
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Форма</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="20"/>
         <source>Structure</source>
-        <translation type="unfinished"></translation>
+        <translation>Структура</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="37"/>
         <source>Chain</source>
-        <translation type="unfinished"></translation>
+        <translation>Цепь</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="54"/>
         <source>Region</source>
-        <translation type="unfinished"></translation>
+        <translation>Регион</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="64"/>
         <source>Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Модель</translation>
     </message>
 </context>
 <context>
@@ -37,7 +37,7 @@
         <translation>Трубки</translation>
     </message>
     <message>
-        <location filename="../src/WormsGLRenderer.cpp" line="33"/>
+        <location filename="../src/WormsGLRenderer.cpp" line="34"/>
         <source>Worms</source>
         <translation>Каркас</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>Выпуклая структура</translation>
     </message>
     <message>
-        <location filename="../src/BallAndStickGLRenderer.cpp" line="37"/>
+        <location filename="../src/BallAndStickGLRenderer.cpp" line="38"/>
         <source>Ball-and-Stick</source>
         <translation>Шаростержневая модель</translation>
     </message>
@@ -79,7 +79,7 @@
     <message>
         <location filename="../src/BioStruct3DColorScheme.cpp" line="83"/>
         <source>Simple colors</source>
-        <translation type="unfinished"></translation>
+        <translation>Простые цвета</translation>
     </message>
 </context>
 <context>
@@ -87,83 +87,63 @@
     <message>
         <location filename="../src/ui/SelectModelsDialog.ui" line="14"/>
         <source>Select Models</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SelectModelsDialog.ui" line="25"/>
-        <source>All</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SelectModelsDialog.ui" line="32"/>
-        <source>Invert</source>
-        <translation type="unfinished"></translation>
+        <translation>Выбор моделей</translation>
     </message>
 </context>
 <context>
     <name>SettingsDialog</name>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="145"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="35"/>
         <source>Anaglyph view</source>
         <translation>Стереоизображение</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="159"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="49"/>
         <source>Eyes shift</source>
         <translation>Сдвиг слоев</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="14"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="20"/>
         <source>Settings</source>
         <translation>Настройки</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="31"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="279"/>
         <source>Set background color...</source>
         <translation>Выбрать цвет фона...</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="44"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="292"/>
         <source>Set selection color...</source>
         <translation>Выбрать цвет выделения...</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="53"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="301"/>
         <source>Detail level</source>
         <translation>Уровень детализации</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="77"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="325"/>
         <source>Unselected regions shading</source>
         <translation>Затемнение невыбранных регионов</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="123"/>
-        <source>OK</source>
-        <translation>Применить</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="130"/>
-        <source>Cancel</source>
-        <translation>Отмена</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="206"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="96"/>
         <source>Glasses colors</source>
         <translation>Цвета очков</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="235"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="125"/>
         <source>Left</source>
         <translation>Левый</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="245"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="135"/>
         <source>Right</source>
         <translation>Правый</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="338"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="254"/>
         <source>Swap colors</source>
         <translation>Поменять местами</translation>
     </message>
@@ -173,33 +153,33 @@
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="14"/>
         <source>Structural Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Структурное выравнивание</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="20"/>
         <source>Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Алгоритм</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="45"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Референсная</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="61"/>
         <source>Mobile</source>
-        <translation type="unfinished"></translation>
+        <translation>Мобильная</translation>
     </message>
 </context>
 <context>
     <name>U2::AddModelToSplitterTask</name>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="785"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="807"/>
         <source>Add 3d model &apos;%1&apos; to BioStruct3DSplitter</source>
         <translation>Добавить 3D модель &apos;%1&apos; в BioStruct3DSplitter</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="813"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="835"/>
         <source>Model %1 wasn&apos;t added</source>
         <translation>Модель %1 не была добавлена</translation>
     </message>
@@ -207,115 +187,115 @@
 <context>
     <name>U2::BioStruct3DGLWidget</name>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="761"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="776"/>
         <source>Spin</source>
         <translation>Вращение</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="750"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="765"/>
         <source>Off</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="757"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="772"/>
         <source>Models..</source>
-        <translation type="unfinished"></translation>
+        <translation>Модели..</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="798"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="795"/>
+        <source>Align With...</source>
+        <translation>Выровнять с...</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="816"/>
         <source>Molecular Surface Render Style</source>
         <translation>Стиль отрисовки поверхности</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="801"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="820"/>
         <source>Molecular Surface</source>
         <translation>Молекулярная поверхность</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="581"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="593"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="581"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="593"/>
         <source>Unable to open file %1 for writing</source>
         <translation>Невозможно открыть файл %1 для записи</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="765"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="780"/>
         <source>Settings...</source>
         <translation>Настройки...</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="768"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="783"/>
         <source>Close</source>
         <translation>Закрыть</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="771"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="786"/>
         <source>Export Image...</source>
         <translation>Экспортировать изображение...</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="780"/>
-        <source>Align With...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="783"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="799"/>
         <source>Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Сбросить</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="790"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="806"/>
         <source>Render Style</source>
         <translation>Стиль отрисовки</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="794"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="811"/>
         <source>Coloring Scheme</source>
         <translation>Цветовая схема</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="825"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="845"/>
         <source>Structural Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Структурное выравнивание</translation>
     </message>
 </context>
 <context>
     <name>U2::BioStruct3DSettingsDialog</name>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="47"/>
+        <location filename="../src/SettingsDialog.cpp" line="50"/>
         <source>Custom</source>
         <translation>Выбранные</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="49"/>
+        <location filename="../src/SettingsDialog.cpp" line="52"/>
         <source>Red - Blue</source>
         <translation>Красный - Синий</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="50"/>
+        <location filename="../src/SettingsDialog.cpp" line="53"/>
         <source>Cyan - Red</source>
         <translation>Голубой - Красный</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="51"/>
+        <location filename="../src/SettingsDialog.cpp" line="54"/>
         <source>Red - Dark Cyan</source>
         <translation>Красный - Темно-голубой</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="52"/>
+        <location filename="../src/SettingsDialog.cpp" line="55"/>
         <source>Red - Green</source>
         <translation>Красный - Зеленый</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="53"/>
+        <location filename="../src/SettingsDialog.cpp" line="56"/>
         <source>Magenta - Green</source>
         <translation>Пурпурный - Зеленый</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="239"/>
+        <location filename="../src/SettingsDialog.cpp" line="242"/>
         <source>(not supported by your videocard)</source>
         <translation>(не поддерживается видеокартой)</translation>
     </message>
@@ -323,7 +303,7 @@
 <context>
     <name>U2::BioStruct3DViewContext</name>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="175"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="183"/>
         <source>Close 3D Structure Viewer</source>
         <translation>Закрыть визуализатор 3D структур</translation>
     </message>
@@ -331,12 +311,12 @@
 <context>
     <name>U2::BioStruct3DViewPlugin</name>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="79"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="87"/>
         <source>3D Structure Viewer</source>
         <translation>Визуализатор 3D структур</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="79"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="87"/>
         <source>Visualizes 3D structures of biological molecules.</source>
         <translation>Визуализирует 3D структуры биологических молекул.</translation>
     </message>
@@ -344,75 +324,101 @@
 <context>
     <name>U2::SelectModelsDialog</name>
     <message>
-        <location filename="../src/SelectModelsDialog.cpp" line="78"/>
-        <source>Error</source>
-        <translation type="unfinished">Ошибка</translation>
+        <location filename="../src/SelectModelsDialog.cpp" line="40"/>
+        <source>All</source>
+        <translation>Все</translation>
     </message>
     <message>
-        <location filename="../src/SelectModelsDialog.cpp" line="78"/>
+        <location filename="../src/SelectModelsDialog.cpp" line="41"/>
+        <source>Invert</source>
+        <translation>Инвертировать</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="42"/>
+        <source>OK</source>
+        <translation>Применить</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="43"/>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="94"/>
+        <source>Error</source>
+        <translation>Ошибка</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="94"/>
         <source>At least one model shoud be selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Выберите как минимум одну модель.</translation>
     </message>
 </context>
 <context>
     <name>U2::SplitterHeaderWidget</name>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="388"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="398"/>
         <source>3D Structure Viewer</source>
         <translation>Визуализатор 3D структур</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="396"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="406"/>
         <source>Active view:</source>
         <translation>Активная:</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="403"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="413"/>
         <source>Restore Default View</source>
         <translation>Восстановить вид по умолчанию</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="410"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="419"/>
         <source>Zoom In</source>
         <translation>Увеличить</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="419"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="426"/>
         <source>Zoom Out</source>
         <translation>Уменьшить</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="426"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="432"/>
         <source>Synchronize 3D Structure Views</source>
         <translation>Синхронизировать изображения</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="433"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="438"/>
         <source>Display</source>
         <translation>Изображение</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="545"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="462"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="463"/>
+        <source>Toggle view</source>
+        <translation>Переключить вид</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="552"/>
         <source>Show %1</source>
         <translation>Показывать %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="754"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="776"/>
         <source>File not found: %1</source>
         <translation>Файл не найден: %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="766"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="788"/>
         <source>Illegal entry: %1</source>
         <translation>Некорректные входные данные: %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="439"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="444"/>
         <source>Links</source>
         <translation>Ссылки</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="445"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="450"/>
         <source>Add</source>
         <translation>Добавить</translation>
     </message>

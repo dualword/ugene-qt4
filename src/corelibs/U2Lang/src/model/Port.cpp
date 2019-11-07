@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -64,10 +64,22 @@ void PortDescriptor::setNewType(const DataTypePtr &newType) {
     type = newType;
 }
 
+QMap<Descriptor, DataTypePtr> PortDescriptor::getOwnTypeMap() const {
+    if (type->isMap()) {
+        return type->getDatatypesMap();
+    } else {
+        QMap<Descriptor, DataTypePtr> result;
+        Descriptor d = (Descriptor &)(*this);
+        result[d] = type;
+
+        return result;
+    }
+}
+
 /**************************
 * Port
 **************************/
-Port::Port(const PortDescriptor& d, Actor* p) : PortDescriptor(d), proc(p) {
+Port::Port(const PortDescriptor& d, Actor* p) : PortDescriptor(d), proc(p), enabled(true) {
 }
 
 Actor * Port::owner() const {
@@ -88,13 +100,26 @@ void Port::setParameter(const QString& name, const QVariant& val) {
 }
 
 void Port::remap(const QMap<ActorId, ActorId>&) {
+    // nothing to do with the port
+}
+
+void Port::updateBindings(const QMap<ActorId, ActorId>&) {
+    // nothing to do with the port
+}
+
+void Port::replaceActor(Actor * /*oldActor*/, Actor * /*newActor*/, const QList<PortMapping> & /*mappings*/) {
+    // nothing to do with the port
 }
 
 bool Port::canBind(const Port* other) const {
     if (this == other || proc == other->proc || isInput() == other->isInput()) {
         return false;
     }
-    if ((!isMulti() && getWidth() != 0) || (!other->isMulti() && other->getWidth() != 0)) {
+    bool thisMulty = isMulti();
+    int thisWidth = getWidth();
+    bool otherMulty = other->isMulti();
+    int otherWidth = other->getWidth();
+    if ((!thisMulty && thisWidth != 0) || (!otherMulty && otherWidth != 0)) {
         return false;
     }
     return !bindings.contains(const_cast<Port*>(other));
@@ -115,6 +140,13 @@ void Port::removeLink(Link* b) {
     assert(bindings.contains(peer));
     bindings.remove(peer);
     emit bindingChanged();
+}
+
+void Port::setEnabled(bool _enabled) {
+    if(enabled != _enabled) {
+        enabled = _enabled;
+        emit si_enabledChanged(enabled);
+    }
 }
 
 /**************************
@@ -146,6 +178,13 @@ void Link::connect(Port* p1, Port* p2) {
     }
     p1->addLink(this);
     p2->addLink(this);
+}
+
+void Link::disconnect() {
+    if (NULL != src && NULL != dest) {
+        src->removeLink(this);
+        dest->removeLink(this);
+    }
 }
 
 }

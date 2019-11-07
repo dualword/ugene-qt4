@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,15 +26,17 @@
 #ifndef _U2_QUERY_PROC_CFG_DELEGATE_H_
 #define _U2_QUERY_PROC_CFG_DELEGATE_H_
 
-#include "QueryEditor.h"
+#include <QItemDelegate>
+
 #include <U2Lang/ConfigurationEditor.h>
-#include <QtGui/QItemDelegate>
+
+#include "QueryEditor.h"
 
 Q_DECLARE_METATYPE(U2::PropertyDelegate*)
 
 namespace U2 {
 
-   
+
 enum {
     DelegateRole = Qt::UserRole + 100,
     DescriptorRole
@@ -43,7 +45,7 @@ enum {
 class QueryProcCfgDelegate : public QItemDelegate {
 public:
     QueryProcCfgDelegate(QueryEditor* parent) : QItemDelegate(parent) {}
-    
+
     QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const {
         QItemDelegate* d = index.model()->data(index, DelegateRole).value<PropertyDelegate*>();
         if (d) {

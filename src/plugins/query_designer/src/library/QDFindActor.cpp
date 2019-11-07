@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -66,7 +66,8 @@ QString QDFindActor::getText() const {
 Task* QDFindActor::getAlgorithmTask(const QVector<U2Region>& location) {
     Task* t = new Task(tr("Find"), TaskFlag_NoRun);
     settings.sequence = scheme->getSequence().seq;
-    settings.pattern = cfg->getParameter(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toAscii().toUpper();
+    settings.pattern = cfg->getParameter(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toLatin1().toUpper();
+    settings.maxResult2Find = FindAlgorithmSettings::MAX_RESULT_TO_FIND_UNLIMITED;
 
     switch(getStrandToRun()) {
         case QDStrand_Both:
@@ -81,9 +82,13 @@ Task* QDFindActor::getAlgorithmTask(const QVector<U2Region>& location) {
     }
 
     if (settings.strand != FindAlgorithmStrand_Direct) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->lookupTranslation(scheme->getSequence().alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!compTTs.isEmpty()) {
-            settings.complementTT = compTTs.first();
+        DNATranslation* compTT = NULL;
+        if (scheme->getSequence().alphabet->isNucleic()) {
+            compTT = AppContext::getDNATranslationRegistry()->
+                lookupComplementTranslation(scheme->getSequence().alphabet);
+        }
+        if (compTT  != NULL) {
+            settings.complementTT = compTT ;
         } else {
             QString err = tr("%1: can not find complement translation.").arg(getParameters()->getLabel());
             return new FailTask(err);
@@ -95,7 +100,7 @@ Task* QDFindActor::getAlgorithmTask(const QVector<U2Region>& location) {
         return new FailTask(err);
     }
 
-    DNAAlphabet* ptrnAl = U2AlphabetUtils::findBestAlphabet(settings.pattern);
+    const DNAAlphabet* ptrnAl = U2AlphabetUtils::findBestAlphabet(settings.pattern);
     if (ptrnAl->getType()!=DNAAlphabet_NUCL) {
         QString err = tr("%1: pattern has to be nucleic").arg(getParameters()->getLabel());
         return new FailTask(err);

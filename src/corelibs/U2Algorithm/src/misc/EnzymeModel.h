@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,14 +33,14 @@ namespace U2 {
 
 class DNAAlphabet;
 
-#define QUALIFIER_LEFT_TERM             "5'term"
-#define QUALIFIER_LEFT_OVERHANG         "5'overhang"
-#define QUALIFIER_LEFT_TYPE             "5'type"
-#define QUALIFIER_LEFT_STRAND           "5'strand"
-#define QUALIFIER_RIGHT_TERM            "3'term"
-#define QUALIFIER_RIGHT_OVERHANG        "3'overhang"
-#define QUALIFIER_RIGHT_TYPE            "3'type"
-#define QUALIFIER_RIGHT_STRAND          "3'strand"
+#define QUALIFIER_LEFT_TERM             "left_end_term"
+#define QUALIFIER_LEFT_OVERHANG         "left_end_seq"
+#define QUALIFIER_LEFT_TYPE             "left_end_type"
+#define QUALIFIER_LEFT_STRAND           "left_end_strand"
+#define QUALIFIER_RIGHT_TERM            "right_end_term"
+#define QUALIFIER_RIGHT_OVERHANG        "right_end_seq"
+#define QUALIFIER_RIGHT_TYPE            "right_end_type"
+#define QUALIFIER_RIGHT_STRAND          "right_end_strand"
 #define QUALIFIER_SOURCE                "fragment_source"
 #define QUALIFIER_INVERTED              "fragment_inverted"
 #define OVERHANG_TYPE_BLUNT             "blunt"
@@ -69,7 +69,7 @@ public:
 
 class U2ALGORITHM_EXPORT EnzymeData : public QSharedData {
 public:
-    EnzymeData(); 
+    EnzymeData();
 
     QString         id;
     QString         accession;
@@ -78,7 +78,7 @@ public:
     int             cutDirect; //starts from the first char in direct strand
     int             cutComplement; // starts from the first char in complement strand, negative->right offset
     QString         organizm;
-    DNAAlphabet*    alphabet;
+    const DNAAlphabet*    alphabet;
 };
 
 

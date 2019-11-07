@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,6 +47,7 @@ public:
 
     virtual QString getThresholdSuffix() const {return QString("%");}
 
+    virtual bool isSequenceLikeResult() const {return true;}
 };
 
 class U2ALGORITHM_EXPORT MSAConsensusAlgorithmStrict : public MSAConsensusAlgorithm {
@@ -54,7 +55,7 @@ class U2ALGORITHM_EXPORT MSAConsensusAlgorithmStrict : public MSAConsensusAlgori
 public:
     MSAConsensusAlgorithmStrict(MSAConsensusAlgorithmFactoryStrict* f, QObject* p = NULL) : MSAConsensusAlgorithm(f, p){}
 
-    virtual char getConsensusChar(const MAlignment& ma, int column) const;
+    virtual char getConsensusChar(const MAlignment& ma, int column, const QVector<qint64> &seqIdx = QVector<qint64>()) const;
 };
 
 

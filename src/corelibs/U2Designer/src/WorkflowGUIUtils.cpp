@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -114,19 +114,40 @@ void DesignerGUIUtils::paintSamplesDocument(QPainter* painter, QTextDocument* do
 }
 
 void DesignerGUIUtils::setupSamplesDocument(const Descriptor& d, const QIcon& ico, QTextDocument* doc) {
-    QString text = 
-        "<html>"
-        "<table align='center' border='0' cellpadding='3' cellspacing='3'>"
-        "<tr><td colspan='2'><h1 align='center'>%1</h1></td></tr>"
-        "<tr><td valign='middle' width='20%'><img src=\"%2\"/></td><td valign='bottom'><br>%3</td></tr>"
-        "<tr><td colspan='2' valign='top'>%4<br></td></tr>"
-        "<tr><td colspan='2' bgcolor='gainsboro' align='center'><font color='maroon' size='+2' face='Courier'><b>%5</b></font></td></tr>"
-        "</table>"
-        "</html>";
+    bool hasIcon = (ico.availableSizes().size() > 0);
+    QString text =
+            QString(hasIcon ?
+                        "<html>"
+                        "<table align='center' border='0' cellpadding='3' cellspacing='3'>"
+                        "<tr><td colspan='2'><h1 align='center'>%1</h1></td></tr>"
+                        "<tr>"
+                            "<td valign='middle' width='20%'><img src=\"%2\"/></td>"
+                            "<td valign='bottom'><br>%3</td></tr>"
+                        "<tr><td colspan='2' valign='top'>%4<br></td></tr>"
+                        "<tr><td colspan='2' bgcolor='gainsboro' align='center'><font color='maroon' size='+2' face='Courier'><b>%5</b></font></td></tr>"
+                        "</table>"
+                        "</html>"
+                      :
+                        "<html>"
+                        "<table align='center' border='0' cellpadding='3' cellspacing='3'>"
+                        "<tr><td><h1 align='center'>%1</h1></td></tr>"
+                        "<tr>%2"
+                            "<td valign='bottom'><br>%3</td></tr>"
+                        "<tr><td valign='top' halign='right'>%4<br></td></tr>"
+                        "<tr><td bgcolor='gainsboro' align='center'><font color='maroon' size='+2' face='Courier'><b>%5</b></font></td></tr>"
+                        "</table>"
+                        "</html>"
+                        );
     QString img("img://img");
-    
-    doc->addResource(QTextDocument::ImageResource, QUrl(img), ico.pixmap(200));
+
+    if (hasIcon) {
+        doc->addResource(QTextDocument::ImageResource, QUrl(img), ico.pixmap(200));
+    }
+#if (QT_VERSION < 0x050000) //Qt 5
     QString body = Qt::escape(d.getDocumentation()).replace("\n", "<br>");
+#else
+    QString body = d.getDocumentation().toHtmlEscaped().replace("\n", "<br>");
+#endif
     int brk = body.indexOf("<br><br>");
     int shift = 8;
     if (brk <= 0) {
@@ -138,7 +159,7 @@ void DesignerGUIUtils::setupSamplesDocument(const Descriptor& d, const QIcon& ic
         body2 = body.mid(brk + shift);
         body = body.left(brk);
     }
-    text = text.arg(d.getDisplayName()).arg(img).arg(body).arg(body2)
+    text = text.arg(d.getDisplayName()).arg(hasIcon ? img : "").arg(body).arg(body2)
         .arg(QObject::tr("Double click to load the sample"));
     doc->setHtml(text);
     QFont f;

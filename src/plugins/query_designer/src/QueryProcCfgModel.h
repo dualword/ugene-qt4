@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -54,26 +54,27 @@ public:
     }
 
     void setConfiguration(Configuration* cfg) {
+        beginResetModel();
         this->cfg = cfg;
         if (cfg) {
             editor = cfg->getEditor();
-            //attrs = cfg->getParameters().values();
             attrs = cfg->getAttributes();
         } else {
             editor = NULL;
             attrs.clear();
         }
-        reset();
+        endResetModel();
     }
 
     void setConfiguration(ConfigurationEditor* ed, const QList<Attribute*>& al) {
+        beginResetModel();
         editor = ed;
         attrs = al;
-        reset();
+        endResetModel();
     }
 
     int columnCount(const QModelIndex&) const { return 2; }
-    
+
     int rowCount(const QModelIndex&) const { return attrs.size(); }
 
     Qt::ItemFlags flags (const QModelIndex& index) const {
@@ -111,11 +112,11 @@ public:
                 return QVariant();
 
             }
-        }     
+        }
         QVariant val = item->getAttributePureValue();
         PropertyDelegate* pd = editor ? editor->getDelegate(item->getId()) : NULL;
         switch (role) {
-        case Qt::DisplayRole: 
+        case Qt::DisplayRole:
         case Qt::ToolTipRole:
             {
                 if(pd) {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,6 @@
 
 #include "MrBayesTests.h"
 #include "MrBayesSupport.h"
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/SaveDocumentTask.h>
 
 #include <U2Core/DocumentModel.h>
@@ -122,7 +121,7 @@ void GTest_MrBayes::prepare() {
     assert( obj != NULL);
 
     CreatePhyTreeSettings settings;
-    settings.algorithmId = MRBAYES_TOOL_NAME;
+    settings.algorithmId = ET_MRBAYES;
     settings.mb_ngen = 1000;
     settings.mrBayesSettingsScript = QString("Begin MrBayes;\n"
         "lset Nst=2 rates=gamma ngammacat=4;\n"
@@ -138,7 +137,7 @@ void GTest_MrBayes::prepare() {
 Task::ReportResult GTest_MrBayes::report() {
     if (!task->hasError()) {
         const PhyTree computedTree = task->getResult();
-        const PhyTree& treeFromDoc = treeObjFromDoc->getTree(); 
+        const PhyTree& treeFromDoc = treeObjFromDoc->getTree();
         bool same = PhyTreeObject::treesAreAlike(computedTree, treeFromDoc);
         if(!same){
             stateInfo.setError("Trees are not equal");

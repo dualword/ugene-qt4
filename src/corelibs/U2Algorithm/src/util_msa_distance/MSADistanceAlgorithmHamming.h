@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,11 +28,17 @@
 namespace U2 {
 
 // Hamming algorithm is based on Hamming distance between sequences
+// weight schemes is the following:
+//
+// w("A", "T") = 1
+// w("A", "-") = w ("-", "A") = 0 or 1 (depends on "Exclude gaps" option)
+// w("-", "-") = 0
+// w("A", "A") = 0
 class U2ALGORITHM_EXPORT MSADistanceAlgorithmFactoryHamming: public MSADistanceAlgorithmFactory {
     Q_OBJECT
 public:
     MSADistanceAlgorithmFactoryHamming(QObject* p = NULL);
-            
+
     virtual MSADistanceAlgorithm* createAlgorithm(const MAlignment& ma, QObject* parent);
 
     virtual QString getDescription() const;
@@ -46,7 +52,7 @@ class U2ALGORITHM_EXPORT MSADistanceAlgorithmHamming : public MSADistanceAlgorit
     Q_OBJECT
 public:
     MSADistanceAlgorithmHamming(MSADistanceAlgorithmFactoryHamming* f, const MAlignment& ma)
-        : MSADistanceAlgorithm(f, ma){}
+        : MSADistanceAlgorithm(f, ma){ isSimilarity = false;}
 
     virtual void run();
 };

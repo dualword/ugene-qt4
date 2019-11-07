@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,34 +22,58 @@
 #ifndef _U2_PHYTREE_OBJECT_H_
 #define _U2_PHYTREE_OBJECT_H_
 
-#include "GObjectTypes.h"
-
 #include <U2Core/GObject.h>
 #include <U2Core/PhyTree.h>
+#include <U2Core/U2RawData.h>
 
 namespace U2 {
+
+class U2CORE_EXPORT U2PhyTree : public U2RawData {
+public:
+    U2PhyTree();
+    U2PhyTree(const U2DbiRef &dbiRef);
+
+    U2DataType getType() const;
+};
 
 class U2CORE_EXPORT PhyTreeObject : public GObject {
     Q_OBJECT
 public:
-    PhyTreeObject(const PhyTree& _tree, const QString& objectName, const QVariantMap& hintsMap = QVariantMap()) 
-        : GObject(GObjectTypes::PHYLOGENETIC_TREE, objectName, hintsMap), tree(_tree){};
+    static PhyTreeObject * createInstance(const PhyTree &tree, const QString &objectName, const U2DbiRef &dbiRef, U2OpStatus &os, const QVariantMap &hintsMap = QVariantMap());
 
-    virtual const PhyTree& getTree() const {return tree;}
-    
+    PhyTreeObject(const QString &objectName, const U2EntityRef &treeRef, const QVariantMap &hintsMap = QVariantMap());
+
+    virtual const PhyTree& getTree() const;
+    void setTree(const PhyTree& _tree);
+
+    void onTreeChanged();
+
+    void rerootPhyTree(PhyNode* node);
     // Warning!
     // PhyBranches can be accessed and modified!
     // TODO: move branches to private data, add getters and setters
     const PhyNode* findPhyNodeByName(const QString& name);
 
-    virtual GObject* clone(const U2DbiRef&, U2OpStatus&) const;
-    
+    virtual GObject* clone(const U2DbiRef &dstDbiRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap()) const;
+
     // Utility functions
-    
     // Compares number of nodes and nodes with names (how many nodes etc.)
     static bool treesAreAlike(const PhyTree& tree1, const PhyTree& tree2);
 
+    bool haveNodeLabels() const;
+
+signals:
+    void si_phyTreeChanged();
+
 protected:
+    void loadDataCore(U2OpStatus &os);
+
+private:
+    PhyTreeObject(const PhyTree &tree, const QString &objectName, const U2EntityRef &treeRef, const QVariantMap &hintsMap);
+    void commit();
+    static void commit(const PhyTree &tree, const U2EntityRef &treeRef, U2OpStatus &os);
+    static void commit(const PhyTree &tree, const U2EntityRef &treeRef);
+
     PhyTree tree;
 };
 

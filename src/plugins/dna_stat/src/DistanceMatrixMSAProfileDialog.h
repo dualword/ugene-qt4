@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,7 @@
 namespace U2 {
 
 class MSAEditor;
+class MSADistanceAlgorithm;
 
 class DistanceMatrixMSAProfileDialog : public QDialog, public Ui_DistanceMatrixMSAProfileDialog {
     Q_OBJECT
@@ -44,7 +45,7 @@ public:
     virtual void accept();
 
 private slots:
-    
+
     void sl_selectFile();
     void sl_formatChanged(bool);
 
@@ -60,18 +61,18 @@ enum DistanceMatrixMSAProfileOutputFormat {
 
 class DistanceMatrixMSAProfileTaskSettings {
 public:
-    DistanceMatrixMSAProfileTaskSettings(){ 
-        outFormat = DistanceMatrixMSAProfileOutputFormat_Show; 
-        usePercents = false;
-    }
+    DistanceMatrixMSAProfileTaskSettings();
 
     QString                         algoName;    // selected algorithm
     QString                         profileName; // usually object name
     QString                         profileURL;  // document url
     MAlignment                      ma;
     bool                            usePercents; //report percents but not counts
-    DistanceMatrixMSAProfileOutputFormat   outFormat;   
-    QString                         outURL;    
+    bool                            excludeGaps; //exclude gaps when calculate distance
+    bool                            showGroupStatistic;
+    DistanceMatrixMSAProfileOutputFormat   outFormat;
+    QString                         outURL;
+    MSAEditor*                      ctx;
 };
 
 class DistanceMatrixMSAProfileTask : public Task {
@@ -80,14 +81,18 @@ public:
     DistanceMatrixMSAProfileTask(const DistanceMatrixMSAProfileTaskSettings& s);
 
     virtual void prepare();
-    
+
+    void createDistanceTable(MSADistanceAlgorithm* algo, const QList<MAlignmentRow> &rows);
+
+    QList<Task*> createStatisticsDocument(Task* subTask);
+
     QList<Task*> onSubTaskFinished(Task* subTask);
-    //void run();    
+    //void run();
     ReportResult report();
 
 private:
-    
-    DistanceMatrixMSAProfileTaskSettings   s;        
+
+    DistanceMatrixMSAProfileTaskSettings   s;
     QString                         resultText;
 };
 

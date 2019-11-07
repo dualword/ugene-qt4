@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -402,7 +402,7 @@ QColor GraphUtils::proposeLightColorByKey(const QString& key) {
     int hash =0;
     uint len = key.length();
     for (int j=len-1; j>=0; j--) {
-        hash+=key.at(j).toAscii();
+        hash+=key.at(j).toLatin1();
     }
     return colors.at((hash*hash)%colors.size());
 }
@@ -445,5 +445,27 @@ int GraphUtils::calculateChunk( qint64 start, qint64 end, qint64 len, const QPai
     }
     return chunk;
 }
+
+qint64 GraphUtils::pickRoundedNumberBelow(qint64 maxVal) {
+	if (maxVal <= 0) {
+		return maxVal;
+	}
+	//current implementation: starts with seed 1, multiplies sequentially by 2, 5 and steps to 10
+	qint64 i = 1, res = 1;
+	do {
+		res = i;
+		if (i * 10 <= maxVal) {
+			i *= 10;
+			continue;
+		}
+		if (i * 5 <= maxVal) {
+			i *= 5;
+			continue;
+		}
+		i *= 2;
+	} while (i <= maxVal);
+	return res;
+}
+
 }//namespace
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,31 @@
  * MA 02110-1301, USA.
  */
 
-#include "FindTandemsDialog.h"
+#include <math.h>
 
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QToolButton>
+
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/AppContext.h>
-#include <U2Core/Settings.h>
-
-#include <U2Formats/GenbankFeatures.h>
-
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNASequenceSelection.h>
+#include <U2Core/GenbankFeatures.h>
+#include <U2Core/L10n.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
 #include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/RegionSelector.h>
+
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/AnnotatedDNAView.h>
 
-#include <QtGui/QMessageBox>
-#include <QtGui/QLineEdit>
-#include <math.h>
+#include "FindTandemsDialog.h"
 
 namespace U2 {
 
@@ -47,35 +56,34 @@ FindTandemsTaskSettings FindTandemsDialog::defaultSettings()
     FindTandemsTaskSettings res;
     Settings* s = AppContext::getSettings();
     res.minPeriod = (s->getValue(SETTINGS_ROOT + MIN_LEN_SETTINGS, 1).toInt());
-    //res.(s->getValue(SETTINGS_ROOT + IDENTITY_SETTINGS, 100).toInt());
-    //bool minDistCheck = (s->getValue(SETTINGS_ROOT + MIN_DIST_CHECK_SETTINGS, true).toBool());
-    //bool maxDistCheck = (s->getValue(SETTINGS_ROOT + MAX_DIST_CHECK_SETTINGS, true).toBool());
-    //res.minDist = !minDistCheck ? 0 : (s->getValue(SETTINGS_ROOT + MIN_DIST_SETTINGS, 0).toInt());
-    //res.maxDist = !maxDistCheck ? 0 : (s->getValue(SETTINGS_ROOT + MAX_DIST_SETTINGS, 5000).toInt());
-    //res.inverted = (s->getValue(SETTINGS_ROOT + INVERT_CHECK_SETTINGS, false).toBool());
     return res;
 }
 
-FindTandemsDialog::FindTandemsDialog(ADVSequenceObjectContext* _sc) 
-: QDialog(_sc->getAnnotatedDNAView()->getWidget()) 
+FindTandemsDialog::FindTandemsDialog(ADVSequenceObjectContext* _sc)
+: QDialog(_sc->getAnnotatedDNAView()->getWidget())
 {
     sc = _sc;
     setupUi(this);
-    
+    new HelpButton(this, buttonBox, "16122333");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Start"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    tabWidget->setCurrentIndex(0);
+
     CreateAnnotationModel m;
+    m.hideAnnotationType = true;
     m.hideLocation = true;
     m.data->name = GBFeatureUtils::getKeyInfo(GBFeatureKey_repeat_unit).text;
     m.sequenceObjectRef = sc->getSequenceObject();
     m.useUnloadedObjects = true;
     m.sequenceLen = sc->getSequenceObject()->getSequenceLength();
     ac = new CreateAnnotationWidgetController(m, this);
-    
+
     QWidget* caw = ac->getWidget();
     QVBoxLayout* l = new QVBoxLayout();
     l->setMargin(0);
     l->addWidget(caw);
     annotationsWidget->setLayout(l);
-    annotationsWidget->setMinimumSize(caw->layout()->minimumSize());
 
     algoComboBox->addItem(tr("Suffix array"), TSConstants::AlgoSuffix);
     algoComboBox->addItem(tr("Suffix array (optimized)"), TSConstants::AlgoSuffixBinary);
@@ -90,43 +98,26 @@ FindTandemsDialog::FindTandemsDialog(ADVSequenceObjectContext* _sc)
 
     int seqLen = sc->getSequenceLength();
 
-//    Settings* s = AppContext::getSettings();
-
-//    connect(minLenBox, SIGNAL(valueChanged(int)), SLOT(sl_repeatParamsChanged(int)));
-//    connect(identityBox, SIGNAL(valueChanged(int)), SLOT(sl_repeatParamsChanged(int)));
     rs=new RegionSelector(this, seqLen, false, sc->getSequenceSelection());
     rangeSelectorLayout->addWidget(rs);
-    connect(rs,SIGNAL(si_regionChanged(const U2Region&)),SLOT(sl_onRegionChanged(const U2Region&)));
-
-    //connect(minDistBox, SIGNAL(valueChanged(int)), SLOT(sl_minDistChanged(int)));
-    //connect(maxDistBox, SIGNAL(valueChanged(int)), SLOT(sl_maxDistChanged(int)));
-    
-    updateStatus();
 
     setWindowIcon(QIcon(":/ugene/images/ugene_16.png"));
+
 }
 
 QStringList FindTandemsDialog::getAvailableAnnotationNames() const {
     QStringList res;
-    const QSet<AnnotationTableObject*>& objs = sc->getAnnotationObjects();
+    const QSet<AnnotationTableObject *> objs = sc->getAnnotationObjects();
     QSet<QString> names;
-    foreach(AnnotationTableObject* o, objs) {
-        foreach(const Annotation* a, o->getAnnotations()) {
-            names.insert(a->getAnnotationName());
+    foreach (const AnnotationTableObject *o, objs) {
+        foreach (Annotation *a, o->getAnnotations()) {
+            names.insert(a->getName());
         }
     }
     res = names.toList();
     res.sort();
     return res;
 }
-
-/*
-void FindTandemsDialog::sl_setPredefinedAnnotationName() {
-    SetAnnotationNameAction* a = qobject_cast<SetAnnotationNameAction*>(sender());
-    QString text = a->text();
-    a->le->setText(text);
-}
-*/
 
 void FindTandemsDialog::minPeriodChanged(int min){
     maxPeriodBox->setValue(qMax(min,maxPeriodBox->value()));
@@ -164,10 +155,6 @@ void FindTandemsDialog::presetSelected(int preset){
     maxPeriodBox->setValue(maxPeriod);
 }
 
-void FindTandemsDialog::sl_onRegionChanged(const U2Region&) {
-    updateStatus();
-}
-
 bool FindTandemsDialog::getRegions(QCheckBox* cb, QLineEdit* le, QVector<U2Region>& res) {
     bool enabled = cb->isChecked();
     QString names = le->text();
@@ -175,17 +162,17 @@ bool FindTandemsDialog::getRegions(QCheckBox* cb, QLineEdit* le, QVector<U2Regio
         return true;
     }
     QSet<QString> aNames = names.split(',', QString::SkipEmptyParts).toSet();
-    const QSet<AnnotationTableObject*> aObjs = sc->getAnnotationObjects();
-    foreach(AnnotationTableObject* obj, aObjs) {
-        foreach(Annotation* a, obj->getAnnotations()) {
-            if (aNames.contains(a->getAnnotationName())) {
+    const QSet<AnnotationTableObject *> aObjs = sc->getAnnotationObjects();
+    foreach (AnnotationTableObject *obj, aObjs) {
+        foreach (Annotation *a, obj->getAnnotations()) {
+            if (aNames.contains(a->getName())) {
                 res << a->getRegions();
             }
         }
     }
     if (res.isEmpty()) {
         le->setFocus();
-        QMessageBox::critical(this, tr("Error"), tr("No annotations found: %1").arg(names));
+        QMessageBox::critical(this, L10N::errorTitle(), tr("No annotations found: %1").arg(names));
         return false;
     }
     return true;
@@ -199,7 +186,6 @@ U2Region FindTandemsDialog::getActiveRange(bool *ok) const {
 void FindTandemsDialog::accept() {
     int minPeriod = minPeriodBox->value();
     int maxPeriod = maxPeriodBox->value();
-//    int identPerc = identityBox->value();
     bool isRegionOk=false;
     U2Region range = getActiveRange(&isRegionOk);
     if(!isRegionOk){
@@ -209,37 +195,39 @@ void FindTandemsDialog::accept() {
     assert(range.length > 0);
     QString err = ac->validate();
     if (!err.isEmpty()) {
-        QMessageBox::critical(this, tr("Error"), err);
+        QMessageBox::critical(this, L10N::errorTitle(), err);
         return;
     }
 
-    ac->prepareAnnotationObject();
-    DNASequence seq = sc->getSequenceObject()->getWholeSequenceData();
+    U2OpStatusImpl os;
+    DNASequence seq = sc->getSequenceObject()->getSequence(range, os);
+    CHECK_OP_EXT(os, QMessageBox::critical(this, L10N::errorTitle(), os.getError()), );
+    if (seq.isNull() || !seq.alphabet) {
+        QMessageBox::warning(this, L10N::errorTitle(), tr("Not enough memory error ocurred while preparing data. Try to set smaller region."));
+        return;
+    }
+    bool objectPrepared = ac->prepareAnnotationObject();
+    if (!objectPrepared){
+        QMessageBox::warning(this, L10N::errorTitle(), tr("Cannot create an annotation object. Please check settings"));
+        return;
+    }
 
     FindTandemsTaskSettings settings;
     const CreateAnnotationModel& cam = ac->getModel();
     settings.minPeriod = minPeriod;
     settings.maxPeriod = maxPeriod;
-//    settings.mismatches = (100-identPerc) * minPeriod / 100;
-    settings.seqRegion = range;
-    settings.seqRegion = range;
     settings.algo = (TSConstants::TSAlgo)algoComboBox->currentIndex();
     settings.minRepeatCount = minRepeatsBox->value();
     settings.minTandemSize = qMax(FindTandemsTaskSettings::DEFAULT_MIN_TANDEM_SIZE, minTandemSizeBox->value());
     settings.showOverlappedTandems = overlappedTandemsCheckBox->isChecked();
 
-    FindTandemsToAnnotationsTask* t = new FindTandemsToAnnotationsTask(settings, seq, cam.data->name, cam.groupName, cam.annotationObjectRef);
+    settings.seqRegion = U2Region(0, seq.length());
+    settings.reportSeqShift = range.startPos;
+
+    FindTandemsToAnnotationsTask* t = new FindTandemsToAnnotationsTask(settings, seq, cam.data->name, cam.groupName, cam.description, cam.annotationObjectRef);
     AppContext::getTaskScheduler()->registerTopLevelTask(t);
-    
-    saveState();
+
     QDialog::accept();
-}
-
-void FindTandemsDialog::saveState() {
-    Settings* s = AppContext::getSettings();
-    int identPerc = identityBox->value();
-
-    s->setValue(SETTINGS_ROOT + IDENTITY_SETTINGS, identPerc);
 }
 
 quint64 FindTandemsDialog::areaSize() const {
@@ -251,15 +239,14 @@ quint64 FindTandemsDialog::areaSize() const {
     int maxDist = sc->getSequenceLength();
 
     quint64 dRange = qMax(0, maxDist - minDist);
-    
+
     quint64 res = range * dRange;
     return res;
 }
 
 int FindTandemsDialog::estimateResultsCount() const {
-    assert(identityBox->value() == 100);
     int len = 1;
-    
+
     quint64 nVariations  = areaSize(); //max possible results
     double variationsPerLen = pow(double(4), double(len));
     quint64 res = quint64(nVariations / variationsPerLen);
@@ -267,18 +254,6 @@ int FindTandemsDialog::estimateResultsCount() const {
     res = (res > 200) ? (res / 100) * 100 : res;
     res = (res > 2000) ? (res / 1000) * 1000 : res;
     return res;
-}
-
-void FindTandemsDialog::updateStatus() {
-/*    if (identityBox->value() == 100) {
-        int r = estimateResultsCount();
-        statusLabel->setText(tr("Estimated repeats count: %1").arg(r));
-        statusLabel->setToolTip(tr("Estimated repeats count hint is based on the active settings and random sequence model"));
-    } else {
-        statusLabel->setText("");
-        statusLabel->setToolTip("");
-    }
-*/
 }
 
 }//namespace

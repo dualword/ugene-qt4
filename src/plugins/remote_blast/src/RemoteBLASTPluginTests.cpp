@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,25 @@
  * MA 02110-1301, USA.
  */
 
-#include "RemoteBLASTPluginTests.h"
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/AnnotationTableObject.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2DbiRegistry.h>
+
+#include "RemoteBLASTPluginTests.h"
 
 namespace U2 {
 
-
 void GTest_RemoteBLAST::init(XMLTestFormat *tf, const QDomElement& el) {
     Q_UNUSED(tf);
-    
+
     ao = NULL;
     task = NULL;
     sequence = el.attribute(SEQUENCE_ATTR);
     if (sequence.isEmpty()) {
         failMissingValue(SEQUENCE_ATTR);
         return;
-    } 
+    }
 
     algoritm = el.attribute(ALG_ATTR);
     if(algoritm.isEmpty()) {
@@ -43,38 +45,36 @@ void GTest_RemoteBLAST::init(XMLTestFormat *tf, const QDomElement& el) {
         return;
     }
 
-    if(algoritm == "cdd") {
 
-        QString db = el.attribute(DATABASE_ATTR);
-        if(db.isEmpty()) {
-            failMissingValue(DATABASE_ATTR);
-            return;
-        }
-        request = "db=";
-        request.append(db);
+    QString database = el.attribute(DATABASE_ATTR);
+    if(database.isEmpty()) {
+        failMissingValue(DATABASE_ATTR);
+        return;
+    }
+    bool isCddSearch = algoritm == "blastp" && (0 == database.compare("cdd", Qt::CaseInsensitive) || database.contains("oasis", Qt::CaseInsensitive));
+    if(isCddSearch) {
+        request = "CMD=Put";
+        addParametr(request,ReqParams::program, algoritm);
+        addParametr(request,ReqParams::database, database);
+        addParametr(request,ReqParams::service, "rpsblast");
 
         QString eValue = el.attribute(EVALUE_ATTR);
         if(eValue.isEmpty()) {
             failMissingValue(EVALUE_ATTR);
             return;
         }
-        addParametr(request,ReqParams::cdd_eValue,eValue);
+        addParametr(request,ReqParams::expect,eValue);
 
         QString hits = el.attribute(HITS_ATTR);
         if(hits.isEmpty()) {
             failMissingValue(HITS_ATTR);
             return;
         }
-        addParametr(request,ReqParams::cdd_hits,hits);
+        addParametr(request,ReqParams::hits,hits);
     }
     else {
         request = "CMD=Put";
         addParametr(request,ReqParams::program,algoritm);
-        QString database = el.attribute(DATABASE_ATTR);
-        if(database.isEmpty()) {
-            failMissingValue(DATABASE_ATTR);
-            return;
-        }
         addParametr(request,ReqParams::database,database);
 
         QString megablast = el.attribute(MEGABLAST_ATTR);
@@ -125,6 +125,10 @@ void GTest_RemoteBLAST::init(XMLTestFormat *tf, const QDomElement& el) {
         }
         addParametr(request,ReqParams::gapCost,gapCost);
 
+        QString entrezQuery = el.attribute(ENTREZ_QUERY_ATTR);
+        if(false == entrezQuery.isEmpty())
+            addParametr(request,ReqParams::entrezQuery,entrezQuery);
+
         QString alph = el.attribute(ALPH_ATTR);
         if(alph.isEmpty()) {
             failMissingValue(ALPH_ATTR);
@@ -161,17 +165,19 @@ void GTest_RemoteBLAST::init(XMLTestFormat *tf, const QDomElement& el) {
         }
     }
 
-    bool isOk;
-    maxLength = el.attribute(MAX_LEN_ATTR).toInt(&isOk);
-    if (!isOk) {
-        stateInfo.setError(  QString("value not set %1, or unable to convert to integer ").arg(MAX_LEN_ATTR) );
-        return;
-    }
+    if(!isCddSearch) {
+        bool isOk;
+        maxLength = el.attribute(MAX_LEN_ATTR).toInt(&isOk);
+        if (!isOk) {
+            stateInfo.setError( QString("value not set %1, or unable to convert to integer ").arg(MAX_LEN_ATTR));
+            return;
+        }
 
-    minLength = el.attribute(MIN_LEN_ATTR).toInt(&isOk);
-    if (!isOk) {
-        stateInfo.setError(  QString("value not set %1, or unable to convert to integer ").arg(MIN_LEN_ATTR) );
-        return;
+        minLength = el.attribute(MIN_LEN_ATTR).toInt(&isOk);
+        if (!isOk) {
+            stateInfo.setError( QString("value not set %1, or unable to convert to integer ").arg(MIN_LEN_ATTR));
+            return;
+        }
     }
 
     QString expected = el.attribute(EXPECTED_ATTR);
@@ -181,11 +187,20 @@ void GTest_RemoteBLAST::init(XMLTestFormat *tf, const QDomElement& el) {
             expectedResults.append(id);
         }
     }
+
+    QString simpleStr = el.attribute(SIMPLE_ATTR);
+    if (simpleStr == "true") {
+        simple = true;
+    }else{
+        simple = false;
+    }
 }
 
 void GTest_RemoteBLAST::prepare() {
-    QByteArray query(sequence.toAscii());
-    ao = new AnnotationTableObject("aaa");
+    QByteArray query(sequence.toLatin1());
+    const U2DbiRef dbiRef = AppContext::getDbiRegistry()->getSessionTmpDbiRef(stateInfo);
+    SAFE_POINT_OP(stateInfo,);
+    ao = new AnnotationTableObject("aaa", dbiRef);
     RemoteBLASTTaskSettings cfg;
     cfg.dbChoosen = algoritm;
     cfg.aminoT = NULL;
@@ -195,10 +210,9 @@ void GTest_RemoteBLAST::prepare() {
     cfg.filterResult = 0;
     cfg.useEval = 0;
     cfg.params = request;
-    task = new RemoteBLASTToAnnotationsTask(cfg, 0, ao, "",QString("result"));
+    task = new RemoteBLASTToAnnotationsTask(cfg, 0, ao, "", QString("result"), "");
     addSubTask(task);
 }
-
 
 Task::ReportResult GTest_RemoteBLAST::report() {
     QStringList result;
@@ -207,17 +221,10 @@ Task::ReportResult GTest_RemoteBLAST::report() {
         return ReportResult_Finished;
     }
     if (ao != NULL){
-        QList<Annotation*> alist(ao->getAnnotations());
-        foreach(Annotation *an, alist) {
-            foreach(U2Qualifier q, an->getQualifiers()){
-                QString qual;
-                if(algoritm=="cdd") {
-                    qual = "id";
-                }
-                else {
-                    qual = "accession";
-                }
-                if (q.name == qual) {
+        QList<Annotation *> alist(ao->getAnnotations());
+        foreach (Annotation *an, alist) {
+            foreach (const U2Qualifier &q, an->getQualifiers()) {
+                if (q.name == "accession") {
                     if(!result.contains(q.value)) //Don't count different hsp
                         result.append(q.value);
                 }
@@ -225,23 +232,30 @@ Task::ReportResult GTest_RemoteBLAST::report() {
         }
     }
 
+    if (simple) {
+        if (result.isEmpty()) {
+            stateInfo.setError(QString("Simplified test retuns empty result"));
+        }
+        return ReportResult_Finished;
+    }
+
     if(result.size() != expectedResults.size()){
-        stateInfo.setError(  QString("Expected and Actual sizes of lists of regions are different: %1 %2").arg(expectedResults.size()).arg(result.size()) );
+        stateInfo.setError( QString("Expected and Actual sizes of lists of regions are different: %1 %2").arg(expectedResults.size()).arg(result.size()));
         return ReportResult_Finished;
     }
     result.sort(); expectedResults.sort();
     QStringListIterator e(expectedResults), a(result);
-    for(; e.hasNext();){
+    for (; e.hasNext();) {
         QString exp = e.next(), act =  a.next();
     }
-    if(result != expectedResults) {
-        //stateInfo.setError(  QString("Expected and actual id's not equal") );
+    if (result != expectedResults) {
+        //stateInfo.setError( QString("Expected and actual id's not equal"));
         QString res = "";
         foreach(const QString &str, result) {
             res.append(str);
             res.append("  ");
         }
-        stateInfo.setError(  QString("Expected and actual id's not equal: %1").arg(res) );
+        stateInfo.setError( QString("Expected and actual id's not equal: %1").arg(res));
         return ReportResult_Finished;
     }
     return ReportResult_Finished;
@@ -253,6 +267,5 @@ void GTest_RemoteBLAST::cleanup() {
         ao = NULL;
     }
 }
-
 
 }

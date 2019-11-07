@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,12 @@
 #ifndef _U2_DNA_STATS_WINDOW_H_
 #define _U2_DNA_STATS_WINDOW_H_
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtWebKit/QWebView>
+#else
+#include <QtWebKitWidgets/QWebView>
+#endif
 
 #include <U2Core/global.h>
 #include <U2Gui/MainWindow.h>
@@ -34,13 +39,13 @@ class DNAStatProfileTask;
 class DNAStatsWindow;
 
 class DNAStatsWebView : public QWebView {
-	Q_OBJECT
+    Q_OBJECT
 public:
-	DNAStatsWebView(DNAStatsWindow* parent) :  statsWindow(parent) {}
+    DNAStatsWebView(DNAStatsWindow* parent) :  statsWindow(parent) {}
 protected:
-	virtual void contextMenuEvent(QContextMenuEvent*);
+    virtual void contextMenuEvent(QContextMenuEvent*);
 private:
-	DNAStatsWindow* statsWindow;
+    DNAStatsWindow* statsWindow;
 };
 
 
@@ -49,13 +54,13 @@ class DNAStatsWindow: public MWMDIWindow {
 public:
     DNAStatsWindow(ADVSequenceObjectContext* ctx);
 private slots:
-	void sl_onTaskStateChanged(Task* task);
+    void sl_onTaskStateChanged(Task* task);
 private:
-	void update();
-	DNAStatsWebView* webView;
-	ADVSequenceObjectContext* ctx;
-	DNAStatProfileTask* updateTask;
-	
+    void update();
+    DNAStatsWebView* webView;
+    ADVSequenceObjectContext* ctx;
+    DNAStatProfileTask* updateTask;
+
 
 };
 

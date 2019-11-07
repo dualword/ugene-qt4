@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,24 +30,22 @@
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNASequence.h>
 
-#include <memory>
-
 namespace U2 {
 
 class Document;
 class DocumentFormat;
 class IOAdapter;
 
-/** 
+/**
 *
 * Class provides stream reading for large sequence files.
-* For example, dna assembly short reads usually are 
+* For example, dna assembly short reads usually are
 * of size 1GB and more, it is impossible to store whole file in RAM.
 * Note, that document format has to support DocumentReadMode_SingleObject
 * to be read by StreamSequenceReader.
 * In case of multiple files, they will be read subsequently.
 *
-*/ 
+*/
 
 class U2FORMATS_EXPORT StreamSequenceReader {
     struct ReaderContext {
@@ -57,7 +55,7 @@ class U2FORMATS_EXPORT StreamSequenceReader {
     };
     QList<ReaderContext> readers;
     int currentReaderIndex;
-    std::auto_ptr<DNASequence> currentSeq;
+    QScopedPointer<DNASequence> currentSeq;
     bool errorOccured;
     bool lookupPerformed;
     QString errorMessage;

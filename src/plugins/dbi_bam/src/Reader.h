@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -57,6 +57,11 @@ public:
         int id;
         int blockSize;
         BamReader* r;
+
+        /**
+         * Returns true if a number was read
+         */
+        bool readNumber(char type, QVariant &value, int &bytesRead);
     };
 
     BamReader(IOAdapter &ioAdapter);

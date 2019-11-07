@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,29 +19,29 @@
  * MA 02110-1301, USA.
  */
 
-#include "MrBayesDialogWidget.h"
-#include "MrBayesSupport.h"
-
-#include "ExternalToolSupportSettingsController.h"
-#include "ExternalToolSupportSettings.h"
+#include <QMainWindow>
+#include <QMessageBox>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
-#include <U2Core/UserApplicationsSettings.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/Settings.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
+#include <U2Core/UserApplicationsSettings.h>
 
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
 #include <U2Gui/MainWindow.h>
-#include <QtGui/QMainWindow>
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2View/MSAEditor.h>
 #include <U2View/MSAEditorFactory.h>
 
-#include <U2Gui/GUIUtils.h>
-#include <U2Gui/DialogUtils.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/Settings.h>
+#include "ExternalToolSupportSettings.h"
+#include "ExternalToolSupportSettingsController.h"
+#include "MrBayesDialogWidget.h"
+#include "MrBayesSupport.h"
 
 namespace U2 {
 
@@ -71,7 +71,7 @@ MrBayesWidget::MrBayesWidget(QWidget* parent, const MAlignment& ma): CreatePhyTr
 
     connect(rateVariationCombo, SIGNAL(currentIndexChanged(const QString&)), SLOT(sl_onRateChanged(const QString&)));
     rateVariationCombo->addItems(MrBayesVariationTypes::getVariationTypes());
-    
+
     seedSpin->setValue(getRandomSeed());
 
     gammaCategoriesSpin->setValue(AppContext::getSettings()->getValue(CreatePhyTreeWidget::settingsPath + MR_BAYES_GAMMA, 4).toInt());
@@ -100,7 +100,7 @@ void MrBayesWidget::sl_onRateChanged(const QString& modelName){
 void MrBayesWidget::fillSettings(CreatePhyTreeSettings& settings){
     settings.mb_ngen = ngenSpin->value();
     settings.mrBayesSettingsScript = generateMrBayesSettingsScript();
-} 
+}
 void MrBayesWidget::storeSettings(){
     AppContext::getSettings()->setValue(CreatePhyTreeWidget::settingsPath + MR_BAYES_MODEL_TYPE, modelTypeCombo->currentText());
     AppContext::getSettings()->setValue(CreatePhyTreeWidget::settingsPath + MR_BAYES_RATE_VATIATION, rateVariationCombo->currentText());
@@ -140,7 +140,7 @@ void MrBayesWidget::setComboText(QComboBox* combo, const QString& text){
             combo->setCurrentIndex(i);
             break;
         }
-    }  
+    }
 }
 
 #define SEED_MIN 5
@@ -149,7 +149,7 @@ void MrBayesWidget::setComboText(QComboBox* combo, const QString& text){
 int MrBayesWidget::getRandomSeed(){
     int seed = 0;
     qsrand(QTime(0,0,0).secsTo(QTime::currentTime()));
-    seed = qAbs(qrand()); 
+    seed = qAbs(qrand());
 
     while(!((seed >= SEED_MIN) && (seed <=SEED_MAX))){
         seed++;
@@ -164,18 +164,20 @@ int MrBayesWidget::getRandomSeed(){
 bool MrBayesWidget::checkSettings(QString& , const CreatePhyTreeSettings& ){
     //Check that MrBayes and tempory directory path defined
     ExternalToolRegistry* reg = AppContext::getExternalToolRegistry();
-    ExternalTool* mb= reg->getByName(MRBAYES_TOOL_NAME);
+    ExternalTool* mb= reg->getByName(ET_MRBAYES);
     assert(mb);
     const QString& path = mb->getPath();
     const QString& name = mb->getName();
     if (path.isEmpty()){
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(name);
-        msgBox.setText(tr("Path for %1 tool not selected.").arg(name));
-        msgBox.setInformativeText(tr("Do you want to select it now?"));
-        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-        msgBox.setDefaultButton(QMessageBox::Yes);
-        int ret = msgBox.exec();
+        QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox;
+        msgBox->setWindowTitle(name);
+        msgBox->setText(tr("Path for %1 tool not selected.").arg(name));
+        msgBox->setInformativeText(tr("Do you want to select it now?"));
+        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox->setDefaultButton(QMessageBox::Yes);
+        const int ret = msgBox->exec();
+        CHECK(!msgBox.isNull(), false);
+
         switch (ret) {
            case QMessageBox::Yes:
                AppContext::getAppSettingsGUI()->showSettingsDialog(ExternalToolSupportSettingsPageId);
@@ -194,7 +196,7 @@ bool MrBayesWidget::checkSettings(QString& , const CreatePhyTreeSettings& ){
     U2OpStatus2Log os(LogLevel_DETAILS);
     ExternalToolSupportSettings::checkTemporaryDir(os);
     CHECK_OP(os, false);
-    
+
     return true;
 }
 
@@ -242,7 +244,7 @@ QString MrBayesWidget::generateMrBayesSettingsScript(){
     temp = tempSpin->value();
     burnin = burninSpin->value();
 
-    script = script.append("mcmc ngen=%1 samplefreq=%2 printfreq=%3 nchains=%4 temp=%5 savebrlens=yes " 
+    script = script.append("mcmc ngen=%1 samplefreq=%2 printfreq=%3 nchains=%4 temp=%5 savebrlens=yes "
         "starttree=random;\n").arg(ngen).arg(sfreq).arg(printfreq).arg(nchains).arg(temp).arg(seed);
 
     if(sfreq < burnin) burnin = 0;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,25 @@
  * MA 02110-1301, USA.
  */
 
-#include "BuildIndexDialog.h"
-#include "DnaAssemblyGUIExtension.h"
-
-#include <U2Core/GUrlUtils.h>
-#include <U2Core/DocumentUtils.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/ExternalToolRegistry.h>
+#include <QMessageBox>
+#include <QPushButton>
 
 #include <U2Algorithm/DnaAssemblyAlgRegistry.h>
 
-#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/ExternalToolRegistry.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/U2SafePoints.h>
+
 #include <U2Gui/AppSettingsGUI.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
+#include "BuildIndexDialog.h"
+#include "DnaAssemblyGUIExtension.h"
 
 namespace U2 {
 
@@ -43,130 +46,150 @@ QString BuildIndexDialog::genomePath;
 BuildIndexDialog::BuildIndexDialog(const DnaAssemblyAlgRegistry* registry, QWidget* p)
 : QDialog(p), assemblyRegistry(registry), customGUI(NULL)
 {
-	setupUi(this);
-	QStringList names = registry->getRegisteredAlgorithmsWithIndexFileSupport();
-	methodNamesBox->addItems(names);
-	// TODO: change the way default method is set
-	if (names.size() > 0) {
-		methodNamesBox->setCurrentIndex(names.size() - 1);
-	}
-	sl_onAlgorithmChanged(methodNamesBox->currentText());
-	connect(setIndexFileNameButton, SIGNAL(clicked()), SLOT(sl_onSetIndexFileNameButtonClicked()));
-	connect(addRefButton, SIGNAL(clicked()), SLOT(sl_onAddRefButtonClicked()) );
-	connect(methodNamesBox, SIGNAL(currentIndexChanged(const QString &)), SLOT(sl_onAlgorithmChanged(const QString &)));
+    setupUi(this);
+    QMap<QString,QString> helpPagesMap;
+    helpPagesMap.insert("BWA","16122380");
+    helpPagesMap.insert("BWA-MEM","16122422");
+    helpPagesMap.insert("BWA-SW","16122408");
+    helpPagesMap.insert("Bowtie","16122377");
+    helpPagesMap.insert("Bowtie2","16122405");
+    helpPagesMap.insert("UGENE Genome Aligner","16122383");
+    new ComboboxDependentHelpButton(this, buttonBox, methodNamesBox, helpPagesMap);
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Start"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
-	if (!genomePath.isEmpty()) {
-		refSeqEdit->setText(genomePath);
-		buildIndexUrl(genomePath);
-	}
+    QStringList names = registry->getRegisteredAlgorithmsWithIndexFileSupport();
+    methodNamesBox->addItems(names);
+    // TODO: change the way default method is set
+    if (names.size() > 0) {
+        methodNamesBox->setCurrentIndex(names.size() - 1);
+    }
+    sl_onAlgorithmChanged(methodNamesBox->currentText());
+    connect(setIndexFileNameButton, SIGNAL(clicked()), SLOT(sl_onSetIndexFileNameButtonClicked()));
+    connect(addRefButton, SIGNAL(clicked()), SLOT(sl_onAddRefButtonClicked()) );
+    connect(methodNamesBox, SIGNAL(currentIndexChanged(const QString &)), SLOT(sl_onAlgorithmChanged(const QString &)));
+
+    if (!genomePath.isEmpty()) {
+        refSeqEdit->setText(genomePath);
+        buildIndexUrl(genomePath);
+        SAFE_POINT( NULL != customGUI, "Build Index dialog referenced null pointer", );
+        customGUI->validateReferenceSequence( genomePath );
+    }
 }
 
 void BuildIndexDialog::sl_onAddRefButtonClicked() {
-	LastUsedDirHelper lod;
-	QString filter;
+    LastUsedDirHelper lod;
+    QString filter;
 
-	lod.url = QFileDialog::getOpenFileName(this, tr("Open reference sequence"), lod.dir, filter);
-	if (lod.url.isEmpty()) {
-		return;
-	}
+    if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+        lod.url = U2FileDialog::getOpenFileName(this, tr("Open reference sequence"), lod.dir, filter, 0, QFileDialog::DontUseNativeDialog );
+    } else{
+        lod.url = U2FileDialog::getOpenFileName(this, tr("Open reference sequence"), lod.dir, filter);
+    }
+    if (lod.url.isEmpty()) {
+        return;
+    }
 
-	refSeqEdit->setText(lod.url);
-	buildIndexUrl(lod.url);
+    if ( NULL != customGUI ) {
+        customGUI->validateReferenceSequence( GUrl( lod.url ) );
+    }
+    refSeqEdit->setText(lod.url);
+    buildIndexUrl(lod.url);
 }
 
 void BuildIndexDialog::sl_onSetIndexFileNameButtonClicked() {
-	LastUsedDirHelper lod;
-	lod.url = QFileDialog::getSaveFileName(this, tr("Set index file name"), lod.dir);
-	if (!lod.url.isEmpty()) {
-		GUrl index = lod.url;
-		if (index.lastFileSuffix().isEmpty() && customGUI != NULL) {
-			QString extension = customGUI->getIndexFileExtension();
-			if (extension.isEmpty()) {
-				index = QString( "%1" ).arg( index.getURLString() );
-			} else {
-				index = QString( "%1.%2" ).arg( index.getURLString() ).arg(extension);
-			}
-		}
-		indexFileNameEdit->setText(index.getURLString());
-	}
+    LastUsedDirHelper lod;
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Set index file name"), lod.dir);
+    if (!lod.url.isEmpty()) {
+        GUrl index = lod.url;
+        if (index.lastFileSuffix().isEmpty() && customGUI != NULL) {
+            QString extension = customGUI->getIndexFileExtension();
+            if (extension.isEmpty()) {
+                index = QString( "%1" ).arg( index.getURLString() );
+            } else {
+                index = QString( "%1.%2" ).arg( index.getURLString() ).arg(extension);
+            }
+        }
+        indexFileNameEdit->setText(index.getURLString());
+    }
 }
 
 void BuildIndexDialog::sl_onAlgorithmChanged(const QString &) {
-	updateState();
+    updateState();
 }
 
 void BuildIndexDialog::updateState() {
-	addGuiExtension();
+    addGuiExtension();
 }
 
 void BuildIndexDialog::addGuiExtension() {
-	int insertPos = verticalLayout->count() - 2;
+    int insertPos = verticalLayout->count() - 2;
 
-	// cleanup previous extension
-	if (customGUI != NULL) {
-		layout()->removeWidget(customGUI);         
-		setMinimumHeight(minimumHeight() - customGUI->minimumHeight());
-		delete customGUI;
-		customGUI = NULL;
-	}
+    // cleanup previous extension
+    if (customGUI != NULL) {
+        layout()->removeWidget(customGUI);
+        setMinimumHeight(minimumHeight() - customGUI->minimumHeight());
+        delete customGUI;
+        customGUI = NULL;
+    }
 
-	// insert new extension widget
-	DnaAssemblyAlgorithmEnv* env = assemblyRegistry->getAlgorithm(methodNamesBox->currentText());
-	if (NULL == env) {
-		adjustSize();
-		return;
-	}
+    // insert new extension widget
+    DnaAssemblyAlgorithmEnv* env = assemblyRegistry->getAlgorithm(methodNamesBox->currentText());
+    if (NULL == env) {
+        adjustSize();
+        return;
+    }
     DnaAssemblyGUIExtensionsFactory* gui = env->getGUIExtFactory();
     if (gui!=NULL && gui->hasBuildIndexWidget()) {
-		customGUI = gui->createBuildIndexWidget(this);
-		int extensionMinWidth = customGUI->sizeHint().width();
-		int extensionMinHeight = customGUI->sizeHint().height();
-		customGUI->setMinimumWidth(extensionMinWidth);
-		customGUI->setMinimumHeight(extensionMinHeight);
-		verticalLayout->insertWidget(insertPos, customGUI);
-		// adjust sizes
-		setMinimumHeight(customGUI->minimumHeight() + minimumHeight());
-		if (minimumWidth() < customGUI->minimumWidth()) {
-			setMinimumWidth(customGUI->minimumWidth());
-		}
-		if (!refSeqEdit->text().isEmpty()) {
-			buildIndexUrl(refSeqEdit->text());
-		}
-		customGUI->show();
-        adjustSize();
-	} else 
-    {
-		adjustSize();
-	}
+        customGUI = gui->createBuildIndexWidget(this);
+        verticalLayout->insertWidget(insertPos, customGUI);
+        if (!refSeqEdit->text().isEmpty()) {
+            buildIndexUrl(refSeqEdit->text());
+            customGUI->validateReferenceSequence( GUrl( refSeqEdit->text( ) ) );
+        }
+        customGUI->show();
+    }
+    adjustSize();
 }
 
 void BuildIndexDialog::buildIndexUrl(const GUrl& refUrl ) {
-	QString extension("");
-	if (NULL != customGUI) {
-		extension = customGUI->getIndexFileExtension();
-        customGUI->buildIndexUrl(refUrl);
-	}
-	GUrl url;
-	if (extension.isEmpty()) {
-		url = GUrlUtils::rollFileName(refUrl.dirPath() + "/" + refUrl.baseFileName(), DocumentUtils::getNewDocFileNameExcludesHint());
-	} else {
-		url = GUrlUtils::rollFileName(refUrl.dirPath() + "/" + refUrl.baseFileName()+ "." + extension, DocumentUtils::getNewDocFileNameExcludesHint());
-	}
-	
-	indexFileNameEdit->setText(url.getURLString());
+    QString extension("");
+    GUrl url;
+    if (NULL != customGUI) {
+        extension = customGUI->getIndexFileExtension();
+        url = customGUI->buildIndexUrl(refUrl);
+    }
+    if(url.isEmpty()){
+        if (extension.isEmpty()) {
+            url = GUrlUtils::rollFileName(refUrl.dirPath() + "/" + refUrl.baseFileName(), DocumentUtils::getNewDocFileNameExcludesHint());
+        } else {
+            url = GUrlUtils::rollFileName(refUrl.dirPath() + "/" + refUrl.baseFileName()+ "." + extension, DocumentUtils::getNewDocFileNameExcludesHint());
+        }
+    }
+    
+    indexFileNameEdit->setText(url.getURLString());
 }
 
 void BuildIndexDialog::accept()
 {
-    if (getAlgorithmName() == "Bowtie") {
-        if(AppContext::getExternalToolRegistry()->getByName("Bowtie-build")->getPath().isEmpty()) {
-            QMessageBox msgBox;
-            msgBox.setWindowTitle(tr("DNA Assembly"));
-            msgBox.setInformativeText(tr("Do you want to select it now?"));
-            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-            msgBox.setDefaultButton(QMessageBox::Yes);
-            msgBox.setText(tr("Path for <i>Bowtie-build</i> tool is not selected."));
-            int ret = msgBox.exec();
+
+    if ((getAlgorithmName() == "Bowtie") || (getAlgorithmName() == "Bowtie2")) {
+        QString externalToolName;
+        if (getAlgorithmName() == "Bowtie2") {
+            externalToolName = "Bowtie 2 build indexer";
+        } else {
+            externalToolName = "Bowtie build indexer";
+        }
+        if(AppContext::getExternalToolRegistry()->getByName(externalToolName)->getPath().isEmpty()) {
+            QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox(this);
+            msgBox->setWindowTitle(tr("DNA Assembly"));
+            msgBox->setInformativeText(tr("Do you want to select it now?"));
+            msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            msgBox->setDefaultButton(QMessageBox::Yes);
+            msgBox->setText(tr(QString("Path for <i>" + externalToolName + "</i> tool is not selected.").toLatin1().data()));
+            const int ret = msgBox->exec();
+            CHECK(!msgBox.isNull(), );
+
             switch (ret) {
             case QMessageBox::Yes:
                 AppContext::getAppSettingsGUI()->showSettingsDialog(APP_SETTINGS_EXTERNAL_TOOLS);
@@ -175,44 +198,44 @@ void BuildIndexDialog::accept()
                 return;
                 break;
             default:
-                assert(NULL);
+                assert(false);
                 break;
             }
-            if(AppContext::getExternalToolRegistry()->getByName("Bowtie-build")->getPath().isEmpty()) {
+            if(AppContext::getExternalToolRegistry()->getByName(externalToolName)->getPath().isEmpty()) {
                 return;
             }
         }
     }
         if (refSeqEdit->text().isEmpty()) {
-		QMessageBox::information(this, tr("Build Index"), tr("Reference sequence url is not set!") );
-	} else if (indexFileNameEdit->text().isEmpty() ) {
-		QMessageBox::information(this, tr("Build Index"), tr("Index file name is not set!") );
-	} else {   
-		genomePath.clear();
-		genomePath = refSeqEdit->text();
+        QMessageBox::information(this, tr("Build Index"), tr("Reference sequence url is not set!") );
+    } else if (indexFileNameEdit->text().isEmpty() ) {
+        QMessageBox::information(this, tr("Build Index"), tr("Index file name is not set!") );
+    } else {   
+        genomePath.clear();
+        genomePath = refSeqEdit->text();
 
-		QDialog::accept();
-	}
+        QDialog::accept();
+    }
 }
 
 const GUrl BuildIndexDialog::getRefSeqUrl() {
-	return refSeqEdit->text();
+    return refSeqEdit->text();
 }
 
 const QString BuildIndexDialog::getAlgorithmName() {
-	return methodNamesBox->currentText();
+    return methodNamesBox->currentText();
 }
 
 const QString BuildIndexDialog::getIndexFileName() {
-	return indexFileNameEdit->text();
+    return indexFileNameEdit->text();
 }
 
 QMap<QString, QVariant> BuildIndexDialog::getCustomSettings() {
-	if (customGUI != NULL) {
-		return customGUI->getBuildIndexCustomSettings();
-	} else {
-		return QMap<QString, QVariant>();
-	}
+    if (customGUI != NULL) {
+        return customGUI->getBuildIndexCustomSettings();
+    } else {
+        return QMap<QString, QVariant>();
+    }
 }
 
 }//namespace

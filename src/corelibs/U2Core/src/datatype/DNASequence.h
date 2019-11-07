@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,8 @@
 #ifndef _U2_DNA_SEQUENCE_H_
 #define _U2_DNA_SEQUENCE_H_
 
-#include <U2Core/global.h>
 #include "DNAInfo.h"
 #include "DNAQuality.h"
-
-#include <QtCore/QByteArray>
 
 namespace U2 {
 
@@ -34,16 +31,16 @@ class DNAAlphabet;
 
 class U2CORE_EXPORT DNASequence {
 public:
-    DNASequence(const QString& name, const QByteArray& s = QByteArray(), DNAAlphabet* a = NULL);
-    DNASequence(const QByteArray& s = QByteArray(), DNAAlphabet* a = NULL) : seq(s), alphabet(a), circular(false), quality(NULL) {}
- 
+    DNASequence(const QString& name, const QByteArray& s = QByteArray(), const DNAAlphabet* a = NULL);
+    DNASequence(const QByteArray& s = QByteArray(), const DNAAlphabet* a = NULL) : seq(s), alphabet(a), circular(false), quality(NULL) {}
+
     QVariantMap     info;
     QByteArray      seq;
-    DNAAlphabet*    alphabet;
+    const DNAAlphabet*    alphabet;
     bool            circular;
     DNAQuality      quality;
-    
-    QString getName() const {return DNAInfo::getName(info);}
+
+    QString getName() const { return DNAInfo::getName(info);}
     void setName(const QString& name);
     bool isNull() const {return !alphabet && seq.length() == 0;}
     int length() const {return seq.length();}

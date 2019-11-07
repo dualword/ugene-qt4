@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,32 +19,37 @@
  * MA 02110-1301, USA.
  */
 
-#include "AppSettingsDialogController.h"
-#include "AppSettingsDialogTree.h"
+#include <QHBoxLayout>
+#include <QTreeWidget>
+#include <QMessageBox>
 
 #include <U2Core/AppContext.h>
-#include <U2Gui/AppSettingsGUI.h>
+#include <U2Core/Settings.h>
 
-#include <QtGui/QTreeWidget>
-#include <QtGui/QHBoxLayout>
-#include <QtGui/QMessageBox>
+#include <U2Gui/AppSettingsGUI.h>
+#include <U2Gui/HelpButton.h>
+
+#include "AppSettingsDialogController.h"
+#include "AppSettingsDialogTree.h"
 
 namespace U2 {
 
 AppSettingsDialogController::AppSettingsDialogController(const QString& pageId, QWidget *p):QDialog(p) {
     setupUi(this);
+
     currentPage = NULL;
-    
+    helpButton = new HelpButton(this, buttonBox, QString());
+
     QHBoxLayout *pageLayout = new QHBoxLayout();
     settingsBox->setLayout(pageLayout);
 
     connect(tree, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)), SLOT(sl_currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)));
-    
+
     QList<AppSettingsGUIPageController*> pages = AppContext::getAppSettingsGUI()->getRegisteredPages();
     foreach(AppSettingsGUIPageController* page, pages) {
         registerPage(page);
     }
-    
+
     if (tree->topLevelItemCount() >  0) {
         if (!pageId.isEmpty()) {
             AppSettingsTreeItem* item = findPageItem(pageId);
@@ -56,6 +61,7 @@ AppSettingsDialogController::AppSettingsDialogController(const QString& pageId, 
             tree->setCurrentItem(tree->topLevelItem(0));
         }
     }
+
 }
 
 bool AppSettingsDialogController::checkCurrentState(bool saveStateInItem, bool showError) {
@@ -67,9 +73,9 @@ bool AppSettingsDialogController::checkCurrentState(bool saveStateInItem, bool s
     if (currentPage->pageState == NULL) {
         if (showError) {
             if (err.isEmpty()) {
-                err = tr("default_err");
+                err = tr("Error");
             }
-            QMessageBox::critical(this, tr("error"), err);
+            QMessageBox::critical(this, tr("Error"), err);
         }
         return false;
     }
@@ -99,24 +105,23 @@ bool AppSettingsDialogController::turnPage(AppSettingsTreeItem* page) {
     }
     if (page!=NULL) {
         assert(currentPage == NULL);
-        
         settingsBox->setTitle(page->pageController->getPageName());
         page->pageState = page->pageState == NULL ? page->pageController->getSavedState() : page->pageState;
         page->pageState->setParent(this);
         page->pageWidget = page->pageController->createWidget(page->pageState);
-//        page->pageWidget->setState(page->pageState);
         settingsBox->layout()->addWidget(page->pageWidget);
         delete page->pageState;
         page->pageState = NULL;
 
         currentPage = page;
+        helpButton->updatePageId(currentPage->pageController->getHelpPageId()) ;
     }
     return true;
 }
 
 void AppSettingsDialogController::registerPage(AppSettingsGUIPageController* page) {
     assert(findPageItem(page->getPageId()) == NULL);
-    tree->addTopLevelItem(new AppSettingsTreeItem(page));    
+    tree->addTopLevelItem(new AppSettingsTreeItem(page));
 }
 
 AppSettingsTreeItem* AppSettingsDialogController::findPageItem(const QString& id) const {
@@ -133,6 +138,7 @@ void AppSettingsDialogController::accept() {
     if (!checkCurrentState(false, true)) {
         return;
     }
+
     turnPage(NULL);//make current state saved in item
     for(int i=0, n = tree->topLevelItemCount(); i < n; i++) {
         AppSettingsTreeItem* item = static_cast<AppSettingsTreeItem*>(tree->topLevelItem(i));
@@ -140,6 +146,7 @@ void AppSettingsDialogController::accept() {
             item->pageController->saveState(item->pageState);
         }
     }
+
     QDialog::accept();
 }
 

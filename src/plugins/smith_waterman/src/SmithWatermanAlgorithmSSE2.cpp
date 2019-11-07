@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,256 +26,920 @@
 #include <emmintrin.h>
 #include <iostream>
 
+#ifdef _MSC_VER
+#pragma warning( disable : 4799 )
+#endif
+
+extern "C" {
+
+// http://sourceforge.net/p/predef/wiki/Compilers/
+
+#ifdef _MSC_VER
+#if _MSC_VER <= 1600 && UGENE_X86_64
+#define LAME_MSC
+#endif
+#endif
+
+#ifdef LAME_MSC
+inline void xmm_store8(__m64* m, __m128i x) {
+    *(int*)m = _mm_cvtsi128_si32(x);
+    *((int*)m + 1) = _mm_cvtsi128_si32(_mm_srli_epi64(x, 32));
+}
+
+inline __m128i xmm_load8(__m64* m) {
+    return _mm_or_si128(_mm_cvtsi32_si128(*(int*)m), _mm_slli_si128(_mm_cvtsi32_si128(*((int*)m + 1)), 4));
+}
+#else
+inline void xmm_store8(__m64* m, __m128i x) { *m = _mm_movepi64_pi64(x); }
+inline __m128i xmm_load8(__m64* m) { return _mm_movpi64_epi64(*m); }
+#endif
+
+}
+
 using namespace std;
 
 namespace U2 {
-    
-    
-//     static bool PRINT_DIRECTIONS = false;
-//     static bool PRINT_SCORE = false;
-//     static bool PRINT_JUST_SCORE = false;
-//     static bool PRINT_E = false;
-//     static bool PRINT_F = true;
-//     static bool PRINT_F_SHIFT = false;
-//     static bool PRINT_H = false;
 
-void SmithWatermanAlgorithmSSE2::launch(const SMatrix& _substitutionMatrix, QByteArray const & _patternSeq, QByteArray const & _searchSeq, int _gapOpen, int _gapExtension, int _minScore) {
-    setValues(_substitutionMatrix, _patternSeq, _searchSeq, _gapOpen, _gapExtension, _minScore);
-    int maxScor = 0;
-    if (isValidParams() && calculateMatrixLength()) {
-        maxScor = calculateMatrixSSE2(patternSeq.length(),(unsigned char *)searchSeq.data(), searchSeq.length(), (-1)*(gapOpen + gapExtension), (-1)*(gapExtension));
+quint64 SmithWatermanAlgorithmSSE2::estimateNeededRamAmount(const QByteArray
+    & _patternSeq, const QByteArray & _searchSeq, const qint32 gapOpen,
+    const qint32 gapExtension, const quint32 minScore, const quint32 maxScore,
+    const SmithWatermanSettings::SWResultView resultView)
+{
+    const double b_to_mb_factor = 1048576.0;
 
-        if (minScore <= maxScor) {
-            calculateMatrix();
-        }            
+    const quint64 queryLength = _patternSeq.length();
+    const quint64 searchLength = _searchSeq.length();
+
+    const quint32 iter = (queryLength + 7) >> 3;
+
+    quint64 memNeeded = 0;
+    if(SmithWatermanSettings::MULTIPLE_ALIGNMENT == resultView) {
+        qint32 maxGapPenalty = (gapOpen > gapExtension) ? gapOpen : gapExtension;
+        assert(0 > maxGapPenalty);
+
+        quint64 matrixLength = queryLength - (maxScore - minScore) / maxGapPenalty + 1;
+        if (searchLength + 1 < matrixLength) {
+            matrixLength = searchLength + 1;
+        }
+
+        memNeeded = iter * (131 + matrixLength) * sizeof(__m128i);
+    } else if(SmithWatermanSettings::ANNOTATIONS == resultView) {
+        memNeeded = (5 + iter * 133) * sizeof(__m128i);
     } else {
-        //No result
-        // See validationParams();
-        //Perhaps reason: minScore > maxScore 
-        //  or gap_open >= 0 or gap_extension >= 0
+        assert(false);
+    }
+
+    return memNeeded / b_to_mb_factor;
+}
+
+void SmithWatermanAlgorithmSSE2::launch(const SMatrix& _substitutionMatrix, const QByteArray & _patternSeq,
+    const QByteArray & _searchSeq, int _gapOpen, int _gapExtension, int _minScore, SmithWatermanSettings::SWResultView _resultView) {
+    setValues(_substitutionMatrix, _patternSeq, _searchSeq, _gapOpen, _gapExtension, _minScore, _resultView);
+    int maxScore = 0;
+    if (isValidParams() && calculateMatrixLength()) {
+        maxScore = calculateMatrixSSE2(patternSeq.length(), (unsigned char *)searchSeq.data(),
+            searchSeq.length(), (-1)*(gapOpen + gapExtension), (-1)*(gapExtension));
+
+        if (minScore <= maxScore) {
+            if (maxScore >= 0x8000 || matrixLength >= 0x10000) {
+                switch(resultView) {
+                case SmithWatermanSettings::MULTIPLE_ALIGNMENT:
+                    calculateMatrixForMultipleAlignmentResultWithInt();
+                    break;
+                case SmithWatermanSettings::ANNOTATIONS:
+                    calculateMatrixForAnnotationsResultWithInt();
+                    break;
+                default:
+                    assert(false);
+                }
+            } else {
+                switch(resultView) {
+                case SmithWatermanSettings::MULTIPLE_ALIGNMENT:
+                    calculateMatrixForMultipleAlignmentResultWithShort();
+                    break;
+                case SmithWatermanSettings::ANNOTATIONS:
+                    calculateMatrixForAnnotationsResultWithShort();
+                    break;
+                default:
+                    assert(false);
+                }
+            }
+        }
     }
 }
 
-//Calculating dynamic matrix
-//and save results
-void SmithWatermanAlgorithmSSE2::calculateMatrix() {
-    char ch;
-    //ScoreType substValue = 0; //warning: unused variable substValue
-    ScoreType max = 0;
+void SmithWatermanAlgorithmSSE2::calculateMatrixForMultipleAlignmentResultWithShort() {
 
-    int matrixLengthDivisibleByN = matrixLength;
-    int patternLengthDivisibleByN = patternSeq.length() + 1;
+    int i, j, n, k, max1;
+    __m128i f1 = _mm_setzero_si128(), f2 = _mm_setzero_si128(), f3 = _mm_setzero_si128(), f4 = _mm_setzero_si128(), e1 = _mm_setzero_si128();
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
+    unsigned int iter = (pat_n + 7) >> 3;
 
-    while (matrixLengthDivisibleByN % nElementsInVec != 0) matrixLengthDivisibleByN++;
-    while (patternLengthDivisibleByN % nElementsInVec != 0) patternLengthDivisibleByN++;    
+    n = iter * 2;
+    __m128i *buf, *matrix = (__m128i*)_mm_malloc((n + iter * 0x80) * 16 + iter * 8 * 4 + matrixLength * iter * 8, 16);
+    short *score, *score1 = (short*)(matrix + n);
+    int *map = (int*)(score1 + iter * 0x80 * 8);
+    char *dir, *dir2, *dir1 = (char*)(map + iter * 8);
+    memset(matrix, 0, n * sizeof(__m128i));
+    memset(dir1, 0, iter * 8);
+    dir = dir1 + iter * 8;
+    dir2 = dir1 + matrixLength * iter * 8;
 
-    ScoreType * temp = (ScoreType*)_mm_malloc(nElementsInVec*sizeof(ScoreType),16);
-    for (int pp = 0; pp < nElementsInVec; pp++) temp[pp] = 0;
-
-    __m128i zero = _mm_set1_epi32(0);
-    __m128i tmp = _mm_set1_epi32(0);
-
-    //Load 0 all elements of vector zero
-    zero = _mm_insert_epi16 (zero, 0, 0);
-    zero = _mm_shufflelo_epi16 (zero, 0);
-    zero = _mm_shuffle_epi32 (zero, 0);
-
-    __m128i substValVec = zero;        
-
-
-    //    int f1, f2, e1, e2;
-    __m128i f1 = zero, f2 = zero, f3 = zero;//, e1 = zero, e2 = zero, e3 = zero; //warning: unused variables e1, e2, e3
-    __m128i gapOpenVec = _mm_set1_epi32(0);
-    __m128i gapExtensionVec  = _mm_set1_epi32(0);
-    __m128i maxVec  = _mm_set1_epi32(0);
-
-    // Load gap opening penalty to all elements of a vector
-    gapOpenVec = _mm_insert_epi16 (gapOpenVec, gapOpen, 0);
-    gapOpenVec = _mm_shufflelo_epi16 (gapOpenVec, 0);
-    gapOpenVec = _mm_shuffle_epi32 (gapOpenVec, 0);
-
-    // Load gap extension penalty to all elements of a vector
-    gapExtensionVec = _mm_insert_epi16 (gapExtensionVec, gapExtension, 0);
-    gapExtensionVec = _mm_shufflelo_epi16 (gapExtensionVec, 0);
-    gapExtensionVec = _mm_shuffle_epi32 (gapExtensionVec, 0);        
-
-    ScoreType * EArray = (ScoreType*)_mm_malloc((nElementsInVec + patternLengthDivisibleByN)*sizeof(ScoreType),16);
-    ScoreType * FArray = (ScoreType*)_mm_malloc((nElementsInVec + patternLengthDivisibleByN)*sizeof(ScoreType),16);
-    ScoreType * maxArray = (ScoreType*)_mm_malloc((nElementsInVec + patternLengthDivisibleByN)*sizeof(ScoreType),16);
-    
-    for (int tt = 0; tt < patternLengthDivisibleByN; tt++) {            
-        FArray[tt] = 0;
-        EArray[tt] = 0;
-    }
-
-    ScoreType ** matrix = new ScoreType*[matrixLengthDivisibleByN];    
-    matrix[0] = (ScoreType*)_mm_malloc(matrixLengthDivisibleByN*patternLengthDivisibleByN*sizeof(ScoreType), 16);
-    for (int i = 1; i < matrixLengthDivisibleByN; i++) {
-        matrix[i] = matrix[i-1] + patternLengthDivisibleByN;
-    }
-    
-    __m128i * pvScore;
-
-    int segSize = (patternSeq.length() + nElementsInVec - 1) / nElementsInVec; //count iter
-
-    int ALPHA_SIZE = substitutionMatrix.getAlphabet()->getNumAlphabetChars();
-
-    __m128i* pvQueryProf = (__m128i*)_mm_malloc
-        ('Z'*ALPHA_SIZE*segSize*sizeof(__m128i), 16);    
-
-    ScoreType * queryProfile = (ScoreType *) pvQueryProf;
-    
-    
-    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
-    for (int i = 0; i <ALPHA_SIZE ; i++) {        
-        
-        char ch = alphaChars.at(i);
-        
-        int posI = ch * segSize * nElementsInVec;
-
-        for (int j = 0; j < segSize; j++) {
-            for (int k = j; k < segSize*nElementsInVec; k+=segSize) {                        
-                if (k >= patternSeq.length()) 
-                    queryProfile[posI + k] = 0;
-                else {
-                    queryProfile[posI + k] = 
-                        (ScoreType)substitutionMatrix.getScore(patternSeq.at(k), ch);                    
-                }
-            }                    
+    for(i = 0, j = 0; j < static_cast<int>(iter); j++) {
+        for(k = j, n = 0; n < 8; n++, k += iter) {
+            map[k] = i++;
         }
     }
 
-//////////////////////////////////////////////////////////////////////////
-
-    for (int tt = 0; tt < matrixLengthDivisibleByN; tt++) 
-        for (int ww = 0; ww < patternLengthDivisibleByN; ww++) matrix[tt][ww] = 0;
-
-
-    //initialization dynamic matrices        
-    QVector<char> rowChars;
-    QVector<int> rowInts;
-    for (int tt = 0; tt < patternLengthDivisibleByN + 1; tt++) {    
-        rowChars.append(STOP);
-        rowInts.append(0);
+    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        int n;
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * iter * 8;
+        for(j = 0; j < static_cast<int>(iter); j++) {
+            for(k = j, n = 0; n < 8; n++, k += iter) {
+                int a = -0x8000;
+                if(k < static_cast<int>(pat_n)) {
+                    a = substitutionMatrix.getScore(ch, pat[k]);
+                }
+                *score++ = a;
+            }
+        }
     }
-    for (int tt = 0; tt < matrixLengthDivisibleByN; tt++) {                
-        directionMatrix.append(rowChars);
-    }    
 
-    ScoreType ee1 = 0, ee2 = 0;
-
+    __m128i xMax = _mm_setzero_si128(), xPos = _mm_setzero_si128();
+    __m128i xOpen = _mm_setzero_si128();
+    xOpen = _mm_insert_epi16(xOpen, gapOpen, 0);
+    __m128i xExt = _mm_setzero_si128();
+    xExt = _mm_insert_epi16(xExt, gapExtension, 0);
+    xOpen = _mm_shufflelo_epi16(xOpen, 0);
+    xExt = _mm_shufflelo_epi16(xExt, 0);
+    xOpen = _mm_unpacklo_epi32(xOpen, xOpen);
+    xExt = _mm_unpacklo_epi32(xExt, xExt);
 
     PairAlignSequences p;
-    QByteArray pairAlign;
-    U2Region sReg;
-    U2Region pReg;
 
-    QVector<QVector<int> > directionSearchSeq;    
-    directionSearchSeq.push_back(rowInts);
-    directionSearchSeq.push_back(rowInts);
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
 
-    int even = 0;
-    int odd = 0;
+    i = 1;
+    do {
+        buf = matrix;
+        score = score1 + src[i - 1] * iter * 8;
+        xMax = _mm_xor_si128(xMax, xMax);
+        f1 = _mm_slli_si128(_mm_load_si128(buf + (iter - 1) * 2), 2);
+        e1 = _mm_xor_si128(e1, e1);
+        if(dir == dir2) dir = dir1;
+        j = iter;
+        do {
+            f2 = _mm_adds_epi16(f1, *((__m128i*)score)); score += 8; /* subst */
 
-    //Sart dynamic programming
-    for (int i = 1; i < searchSeq.length() + 1; i++) {
+            f3 = _mm_xor_si128(f3, f3);
+            f2 = _mm_max_epi16(f2, f3);
+            f3 = _mm_cmpgt_epi16(f2, f3);
+            f3 = _mm_slli_epi16(f3, 2);
+            /* f2 f3 */
+            f4 = _mm_insert_epi16(f4, j, 0);
+            f4 = _mm_shufflelo_epi16(f4, 0);
+            f4 = _mm_unpacklo_epi32(f4, f4);
+            xMax = _mm_max_epi16(xMax, f2);
+            f1 = _mm_cmpeq_epi16(f2, xMax);
+            xPos = _mm_or_si128(_mm_and_si128(f4, f1), _mm_andnot_si128(f1, xPos));
 
-        ch = searchSeq.at(i - 1);
+            f1 = _mm_load_si128(buf + 1);
+            f1 = _mm_max_epi16(f1, f2);
+            f2 = _mm_cmpgt_epi16(f1, f2);
+            f2 = _mm_slli_epi16(f2, 1);
+            f3 = _mm_or_si128(f3, f2);
+            /* f1 f3 */
+            f2 = _mm_max_epi16(e1, f1);
+            f1 = _mm_cmpgt_epi16(e1, f1);
+            f3 = _mm_or_si128(f3, f1);
+            /* f2 f3 */
+            f1 = _mm_load_si128(buf);
+            _mm_store_si128(buf, f2);
+            f3 = _mm_packs_epi16(f3, f3);
+            // *(__m64*)dir = _mm_movepi64_pi64(f3); dir += 8;
+            xmm_store8((__m64*)dir, f3);
+            dir += 8;
 
-        pvScore = pvQueryProf + ch * segSize;
-        
-        even = i % 2;
-        odd = (i + 1) % 2;
+            f2 = _mm_adds_epi16(f2, xOpen);
+            e1 = _mm_max_epi16(_mm_adds_epi16(e1, xExt), f2);
+            f3 = _mm_load_si128(buf + 1);
+            f3 = _mm_max_epi16(_mm_adds_epi16(f3, xExt), f2);
+            _mm_store_si128(buf + 1, f3);
+            buf += 2;
+        } while(--j);
 
-        directionSearchSeq[odd][0] = i - 1;
+        buf = matrix; j = (-1) * iter;
+        e1 = _mm_slli_si128(e1, 2);
+        f1 = _mm_load_si128(buf);
+        f3 = _mm_max_epi16(_mm_xor_si128(f3, f3), _mm_adds_epi16(f1, xOpen));
+        k = _mm_movemask_epi8(_mm_cmpgt_epi16(e1, f3));
+        if(k) {
+            do {
+                f2 = _mm_max_epi16(e1, f1);
+                _mm_store_si128(buf, f2);
 
-        p.score = 0;
+                f1 = _mm_cmpgt_epi16(f2, f1);
+                f2 = _mm_adds_epi16(f2, xOpen);
+                f1 = _mm_packs_epi16(f1, f1);
+                // f1 = _mm_or_si128(f1, _mm_movpi64_epi64(*((__m64*)dir + j)));
+                f1 = _mm_or_si128(f1, xmm_load8((__m64*)dir + j));
+                f2 = _mm_max_epi16(f2, *(buf + 1));
+                // *((__m64*)dir + j) = _mm_movepi64_pi64(f1);
+                xmm_store8((__m64*)dir + j, f1);
+                _mm_store_si128(buf + 1, f2);
 
-        for (int j = 0; j < patternSeq.length(); j += nElementsInVec) {                            
-//TODO: use __m128i*, not array
-            f1 = _mm_load_si128((__m128i*) ((ScoreType *) &FArray[j]));                        
-            f1 = _mm_add_epi16(f1, gapExtensionVec);        
-
-            tmp = _mm_load_si128((__m128i*) ((ScoreType *) &matrix[getRow(i-1)][j]));
-            f2 = _mm_add_epi16(tmp, gapOpenVec);                    
-
-            f3 = _mm_max_epi16(f1, f2);                        
-
-            _mm_store_si128((__m128i*) &FArray[j], f3);            
-
-            substValVec = _mm_load_si128( pvScore++ );
-
-
-            tmp = _mm_slli_si128(tmp, 2);
-
-            tmp = _mm_insert_epi16 (tmp, matrix[getRow(i-1)][j-1], 0);
-
-            tmp = _mm_add_epi16(tmp, substValVec);
-
-            _mm_store_si128((__m128i*) &temp[0], tmp);
-
-            maxVec = _mm_max_epi16(tmp, f3);
-            
-            _mm_store_si128((__m128i*) &maxArray[0], maxVec);
-
-
-//Use non vector operations for calculate maxScore and backtrace
-            for (int pp = j; pp < j + nElementsInVec && pp < patternSeq.length(); pp++) {
-                int eIndex = pp + 1;
-                ee1 = EArray[eIndex - 1] + gapExtension;                
-                ee2 = matrix[getRow(i)][pp - 1] + gapOpen;
-
-                if (ee1 > ee2) EArray[eIndex] = ee1;
-                else EArray[eIndex] = ee2;
-                
-                if (maxArray[pp - j] > EArray[eIndex]) max = maxArray[pp - j];
-                else max = EArray[eIndex];
-
-                if (max < 0) max = 0;
-
-                matrix[getRow(i)][pp] = max;
-
-                int col = pp + 1;
-                
-                if (max == 0) {
-                    directionSearchSeq[even][col] = i;                
+                e1 = _mm_adds_epi16(e1, xExt);
+                buf += 2;
+                if(!(++j)) {
+                    buf = matrix;
+                    j = (-1) * iter;
+                    e1 = _mm_slli_si128(e1, 2);
                 }
-                else if (max == EArray[eIndex]) {
-                    directionSearchSeq[even][col] = directionSearchSeq[even][col - 1];
+                f1 = _mm_load_si128(buf);
+                f3 = _mm_max_epi16(_mm_xor_si128(f3, f3), _mm_adds_epi16(f1, xOpen));
+                k = _mm_movemask_epi8(_mm_cmpgt_epi16(e1, f3));
+            } while(k);
+        }
+    /*
+        for(j = 0; j < pat_n; j++)
+        printf(" %02X", *((unsigned short*)(matrix + (j % iter) * 2) + (j / iter)));
+        printf("\n");
+    */
+        max1 = *((short*)(&xMax)); n = 0;
+        k = 1;
+        do {
+            j = ((short*)(&xMax))[k];
+            if(j >= max1) {
+                max1 = j;
+                n = k;
+            }
+        } while(++k < 8);
+
+        if(max1 >= minScore) {
+            QByteArray pairAlign;
+            int xpos = 1 + n * iter + iter - ((unsigned short*)(&xPos))[n]; j = i;
+            int xend = xpos;
+            char *xdir = dir - iter * 8;
+            for(;;) {
+                if(!xpos)
+                    break;
+                k = xdir[map[xpos - 1]];
+                if(!k)
+                    break;
+                if(k == -1) {
+                    pairAlign.append(PairAlignSequences::LEFT);
+                    xpos--;
+                    continue;
                 }
-                else if (max == FArray[pp]) {
-                    directionSearchSeq[even][col] = directionSearchSeq[odd][col];
+                if(k == -2) {
+                    pairAlign.append(PairAlignSequences::UP);
+                } else if(k == -4) {
+                    pairAlign.append(PairAlignSequences::DIAG);
+                    xpos--;
                 }
-                else if (max == temp[pp - j]) {                    
-                    directionSearchSeq[even][col] = directionSearchSeq[odd][col - 1];                
+                if(xdir == dir1) {
+                    xdir = dir2;
                 }
-                if (max >= p.score) {
-                    p.score = max;
-                    p.intervalSeq1.startPos = directionSearchSeq[even][col];
-                    p.intervalSeq1.length = i - p.intervalSeq1.startPos;
+                if(xdir == dir) {
+                    /* printf("#error\n"); */ break;
+                }
+                xdir -= iter * 8; j--;
+            }
+
+            p.score = max1;
+            p.refSubseqInterval.startPos = j;
+            p.refSubseqInterval.length = i - j;
+            p.ptrnSubseqInterval.startPos = xpos;
+            p.ptrnSubseqInterval.length = xend - xpos;
+            p.pairAlignment = pairAlign;
+            pairAlignmentStrings.append(p);
+
+            // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+            // printf("#%i-%i %s\n", xpos, xend - xpos, pairAlign.data());
+        }
+    } while(++i <= static_cast<int>(src_n));
+
+    _mm_free(matrix);
+}
+
+void SmithWatermanAlgorithmSSE2::calculateMatrixForAnnotationsResultWithShort() {
+    int i, j, n, k, max1;
+    __m128i f1 = _mm_setzero_si128(), f2 = _mm_setzero_si128(), f3 = _mm_setzero_si128(), f4 = _mm_setzero_si128(), e1 = _mm_setzero_si128();
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
+    unsigned int iter = (pat_n + 7) >> 3;
+
+    n = (iter + 1) * 5;
+    __m128i *buf, *matrix = (__m128i*)_mm_malloc((n + iter * 0x80) * sizeof(__m128i), 16);
+    short *score, *score1 = (short*)(matrix + n);
+    memset(matrix, 0, n * sizeof(__m128i));
+
+    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        int n;
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * iter * 8;
+        for(j = 0; j < static_cast<int>(iter); j++) {
+            for(k = j, n = 0; n < 8; n++, k += iter) {
+                int a = -0x8000;
+                if(k < static_cast<int>(pat_n)) {
+                    a = substitutionMatrix.getScore(ch, pat[k]);
+                }
+                *score++ = a;
+            }
+        }
+    }
+
+    __m128i xMax = _mm_setzero_si128(), xPos = _mm_setzero_si128();
+    __m128i xOpen = _mm_setzero_si128();
+    xOpen = _mm_insert_epi16(xOpen, gapOpen, 0);
+    __m128i xExt = _mm_setzero_si128();
+    xExt = _mm_insert_epi16(xExt, gapExtension, 0);
+    xOpen = _mm_shufflelo_epi16(xOpen, 0);
+    xExt = _mm_shufflelo_epi16(xExt, 0);
+    xOpen = _mm_unpacklo_epi32(xOpen, xOpen);
+    xExt = _mm_unpacklo_epi32(xExt, xExt);
+
+    PairAlignSequences p;
+
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
+
+#define SW_LOOP(SWA, SWB) \
+      buf = matrix + 5; \
+      score = score1 + src[i - 1] * iter * 8; \
+      xMax = _mm_xor_si128(xMax, xMax); \
+      f4 = _mm_insert_epi16(f4, i, 0); \
+      f4 = _mm_shufflelo_epi16(f4, 0); \
+      f4 = _mm_unpacklo_epi32(f4, f4); \
+      f2 = _mm_slli_si128(_mm_load_si128(SWB + (iter - 1) * 5), 2); \
+      f1 = _mm_slli_si128(_mm_load_si128(SWB + 1 + (iter - 1) * 5), 2); \
+      f1 = _mm_insert_epi16(f1, i - 1, 0); \
+      e1 = _mm_xor_si128(e1, e1); \
+      j = iter; do { \
+        f2 = _mm_adds_epi16(f2, *((__m128i*)score)); score += 8; /* subst */ \
+        /* f2 f1 */ \
+        f3 = _mm_xor_si128(f3, f3); \
+        f2 = _mm_max_epi16(f2, f3); \
+        f3 = _mm_cmpeq_epi16(f3, f2); \
+        f3 = _mm_or_si128(_mm_and_si128(f3, f4), _mm_andnot_si128(f3, f1)); \
+        /* f2 f3 */ \
+        xMax = _mm_max_epi16(xMax, f2); \
+        f1 = _mm_cmpeq_epi16(f2, xMax); \
+        xPos = _mm_or_si128(_mm_and_si128(f1, f3), _mm_andnot_si128(f1, xPos)); \
+        \
+        f1 = _mm_load_si128(buf + 4); \
+        f1 = _mm_max_epi16(f1, f2); \
+        f2 = _mm_cmpeq_epi16(f2, f1); \
+        f3 = _mm_or_si128(_mm_and_si128(f3, f2), _mm_andnot_si128(f2, _mm_load_si128(SWB + 1))); \
+        /* f1 f3 */ \
+        f2 = _mm_max_epi16(e1, f1); \
+        f1 = _mm_cmpeq_epi16(f1, f2); \
+        f3 = _mm_or_si128(_mm_and_si128(f3, f1), _mm_andnot_si128(f1, _mm_load_si128(SWA - 5 + 1))); \
+        /* f2 f3 */ \
+        _mm_store_si128(SWA, f2); \
+        _mm_store_si128(SWA + 1, f3); \
+        f2 = _mm_adds_epi16(f2, xOpen); \
+        e1 = _mm_max_epi16(_mm_adds_epi16(e1, xExt), f2); \
+        f1 = _mm_load_si128(buf + 4); \
+        f1 = _mm_max_epi16(_mm_adds_epi16(f1, xExt), f2); \
+        _mm_store_si128(buf + 4, f1); \
+        \
+        f2 = _mm_load_si128(SWB); \
+        f1 = _mm_load_si128(SWB + 1); \
+        buf += 5; \
+      } while(--j); \
+      \
+      f4 = _mm_slli_si128(_mm_load_si128(SWA - 5 + 1), 2); \
+      buf = matrix + 5; j = 0; \
+      e1 = _mm_slli_si128(e1, 2); \
+      f2 = _mm_load_si128(SWA); \
+      f3 = _mm_max_epi16(_mm_xor_si128(f3, f3), _mm_adds_epi16(f2, xOpen)); \
+      k = _mm_movemask_epi8(_mm_cmpgt_epi16(e1, f3)); \
+      if(k) do { \
+        f1 = _mm_max_epi16(e1, f2); \
+        f2 = _mm_cmpeq_epi16(f2, f1); \
+        f2 = _mm_or_si128(_mm_and_si128(f2, *(SWA + 1)), _mm_andnot_si128(f2, f4)); \
+        _mm_store_si128(SWA, f1); \
+        _mm_store_si128(SWA + 1, f2); \
+        \
+        f1 = _mm_adds_epi16(f1, xOpen); \
+        f1 = _mm_max_epi16(f1, *(buf + 4)); \
+        _mm_store_si128(buf + 4, f1); \
+        \
+        e1 = _mm_adds_epi16(e1, xExt); \
+        buf += 5; \
+        if(++j >= static_cast<int>(iter)) {\
+            buf = matrix + 5;\
+            j = 0;\
+            e1 = _mm_slli_si128(e1, 2);\
+            f4 = _mm_slli_si128(f4, 2);\
+        } \
+        f2 = _mm_load_si128(SWA); \
+        f3 = _mm_max_epi16(_mm_xor_si128(f3, f3), _mm_adds_epi16(f2, xOpen)); \
+        k = _mm_movemask_epi8(_mm_cmpgt_epi16(e1, f3)); \
+      } while(k); \
+      \
+      max1 = *((short*)(&xMax)); n = 0; \
+      k = 1; do { \
+        j = ((short*)(&xMax))[k]; \
+        if(j >= max1) { max1 = j; n = k; } \
+      } while(++k < 8); \
+      \
+      if(max1 >= minScore) { \
+        j = ((((short*)(&xPos))[n] - i - 1) | -0x10000) + i + 1; \
+        SW_FILT_MACRO; \
+      }
+
+// #define SW_FILT
+
+#ifdef SW_FILT
+#define SW_FILT_MACRO \
+        if(p.refSubseqInterval.startPos != j) { \
+          if(p.score) { \
+            pairAlignmentStrings.append(p); \
+            /* printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score); */ \
+          } \
+          p.refSubseqInterval.startPos = j; \
+          p.refSubseqInterval.length = i - j; \
+          p.score = max1; \
+        } else if(p.score < max1) { \
+          p.refSubseqInterval.length = i - j; \
+          p.score = max1; \
+        }
+#else
+#define SW_FILT_MACRO \
+        p.refSubseqInterval.startPos = j; \
+        p.refSubseqInterval.length = i - j; \
+        p.score = max1; \
+        pairAlignmentStrings.append(p); \
+        /* printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score); */
+#endif
+
+    i = 1;
+    do {
+        SW_LOOP(buf, buf + 2);
+        if(++i > static_cast<int>(src_n)) {
+            break;
+        }
+        SW_LOOP(buf + 2, buf);
+    } while(++i <= static_cast<int>(src_n));
+
+#undef SW_LOOP
+#undef SW_FILT_MACRO
+
+#ifdef SW_FILT
+    if(p.score) {
+      pairAlignmentStrings.append(p);
+      // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+    }
+#endif
+    _mm_free(matrix);
+}
+
+void SmithWatermanAlgorithmSSE2::calculateMatrixForMultipleAlignmentResultWithInt() {
+    int i, j, n, k, max1;
+    __m128i f1 = _mm_setzero_si128(), f2 = _mm_setzero_si128(), f3 = _mm_setzero_si128(), f4 = _mm_setzero_si128(), e1 = _mm_setzero_si128();
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
+    unsigned int iter = (pat_n + 3) >> 2;
+
+    n = iter * 2;
+    __m128i *buf, *matrix = (__m128i*)_mm_malloc((n + iter * 0x80 + iter) * 16 + matrixLength * iter * 4, 16);
+    int *score, *score1 = (int*)(matrix + n);
+    int *map = score1 + iter * 0x80 * 4;
+    char *dir, *dir2, *dir1 = (char*)(map + iter * 4);
+    memset(matrix, 0, n * sizeof(__m128i));
+    memset(dir1, 0, iter * 4);
+    dir = dir1 + iter * 4;
+    dir2 = dir1 + matrixLength * iter * 4;
+
+    for(i = 0, j = 0; j < static_cast<int>(iter); j++) {
+        for(k = j, n = 0; n < 4; n++, k += iter) {
+            map[k] = i++;
+        }
+    }
+
+    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        int n;
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * iter * 4;
+        for(j = 0; j < static_cast<int>(iter); j++) {
+            for(k = j, n = 0; n < 4; n++, k += iter) {
+                int a = -0x8000;
+                if(k < static_cast<int>(pat_n)) {
+                    a = substitutionMatrix.getScore(ch, pat[k]);
+                }
+                *score++ = a;
+            }
+        }
+    }
+
+    __m128i xMax = _mm_setzero_si128(), xPos = _mm_setzero_si128();
+    __m128i xOpen = _mm_cvtsi32_si128(gapOpen);
+    __m128i xExt = _mm_cvtsi32_si128(gapExtension);
+    xOpen = _mm_shuffle_epi32(xOpen, 0);
+    xExt = _mm_shuffle_epi32(xExt, 0);
+
+    PairAlignSequences p;
+
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
+
+    i = 1;
+    do {
+        buf = matrix;
+        score = score1 + src[i - 1] * iter * 4;
+        xMax = _mm_xor_si128(xMax, xMax);
+        f1 = _mm_slli_si128(_mm_load_si128(buf + (iter - 1) * 2), 4);
+        e1 = _mm_xor_si128(e1, e1);
+        if(dir == dir2) dir = dir1;
+        j = iter;
+        do {
+            f2 = _mm_add_epi32(f1, *((__m128i*)score)); score += 4; /* subst */
+
+            QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+            char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+            for(i = 0; i < n; i++) {
+                int n;
+                unsigned char ch = alphaCharsData[i];
+                score = score1 + ch * iter * 4;
+                for(j = 0; j < static_cast<int>(iter); j++) {
+                    for(k = j, n = 0; n < 4; n++, k += iter) {
+                        int a = -0x8000;
+                        if(k < static_cast<int>(pat_n)) {
+                            a = substitutionMatrix.getScore(ch, pat[k]);
+                        }
+                        *score++ = a;
+                    }
                 }
             }
-        }    
-        if (p.score >= minScore) {
-            pairAlignmentStrings.append(p);
-        }
-        //Print matrix
-        //          for(int k = 0; k < patternSeq.length() + 1 ; k++) cout <<matrix[getRow(i)][k] <<" ";
-        //          cout <<endl;            
-        //         for(int k = 1; k < patternSeq.length() + 1; k++) cout <<directionMatrix[getRow(i)][k] <<" ";
-        //         cout <<endl;        
 
+            f3 = _mm_xor_si128(f3, f3);
+            f3 = _mm_cmpgt_epi32(f2, f3);
+            f2 = _mm_and_si128(f2, f3);
+            f3 = _mm_slli_epi32(f3, 2);
+            /* f2 f3 */
+            f4 = _mm_cvtsi32_si128(j);
+            f4 = _mm_shuffle_epi32(f4, 0);
+            f1 = _mm_cmpgt_epi32(xMax, f2);
+            xMax = _mm_xor_si128(xMax, f2);
+            xMax = _mm_and_si128(xMax, f1);
+            xMax = _mm_xor_si128(xMax, f2);
+            xPos = _mm_or_si128(_mm_and_si128(xPos, f1), _mm_andnot_si128(f1, f4));
+
+            f1 = _mm_load_si128(buf + 1);
+            f4 = _mm_cmpgt_epi32(f1, f2);
+            f1 = _mm_xor_si128(f1, f2);
+            f1 = _mm_and_si128(f1, f4);
+            f1 = _mm_xor_si128(f1, f2);
+            f4 = _mm_slli_epi32(f4, 1);
+            f3 = _mm_or_si128(f3, f4);
+            /* f1 f3 */
+            f4 = _mm_cmpgt_epi32(e1, f1);
+            f2 = _mm_xor_si128(e1, f1);
+            f2 = _mm_and_si128(f2, f4);
+            f2 = _mm_xor_si128(f2, f1);
+            f3 = _mm_or_si128(f3, f4);
+            /* f2 f3 */
+            f1 = _mm_load_si128(buf);
+            _mm_store_si128(buf, f2);
+            f3 = _mm_packs_epi32(f3, f3);
+            f3 = _mm_packs_epi16(f3, f3);
+            *(int*)dir = _mm_cvtsi128_si32(f3); dir += 4;
+            f2 = _mm_add_epi32(f2, xOpen);
+
+            e1 = _mm_add_epi32(e1, xExt);
+            f4 = _mm_cmpgt_epi32(e1, f2);
+            e1 = _mm_xor_si128(e1, f2);
+            e1 = _mm_and_si128(e1, f4);
+            e1 = _mm_xor_si128(e1, f2);
+
+            f3 = _mm_load_si128(buf + 1);
+            f3 = _mm_add_epi32(f3, xExt);
+            f4 = _mm_cmpgt_epi32(f3, f2);
+            f3 = _mm_xor_si128(f3, f2);
+            f3 = _mm_and_si128(f3, f4);
+            f3 = _mm_xor_si128(f3, f2);
+            _mm_store_si128(buf + 1, f3);
+            buf += 2;
+        } while(--j);
+
+        buf = matrix;
+        j = (-1) * iter;
+        e1 = _mm_slli_si128(e1, 4);
+        f1 = _mm_load_si128(buf);
+
+        f2 = _mm_add_epi32(f1, xOpen);
+        f3 = _mm_xor_si128(f3, f3);
+        f3 = _mm_cmpgt_epi32(f2, f3);
+        f2 = _mm_and_si128(f2, f3);
+        k = _mm_movemask_epi8(_mm_cmpgt_epi32(e1, f2));
+        if(k) {
+            do {
+                f4 = _mm_cmpgt_epi32(e1, f1);
+                f2 = _mm_xor_si128(e1, f1);
+                f2 = _mm_and_si128(f2, f4);
+                f2 = _mm_xor_si128(f2, f1);
+                _mm_store_si128(buf, f2);
+
+                f2 = _mm_add_epi32(f2, xOpen);
+                f4 = _mm_packs_epi32(f4, f4);
+                f4 = _mm_packs_epi16(f4, f4);
+                f4 = _mm_or_si128(f4, _mm_cvtsi32_si128(*((int*)dir + j)));
+                f1 = _mm_load_si128(buf + 1);
+                *((int*)dir + j) = _mm_cvtsi128_si32(f4);
+                f3 = _mm_cmpgt_epi32(f1, f2);
+                f1 = _mm_xor_si128(f1, f2);
+                f1 = _mm_and_si128(f1, f3);
+                f1 = _mm_xor_si128(f1, f2);
+                _mm_store_si128(buf + 1, f1);
+
+                e1 = _mm_add_epi32(e1, xExt);
+                buf += 2;
+                if(!(++j)) {
+                    buf = matrix;
+                    j = (-1) * iter;
+                    e1 = _mm_slli_si128(e1, 4);
+                }
+                f1 = _mm_load_si128(buf);
+                f2 = _mm_add_epi32(f1, xOpen);
+                f3 = _mm_xor_si128(f3, f3);
+                f3 = _mm_cmpgt_epi32(f2, f3);
+                f2 = _mm_and_si128(f2, f3);
+                k = _mm_movemask_epi8(_mm_cmpgt_epi32(e1, f2));
+            } while(k);
+        }
+    /*
+        for(j = 0; j < pat_n; j++)
+        printf(" %02X", *((int*)(matrix + (j % iter) * 2) + (j / iter)));
+        printf("\n");
+    */
+        max1 = *((int*)(&xMax)); n = 0;
+        k = 1; do {
+        j = ((int*)(&xMax))[k];
+        if(j >= max1) { max1 = j; n = k; }
+        } while(++k < 4);
+
+        if(max1 >= minScore) {
+        QByteArray pairAlign;
+        int xpos = 1 + n * iter + iter - ((int*)(&xPos))[n]; j = i;
+        int xend = xpos;
+        char *xdir = dir - iter * 4;
+        for(;;) {
+            if(!xpos) break;
+            k = xdir[map[xpos - 1]];
+            if(!k) break;
+            if(k == -1) {
+            pairAlign.append(PairAlignSequences::LEFT);
+            xpos--;
+            continue;
+            }
+            if(k == -2) {
+            pairAlign.append(PairAlignSequences::UP);
+            } else if(k == -4) {
+            pairAlign.append(PairAlignSequences::DIAG);
+            xpos--;
+            }
+            if(xdir == dir1) xdir = dir2;
+            if(xdir == dir) { /* printf("#error\n"); */ break; }
+            xdir -= iter * 4; j--;
+        }
+
+        p.score = max1;
+        p.refSubseqInterval.startPos = j;
+        p.refSubseqInterval.length = i - j;
+        p.ptrnSubseqInterval.startPos = xpos;
+        p.ptrnSubseqInterval.length = xend - xpos;
+        p.pairAlignment = pairAlign;
+        pairAlignmentStrings.append(p);
+
+        // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+        // printf("#%i-%i %s\n", xpos, xend - xpos, pairAlign.data());
+        }
+    } while(++i <= static_cast<int>(src_n));
+
+    _mm_free(matrix);
+}
+
+void SmithWatermanAlgorithmSSE2::calculateMatrixForAnnotationsResultWithInt() {
+
+    int i, j, n, k, max1;
+    __m128i f1 = _mm_setzero_si128(), f2 = _mm_setzero_si128(), f3 = _mm_setzero_si128(), f4 = _mm_setzero_si128(), e1 = _mm_setzero_si128();
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
+    unsigned int iter = (pat_n + 3) >> 2;
+
+    n = (iter + 1) * 5;
+    __m128i *buf, *matrix = (__m128i*)_mm_malloc((n + iter * 0x80) * sizeof(__m128i), 16);
+    int *score, *score1 = (int*)(matrix + n);
+    memset(matrix, 0, n * sizeof(__m128i));
+
+    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data();
+    n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        int n;
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * iter * 4;
+        for(j = 0; j < static_cast<int>(iter); j++) {
+            for(k = j, n = 0; n < 4; n++, k += iter) {
+                int a = -0x8000;
+                if(k < static_cast<int>(pat_n)) {
+                    a = substitutionMatrix.getScore(ch, pat[k]);
+                }
+                *score++ = a;
+            }
+        }
     }
-//Free memory
-    _mm_free(EArray);
-    _mm_free(FArray);
-    _mm_free(temp);    
-    _mm_free(maxArray);
-    _mm_free(pvQueryProf);
-    
-    //TODO: it is correct?    
-    _mm_free(matrix[0]);
-    delete matrix;
+
+    __m128i xMax = _mm_setzero_si128(), xPos = _mm_setzero_si128();
+    __m128i xOpen  = _mm_setzero_si128();
+    xOpen = _mm_cvtsi32_si128(gapOpen);
+    __m128i xExt  = _mm_setzero_si128();
+    xExt = _mm_cvtsi32_si128(gapExtension);
+    xOpen = _mm_shuffle_epi32(xOpen, 0);
+    xExt = _mm_shuffle_epi32(xExt, 0);
+
+    PairAlignSequences p;
+
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
+
+#define SW_LOOP(SWA, SWB) \
+      buf = matrix + 5; \
+      score = score1 + src[i - 1] * iter * 4; \
+      xMax = _mm_xor_si128(xMax, xMax); \
+      f2 = _mm_slli_si128(_mm_load_si128(SWB + (iter - 1) * 5), 4); \
+      f1 = _mm_slli_si128(_mm_load_si128(SWB + 1 + (iter - 1) * 5), 4); \
+      f1 = _mm_or_si128(f1, _mm_cvtsi32_si128(i - 1)); \
+      e1 = _mm_xor_si128(e1, e1); \
+      j = iter; do { \
+        f2 = _mm_add_epi32(f2, *((__m128i*)score)); score += 4; /* subst */ \
+        /* f2 f1 */ \
+        f4 = _mm_cvtsi32_si128(i); \
+        f4 = _mm_shuffle_epi32(f4, 0); \
+        f3 = _mm_xor_si128(f3, f3); \
+        f3 = _mm_cmpgt_epi32(f2, f3); \
+        f2 = _mm_and_si128(f2, f3); \
+        f3 = _mm_or_si128(_mm_and_si128(f1, f3), _mm_andnot_si128(f3, f4)); \
+        /* f2 f3 */ \
+        f1 = _mm_cmpgt_epi32(xMax, f2); \
+        xMax = _mm_xor_si128(xMax, f2); \
+        xMax = _mm_and_si128(xMax, f1); \
+        xMax = _mm_xor_si128(xMax, f2); \
+        xPos = _mm_or_si128(_mm_and_si128(xPos, f1), _mm_andnot_si128(f1, f3)); \
+        \
+        f1 = _mm_load_si128(buf + 4); \
+        f4 = _mm_cmpgt_epi32(f1, f2); \
+        f1 = _mm_xor_si128(f1, f2); \
+        f1 = _mm_and_si128(f1, f4); \
+        f1 = _mm_xor_si128(f1, f2); \
+        f3 = _mm_or_si128(_mm_and_si128(f4, *(SWB + 1)), _mm_andnot_si128(f4, f3)); \
+        /* f1 f3 */ \
+        f4 = _mm_cmpgt_epi32(e1, f1); \
+        f2 = _mm_xor_si128(e1, f1); \
+        f2 = _mm_and_si128(f2, f4); \
+        f2 = _mm_xor_si128(f2, f1); \
+        f3 = _mm_or_si128(_mm_and_si128(f4, *(SWA - 5 + 1)), _mm_andnot_si128(f4, f3)); \
+        /* f2 f3 */ \
+        _mm_store_si128(SWA, f2); \
+        _mm_store_si128(SWA + 1, f3); \
+        f2 = _mm_add_epi32(f2, xOpen); \
+        e1 = _mm_add_epi32(e1, xExt); \
+        f1 = _mm_cmpgt_epi32(e1, f2); \
+        e1 = _mm_xor_si128(e1, f2); \
+        e1 = _mm_and_si128(e1, f1); \
+        e1 = _mm_xor_si128(e1, f2); \
+        f3 = _mm_load_si128(buf + 4); \
+        f3 = _mm_add_epi32(f3, xExt); \
+        f1 = _mm_cmpgt_epi32(f3, f2); \
+        f3 = _mm_xor_si128(f3, f2); \
+        f3 = _mm_and_si128(f3, f1); \
+        f3 = _mm_xor_si128(f3, f2); \
+        _mm_store_si128(buf + 4, f3); \
+        \
+        f2 = _mm_load_si128(SWB); \
+        f1 = _mm_load_si128(SWB + 1); \
+        buf += 5; \
+      } while(--j); \
+      \
+      f4 = _mm_slli_si128(_mm_load_si128(SWA - 5 + 1), 4); \
+      buf = matrix + 5; j = 0; \
+      e1 = _mm_slli_si128(e1, 4); \
+      f2 = _mm_load_si128(SWA); \
+      f1 = _mm_add_epi32(f2, xOpen); \
+      f3 = _mm_xor_si128(f3, f3); \
+      f3 = _mm_cmpgt_epi32(f1, f3); \
+      f1 = _mm_and_si128(f1, f3); \
+      k = _mm_movemask_epi8(_mm_cmpgt_epi32(e1, f1)); \
+      if(k) do { \
+        f3 = _mm_cmpgt_epi32(e1, f2); \
+        f1 = _mm_xor_si128(e1, f2); \
+        f1 = _mm_and_si128(f1, f3); \
+        f1 = _mm_xor_si128(f1, f2); \
+        f2 = _mm_or_si128(_mm_and_si128(f3, f4), _mm_andnot_si128(f3, *(SWA + 1))); \
+        _mm_store_si128(SWA, f1); \
+        _mm_store_si128(SWA + 1, f2); \
+        \
+        f1 = _mm_add_epi32(f1, xOpen); \
+        f2 = _mm_load_si128(buf + 4); \
+        f3 = _mm_cmpgt_epi32(f1, f2); \
+        f1 = _mm_xor_si128(f1, f2); \
+        f1 = _mm_and_si128(f1, f3); \
+        f1 = _mm_xor_si128(f1, f2); \
+        _mm_store_si128(buf + 4, f2); \
+        \
+        e1 = _mm_add_epi32(e1, xExt); \
+        buf += 5; \
+        if(++j >= static_cast<int>(iter)) {\
+            buf = matrix + 5;\
+            j = 0;\
+            e1 = _mm_slli_si128(e1, 4);\
+            f4 = _mm_slli_si128(f4, 4);\
+        } \
+        f2 = _mm_load_si128(SWA); \
+        f1 = _mm_add_epi32(f2, xOpen); \
+        f3 = _mm_xor_si128(f3, f3); \
+        f3 = _mm_cmpgt_epi32(f1, f3); \
+        f1 = _mm_and_si128(f1, f3); \
+        k = _mm_movemask_epi8(_mm_cmpgt_epi32(e1, f1)); \
+      } while(k); \
+      \
+      max1 = *((int*)(&xMax)); n = 0; \
+      k = 1; do { \
+        j = ((int*)(&xMax))[k]; \
+        if(j >= max1) { max1 = j; n = k; } \
+      } while(++k < 4); \
+      \
+      if(max1 >= minScore) { \
+        j = ((int*)(&xPos))[n]; \
+        SW_FILT_MACRO; \
+      }
+
+// #define SW_FILT
+
+#ifdef SW_FILT
+#define SW_FILT_MACRO \
+        if(p.refSubseqInterval.startPos != j) { \
+          if(p.score) { \
+            pairAlignmentStrings.append(p); \
+            /* printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score); */ \
+          } \
+          p.refSubseqInterval.startPos = j; \
+          p.refSubseqInterval.length = i - j; \
+          p.score = max1; \
+        } else if(p.score < max1) { \
+          p.refSubseqInterval.length = i - j; \
+          p.score = max1; \
+        }
+#else
+#define SW_FILT_MACRO \
+        p.refSubseqInterval.startPos = j; \
+        p.refSubseqInterval.length = i - j; \
+        p.score = max1; \
+        pairAlignmentStrings.append(p); \
+        /* printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score); */
+#endif
+
+    i = 1; do {
+        SW_LOOP(buf, buf + 2);
+        if(++i > static_cast<int>(src_n)) {
+            break;
+        }
+        SW_LOOP(buf + 2, buf);
+    } while(++i <= static_cast<int>(src_n));
+
+#undef SW_LOOP
+#undef SW_FILT_MACRO
+
+#ifdef SW_FILT
+    if(p.score) {
+      pairAlignmentStrings.append(p);
+      // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+    }
+#endif
+    _mm_free(matrix);
+}
+
+
+inline void SmithWatermanAlgorithmSSE2::printVector(__m128i &toprint, int add) {
+
+    ScoreType * tmpArray = (ScoreType*)_mm_malloc(nElementsInVec*sizeof(ScoreType),16);
+
+    _mm_store_si128((__m128i*) &tmpArray[0], toprint);
+    cout <<"printVector" <<endl;
+    for (int i = 0; i < nElementsInVec; i++) cout <<tmpArray[i] + add <<" ";
+
+    cout <<endl;
 }
 
 int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsigned char *dbSeq, unsigned dbLength, unsigned short gapOpenOrig, unsigned short gapExtend) {
@@ -285,7 +949,7 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
     int ALPHA_SIZE = substitutionMatrix.getAlphabet()->getNumAlphabetChars();
 
     __m128i* pvQueryProf = (__m128i*)_mm_malloc
-        ('Z'*ALPHA_SIZE*iter*sizeof(__m128i), 16);    
+        ('Z'*ALPHA_SIZE*iter*sizeof(__m128i), 16);
 
     int weight = 0;
     unsigned short * queryProfile = (unsigned short *) pvQueryProf;
@@ -295,7 +959,7 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
 
     QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
     for (int i = 0; i < ALPHA_SIZE; i++) {
-        curChar = alphaChars.at(i);        
+        curChar = alphaChars.at(i);
         int h = 0;
         for (int j = 0; j < segSize; j++) {
             unsigned int k = j;
@@ -313,15 +977,15 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
     }
 
 
-    __m128i *pvHLoad = (__m128i*)_mm_malloc(iter*sizeof(__m128i), 16);    
-    __m128i *pvHStore = (__m128i*)_mm_malloc(iter*sizeof(__m128i), 16);    
+    __m128i *pvHLoad = (__m128i*)_mm_malloc(iter*sizeof(__m128i), 16);
+    __m128i *pvHStore = (__m128i*)_mm_malloc(iter*sizeof(__m128i), 16);
     __m128i *pvE = (__m128i*)_mm_malloc(iter*sizeof(__m128i), 16);
 
 
     unsigned i = 0, j = 0;
     int     score = 0;
 
-    int cmp = 0;    
+    int cmp = 0;
 
     unsigned short gapOpenFarrar = gapOpenOrig - gapExtend;
 
@@ -354,7 +1018,7 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
     /*  math, we will bias the maxscore to -32768 so we have the */
     /*  full range of the short. */
     vMaxScore = _mm_cmpeq_epi16 (vMaxScore, vMaxScore);
-    vMaxScore = _mm_slli_epi16 (vMaxScore, 15);    
+    vMaxScore = _mm_slli_epi16 (vMaxScore, 15);
 
     vMinimums = _mm_shuffle_epi32 (vMaxScore, 0);
     Q_UNUSED(vMinimums);
@@ -369,9 +1033,9 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
     }
 
     PairAlignSequences p;
-    U2Region sReg;    
+    U2Region sReg;
 
-    for (i = 0; i < dbLength; ++i) {    
+    for (i = 0; i < dbLength; ++i) {
 
 
         /* fetch first data asap. */
@@ -392,12 +1056,12 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
 
         for (j = 0; j < iter; ++j) {
 
-            /* load values of vF and vH from previous row (one unit up) */            
+            /* load values of vF and vH from previous row (one unit up) */
             vE = _mm_load_si128 (pvE + j);
 
             /* add score to vH */
             vH = _mm_adds_epi16 (vH, *pvScore++);
-            
+
             /* Update highest score encountered this far */
             vMaxScore = _mm_max_epi16 (vMaxScore, vH);
 
@@ -411,7 +1075,7 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
             /* update vE value */
             vH = _mm_subs_epi16 (vH, vGapOpen);
             vE = _mm_subs_epi16 (vE, vGapExtend);
-            vE = _mm_max_epi16 (vE, vH);            
+            vE = _mm_max_epi16 (vE, vH);
 
             /* update vF value */
             vF = _mm_subs_epi16 (vF, vGapExtend);
@@ -421,53 +1085,53 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
             _mm_store_si128 (pvE + j, vE);
 
             /* load the next h value */
-            vH = _mm_load_si128 (pvHLoad + j);                
-            
-        }        
+            vH = _mm_load_si128 (pvHLoad + j);
+
+        }
 
         /* reset pointers to the start of the saved data */
         j = 0;
-        vH = _mm_load_si128 (pvHStore + j);        
+        vH = _mm_load_si128 (pvHStore + j);
 
         /*  the computed vF value is for the given column.  since */
         /*  we are at the end, we need to shift the vF value over */
         /*  to the next column. */
-        
+
         vF = _mm_slli_si128 (vF, 2);
         vF = _mm_or_si128 (vF, vMin);
         vTemp = _mm_subs_epi16 (vH, vGapOpen);
 
         vTemp = _mm_cmpgt_epi16 (vF, vTemp);
-        
+
         cmp  = _mm_movemask_epi8 (vTemp);
-        
-        while (cmp != 0x0000) 
+
+        while (cmp != 0x0000)
             //for (unsigned cnt=0; cnt<iter; ++cnt)
-        {    
+        {
             vE = _mm_load_si128 (pvE + j);
 
             vH = _mm_max_epi16 (vH, vF);
 
             /* save vH values */
             _mm_store_si128 (pvHStore + j, vH);
-            
+
             /*  update vE incase the new vH value would change it */
             vH = _mm_subs_epi16 (vH, vGapOpen);
-            vE = _mm_max_epi16 (vE, vH);            
-            
+            vE = _mm_max_epi16 (vE, vH);
+
 
             /* update vF value */
-            vF = _mm_subs_epi16 (vF, vGapExtend);        
-            
-            
+            vF = _mm_subs_epi16 (vF, vGapExtend);
+
+
             j++;
             if (j >= iter) {
                 j = 0;
                 vF = _mm_slli_si128 (vF, 2);
                 vF = _mm_or_si128 (vF, vMin);
-            }            
+            }
 
-            vH = _mm_load_si128 (pvHStore + j);                        
+            vH = _mm_load_si128 (pvHStore + j);
 
             vTemp = _mm_subs_epi16 (vH, vGapOpen);
             vTemp = _mm_cmpgt_epi16 (vF, vTemp);
@@ -494,21 +1158,6 @@ int SmithWatermanAlgorithmSSE2::calculateMatrixSSE2(unsigned queryLength, unsign
     /* return largest score */
     return score + 32768;
 }
-
-
-    
-inline void SmithWatermanAlgorithmSSE2::printVector(__m128i &toprint, int add) {
-
-    ScoreType * tmpArray = (ScoreType*)_mm_malloc(nElementsInVec*sizeof(ScoreType),16);
-
-    _mm_store_si128((__m128i*) &tmpArray[0], toprint);
-    cout <<"printVector" <<endl;
-    for (int i = 0; i < nElementsInVec; i++) cout <<tmpArray[i] + add <<" ";
-
-    cout <<endl;
-}
-
-
 
 } //namespase
 #endif //SW2_BUILD_WITH_SSE2

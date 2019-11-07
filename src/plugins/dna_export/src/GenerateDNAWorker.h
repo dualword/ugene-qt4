@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -40,12 +40,10 @@ protected:
 class GenerateDNAWorker : public BaseWorker {
     Q_OBJECT
 public:
-    GenerateDNAWorker(Actor* a) : BaseWorker(a), ch(NULL), done(false) {}
+    GenerateDNAWorker(Actor* a) : BaseWorker(a), ch(NULL) {}
 
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup() {}
 
 private slots:
@@ -53,7 +51,6 @@ private slots:
 
 private:
     CommunicationChannel* ch;
-    bool done;
 };
 
 class GenerateDNAWorkerFactory : public DomainFactory {

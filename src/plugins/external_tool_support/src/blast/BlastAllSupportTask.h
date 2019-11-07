@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,14 +28,14 @@
 
 #include <U2Core/AnnotationData.h>
 
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/SaveDocumentTask.h>
 #include "utils/ExportTasks.h"
 
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AnnotationData.h>
+#include <U2Core/ExternalToolRunTask.h>
+#include <U2Core/U2SequenceUtils.h>
 
-#include "ExternalToolRunTask.h"
 #include "utils/BlastTaskSettings.h"
 
 #include <QtXml/QDomNode>
@@ -43,7 +43,7 @@
 
 namespace U2 {
 
-class BlastAllSupportTask : public Task {
+class BlastAllSupportTask : public ExternalToolSupportTask {
     Q_OBJECT
 public:
     BlastAllSupportTask(const BlastTaskSettings& settings);
@@ -61,8 +61,9 @@ private:
     SaveDocumentTask*           saveTemporaryDocumentTask;
     ExternalToolRunTask*        blastAllTask;
     BlastTaskSettings           settings;
+    U2PseudoCircularization*      circularization;
 
-    U2SequenceObject*          sequenceObject;
+    U2SequenceObject*           sequenceObject;
     Document*                   tmpDoc;
 
     QList<SharedAnnotationData> result;

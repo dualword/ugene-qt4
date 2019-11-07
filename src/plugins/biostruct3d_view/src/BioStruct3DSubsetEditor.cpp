@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@ namespace U2 {
 
 static const QString ALL_CHAINS("All chains");
 
-BioStruct3DSubsetEditor::BioStruct3DSubsetEditor(const QList<BioStruct3DObject*> &biostructs, const BioStruct3DObject *selected /*= 0*/, int selectedModel /*= -1*/,  QWidget *parent /*= 0*/)
+BioStruct3DSubsetEditor::BioStruct3DSubsetEditor(const QList<BioStruct3DObject*> &biostructs, const BioStruct3DObject *selected /* = 0*/, int selectedModel /* = -1*/,  QWidget *parent /* = 0*/)
         : QWidget(parent)
 {
     setupUi(this);
@@ -65,7 +65,7 @@ void BioStruct3DSubsetEditor::fillChainCombo() {
 
     foreach (const int chainId, bso->getBioStruct3D().moleculeMap.keys()) {
         chainCombo->addItem(QString::number(chainId), qVariantFromValue(chainId));
-    }    
+    }
 }
 
 void BioStruct3DSubsetEditor::fillModelCombo() {

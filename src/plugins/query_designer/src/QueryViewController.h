@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,8 +28,11 @@
 
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsScene>
-
+#else
+#include <QtWidgets/QGraphicsScene>
+#endif
 
 namespace U2 {
 
@@ -109,6 +112,7 @@ private:
     QList<QGraphicsItem*> unitsIntersectedByRow(int idx) const;
     QList<QGraphicsItem*> getElements(const QRectF& area);
     void setupDistanceDialog(QDDistanceType kind);
+    bool ajustPosForNewItem(QDElement *item, QPointF &posToAjust);
 private:
     QDElement*              dropCandidateLeft;
     QDElement*              dropCandidateRight;
@@ -146,6 +150,7 @@ public:
     static void setupConstraintEditor(QDConstraint* c);
     void enableSaveAction(bool enable);
     QDActor *getActor() {return currentActor;}
+    void setSchemeUri(QString uri) {schemeUri = uri;};
 protected:
     bool onCloseEvent();
 private slots:

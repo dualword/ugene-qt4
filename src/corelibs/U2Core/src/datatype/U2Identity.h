@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,14 +23,16 @@
 #define _U2_IDENTITY_H_
 
 #include <QtCore/QHash>
+#include <QtCore/QString>
 
 namespace U2 {
 
-template <class T> class AbstractId { 
-protected: 
+template <class T> class AbstractId {
+protected:
     AbstractId(const T& _id) : id(_id) {}
+    virtual ~AbstractId() {}
 
-public: 
+public:
     virtual bool isValid() const  = 0;
 
     bool operator==(const AbstractId<T>& oid) const {

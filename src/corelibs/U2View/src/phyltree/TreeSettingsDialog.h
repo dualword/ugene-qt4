@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,48 +19,28 @@
  * MA 02110-1301, USA.
  */
 
-#pragma once
-
+#ifndef _TREE_SETTIHS_DIALOG_
+#define _TREE_SETTIHS_DIALOG_
+    
+#include "BaseSettingsDialog.h"
 #include <ui/ui_TreeSettingsDialog.h>
-#include <QtGui/QDialog>
+#include "ov_phyltree/TreeSettings.h"
 
 namespace U2 {
 
-struct TreeSettings
-{
-public:
-    TreeSettings();
-
-    enum TREE_TYPE { PHYLOGRAM, CLADOGRAM };
-
-    TREE_TYPE type;
-    int width_coef;
-    int height_coef;
-
-    static int default_width_coef;
-    static int default_height_coef;
-};
-
-class TreeSettingsDialog : public QDialog, public Ui_TreeSettingsDialog{
+class TreeSettingsDialog : public BaseSettingsDialog, public Ui_TreeSettingsDialog{
     Q_OBJECT
 public:
-    TreeSettingsDialog(QWidget *parent, const TreeSettings &treeSettings, bool isRectLayout);
-    
+    TreeSettingsDialog(QWidget *parent, const OptionsMap &settings, bool isRectLayout);
+
     virtual void accept();
-    TreeSettings getSettings() const;
 
-protected slots:
-   // void sl_colorButton();
-
-private:
-    static QString treePhylogramText() { return tr("Phylogram"); }
-    static QString treeCladogramText() { return tr("Cladogram"); }
-
-
-    TreeSettings settings, changedSettings;
-
+    static QString treeDefaultText();
+    static QString treePhylogramText();
+    static QString treeCladogramText();
+private slots:
+    void sl_treeTypeChanged(int);
 };
 
 } //namespace
-
-
+#endif

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,12 +34,12 @@ class RFDiagonalAlgorithmWK : public RFAlgorithmBase {
     Q_OBJECT
     friend class RFDiagonalWKSubtask;
 public:
-    RFDiagonalAlgorithmWK(RFResultsListener* rl, const char* seqX, int sizeX, const char* seqY, int sizeY, 
+    RFDiagonalAlgorithmWK(RFResultsListener* rl, const char* seqX, int sizeX, const char* seqY, int sizeY,
                             DNAAlphabetType seqType,  int w, int k);
 
     void prepare();
 
-protected:    
+protected:
     int                 START_DIAG;
     int                 END_DIAG;
 };
@@ -52,18 +52,18 @@ public:
 
     void run();
 
-private:        
+private:
     void processDiagonal(int x, int y);
     int getDiagLen(int d) const;
     int processMatch(const char* x, const char* y, const char* xEnd, const char* yEnd, int c);
 
     RFDiagonalAlgorithmWK*  owner;
-    
+
     int                     threadNum;
     int                     nThreads;
     const char*             dataX;
     const char*             dataY;
-    
+
     QVector<RFResult>       diagResults;
 
     quint64                 areaS;

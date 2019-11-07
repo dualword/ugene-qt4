@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,29 +19,35 @@
  * MA 02110-1301, USA.
  */
 
-#include "EditAnnotationDialogController.h"
+#include <QMenu>
+#include <QMessageBox>
 
-#include <qmessagebox.h>
+#include <U2Core/Annotation.h>
+#include <U2Core/AnnotationData.h>
+#include <U2Core/GenbankFeatures.h>
+#include <U2Core/U1AnnotationUtils.h>
 
 #include <U2Formats/GenbankLocationParser.h>
-#include <U2Formats/GenbankFeatures.h>
 
 #include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/HelpButton.h>
+
+#include "EditAnnotationDialogController.h"
 
 /* TRANSLATOR U2::EditAnnotationDialogController */
 
 namespace U2 {
 
-EditAnnotationDialogController::EditAnnotationDialogController( Annotation* a, U2Region _seqRange, QWidget* p)
-: QDialog(p), seqRange(_seqRange)
+EditAnnotationDialogController::EditAnnotationDialogController(const SharedAnnotationData &a, const U2Region &seqRange, QWidget *p)
+    : QDialog(p), seqRange(seqRange)
 {
-
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122171");
 
-    nameEdit->setText(a->getAnnotationName());
-    locationEdit->setText(Genbank::LocationParser::buildLocationString(a->data()));
-    location = a->getLocation();
-    
+    nameEdit->setText(a->name);
+    locationEdit->setText(U1AnnotationUtils::buildLocationString(a));
+    location = a->location;
+
     QMenu* menu = EditAnnotationDialogController::createAnnotationNamesMenu(this, this);
     showNameGroupsButton->setMenu(menu);
     showNameGroupsButton->setPopupMode(QToolButton::InstantPopup);
@@ -52,33 +58,39 @@ EditAnnotationDialogController::EditAnnotationDialogController( Annotation* a, U
     connect(nameEdit, SIGNAL(returnPressed()), SLOT(accept()));
 }
 
-void EditAnnotationDialogController::sl_onTextChanged(const QString& changedText){
-    QByteArray locEditText = changedText.toAscii();
+void EditAnnotationDialogController::sl_onTextChanged(const QString& changedText) {
+    QByteArray locEditText = changedText.toLatin1();
     Genbank::LocationParser::parseLocation(locEditText.constData(), changedText.length(), location);
     if (location->isEmpty()) {
-        if(changedText.isEmpty()){
-            statusLabel->setText("<font color=\"#FF0000\">" + tr("Location is empty!") + "</font>");
-        }else{
-            statusLabel->setText("<font color=\"#FF0000\">" + tr("Invalid location!") + "</font>");
+        if (changedText.isEmpty()) {
+            statusLabel->setText("<b><font color=\"#A6392E\">" + tr("Location is empty!") + "</font></b>");
+        } else{
+            statusLabel->setText("<b><font color=\"#A6392E\">" + tr("Invalid location!") + "</font><b>");
         }
-    }else{
+    } else {
         statusLabel->setText("");
     }
 }
 
-void EditAnnotationDialogController::accept(){
-    QByteArray locEditText = locationEdit->text().toAscii();
+void EditAnnotationDialogController::accept() {
+    QByteArray locEditText = locationEdit->text().toLatin1();
     Genbank::LocationParser::parseLocation(locEditText.constData(), locationEdit->text().length(), location);
+
+    if (location->isEmpty()) {
+        QMessageBox::critical(this, tr("Error!"), tr("Annotation location empty or invalid!"));
+        QDialog::reject();
+        return;
+    }
 
     U2Region cRegion = U2Region::containingRegion(location->regions);
     bool validRegions = seqRange.contains(cRegion);
 
-    if ( location->isEmpty() || (nameEdit->text()).isEmpty() ) {
+    if (!Annotation::isValidAnnotationName(nameEdit->text())) {
+        QMessageBox::critical(this, tr("Error!"), tr("Wrong annotation name!"));
         QDialog::reject();
-    }else if (!Annotation::isValidAnnotationName(nameEdit->text())) {
-        QMessageBox::critical( this, tr( "Error!" ), tr( "Wrong annotation name!" ) );
     }else if (!validRegions){
-        QMessageBox::critical( this, tr( "Error!" ), tr( "New annotation locations is out of sequence bounds!" ) );
+        QMessageBox::critical(this, tr("Error!"), tr("New annotation locations is out of sequence bounds!"));
+        QDialog::reject();
     }else{
         currentName = nameEdit->text();
         QDialog::accept();
@@ -89,8 +101,7 @@ static bool caseInsensitiveLessThan(const QString &s1, const QString &s2) {
     return s1.toLower() < s2.toLower();
 }
 
-QMenu* EditAnnotationDialogController::createAnnotationNamesMenu( QWidget* p, QObject* receiver )
-{
+QMenu* EditAnnotationDialogController::createAnnotationNamesMenu(QWidget* p, QObject* receiver) {
     assert(p!=NULL && receiver!=NULL);
 
     QMenu* m = new QMenu(p);

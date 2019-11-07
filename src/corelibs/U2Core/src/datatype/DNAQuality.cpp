@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,16 +28,27 @@ static const QString SANGER("Sanger");
 static const QString ILLUMINA("Illumina 1.3+");
 static const QString SOLEXA("Solexa/Illumina 1.0");
 
+const QString DNAQuality::QUAL_FORMAT("PHRED");
+const QString DNAQuality::ENCODED("Encoded");
+
 DNAQuality::DNAQuality( const QByteArray& qualScore, DNAQualityType t /* = DNAQualityType_Sanger*/ )
 : qualCodes(qualScore), type(t)
 {
 
 }
 
+qint64 DNAQuality::memoryHint() const {
+    qint64 m = sizeof(*this);
+    m += qualCodes.capacity();
+
+    return m;
+}
+
 int DNAQuality::getValue( int pos ) const
 {
     assert(pos >=0 && pos < qualCodes.count());
-    return  ( (int)qualCodes.at(pos) - 33 );
+    return  type == DNAQualityType_Sanger ?
+        ( (int)qualCodes.at(pos) - 33 ) : ( (int)qualCodes.at(pos) - 64 );
 }
 
 char DNAQuality::encode( int val, DNAQualityType type )
@@ -46,7 +57,7 @@ char DNAQuality::encode( int val, DNAQualityType type )
         return (char) ( (val <= 93 ? val : 93) + 33 );
     } else {
         return (char) ( (val <= 62 ? val : 62) + 64 );
-    } 
+    }
 }
 
 QString DNAQuality::getDNAQualityNameByType( DNAQualityType t )

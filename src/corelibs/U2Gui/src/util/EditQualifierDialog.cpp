@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,19 @@
  * MA 02110-1301, USA.
  */
 
-#include "EditQualifierDialog.h"
-#include <ui/ui_EditQualifierDialog.h>
+#include <U2Core/Annotation.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
+
 #include <QtGui/QKeyEvent>
+#include <U2Gui/HelpButton.h>
+
+#include <ui/ui_EditQualifierDialog.h>
+#include "EditQualifierDialog.h"
 
 namespace U2 {
 
@@ -32,13 +40,14 @@ EditQualifierDialog::EditQualifierDialog(QWidget* p, const U2Qualifier& q, bool 
 {
     ui = new Ui_EditQualifierDialog;
     ui->setupUi(this);
+    new HelpButton(this, ui->buttonBox, "16122177");
     
-	if(true == ro){
-		this->setWindowTitle(tr("View qualifier"));
-	}
+    if(true == ro){
+        this->setWindowTitle(tr("View Qualifier"));
+    }
 
     if( !existingQualifier ) { // adding new qualifier
-        setWindowTitle("Add new qualifier");
+        setWindowTitle("Add New Qualifier");
     }
     
     ui->nameEdit->setReadOnly(ro);

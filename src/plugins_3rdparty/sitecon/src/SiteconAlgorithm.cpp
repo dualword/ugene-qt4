@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
 #include <U2Core/DNATranslation.h>
 #include <U2Core/Log.h>
 #include <U2Core/MAlignment.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Core/TextUtils.h>
 #include <QtCore/QFile>
@@ -74,15 +75,15 @@ QVector<PositionStats> SiteconAlgorithm::calculateDispersionAndAverage(const MAl
         foreach(DiPropertySitecon* p, props) { // for every property
             float average = 0; //average in a column
             foreach(const MAlignmentRow& row, ma.getRows()) { // collect di-position stat for all sequence in alignment
-                average+=p->getOriginal(row.chatAt(i), row.chatAt(i+1));
+                average+=p->getOriginal(row.charAt(i), row.charAt(i+1));
             }
             average/=N;
 
             float dispersion = 0; // dispersion in a column
             for (int j = 0; j < ma.getNumRows(); j++) {// collect di-position stat for all sequence in alignment
                 const MAlignmentRow& row = ma.getRow(j);
-                char c1 = row.chatAt(i);
-                char c2 = row.chatAt(i+1);
+                char c1 = row.charAt(i);
+                char c2 = row.charAt(i+1);
                 float v = p->getOriginal(c1, c2);
                 dispersion+=(average - v)*(average - v);
             }
@@ -152,15 +153,16 @@ QVector<float> SiteconAlgorithm::calculateFirstTypeError(const MAlignment& ma, c
     // 2. Calculate score for excluded sequence
     // 3. Distribute percentage for all scores
 
+    U2OpStatus2Log os;
 	int maLen = ma.getLength();
     for (int i=0; i < ma.getNumRows() && !ts.cancelFlag; i++) {
         const MAlignmentRow& row = ma.getRow(i);
         MAlignment subMA = ma;
-        subMA.removeRow(i);
+        subMA.removeRow(i, os);
         QVector<PositionStats> matrix = calculateDispersionAndAverage(subMA, s, ts);
         QVector<PositionStats> normalizedMatrix = normalize(matrix, s);
         calculateWeights(subMA, normalizedMatrix, s, true, ts);
-        float p = calculatePSum(row.toByteArray(maLen), maLen, normalizedMatrix, s, devThresh);
+        float p = calculatePSum(row.toByteArray(maLen, os), maLen, normalizedMatrix, s, devThresh);
         scores.append(p);
     }
     QVector<float> res(100, 0);
@@ -252,7 +254,7 @@ void SiteconAlgorithm::calculateACGTContent(const MAlignment& ma, SiteconBuildSe
     int total = ma.getNumRows() * ma.getLength();
     foreach(const MAlignmentRow& row, ma.getRows()) {
 		for (int i=0; i < maLen; i++) {
-            char c = row.chatAt(i);
+            char c = row.charAt(i);
             if (c == 'A') {
                 bs.acgtContent[0]++;
             } else if (c == 'C') {

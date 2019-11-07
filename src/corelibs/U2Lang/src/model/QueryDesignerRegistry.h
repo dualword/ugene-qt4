@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 
 
 namespace U2 {
-    
+
 class U2LANG_EXPORT QDActorPrototypeRegistry : public QObject, public IdRegistry<QDActorPrototype> {
     Q_OBJECT
 public:

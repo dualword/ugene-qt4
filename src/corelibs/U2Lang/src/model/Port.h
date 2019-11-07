@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,9 +22,10 @@
 #ifndef _U2_WORKFLOW_PORT_H_
 #define _U2_WORKFLOW_PORT_H_
 
-#include <U2Lang/Peer.h>
-#include <U2Lang/Datatype.h>
 #include <U2Lang/Configuration.h>
+#include <U2Lang/Datatype.h>
+#include <U2Lang/Peer.h>
+#include <U2Lang/PortMapping.h>
 
 namespace U2 {
 
@@ -49,6 +50,7 @@ public:
     virtual DataTypePtr getType() const;
     DataTypePtr getOutputType() const;
     void setNewType(const DataTypePtr &newType);
+    QMap<Descriptor, DataTypePtr> getOwnTypeMap() const;
 
 protected:
     // type of data that this port contains
@@ -97,17 +99,23 @@ public:
     // reimplemented Configuration::remap
     // empty implementation
     virtual void remap(const QMap<ActorId, ActorId>&);
+    virtual void updateBindings(const QMap<ActorId, ActorId>&);
+    virtual void replaceActor(Actor *oldActor, Actor *newActor, const QList<PortMapping> &mappings);
+
+    bool isEnabled() const {return enabled;}
+    void setEnabled(bool enabled);
 
 signals:
     // emitted when link is added or removed from bindings
     void bindingChanged();
+    void si_enabledChanged(bool);
 
 protected:
     // owner of this port
     Actor* proc;
     // links with other ports
     QMap<Port*,Link*> bindings;
-
+    bool enabled;
 }; // Port
 
 /**
@@ -124,6 +132,7 @@ public:
 
     // adds this link to p1 and p2 bindings
     void connect(Port* p1, Port* p2);
+    void disconnect();
 
     Port* source() const;
     Port* destination() const;
@@ -135,6 +144,17 @@ private:
     Port *dest;
 
 }; // Link
+
+class U2LANG_EXPORT ActorPortsAliases {
+public:
+    ActorPortsAliases() {}
+    bool addAlias(const QString &newPortName, const QString &newSlotName, const Port *port, const QString &slotId);
+    bool hasAlias(const QString &portName, const QString &slotName) const;
+    bool getAlias();
+
+private:
+    QMap<QPair<QString, QString>, QPair<Port*, QString> > outPortAliases;
+};
 
 }
 

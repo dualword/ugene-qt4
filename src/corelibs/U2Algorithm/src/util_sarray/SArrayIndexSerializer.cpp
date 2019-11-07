@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,8 +35,8 @@ void SArrayIndexSerializer::serialize(const SArrayIndex *index, const QString &i
         return;
     }
     QByteArray data;
-    data = SARRAY_HEADER.toAscii();
-    data += SARRAY_PARAMETERS.arg(refFileName).arg(index->seqLen).arg(index->w).arg(index->gapOffset).toAscii();
+    data = SARRAY_HEADER.toLatin1();
+    data += SARRAY_PARAMETERS.arg(refFileName).arg(index->seqLen).arg(index->w).arg(index->gapOffset).toLatin1();
 
     data += QByteArray::number(index->w, 10) + ", ";
     data += QByteArray::number(index->w4, 10) + ", ";
@@ -134,7 +134,7 @@ inline int getNextInt(QByteArray &data, bool &eol, bool &intErr) {
     return result.toInt();
 }
 
-void SArrayIndexSerializer::readArray(QFile &file, char *buff, int *len, int *pos, int *bytes, 
+void SArrayIndexSerializer::readArray(QFile &file, char *buff, int *len, int *pos, int *bytes,
     int *lineIdx, quint32 *array, int arrLen, TaskStateInfo& ti) {
         quint32 number = 0;
         int numberLength = 0;

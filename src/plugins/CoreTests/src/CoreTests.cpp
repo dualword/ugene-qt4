@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,38 +19,40 @@
  * MA 02110-1301, USA.
  */
 
-#include "CoreTests.h"
 #include <U2Core/AppContext.h>
 #include <U2Core/GAutoDeleteList.h>
-#include <U2Test/XMLTestFormat.h>
+
 #include <U2Test/GTestFrameworkComponents.h>
+#include <U2Test/XMLTestFormat.h>
+
+#include "CoreTests.h"
 
 //built-in test impls
-#include "EditSequenceTests.h"
-#include "DocumentModelTests.h"
-#include "DNASequenceObjectTests.h"
 #include "AnnotationTableObjectTest.h"
-#include "DNATranslationImplTests.h"
-#include "BioStruct3DObjectTests.h"
-#include "TaskTests.h"
 #include "AsnParserTests.h"
-#include "SequenceWalkerTests.h"
-#include "PhyTreeObjectTests.h"
-#include "PWMatrixTests.h"
-#include "SecStructPredictTests.h"
+#include "BinaryFindOpenCLTests.h"
+#include "BioStruct3DObjectTests.h"
+#include "CMDLineTests.h"
+#include "DNASequenceObjectTests.h"
+#include "DNATranslationImplTests.h"
 #include "DnaAssemblyTests.h"
+#include "DocumentModelTests.h"
+#include "EditAlignmentTests.h"
+#include "EditSequenceTests.h"
 #include "FindAlgorithmTests.h"
 #include "FormatDetectionTests.h"
-#include "PingRemoteServiceTests.h"
-
-#include "EditAlignmentTests.h"
-#include "SMatrixTests.h"
-#include "BinaryFindOpenCLTests.h"
-
-#include "LoadRemoteDocumentTests.h"
-#include "CMDLineTests.h"
-
 #include "GUrlTests.h"
+#include "LoadDASDocumentTests.h"
+#include "LoadRemoteDocumentTests.h"
+#include "PWMatrixTests.h"
+#include "PhyTreeObjectTests.h"
+#include "PingRemoteServiceTests.h"
+#include "SMatrixTests.h"
+#include "SecStructPredictTests.h"
+#include "SequenceWalkerTests.h"
+#include "TaskTests.h"
+#include "TextObjectTests.h"
+#include "UtilTestActions.h"
 
 namespace U2 {
 
@@ -97,9 +99,6 @@ void CoreTests::registerFactories() {
     //DNATranslationImplTests Tests
     registerFactory<DNATranslationImplTests>(xmlTestFormat);
 
-    //Annotation Table Object Test
-    registerFactory<AnnotationTableObjectTest>(xmlTestFormat);
-
     //Sequence Walker Test
     registerFactory<SequenceWalkerTests>(xmlTestFormat);
 
@@ -114,7 +113,10 @@ void CoreTests::registerFactories() {
 
     // Edit sequence tests
     registerFactory<EditSequenceTests>(xmlTestFormat);
-        
+
+    // Annotation tests
+    registerFactory<AnnotationTableObjectTest>(xmlTestFormat);
+
     // AsnParser tests
     registerFactory<AsnParserTests>(xmlTestFormat);
 
@@ -129,6 +131,8 @@ void CoreTests::registerFactories() {
     registerFactory<CreateSubalignimentTests>(xmlTestFormat);
 
     registerFactory<LoadRemoteDocumentTests>(xmlTestFormat);
+
+    registerFactory<LoadDASDocumentTests>(xmlTestFormat);
 
     // PWMatrix tests
     registerFactory<PWMatrixTests>(xmlTestFormat);
@@ -149,6 +153,11 @@ void CoreTests::registerFactories() {
 
     // Automatic format detection tests
     registerFactory<FormatDetectionTests>(xmlTestFormat);
+
+    registerFactory<TextObjectTests>(xmlTestFormat);
+
+    // Some utility actions to use them in tests
+    registerFactory<UtilTestActions>(xmlTestFormat);
 }
 
 }//namespace

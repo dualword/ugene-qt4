@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,23 @@
  * MA 02110-1301, USA.
  */
 
-#include "PDWFormat.h"
-
-#include "DocumentFormatUtils.h"
-
-#include <U2Core/AppContext.h>
-#include <U2Core/U2OpStatus.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/L10n.h>
-#include <U2Core/GObjectRelationRoles.h>
-#include <U2Core/U2AlphabetUtils.h>
-#include <U2Core/DNASequenceObject.h>
 #include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
 #include <U2Core/TextUtils.h>
 #include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2AlphabetUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
 #include <U2Core/U2SequenceUtils.h>
+
+#include "DocumentFormatUtils.h"
+#include "PDWFormat.h"
 
 namespace U2 {
 
@@ -51,11 +51,11 @@ namespace U2 {
 #define PDW_ANNOTATION_TAG  "Annotation"
 #define PDW_CIRCULAR_TAG    "IScircular"
 
-PDWFormat::PDWFormat(QObject* p) 
+PDWFormat::PDWFormat(QObject* p)
 : DocumentFormat(p, DocumentFormatFlag(0), QStringList()<<"pdw")
 {
     formatName = tr("pDRAW");
-	formatDescription = tr("pDRAW is a sequence file format used by pDRAW software");
+    formatDescription = tr("pDRAW is a sequence file format used by pDRAW software");
     supportedObjectTypes+=GObjectTypes::SEQUENCE;
     supportedObjectTypes+=GObjectTypes::ANNOTATION_TABLE;
 }
@@ -73,19 +73,24 @@ FormatCheckResult PDWFormat::checkRawData(const QByteArray& rawData, const GUrl&
 
 
 #define READ_BUFF_SIZE  4096
-void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, const GUrl& docUrl, QList<GObject*>& objects, U2OpStatus& os, 
+void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, const GUrl& docUrl, QList<GObject*>& objects, U2OpStatus& os,
                      U2SequenceObject*& seqObj, AnnotationTableObject*& annObj)
 {
+    DbiOperationsBlock opBlock(dbiRef, os);
+    CHECK_OP(os,);
+    Q_UNUSED(opBlock);
+
     QByteArray readBuff(READ_BUFF_SIZE+1, 0);
     char* buff = readBuff.data();
     qint64 len = 0;
-    
+
     bool lineOk = false;
     bool isCircular = false;
     QString seqName(docUrl.baseFileName());
-    QList<Annotation*> annotations;
+    QList<SharedAnnotationData> annotations;
 
-    U2SequenceImporter seqImporter(fs);
+    U2SequenceImporter seqImporter(fs, true);
+    const QString folder = fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
 
     while (!os.isCoR()) {
         //read header
@@ -96,12 +101,15 @@ void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& f
         if (!lineOk) {
             os.setError(PDWFormat::tr("Line is too long"));
         }
-        
+
         if (readBuff.startsWith(PDW_DNANAME_TAG)) {
             seqName = readPdwValue(readBuff, PDW_DNANAME_TAG);
+            if(seqName.isEmpty()){
+                seqName = "Sequence";
+            }
         } else if (readBuff.startsWith(PDW_SEQUENCE_TAG)) {
             QByteArray seq = parseSequence(io, os);
-            DNAAlphabet* alphabet = U2AlphabetUtils::findBestAlphabet(seq);
+            const DNAAlphabet* alphabet = U2AlphabetUtils::findBestAlphabet(seq);
             DNASequence dnaSeq(seqName, seq , alphabet);
             if (isCircular) {
                 DNALocusInfo loi;
@@ -110,9 +118,9 @@ void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& f
                 dnaSeq.info.insert(DNAInfo::LOCUS, qVariantFromValue<DNALocusInfo>(loi));
             }
 
-            seqImporter.startSequence(dbiRef, dnaSeq.getName(), dnaSeq.circular, os);
+            seqImporter.startSequence(dbiRef, folder, dnaSeq.getName(), dnaSeq.circular, os);
             seqImporter.addBlock(seq.constData(), seq.length(), os);
-            U2Sequence u2seq = seqImporter.finalizeSequence(os);
+            U2Sequence u2seq = seqImporter.finalizeSequenceAndValidate(os);
             TmpDbiObjects dbiObjects(dbiRef, os);
             dbiObjects.objects << u2seq.id;
             CHECK_OP(os,);
@@ -122,7 +130,7 @@ void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& f
             objects << seqObj;
 
             GObjectReference sequenceRef(io->getURL().getURLString(), seqName, GObjectTypes::SEQUENCE);
-            U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL);
+            U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL, fs);
 
             break;
         } else if (readBuff.startsWith(PDW_CIRCULAR_TAG)) {
@@ -131,61 +139,59 @@ void PDWFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& f
                 isCircular = true;
             }
         } else if (readBuff.startsWith(PDW_ANNOTATION_TAG)) {
-            Annotation* a = parseAnnotation(io, os);
-            assert(a != NULL);
+            SharedAnnotationData a = parseAnnotation(io, os);
             annotations.append(a);
-        }  
+        }
     }
-    
+
     if (!annotations.isEmpty()) {
-        annObj = new AnnotationTableObject(QString("%1 annotations").arg(seqName));
+        QVariantMap hints;
+        hints.insert(DBI_FOLDER_HINT, fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER));
+        annObj = new AnnotationTableObject(QString("%1 annotations").arg(seqName), dbiRef, hints);
         annObj->addAnnotations(annotations);
         objects.append(annObj);
-
     }
 
-    CHECK_OP(os, );
-    CHECK_EXT(!objects.isEmpty(), os.setError(Document::tr("Document is empty.")), );
+    CHECK_OP(os,);
+    CHECK_EXT(!objects.isEmpty(), os.setError(Document::tr("Document is empty.")),);
 }
 
-
-Document* PDWFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& _fs, U2OpStatus& os){
+Document * PDWFormat::loadDocument(IOAdapter *io, const U2DbiRef &dbiRef, const QVariantMap &fs, U2OpStatus &os) {
     U2SequenceObject* seqObj = NULL;
-    AnnotationTableObject* annObj = NULL;
-    CHECK_EXT(io != NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), NULL);
-    QVariantMap fs = _fs;
-    QList<GObject*> objects;
-    
-    load(io, dbiRef, _fs, io->getURL(), objects, os, seqObj, annObj);
+    AnnotationTableObject *annObj = NULL;
+    CHECK_EXT(NULL != io && io->isOpen(), os.setError(L10N::badArgument("IO adapter")),
+        NULL);
+    QList<GObject *> objects;
+
+    load(io, dbiRef, fs, io->getURL(), objects, os, seqObj, annObj);
 
     CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
-    
+
     QString lockReason(DocumentFormat::CREATED_NOT_BY_UGENE);
-    Document* doc = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs, lockReason);
+    Document *doc = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs,
+        lockReason);
 
-    if (seqObj != NULL && annObj != NULL) {
-        annObj->addObjectRelation(seqObj, GObjectRelationRole::SEQUENCE);
+    if (NULL != seqObj && NULL != annObj) {
+        annObj->addObjectRelation(seqObj, ObjectRole_Sequence);
     }
-
     return doc;
 }
 
-QByteArray PDWFormat::parseSequence( IOAdapter* io, U2OpStatus& ti ) {
+QByteArray PDWFormat::parseSequence(IOAdapter* io, U2OpStatus& ti) {
     QByteArray result;
-    
+
     QByteArray readBuff(READ_BUFF_SIZE+1, 0);
-    
+
     while (!ti.isCoR()) {
-    
         bool lineOk = false;
         qint64 len = io->readUntil(readBuff.data(), READ_BUFF_SIZE, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
-        if (len == 0) { 
+        if (len == 0) {
             break;
         }
         if (!lineOk) {
             ti.setError(PDWFormat::tr("Line is too long"));
-        } 
-        
+        }
+
         for (int i = 0; i < readBuff.size(); ++i) {
             char c = readBuff.at(i);
             if (c == '\n') {
@@ -194,17 +200,12 @@ QByteArray PDWFormat::parseSequence( IOAdapter* io, U2OpStatus& ti ) {
             if (c >= 'A' && c <= 'z') {
                 result.append(c);
             }
-            
-
         }
     }
-
     return result;
-
-
 }
 
-QByteArray PDWFormat::readPdwValue( const QByteArray& readBuf, const QByteArray& valueName )
+QByteArray PDWFormat::readPdwValue(const QByteArray& readBuf, const QByteArray& valueName)
 {
     int startPos = valueName.length();
     int endPos = readBuf.indexOf('\n');
@@ -217,51 +218,44 @@ QByteArray PDWFormat::readPdwValue( const QByteArray& readBuf, const QByteArray&
 #define PDW_ANNOTATION_END      "Annotation_End"
 #define PDW_ANNOTATION_ORIENT   "Annotation_Orientation"
 
-Annotation* PDWFormat::parseAnnotation( IOAdapter* io, U2OpStatus& ti )
-{
-    QByteArray readBuf(READ_BUFF_SIZE+1, 0);
+SharedAnnotationData PDWFormat::parseAnnotation(IOAdapter *io, U2OpStatus &ti) {
+    QByteArray readBuf(READ_BUFF_SIZE + 1, 0);
 
     int startPos = -1, endPos = -1;
     QByteArray aName;
     bool cmpl = false;
 
     while (!ti.isCoR()) {
-
         bool lineOk = false;
         qint64 len = io->readUntil(readBuf.data(), READ_BUFF_SIZE, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
-        
+
         if (!readBuf.startsWith(PDW_ANNOTATION_TAG)) {
             break;
         } else if (readBuf.startsWith(PDW_ANNOTATION_NUMBER)) {
             io->skip(-len);
             break;
-        } else if (readBuf.startsWith(PDW_ANNOTATION_NAME) ) {
+        } else if (readBuf.startsWith(PDW_ANNOTATION_NAME)) {
             aName = readPdwValue(readBuf, PDW_ANNOTATION_NAME);
             if (aName.endsWith('\"')) {
-                aName = aName.left(aName.length() - 1).trimmed(); 
+                aName = aName.left(aName.length() - 1).trimmed();
             }
-        } else if (readBuf.startsWith(PDW_ANNOTATION_START) ) {
+        } else if (readBuf.startsWith(PDW_ANNOTATION_START)) {
             startPos = readPdwValue(readBuf, PDW_ANNOTATION_START).toInt();
-        } else if (readBuf.startsWith(PDW_ANNOTATION_END) ) {
+        } else if (readBuf.startsWith(PDW_ANNOTATION_END)) {
             endPos = readPdwValue(readBuf, PDW_ANNOTATION_END).toInt();
-        }else if (readBuf.startsWith(PDW_ANNOTATION_ORIENT) ) {
+        } else if (readBuf.startsWith(PDW_ANNOTATION_ORIENT)) {
             int orientVal = readPdwValue(readBuf, PDW_ANNOTATION_ORIENT).toInt();
             cmpl = orientVal == 0 ? true : false;
         }
-    
+
     }
-    
-    SharedAnnotationData sd(new AnnotationData()); 
-    
+
+    SharedAnnotationData sd(new AnnotationData);
     sd->name = aName;
     sd->location->regions << U2Region(startPos - 1, endPos - startPos + 1);
     sd->setStrand(cmpl ? U2Strand::Complementary : U2Strand::Direct);
 
-    return new Annotation(sd);
-
+    return sd;
 }
 
-
-
-
-}//namespace
+} // namespace U2

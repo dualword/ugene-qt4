@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,13 +32,13 @@ class IOAdapterFactory;
 class U2CORE_EXPORT CopyDataTask : public Task {
     Q_OBJECT
 public:
-    CopyDataTask( IOAdapterFactory * ioFrom, const GUrl& urlFrom, 
+    CopyDataTask( IOAdapterFactory * ioFrom, const GUrl& urlFrom,
                 IOAdapterFactory * ioTo, const GUrl& urlTo );
 
     virtual void run();
 
 private:
-    static const int BUFFSIZE = 32 * 1024;    
+    static const int BUFFSIZE = 32 * 1024;
     IOAdapterFactory * ioFrom;
     IOAdapterFactory * ioTo;
     GUrl urlFrom;

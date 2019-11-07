@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -18,8 +18,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
-
-#include <memory>
 
 #include <U2Core/IOAdapter.h>
 #include <U2Core/AppContext.h>
@@ -42,7 +40,7 @@ void GTest_LoadAsnTree::init(XMLTestFormat*, const QDomElement& el)
 {
     rootElem = NULL;
     contextAdded = false;
-    
+
     asnTreeContextName = el.attribute(INDEX_ATTR);
     if (asnTreeContextName.isEmpty()) {
         failMissingValue(INDEX_ATTR);
@@ -56,27 +54,25 @@ void GTest_LoadAsnTree::init(XMLTestFormat*, const QDomElement& el)
     }
 
     url = env->getVar("COMMON_DATA_DIR") + "/" + url;
-    
+
     IOAdapterId         ioid = el.attribute("io");
     IOAdapterFactory*   iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(ioid);
-    
+
     if (iof == NULL) {
         stateInfo.setError( QString("io_adapter_not_found_%1").arg(ioid));
         return;
-    } 
-    
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    }
+
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
 
     bool ok = io->open(url, IOAdapterMode_Read);
     if (!ok) {
         stateInfo.setError(QString("error_opening_url_for_read '%1'").arg(url));
         return;
     }
-    
-    ASNFormat::AsnParser asnParser(io.get(), stateInfo);
-    rootElem = asnParser.loadAsnTree(); 
-    
-    
+
+    ASNFormat::AsnParser asnParser(io.data(), stateInfo);
+    rootElem = asnParser.loadAsnTree();
 }
 
 void GTest_LoadAsnTree::cleanup()
@@ -93,7 +89,7 @@ Task::ReportResult GTest_LoadAsnTree::report() {
         addContext(asnTreeContextName, rootElem);
         contextAdded = true;
     }
-    
+
     return ReportResult_Finished;
 }
 
@@ -115,7 +111,7 @@ void GTest_FindFirstNodeByName::init(XMLTestFormat*, const QDomElement& el)
         failMissingValue(ROOT_ATTR);
         return;
     }
-    
+
     nodeName = el.attribute(NAME_ATTR);
     if (nodeContextName.isEmpty()) {
         failMissingValue(NAME_ATTR);
@@ -135,7 +131,7 @@ Task::ReportResult GTest_FindFirstNodeByName::report() {
     AsnNode* rootElem = getContext<AsnNode>(this, rootContextName);
     if( rootElem == NULL ){
         stateInfo.setError(QString("node is not in the context, wrong value %1").arg(rootContextName));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
 
     AsnNode* node = ASNFormat::findFirstNodeByName(rootElem, nodeName);
@@ -143,7 +139,7 @@ Task::ReportResult GTest_FindFirstNodeByName::report() {
         stateInfo.setError(QString("node not found %1").arg(nodeName));
         return ReportResult_Finished;
     }
-    
+
     addContext(nodeContextName, node);
     contextAdded = true;
 
@@ -173,12 +169,12 @@ Task::ReportResult GTest_CheckNodeType::report()
     AsnNode* node = getContext<AsnNode>(this, nodeContextName);
     if( node == NULL ){
         stateInfo.setError(QString("node is in the context, wrong value %1").arg(nodeContextName));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
 
     QString tmpTypeName(ASNFormat::getAsnNodeTypeName(node));
     if (nodeTypeName != tmpTypeName) {
-        stateInfo.setError(QString("type for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpTypeName) + 
+        stateInfo.setError(QString("type for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpTypeName) +
             QString(", expected (%1) ").arg(nodeTypeName));
     }
 
@@ -208,15 +204,15 @@ Task::ReportResult GTest_CheckNodeValue::report()
     AsnNode* node = getContext<AsnNode>(this, nodeContextName);
     if( node == NULL ){
         stateInfo.setError(QString("node is not in the context, wrong value %1").arg(nodeContextName));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
-    
+
     QString tmpValue(node->value);
     if (nodeValue != tmpValue) {
-        stateInfo.setError(QString("value for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpValue) + 
+        stateInfo.setError(QString("value for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpValue) +
                 QString(", expected (%1) ").arg(nodeValue));
     }
-        
+
     return ReportResult_Finished;
 }
 
@@ -249,17 +245,17 @@ Task::ReportResult GTest_CheckNodeChildrenCount::report()
     AsnNode* node = getContext<AsnNode>(this, nodeContextName);
     if( node == NULL ){
         stateInfo.setError(QString("node is not in the context, wrong value %1").arg(nodeContextName));
-        return ReportResult_Finished;  
+        return ReportResult_Finished;
     }
 
     int tmpNum = node->children.count();
     if (numChildren != tmpNum) {
-        stateInfo.setError(QString("children count for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpNum) + 
+        stateInfo.setError(QString("children count for node (%1) doesn't match: (%2)").arg(nodeContextName).arg(tmpNum) +
             QString(", expected (%1) ").arg(numChildren));
     }
 
     return ReportResult_Finished;
-        
+
 }
 
 
@@ -276,7 +272,7 @@ QList<XMLTestFactory*> AsnParserTests::createTestFactories()
     res.append(GTest_CheckNodeType::createFactory());
     res.append(GTest_CheckNodeValue::createFactory());
     res.append(GTest_CheckNodeChildrenCount::createFactory());
-    
+
     return res;
 }
 } //namespace

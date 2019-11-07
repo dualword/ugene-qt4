@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,14 +42,14 @@ public:
 
     QStringList getMatrixNames() const;
 
-    QList<SMatrix> selectMatricesByAlphabet(DNAAlphabet* al) const;
-    
-    QStringList selectMatrixNamesByAlphabet(DNAAlphabet* al) const;
+    QList<SMatrix> selectMatricesByAlphabet(const DNAAlphabet* al) const;
+
+    QStringList selectMatrixNamesByAlphabet(const DNAAlphabet* al) const;
 
     void registerMatrix(const SMatrix& m);
 
     static SMatrix readMatrixFromFile(const QString& fileName, QString& error);
-    
+
 private:
     void readMatrices();
     static SMatrix parseMatrix(const QString& name, const QByteArray& text, QString& error);

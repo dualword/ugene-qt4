@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,14 +23,14 @@
 #define _U2_SQLITE_ASSEMBLY_SINGLE_TABLE_DBI_H_
 
 #include "../SQLiteAssemblyDbi.h"
-#include "AssemblyPackAlgorithm.h"
+#include "util/AssemblyPackAlgorithm.h"
 
 #include <U2Core/U2SqlHelpers.h>
 
 namespace U2 {
 
 
-class SingleTableAssemblyAdapter : public AssemblyAdapter {
+class SingleTableAssemblyAdapter : public SQLiteAssemblyAdapter {
 public:
     SingleTableAssemblyAdapter(SQLiteDbi* dbi, const U2DataId& assemblyId, char tablePrefix, const QString& tableSuffix,
         const AssemblyCompressor* compressor, DbRef* ref, U2OpStatus& os);
@@ -44,25 +44,26 @@ public:
     virtual qint64 getMaxPackedRow(const U2Region& r, U2OpStatus& os);
     virtual qint64 getMaxEndPos(U2OpStatus& os);
 
-    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2Region& r, U2OpStatus& os);
+    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2Region& r, U2OpStatus& os, bool sortedHint = false);
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByRow(const U2Region& r, qint64 minRow, qint64 maxRow, U2OpStatus& os);
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByName(const QByteArray& name, U2OpStatus& os);
 
     virtual void addReads(U2DbiIterator<U2AssemblyRead>* it, U2AssemblyReadsImportInfo& ii, U2OpStatus& os);
     virtual void removeReads(const QList<U2DataId>& readIds, U2OpStatus& os);
+    virtual void dropReadsTables(U2OpStatus& os);
 
     virtual void pack(U2AssemblyPackStat& stat, U2OpStatus& os);
 
     virtual void calculateCoverage(const U2Region& region, U2AssemblyCoverageStat& c, U2OpStatus& os);
 
     const QString& getReadsTableName() const {return readsTable;}
-    
+
     void enableRangeTableMode(int minLength, int maxLength);
 
     static QString getReadsTableName(const U2DataId& assemblyId, char prefix, const QString& suffix);
 
     void dropReadsIndexes(U2OpStatus& os);
-    
+
     qint64 getMinReadLength() const {return minReadLength;}
     qint64 getMaxReadLength() const {return maxReadLength;}
 

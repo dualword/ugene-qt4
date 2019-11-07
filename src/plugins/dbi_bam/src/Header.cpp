@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -200,6 +200,12 @@ void Header::Program::setVersion(const QByteArray &version) {
 }
 
 // Header
+
+Header::Header() :
+    sortingOrder(Unknown)
+{
+
+}
 
 const Version &Header::getFormatVersion()const {
     return formatVersion;

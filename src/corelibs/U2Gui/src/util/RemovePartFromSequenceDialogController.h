@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <U2Core/U2Region.h>
 #include <U2Core/U1AnnotationUtils.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 class Ui_RemovePartFromSequenceDialog;
 
@@ -36,14 +40,15 @@ class U2GUI_EXPORT RemovePartFromSequenceDialogController : public QDialog {
 public:
     RemovePartFromSequenceDialogController(U2Region _toDelete, U2Region _source, const QString & docUrl, QWidget *p = NULL);
     ~RemovePartFromSequenceDialogController();
-    virtual void accept();
+    void accept();
 
-    bool modifyCurrentDocument() const;;
-    QString getNewDocumentPath() const;;
+    bool modifyCurrentDocument() const;
+    QString getNewDocumentPath() const;
     U1AnnotationUtils::AnnotationStrategyForResize getStrategy();
-    U2Region getRegionToDelete() const {return toDelete;};
-    bool mergeAnnotations() const;;
-    DocumentFormatId getDocumentFormatId() const;;
+    U2Region getRegionToDelete() const;
+    bool mergeAnnotations() const;
+    bool recalculateQualifiers() const;
+    DocumentFormatId getDocumentFormatId() const;
 
 private slots:
     void sl_browseButtonClicked();

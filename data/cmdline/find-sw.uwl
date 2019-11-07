@@ -1,86 +1,139 @@
-#!UGENE_WORKFLOW
+#@UGENE_WORKFLOW
 #Find pattern in supplied sequence using Smith-Waterman algorithm
+
+
 
 workflow find-sw{
 
     read-sequence {
         type:read-sequence;
-        name:"Read sequence";
-        merge-gap:10;
-        mode:0;
+        name:"Read Reference Sequence";
+        url-in {
+            dataset:Dataset;
+        }
+    }
+    read-sequence-1 {
+        type:read-sequence;
+        name:"Read Pattern Sequence";
+        url-in {
+            dataset:Dataset;
+        }
+    }
+    write-sequence {
+        type:write-sequence;
+        name:"Write Genbank";
+        document-format:genbank;
     }
     ssearch {
         type:ssearch;
-        name:"Smith-Waterman search";
+        name:"Smith-Waterman Search";
         algorithm:"Classic 2";
-        amino:false;
-        filter-strategy:filter-intersections;
-        gap-ext-score:-1;
-        gap-open-score:-10;
-        matrix:Auto;
-        min-score:90;
-        result-name:misc_feature;
-        strand:2;
-    }
-    write-genbank {
-        type:write-genbank;
-        name:"Write Genbank";
-        accumulate:true;
-        write-mode:2;
     }
 
+
+    .actor-bindings {
+        ssearch.out-annotations->write-sequence.in-sequence
+        read-sequence.out-sequence->ssearch.in-sequence
+        read-sequence-1.out-sequence->ssearch.pattern
+    }
+
+    read-sequence-1.annotations->write-sequence.in-sequence.annotations
+    read-sequence.annotations->write-sequence.in-sequence.annotations
+    ssearch.annotations->write-sequence.in-sequence.annotations
+    read-sequence.sequence->write-sequence.in-sequence.sequence
     read-sequence.sequence->ssearch.in-sequence.sequence
-    ssearch.annotations->write-genbank.in-sequence.annotations
-    read-sequence.annotations->write-genbank.in-sequence.annotations
-    read-sequence.sequence->write-genbank.in-sequence.sequence
+    read-sequence-1.sequence->ssearch.pattern.sequence
 
     .meta {
-        aliases {
-            read-sequence.url-in:in;
-            ssearch.filter-strategy:filter;
-            ssearch.matrix:matrix;
-            ssearch.min-score:score;
-            ssearch.pattern:ptrn;
-            ssearch.result-name:name;
-            write-genbank.url-out:out;
-        }
-        help {
-            in:"Input sequence";
-            filter:"Result filtering strategy";
-            matrix:"Scoring matrix";
-            score:"The minimum score of the result";
-            ptrn:"A subsequence pattern to look for";
-            name:"Name of the result annotations marking found regions";
-            out:"Output file with annotations";
+        parameter-aliases {
+            read-sequence.url-in {
+                alias:ref;
+                description:"Input reference sequence";
+            }
+            read-sequence-1.url-in {
+                alias:ptrn;
+                description:"A subsequence pattern to look for";
+            }
+            write-sequence.accumulate {
+                alias:accumulate;
+                description:"Accumulate all incoming data in one file or create separate files for each input. In the latter case, an incremental numerical suffix is added to the file name (using 'True' by default)";
+            }
+            write-sequence.url-out {
+                alias:out;
+                description:"Output file with annotations";
+            }
+            ssearch.algorithm {
+                alias:algo;
+                description:"Version of the Smith-Waterman algorithm. You can use the optimized versions of the algorithm(SSE2, CUDA and OpenCL) if your hardware supports these capabilities (using 'Classic 2' by default)";
+            }
+            ssearch.amino {
+                alias:amino;
+                description:"Translates a supplied nucleotide sequence to protein and searches in the translated sequence (using 'False' by default)";
+            }
+            ssearch.filter-strategy {
+                alias:filter;
+                description:"Result filtering strategy (using 'filter-intersections' by default)";
+            }
+            ssearch.gap-ext-score {
+                alias:gap-ext-penalty;
+                description:"Penalty for extending a gap (using '-1.0' by default)";
+            }
+            ssearch.gap-open-score {
+                alias:gap-open-penalty;
+                description:"Penalty for opening a gap (using '-10.0' by default)";
+            }
+            ssearch.matrix {
+                alias:matrix;
+                description:"Scoring matrix (using 'Auto' by default)";
+            }
+            ssearch.min-score {
+                alias:score;
+                description:"Minimal percent similarity between a sequence and a pattern (using '90' percents by default)";
+            }
+            ssearch.result-name {
+                alias:name;
+                description:"Name of the result annotations marking found regions (using 'misc_feature' by default)";
+            }
+            ssearch.use-pattern-names {
+                alias:use-pattern-names;
+                description:"Use a pattern name as an annotation name (using 'True' by default)";
+            }
         }
         visual {
             read-sequence {
-                tooltip:"Reads sequences and annotations if any from local or remote files.";
-                pos:"-750 -660";
+                pos:"-777 -517";
+                style:ext;
+                bg-color-ext:"0 128 128 64";
+                out-sequence.angle:358.047;
+            }
+            read-sequence-1 {
+                pos:"-778 -370";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
                 out-sequence.angle:360;
             }
             ssearch {
-                tooltip:"Finds regions of similarity to the specified pattern in each input sequence (nucleotide or protein one). <p>Under the hood is the well-known Smith-Waterman algorithm for performing local sequence alignment.";
-                pos:"-570 -660";
+                pos:"-572 -520";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
-                in-sequence.angle:180;
-                out-annotations.angle:360;
+                in-sequence.angle:189.782;
+                out-annotations.angle:329.243;
+                pattern.angle:258.69;
             }
-            write-genbank {
-                tooltip:"Writes all supplied sequences and related annotations to file(s) in Genbank format.";
-                pos:"-300 -660";
+            write-sequence {
+                pos:"-262 -430";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
                 in-sequence.angle:180;
+            }
+            read-sequence-1.out-sequence->ssearch.pattern {
+                text-pos:"-29.8281 -28";
             }
             read-sequence.out-sequence->ssearch.in-sequence {
-                text-pos:"-27.5 -24";
+                text-pos:"-33.8281 -28";
             }
-            ssearch.out-annotations->write-genbank.in-sequence {
-                text-pos:"-45 -37";
+            ssearch.out-annotations->write-sequence.in-sequence {
+                text-pos:"-42 -42";
             }
         }
     }

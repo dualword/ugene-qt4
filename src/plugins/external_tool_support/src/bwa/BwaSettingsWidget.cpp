@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,40 +19,132 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QFile>
+
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/L10n.h>
 
 #include "BwaSettingsWidget.h"
+#include "BwaSupport.h"
 #include "BwaTask.h"
+
+const qint64 MAX_REFERENCE_SIZE_FOR_IS_METHOD =     2.147e+9;
+const qint64 MIN_REFERENCE_SIZE_FOR_BWTSW_METHOD =  1.049e+7;
+const QString STYLE_SHEET_COLOR_ATTRIBUTE =         "color";
+const QString STYLE_SHEET_FONT_WEIGHT_ATTRIBUTE =   "font-weight";
+const QString INFO_MESSAGE_FONT =                   "bold";
+const QString STYLE_SHEET_ATTRIBUTE_EQUALS_SIGN =   ": ";
+const QString STYLE_SHEET_ATTRIBUTES_SEPARATOR =     ";";
+const QString IS_BUILD_INDEX_ALGO_WARNING =          QObject::tr( "NOTE: \"is\" index algorithm "
+    "is not supposed to work with reference sequences having size larger than 2 GB. In order "
+    "to achieve stable BWA performance it is strongly recommend to set the index algorithm to "
+    "\"bwtsw\"" );
+const QString BWTSW_BUILD_INDEX_ALGO_WARNING =       QObject::tr( "NOTE: \"bwtsw\" index algorithm"
+    " is not supposed to work with reference sequences having size smaller than 10 MB. In order "
+    "to achieve stable BWA performance it is strongly recommend to set the index algorithm to "
+    "\"is\"" );
+
+
+void setStylesheetAttributeValue( const QString &attributeName, const QString &attributeValue,
+    QString &stylesheet )
+{
+    int attributeDescriptionStart = stylesheet.indexOf( attributeName );
+    if ( -1 != attributeDescriptionStart ) {
+        attributeDescriptionStart += attributeName.length( )
+            + STYLE_SHEET_ATTRIBUTE_EQUALS_SIGN.length( );
+        int attributeDescriptionEnd = stylesheet.indexOf( STYLE_SHEET_ATTRIBUTES_SEPARATOR,
+            attributeDescriptionStart );
+        stylesheet.replace( attributeDescriptionStart,
+            attributeDescriptionEnd - attributeDescriptionStart, attributeValue );
+    } else {
+        stylesheet.append( " " + attributeName + STYLE_SHEET_ATTRIBUTE_EQUALS_SIGN
+            + attributeValue + STYLE_SHEET_ATTRIBUTES_SEPARATOR );
+    }
+}
+
+BwaIndexAlgorithmWarningReporter::BwaIndexAlgorithmWarningReporter( QObject *parent )
+    : QObject( parent ), reportLabel( NULL ), referenceSequencePath( )
+{
+
+}
+
+void BwaIndexAlgorithmWarningReporter::setRefSequencePath( const U2::GUrl &path ) {
+    referenceSequencePath = path;
+}
+
+void BwaIndexAlgorithmWarningReporter::setReportingLabel( QLabel *_reportLabel ) {
+    reportLabel = _reportLabel;
+    setReportLabelStyle( );
+}
+
+void BwaIndexAlgorithmWarningReporter::sl_IndexAlgorithmChanged( int index ) {
+    QFile referenceSequenceFile( referenceSequencePath.getURLString( ) );
+    if ( !referenceSequenceFile.exists( ) ) {
+        return;
+    }
+    QString infoText = QString( );
+    if ( 3 == index ) {
+        if ( MAX_REFERENCE_SIZE_FOR_IS_METHOD < referenceSequenceFile.size( ) ) {
+            infoText = IS_BUILD_INDEX_ALGO_WARNING;
+        }
+    } else if ( 1 == index ) {
+        if ( MIN_REFERENCE_SIZE_FOR_BWTSW_METHOD > referenceSequenceFile.size( ) ) {
+            infoText = BWTSW_BUILD_INDEX_ALGO_WARNING;
+        }
+    }
+    using namespace U2;
+    SAFE_POINT( NULL != reportLabel, "Trying to access null pointer data", );
+    reportLabel->setText( infoText );
+}
+
+void BwaIndexAlgorithmWarningReporter::setReportLabelStyle( ) {
+    using namespace U2;
+    SAFE_POINT( NULL != reportLabel, "Trying to access null pointer data", );
+    QString infoLabelStyleSheet = reportLabel->styleSheet( );
+    setStylesheetAttributeValue( STYLE_SHEET_COLOR_ATTRIBUTE, U2::L10N::errorColorLabelStr( ),
+        infoLabelStyleSheet );
+    setStylesheetAttributeValue( STYLE_SHEET_FONT_WEIGHT_ATTRIBUTE, INFO_MESSAGE_FONT,
+        infoLabelStyleSheet );
+    reportLabel->setStyleSheet( infoLabelStyleSheet );
+}
 
 namespace U2 {
 
 // BwaSettingsWidget
 
-BwaSettingsWidget::BwaSettingsWidget(QWidget *parent):
-    DnaAssemblyAlgorithmMainWidget(parent)
+BwaSettingsWidget::BwaSettingsWidget(QWidget *parent)
+    : DnaAssemblyAlgorithmMainWidget(parent),
+    warningReporter( new BwaIndexAlgorithmWarningReporter( this ) )
 {
     setupUi(this);
     layout()->setContentsMargins(0,0,0,0);
 
     threadsSpinBox->setMaximum(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
     threadsSpinBox->setValue(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+    warningReporter->setReportingLabel(infoLabel);
+    connect(indexAlgorithmComboBox, SIGNAL(currentIndexChanged(int)), warningReporter, SLOT(sl_IndexAlgorithmChanged(int)));
+    indexSuffixes << BwaTask::indexSuffixes;
+    requiredExtToolNames << ET_BWA;
 }
 
-QMap<QString,QVariant> BwaSettingsWidget::getDnaAssemblyCustomSettings() {
+QMap<QString,QVariant> BwaSettingsWidget::getDnaAssemblyCustomSettings() const {
     QMap<QString, QVariant> settings;
 
     {
         QString algorithm;
         switch(indexAlgorithmComboBox->currentIndex()) {
         case 0:
-            algorithm = "bwtsw";
+            algorithm = "autodetect";
             break;
         case 1:
-            algorithm = "div";
+            algorithm = "bwtsw";
             break;
         case 2:
+            algorithm = "div";
+            break;
+        case 3:
             algorithm = "is";
             break;
         default:
@@ -82,43 +174,44 @@ QMap<QString,QVariant> BwaSettingsWidget::getDnaAssemblyCustomSettings() {
     settings.insert(BwaTask::OPTION_BEST_HITS, bestHitsSpinBox->value());
     settings.insert(BwaTask::OPTION_QUALITY_THRESHOLD, qualityThresholdSpinBox->value());
     settings.insert(BwaTask::OPTION_BARCODE_LENGTH, barcodeLengthSpinBox->value());
-    settings.insert(BwaTask::OPTION_COLORSPACE, colorspaceCheckBox->isChecked());
     settings.insert(BwaTask::OPTION_LONG_SCALED_GAP_PENALTY_FOR_LONG_DELETIONS, longScaledGapPenaltyForLongDeletionsCheckBox->isChecked());
     settings.insert(BwaTask::OPTION_NON_ITERATIVE_MODE, nonIterativeModeCheckBox->isChecked());
 
     return settings;
 }
 
-void BwaSettingsWidget::buildIndexUrl(const GUrl &) {
-    // do nothing
-}
-
-bool BwaSettingsWidget::isParametersOk(QString &) {
-    return true;
+void BwaSettingsWidget::validateReferenceSequence( const GUrl &url ) const {
+    warningReporter->setRefSequencePath( url );
+    warningReporter->sl_IndexAlgorithmChanged( indexAlgorithmComboBox->currentIndex( ) );
 }
 
 // BwaBuildSettingsWidget
 
-BwaBuildSettingsWidget::BwaBuildSettingsWidget(QWidget *parent):
-    DnaAssemblyAlgorithmBuildIndexWidget(parent)
+BwaBuildSettingsWidget::BwaBuildSettingsWidget(QWidget *parent)
+    : DnaAssemblyAlgorithmBuildIndexWidget(parent),
+    warningReporter( new BwaIndexAlgorithmWarningReporter( this ) )
 {
     setupUi(this);
-    layout()->setContentsMargins(0,0,0,0);
+    warningReporter->setReportingLabel( infoLabel );
+    connect( indexAlgorithmComboBox, SIGNAL( currentIndexChanged ( int ) ), warningReporter,
+        SLOT( sl_IndexAlgorithmChanged( int ) ) );
 }
 
 QMap<QString,QVariant> BwaBuildSettingsWidget::getBuildIndexCustomSettings() {
     QMap<QString, QVariant> settings;
-    settings.insert(BwaTask::OPTION_COLORSPACE, colorspaceCheckBox->isChecked());
     {
         QString algorithm;
         switch(indexAlgorithmComboBox->currentIndex()) {
         case 0:
-            algorithm = "bwtsw";
+            algorithm = "autodetect";
             break;
         case 1:
-            algorithm = "div";
+            algorithm = "bwtsw";
             break;
         case 2:
+            algorithm = "div";
+            break;
+        case 3:
             algorithm = "is";
             break;
         default:
@@ -134,8 +227,13 @@ QString BwaBuildSettingsWidget::getIndexFileExtension() {
     return QString();
 }
 
-void BwaBuildSettingsWidget::buildIndexUrl(const GUrl& ) {
-    // do nothing
+GUrl BwaBuildSettingsWidget::buildIndexUrl(const GUrl& url) {
+    return url;
+}
+
+void BwaBuildSettingsWidget::validateReferenceSequence( const GUrl &url ) {
+    warningReporter->setRefSequencePath( url );
+    warningReporter->sl_IndexAlgorithmChanged( indexAlgorithmComboBox->currentIndex( ) );
 }
 
 // BwaGUIExtensionsFactory
@@ -155,5 +253,150 @@ bool BwaGUIExtensionsFactory::hasMainWidget() {
 bool BwaGUIExtensionsFactory::hasBuildIndexWidget() {
     return true;
 }
+
+
+// BwaSettingsWidget
+
+BwaSwSettingsWidget::BwaSwSettingsWidget(QWidget *parent):
+    DnaAssemblyAlgorithmMainWidget(parent),
+    warningReporter( new BwaIndexAlgorithmWarningReporter( this ))
+{
+    setupUi(this);
+
+    numThreadsSpinbox->setMaximum(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+    numThreadsSpinbox->setValue(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+
+    label->setStyleSheet(QString("color: %1; font: bold;").arg(L10N::successColorLabelStr()));
+    label->setText(tr("NOTE: bwa-sw performs alignment of long sequencing reads (Sanger or 454). It accepts reads only in FASTA or FASTQ format. "
+        "Reads should be compiled into single file."));
+
+    adjustSize();
+
+    warningReporter->setReportingLabel(warningLabel);
+    connect(indexAlgorithmComboBox, SIGNAL(currentIndexChanged(int)), warningReporter, SLOT(sl_IndexAlgorithmChanged(int)));
+    requiredExtToolNames << ET_BWA;
+}
+
+QMap<QString,QVariant> BwaSwSettingsWidget::getDnaAssemblyCustomSettings() const {
+    QMap<QString, QVariant> settings;
+
+    settings.insert(BwaTask::OPTION_SW_ALIGNMENT,true);
+
+    settings.insert(BwaTask::OPTION_THREADS, numThreadsSpinbox->value());
+    settings.insert(BwaTask::OPTION_MATCH_SCORE, matchScoreSpinbox->value());
+    settings.insert(BwaTask::OPTION_MISMATCH_PENALTY, mismatchScoreSpinbox->value());
+    settings.insert(BwaTask::OPTION_GAP_OPEN_PENALTY, gapOpenSpinbox->value());
+    settings.insert(BwaTask::OPTION_GAP_EXTENSION_PENALTY, gapExtSpinbox->value());
+    settings.insert(BwaTask::OPTION_CHUNK_SIZE, chunkSizeSpinbox->value());
+    settings.insert(BwaTask::OPTION_BAND_WIDTH, bandWidthSpinbox->value());
+    settings.insert(BwaTask::OPTION_MASK_LEVEL, maskLevelSpinbox->value());
+    settings.insert(BwaTask::OPTION_SCORE_THRESHOLD, scoreThresholdSpinbox->value());
+    settings.insert(BwaTask::OPTION_Z_BEST, zBestSpinbox->value());
+    settings.insert(BwaTask::OPTION_REV_ALGN_THRESHOLD, revAlnThreshold->value());
+    if (hardClippingCheckBox->isChecked()) {
+        settings.insert(BwaTask::OPTION_PREFER_HARD_CLIPPING, true);
+    }
+
+    return settings;
+}
+
+void BwaSwSettingsWidget::validateReferenceSequence( const GUrl &url ) const {
+    warningReporter->setRefSequencePath( url );
+    warningReporter->sl_IndexAlgorithmChanged( indexAlgorithmComboBox->currentIndex( ) );
+}
+
+// BwaGUIExtensionsFactory
+
+DnaAssemblyAlgorithmMainWidget *BwaSwGUIExtensionsFactory::createMainWidget(QWidget *parent) {
+    return new BwaSwSettingsWidget(parent);
+}
+
+DnaAssemblyAlgorithmBuildIndexWidget *BwaSwGUIExtensionsFactory::createBuildIndexWidget(QWidget *parent) {
+    return new BwaBuildSettingsWidget(parent);
+}
+
+bool BwaSwGUIExtensionsFactory::hasMainWidget() {
+    return true;
+}
+
+bool BwaSwGUIExtensionsFactory::hasBuildIndexWidget() {
+    return true;
+}
+
+// BwaMemSettingsWidget
+
+BwaMemSettingsWidget::BwaMemSettingsWidget(QWidget *parent):
+    DnaAssemblyAlgorithmMainWidget(parent),
+    warningReporter( new BwaIndexAlgorithmWarningReporter( this ) )
+{
+    setupUi(this);
+
+    numThreadsSpinbox->setMaximum(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+    numThreadsSpinbox->setValue(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+
+    label->setStyleSheet(QString("color: %1; font: bold;").arg(L10N::successColorLabelStr()));
+    label->setText(tr("NOTE: bwa mem accepts reads only in FASTA or FASTQ format. Reads should be compiled into a single file for each mate end."));
+
+    adjustSize();
+
+    warningReporter->setReportingLabel(warningLabel);
+    connect(indexAlgorithmComboBox, SIGNAL(currentIndexChanged(int)), warningReporter, SLOT(sl_IndexAlgorithmChanged(int)));
+    requiredExtToolNames << ET_BWA;
+}
+
+QMap<QString,QVariant> BwaMemSettingsWidget::getDnaAssemblyCustomSettings() const {
+    QMap<QString, QVariant> settings;
+
+    settings.insert(BwaTask::OPTION_THREADS, numThreadsSpinbox->value());
+    settings.insert(BwaTask::OPTION_MIN_SEED, minSeedSpinbox->value());
+    settings.insert(BwaTask::OPTION_BAND_WIDTH, bandWidthSpinbox->value());
+    settings.insert(BwaTask::OPTION_DROPOFF, dropoffSpinbox->value());
+    settings.insert(BwaTask::OPTION_INTERNAL_SEED_LOOKUP, internalSeedSpinbox->value());
+    settings.insert(BwaTask::OPTION_SKIP_SEED_THRESHOLD, skipSeedSpinbox->value());
+    settings.insert(BwaTask::OPTION_DROP_CHAINS_THRESHOLD, dropChainSpinbox->value());
+    settings.insert(BwaTask::OPTION_MAX_MATE_RESCUES, mateRescueSpinbox->value());
+
+    if (skipMateCheckBox->isChecked()) {
+        settings.insert(BwaTask::OPTION_SKIP_MATE_RESCUES, true);
+    }
+    if (skipPairingCheckBox->isChecked()) {
+        settings.insert(BwaTask::OPTION_SKIP_PAIRING, true);
+    }
+
+    settings.insert(BwaTask::OPTION_MATCH_SCORE, matchScoreSpinbox->value());
+    settings.insert(BwaTask::OPTION_MISMATCH_PENALTY, mismatchScoreSpinbox->value());
+    settings.insert(BwaTask::OPTION_GAP_OPEN_PENALTY, gapOpenSpinbox->value());
+    settings.insert(BwaTask::OPTION_GAP_EXTENSION_PENALTY, gapExtSpinbox->value());
+    settings.insert(BwaTask::OPTION_CLIPPING_PENALTY, clippingPenSpinbox->value());
+    settings.insert(BwaTask::OPTION_UNPAIRED_PENALTY, penaltyUnpairedSpinbox->value());
+    settings.insert(BwaTask::OPTION_SCORE_THRESHOLD, scoreThresholdSpinbox->value());
+
+    settings.insert(BwaTask::OPTION_MEM_ALIGNMENT,true);
+    return settings;
+}
+
+void BwaMemSettingsWidget::validateReferenceSequence( const GUrl &url ) const {
+    warningReporter->setRefSequencePath( url );
+    warningReporter->sl_IndexAlgorithmChanged( indexAlgorithmComboBox->currentIndex( ) );
+}
+
+// BwaMemGUIExtensionsFactory
+
+DnaAssemblyAlgorithmMainWidget *BwaMemGUIExtensionsFactory::createMainWidget(QWidget *parent) {
+    return new BwaMemSettingsWidget(parent);
+}
+
+DnaAssemblyAlgorithmBuildIndexWidget *BwaMemGUIExtensionsFactory::createBuildIndexWidget(QWidget *parent) {
+    return new BwaBuildSettingsWidget(parent);
+}
+
+bool BwaMemGUIExtensionsFactory::hasMainWidget() {
+    return true;
+}
+
+bool BwaMemGUIExtensionsFactory::hasBuildIndexWidget() {
+    return true;
+}
+
 
 } //namespace

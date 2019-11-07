@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,9 +36,8 @@ class SiteconSearchResult {
 public:
     SiteconSearchResult() : strand(U2Strand::Direct), psum(-1), err1(0), err2(1){}
 
-    SharedAnnotationData toAnnotation(const QString& name) const {
-        SharedAnnotationData data;
-        data = new AnnotationData;
+    SharedAnnotationData toAnnotation(const QString &name) const {
+        SharedAnnotationData data(new AnnotationData);
         data->name = name;
         data->location->regions << region;
         data->setStrand(strand);
@@ -51,10 +50,9 @@ public:
         return data;
     }
 
-    static QList<SharedAnnotationData> toTable(const QList<SiteconSearchResult>& res, const QString& name)
-    {
+    static QList<SharedAnnotationData> toTable(const QList<SiteconSearchResult> &res, const QString &name) {
         QList<SharedAnnotationData> list;
-        foreach (const SiteconSearchResult& f, res) {
+        foreach (const SiteconSearchResult &f, res) {
             list.append(f.toAnnotation(name));
         }
         return list;
@@ -83,6 +81,8 @@ class SiteconSearchTask : public Task, public SequenceWalkerCallback {
     Q_OBJECT
 public:
     SiteconSearchTask(const SiteconModel& model, const QByteArray& seq, const SiteconSearchCfg& cfg, int resultsOffset);
+    virtual ~SiteconSearchTask();
+    virtual void cleanup();
     
     virtual void onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti);
     QList<SiteconSearchResult> takeResults();
@@ -90,9 +90,9 @@ public:
 private:
     void addResult(const SiteconSearchResult& r);
 
-    QMutex                      lock;
-    SiteconModel                model;
-    SiteconSearchCfg            cfg;
+    QMutex                      *lock;
+    SiteconModel                *model;
+    SiteconSearchCfg            *cfg;
     QList<SiteconSearchResult>  results;
     int                         resultsOffset;
     QByteArray                  wholeSeq;

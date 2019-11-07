@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,6 @@
 #include "GenbankLocationParser.h"
 #include "DocumentFormatUtils.h"
 
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/GObjectUtils.h>
 
@@ -37,11 +36,11 @@
 
 namespace U2 {
 
-/* TRANSLATOR U2::EMBLPlainTextFormat */    
-/* TRANSLATOR U2::EMBLGenbankAbstractDocument */ 
+/* TRANSLATOR U2::EMBLPlainTextFormat */
+/* TRANSLATOR U2::EMBLGenbankAbstractDocument */
 
-EMBLPlainTextFormat::EMBLPlainTextFormat(QObject* p) 
-: EMBLGenbankAbstractDocument(BaseDocumentFormats::PLAIN_EMBL, tr("EMBL"), 80, DocumentFormatFlag_SupportStreaming, p) 
+EMBLPlainTextFormat::EMBLPlainTextFormat(QObject* p)
+: EMBLGenbankAbstractDocument(BaseDocumentFormats::PLAIN_EMBL, tr("EMBL"), 80, DocumentFormatFlag_SupportStreaming, p)
 {
     fileExtensions << "em" << "emb" << "embl";
     formatDescription = tr("EMBL Flat File Format is a rich format for storing sequences and associated annotations");
@@ -118,14 +117,14 @@ bool EMBLPlainTextFormat::readIdLine(ParserState* s) {
         loi.topology = tokens[2];
         loi.molecule = tokens[3];
         loi.division = tokens[5];
-        s->entry->circular = loi.topology == "circular";
+        s->entry->circular = loi.topology.compare(LOCUS_TAG_CIRCULAR, Qt::CaseInsensitive) == 0;
     } else {
         // remember just in case
         s->entry->tags.insert(DNAInfo::EMBL_ID, idLineStr);
-        s->entry->circular = idLineStr.contains("circular");
+        s->entry->circular = idLineStr.contains(LOCUS_TAG_CIRCULAR, Qt::CaseInsensitive);
     }
     s->entry->tags.insert(DNAInfo::LOCUS, qVariantFromValue<DNALocusInfo>(loi));
-    
+
     return true;
 }
 
@@ -191,7 +190,7 @@ bool EMBLPlainTextFormat::readEntry(ParserState* st,U2SequenceImporter& seqImpor
         }
 
         if (st->hasKey("FT", 2)) {
-            readAnnotations(st, fullSequenceLen+gapSize);
+            readAnnotations(st, fullSequenceLen + gapSize);
             hasLine = true;
             continue;
         }
@@ -202,10 +201,10 @@ bool EMBLPlainTextFormat::readEntry(ParserState* st,U2SequenceImporter& seqImpor
         }
         else if (st->hasKey("SQ", 2)) {
             //reading sequence
-			if(merge && gapSize){
-				seqImporter.addDefaultSymbolsBlock(gapSize,os);
-				CHECK_OP(os,false);
-			}
+            if(merge && gapSize){
+                seqImporter.addDefaultSymbolsBlock(gapSize,os);
+                CHECK_OP(os,false);
+            }
             readSequence(st,seqImporter,sequenceLen,fullSequenceLen,os);
             return true;
         }

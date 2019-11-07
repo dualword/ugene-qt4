@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
  */
 
 #ifndef _U2_IMPORT_QUALITY_SCORES_TASK_H_
-#define _U2_IMPORT_QUALITY_SOCRES_TASK_H_
+#define _U2_IMPORT_QUALITY_SCORES_TASK_H_
 
 #include <U2Core/Task.h>
 #include <U2Core/DNAQuality.h>
@@ -33,29 +33,34 @@ class U2SequenceObject;
 
 class ImportQualityScoresConfig {
 public:
-    ImportQualityScoresConfig() : createNewDocument(false) {}
+    ImportQualityScoresConfig() : type(DNAQualityType_Sanger), format(DNAQuality::QUAL_FORMAT), createNewDocument(false) {}
     QString             fileName;
-    DNAQualityType      type; 
+    DNAQualityType      type;
+    DNAQualityFormat    format;
     bool                createNewDocument;
     QString             dstFileName;
+
 };
 
- 
+
 class ReadQualityScoresTask : public Task {
     Q_OBJECT
 public:
-    ReadQualityScoresTask(const QString& fileName, DNAQualityType t);
+    ReadQualityScoresTask(const QString& fileName, DNAQualityType t, const DNAQualityFormat& f);
 
     void run();
-    
-    QMap<QString,DNAQuality> getResult() const { return result; }
-    
+
+    const QMap<QString,DNAQuality>& getResult() const { return result; }
+
 private:
     void recordQuality( int headerCounter );
+    bool checkRawData();
     QString                     fileName;
     DNAQualityType              type;
+    DNAQualityFormat            format;
     QStringList                 headers;
     QList<int>                  values;
+    QByteArray                  encodedQuality;
     QMap<QString, DNAQuality>   result;
 };
 
@@ -77,4 +82,4 @@ private:
 
 } // namespace U2
 
-#endif 
+#endif // _U2_IMPORT_QUALITY_SCORES_TASK_H_

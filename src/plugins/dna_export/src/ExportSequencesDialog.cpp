@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,33 +19,38 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportSequencesDialog.h"
+#include <QPushButton>
+#include <QMessageBox>
+#include <QTreeWidget>
 
 #include <U2Core/AppContext.h>
-#include <U2Core/Settings.h>
 #include <U2Core/BaseDocumentFormats.h>
-
-#include <U2Gui/DialogUtils.h>
-
-#include <U2Gui/GUIUtils.h>
-#include <U2Gui/SaveDocumentGroupController.h>
-
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/DNATranslation.h>
 #include <U2Core/L10n.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-#include <QtGui/QTreeWidget>
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/SaveDocumentGroupController.h>
+
+#include "ExportSequencesDialog.h"
 
 #define SETTINGS_ROOT QString("dna_export/")
 
 namespace U2 {
 
-ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool allowTranslation, bool allowBackTranslation, const QString& defaultFileName,  const DocumentFormatId& id, QWidget* p) 
-: QDialog(p) 
+ExportSequencesDialog::ExportSequencesDialog( bool m, bool allowComplement, bool allowTranslation,
+    bool allowBackTranslation, const QString& defaultFileName, const QString &sourceFileBaseName,
+    const DocumentFormatId& id, QWidget* p )
+    : QDialog( p ), sequenceName( sourceFileBaseName )
 {
-    setupUi(this);    
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122112");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Export"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     SaveDocumentGroupControllerConfig conf;
     conf.dfc.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
@@ -57,7 +62,8 @@ ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool 
     conf.fileDialogButton = fileButton;
     conf.defaultFormatId = id;
     conf.defaultFileName = defaultFileName;
-    conf.saveTitle = tr("Export sequences");
+    conf.saveTitle = tr("Export Sequences");
+    conf.objectName = QString( );
     saveGroupContoller = new SaveDocumentGroupController(conf, this);
 
     multiMode = m;
@@ -66,13 +72,14 @@ ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool 
     translateAllFrames = false;
     addToProject = false;
 
+    sequenceNameEdit->setText( sequenceName );
     withAnnotationsBox->setEnabled(false);
-    
+
     if (!allowComplement) {
         directStrandButton->setEnabled(false);
         complementStrandButton->setEnabled(false);
         bothStrandsButton->setEnabled(false);
-        
+
         directStrandButton->setHidden(true);
         complementStrandButton->setHidden(true);
         bothStrandsButton->setHidden(true);
@@ -98,7 +105,7 @@ ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool 
     }
 
     if (allowTranslation) {
-        DNAAlphabet* al = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT());
+        const DNAAlphabet* al = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT());
         DNATranslationRegistry* tr = AppContext::getDNATranslationRegistry();
         QList<DNATranslation*> aminoTs = tr->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO);
         if (!aminoTs.empty()) {
@@ -111,14 +118,14 @@ ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool 
     }
 
     if (allowBackTranslation) {
-        DNAAlphabet* al = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::AMINO_DEFAULT());
+        const DNAAlphabet* al = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::AMINO_DEFAULT());
         DNATranslationRegistry* treg = AppContext::getDNATranslationRegistry();
         QList<DNATranslation*> nucleicTs = treg->lookupTranslation(al, DNATranslationType_AMINO_2_NUCL);
         QTreeWidget *tree = new QTreeWidget();
         tree->setHeaderHidden(true);
         organismCombo->setModel(tree->model());
         organismCombo->setView (tree);
-        
+
         if (!nucleicTs.empty()) {
             tree->setSortingEnabled(false);
             foreach(DNATranslation* t, nucleicTs) {
@@ -159,27 +166,27 @@ ExportSequencesDialog::ExportSequencesDialog(bool m, bool allowComplement, bool 
     }
 
     formatId = id;
+    QPushButton* exportButton = buttonBox->button(QDialogButtonBox::Ok);
     connect(exportButton, SIGNAL(clicked()), SLOT(sl_exportClicked()));
     connect(translateButton, SIGNAL(clicked()), SLOT(sl_translationTableEnabler()));
     connect(translationTableButton, SIGNAL(clicked()), SLOT(sl_translationTableEnabler()));
     connect(formatCombo, SIGNAL(currentIndexChanged(int)), SLOT(sl_formatChanged(int)));
-    
+
     int height = layout()->minimumSize().height();
     setMaximumHeight(height);
 }
 
 
 void ExportSequencesDialog::sl_formatChanged(int) {
-    //Q_UNUSED(index);
     QString text = saveGroupContoller->getFormatIdToSave();
     DocumentFormatRegistry *dfr = AppContext::getDocumentFormatRegistry();
-    assert(dfr);
-    if(dfr->getFormatById(text)->getSupportedObjectTypes().contains(GObjectTypes::ANNOTATION_TABLE)) {
-    //if(text == BaseDocumentFormats::PLAIN_GENBANK) {
+    SAFE_POINT(NULL != dfr, "Invalid document format registry", );
+    if (dfr->getFormatById(text)->getSupportedObjectTypes().contains(GObjectTypes::ANNOTATION_TABLE)) {
         withAnnotationsBox->setEnabled(true);
-    }
-    else {
+        withAnnotationsBox->setChecked(true);
+    } else {
         withAnnotationsBox->setEnabled(false);
+        withAnnotationsBox->setChecked(false);
     }
 }
 
@@ -188,17 +195,18 @@ void ExportSequencesDialog::updateModel() {
     translate = translateButton->isChecked();
     translateAllFrames = allTFramesButton->isVisible() && allTFramesButton->isChecked();
     addToProject = addToProjectBox->isChecked();
-    
+
     merge = mergeButton->isChecked();
     mergeGap = merge ? mergeSpinBox->value() : 0;
-    
+
     file = fileNameEdit->text();
     QFileInfo fi(file);
     if( fi.isRelative() ) {
         // save it in root sequence directory
         file = QFileInfo(saveGroupContoller->getDefaultFileName()).absoluteDir().absolutePath() + "/" + file;
     }
-    
+    sequenceName = ( customSeqNameBox->isChecked( ) ) ? sequenceNameEdit->text( ) : QString( );
+
     formatId = saveGroupContoller->getFormatIdToSave();
     useSpecificTable = translationTableButton->isChecked();
     if (translate) {

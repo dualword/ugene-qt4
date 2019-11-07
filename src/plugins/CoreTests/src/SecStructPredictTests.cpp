@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,13 @@
  * MA 02110-1301, USA.
  */
 
-
 #include <U2Core/AppContext.h>
+#include <U2Core/U2DbiRegistry.h>
 #include <U2Algorithm/SecStructPredictAlgRegistry.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/AnnotationTableObject.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
 #include "SecStructPredictTests.h"
 #include <U2Algorithm/SecStructPredictTask.h>
@@ -61,14 +63,14 @@ void GTest_SecStructPredictAlgorithm::init(XMLTestFormat *tf, const QDomElement&
 
 
 void GTest_SecStructPredictAlgorithm::prepare() {
-    
+
     SecStructPredictAlgRegistry* sspr = AppContext::getSecStructPredictAlgRegistry();
     if (!sspr->hadRegistered(algName)) {
-        stateInfo.setError(  QString(tr("Algorithm named %1 not found")).arg(algName) );
+        stateInfo.setError( QString(tr("Algorithm named %1 not found")).arg(algName));
         return;
     }
     SecStructPredictTaskFactory* factory = sspr->getAlgorithm(algName);
-    task = factory->createTaskInstance(inputSeq.toAscii());
+    task = factory->createTaskInstance(inputSeq.toLatin1());
     addSubTask(task);
 
 }
@@ -79,7 +81,7 @@ Task::ReportResult GTest_SecStructPredictAlgorithm::report() {
     const QByteArray& output = task->getSSFormatResults();
 
     if (output != outputSeq) {
-        stateInfo.setError(tr("Output sec struct sequence is incorrect") );
+        stateInfo.setError(tr("Output sec struct sequence is incorrect"));
         return ReportResult_Finished;
     }
 
@@ -96,7 +98,7 @@ void GTest_SecStructPredictTask::init(XMLTestFormat *tf, const QDomElement& el) 
         failMissingValue(SEQ_NAME_ATTR);
         return;
     }
-    
+
     algName = el.attribute(ALG_NAME_ATTR);
     if (algName.isEmpty()) {
         failMissingValue(ALG_NAME_ATTR);
@@ -114,33 +116,36 @@ void GTest_SecStructPredictTask::prepare()
 {
     U2SequenceObject * mySequence = getContext<U2SequenceObject>(this, seqName);
     if(mySequence==NULL){
-        stateInfo.setError(  QString("error can't cast to sequence from GObject") );
+        stateInfo.setError( QString("error can't cast to sequence from GObject"));
         return;
     }
     SecStructPredictAlgRegistry* sspr = AppContext::getSecStructPredictAlgRegistry();
     if (!sspr->hadRegistered(algName)) {
-        stateInfo.setError(  QString(tr("Algorithm named %1 not found")).arg(algName) );
+        stateInfo.setError( QString(tr("Algorithm named %1 not found")).arg(algName));
         return;
     }
     SecStructPredictTaskFactory* factory = sspr->getAlgorithm(algName);
-    task = factory->createTaskInstance(mySequence->getWholeSequenceData());
+    QByteArray seqData = mySequence->getWholeSequenceData(stateInfo);
+    task = factory->createTaskInstance(seqData);
+    CHECK_OP(stateInfo, );
     addSubTask(task);
 }
 
 Task::ReportResult GTest_SecStructPredictTask::report()
 {
     if (task!=NULL && task->hasError()) {
-        stateInfo.setError( task->getError());
+        stateInfo.setError(task->getError());
     } else if (!resultsTableContextName.isEmpty()) {
         QList<SharedAnnotationData> results = task->getResults();
-        aObj = new AnnotationTableObject(resultsTableContextName);
-        foreach(SharedAnnotationData sd, results) {
-            aObj->addAnnotation(new Annotation(sd));
-        }
+        U2OpStatusImpl os;
+        const U2DbiRef dbiRef = AppContext::getDbiRegistry()->getSessionTmpDbiRef(os);
+        SAFE_POINT_OP(os, ReportResult_Finished);
+        aObj = new AnnotationTableObject(resultsTableContextName, dbiRef);
+        aObj->addAnnotations(results);
         addContext(resultsTableContextName, aObj);
         contextAdded = true;
     }
-    
+
     return ReportResult_Finished;
 }
 

@@ -34,10 +34,10 @@ long sites, categs, weightsum, datasets, ith, rcategs;
 boolean freqsfrom, jukes, kimura, logdet, gama, invar, similarity, lower, f84,
 weights, progress, ctgry, mulsets, justwts, firstset, baddists;
 boolean matrix_flags;       /* Matrix output format */
-node **nodep;
+node **nodep = NULL;
 double xi, xv, ttratio, ttratio0, freqa, freqc, freqg, freqt, freqr, freqy,
 freqar, freqcy, freqgr, freqty, cvi, invarfrac, sumrates, fracchange;
-steptr oldweight;
+steptr oldweight = NULL;
 double rate[maxcategs];
 double **d = NULL;
 double sumweightrat = 0;                  /* these values were propagated  */
@@ -134,7 +134,7 @@ void getoptions()
   /*for (;;) {
     cleerhome();
     printf("\nNucleic acid sequence Distance Matrix program,");
-    printf(" version %s\n\n",VERSION);
+    printf(" version %s\n\n",PHY_VERSION);
     printf("Settings for this run:\n");
     printf("  D  Distance (F84, Kimura, Jukes-Cantor, LogDet)?  %s\n",
            kimura ? "Kimura 2-parameter" :
@@ -388,31 +388,37 @@ void getoptions()
     if (!printdata)
     return;
     fprintf(outfile, "\nNucleic acid sequence Distance Matrix program,");
-    fprintf(outfile, " version %s\n\n",VERSION); */
+    fprintf(outfile, " version %s\n\n",PHY_VERSION); */
 }  /* getoptions */
 
 
-void allocrest()
+void allocrest(U2::MemoryLocker& memLocker)
 {
-  long i;
+    long i;
 
-  y = (Phylip_Char **)Malloc(spp*sizeof(Phylip_Char *));
-  nodep = (node **)Malloc(spp*sizeof(node *));
-  for (i = 0; i < spp; i++) {
-    y[i] = (Phylip_Char *)Malloc(sites*sizeof(Phylip_Char));
-    nodep[i] = (node *)Malloc(sizeof(node));
-  }
-  d = (double **)Malloc(spp*sizeof(double *));
-  for (i = 0; i < spp; i++)
-    d[i] = (double*)Malloc(spp*sizeof(double));
-  nayme = (naym *)Malloc(spp*sizeof(naym));
-  category = (steptr)Malloc(sites*sizeof(long));
-  oldweight = (steptr)Malloc(sites*sizeof(long));
-  weight = (steptr)Malloc(sites*sizeof(long));
-  alias = (steptr)Malloc(sites*sizeof(long));
-  ally = (steptr)Malloc(sites*sizeof(long));
-  location = (steptr)Malloc(sites*sizeof(long));
-  weightrat = (double *)Malloc(sites*sizeof(double));
+    qint64 memSize = spp * (sizeof(Phylip_Char *) + sizeof(node *) + sites*sizeof(Phylip_Char) + sizeof(node) + sizeof(double *) + spp*sizeof(double) + sizeof(naym));
+    memSize += sites * sizeof(long) * 7;
+    if(!memLocker.tryAcquire(memSize)) {
+          return;
+    }
+
+    y = (Phylip_Char **)Malloc(spp*sizeof(Phylip_Char *));
+    nodep = (node **)Malloc(spp*sizeof(node *));
+    for (i = 0; i < spp; i++) {
+        y[i] = (Phylip_Char *)Malloc(sites*sizeof(Phylip_Char));
+        nodep[i] = (node *)Malloc(sizeof(node));
+    }
+    d = (double **)Malloc(spp*sizeof(double *));
+    for (i = 0; i < spp; i++)
+        d[i] = (double*)Malloc(spp*sizeof(double));
+    nayme = (naym *)Malloc(spp*sizeof(naym));
+    category = (steptr)Malloc(sites*sizeof(long));
+    oldweight = (steptr)Malloc(sites*sizeof(long));
+    weight = (steptr)Malloc(sites*sizeof(long));
+    alias = (steptr)Malloc(sites*sizeof(long));
+    ally = (steptr)Malloc(sites*sizeof(long));
+    location = (steptr)Malloc(sites*sizeof(long));
+    weightrat = (double *)Malloc(sites*sizeof(double));
 } /* allocrest */
 
 
@@ -444,15 +450,16 @@ void reallocsites()
 } /* reallocsites */
 
 
-void doinit()
+void doinit(U2::MemoryLocker& memLocker)
 {
-  /* initializes variables */
+    /* initializes variables */
 
-  //inputnumbers(&spp, &sites, &nonodes, 1);
-  getoptions();
-  if (printdata)
-      fprintf(outfile, "%2ld species, %3ld  sites\n", spp, sites);
-  allocrest();
+    //inputnumbers(&spp, &sites, &nonodes, 1);
+    getoptions();
+    if (printdata) {
+        fprintf(outfile, "%2ld species, %3ld  sites\n", spp, sites);
+    }
+    allocrest(memLocker);
 }  /* doinit */
 
 
@@ -1299,11 +1306,6 @@ void makedists()
     for (j = 0; j < nmlngth; j++)
       putchar(nayme[spp - 1][j]);
     putchar('\n');
-  }
-  for (i = 0; i < spp; i++) {
-    for (j = 0; j < endsite; j++)
-      free(nodep[i]->x[j]);
-    free(nodep[i]->x);
   }
 }  /* makedists */
 

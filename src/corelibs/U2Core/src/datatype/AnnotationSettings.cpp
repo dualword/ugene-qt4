@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -68,20 +68,25 @@ QStringList AnnotationSettingsRegistry::getAllSettings() const {
     return (persistentMap.keys() + transientMap.keys()).toSet().toList();
 }
 
-AnnotationSettings* AnnotationSettingsRegistry::getAnnotationSettings(Annotation* a) {
-    return getAnnotationSettings(a->getAnnotationName());
+AnnotationSettings * AnnotationSettingsRegistry::getAnnotationSettings(const SharedAnnotationData &a) {
+    AnnotationSettings *s = getAnnotationSettings(a->name);
+    //don't show non-positional features that span the whole sequence
+    if (a->findFirstQualifierValue("non-positional") != QString::null) {
+        s->visible = false;
+    }
+    return s;
 }
 
-AnnotationSettings* AnnotationSettingsRegistry::getAnnotationSettings(const QString& name) {
+AnnotationSettings* AnnotationSettingsRegistry::getAnnotationSettings(const QString &name) {
     //Search in persistent settings:
-    AnnotationSettings* s = persistentMap.value(name);
+    AnnotationSettings *s = persistentMap.value(name);
     if (s != NULL) {
         return s;
     }
-    
+
     //search in transient cache:
     s = transientMap.value(name);
-    if (s!=NULL){
+    if (s!=NULL) {
         return s;
     }
     s = new AnnotationSettings();
@@ -95,7 +100,6 @@ AnnotationSettings* AnnotationSettingsRegistry::getAnnotationSettings(const QStr
     transientMap[name]=s;
     return s;
 }
-
 
 void AnnotationSettingsRegistry::read() {
 
@@ -112,6 +116,7 @@ void AnnotationSettingsRegistry::read() {
         as->color = s->getValue(SETTINGS_ROOT + as->name + "/color", FeatureColors::genLightColor(as->name)).value<QColor>();
         as->visible = s->getValue(SETTINGS_ROOT + as->name + "/visible", true).toBool();
         as->amino = s->getValue(SETTINGS_ROOT + as->name + "/amino", true).toBool();
+        as->showNameQuals = s->getValue(SETTINGS_ROOT + as->name + "/show_quals", false).toBool();
         QString qs = s->getValue(SETTINGS_ROOT + as->name + "/quals", "").toString();
         if (!qs.isEmpty()) {
             as->nameQuals = qs.split(',', QString::SkipEmptyParts);
@@ -128,6 +133,7 @@ void AnnotationSettingsRegistry::save() {
         s->setValue(SETTINGS_ROOT + as->name + "/color", as->color);
         s->setValue(SETTINGS_ROOT + as->name + "/visible", as->visible);
         s->setValue(SETTINGS_ROOT + as->name + "/amino", as->amino);
+        s->setValue(SETTINGS_ROOT + as->name + "/show_quals", as->showNameQuals);
         s->setValue(SETTINGS_ROOT + as->name + "/quals", as->nameQuals.join(","));
     }
 }
@@ -137,18 +143,20 @@ AnnotationSettings::AnnotationSettings() {
     amino = false;
     color = Qt::black;
     visible = true;
+    showNameQuals = false;
 }
 
-AnnotationSettings::AnnotationSettings(const QString& _name, bool _amino, const QColor& _color, bool _visible) 
+AnnotationSettings::AnnotationSettings(const QString& _name, bool _amino, const QColor& _color, bool _visible)
 : name(_name), color(_color), amino(_amino), visible(_visible)
 {
 }
 
 bool AnnotationSettings::equals(const AnnotationSettings* as) const {
-    return name == as->name 
+    return name == as->name
         && amino == as->amino
         && color == as->color
         && visible == as->visible
+        && showNameQuals == as->showNameQuals
         && nameQuals == as->nameQuals;
 }
 

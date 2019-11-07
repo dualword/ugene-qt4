@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,13 +23,19 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
+#include <U2Core/Task.h>
+#include <U2Core/U2SafePoints.h>
 
 #include <U2Core/Log.h>
 namespace U2 {
 
 ////////////////////////////////////////
+//ExternalToolValidation
+const QString ExternalToolValidation::DEFAULT_DESCR_KEY = "DEFAULT_DESCR";
+
+////////////////////////////////////////
 //ExternalTool
-ExternalTool::ExternalTool(QString _name, QString _path) : name(_name), path(_path){
+ExternalTool::ExternalTool(QString _name, QString _path) : name(_name), path(_path), isValidTool(false), muted(false), isModuleTool(false) {
 }
 
 ExternalTool::~ExternalTool() {
@@ -43,13 +49,52 @@ void ExternalTool::setPath(const QString& _path) {
 }
 void ExternalTool::setValid(bool _isValid){
     isValidTool=_isValid;
+    emit si_toolValidationStatusChanged(isValidTool);
 }
 void ExternalTool::setVersion(const QString& _version) {
     version=_version;
 }
+
+ExternalToolValidation ExternalTool::getToolValidation() {
+    ExternalToolValidation result(toolRunnerProgramm, executableFileName, validationArguments, validMessage, errorDescriptions);
+    return result;
+}
+
+bool ExternalTool::isMuted() const {
+#ifdef UGENE_NGS
+    // Tool cannot be muted in the NGS pack
+    return false;
+#else
+    return muted;
+#endif
+}
+
+////////////////////////////////////////
+//ExternalToolValidationListener
+ExternalToolValidationListener::ExternalToolValidationListener(const QString& toolName) {
+    toolNames << toolName;
+}
+
+ExternalToolValidationListener::ExternalToolValidationListener(const QStringList& _toolNames) {
+    toolNames = _toolNames;
+}
+
+void ExternalToolValidationListener::sl_validationTaskStateChanged() {
+    Task* validationTask = qobject_cast<Task*>(sender());
+    SAFE_POINT(NULL != validationTask, "Unexpected message sender", );
+    if (validationTask->isFinished()) {
+        emit si_validationComplete();
+    }
+}
+
 ////////////////////////////////////////
 //ExternalToolRegistry
+ExternalToolRegistry::ExternalToolRegistry() :
+    manager(NULL) {
+}
+
 ExternalToolRegistry::~ExternalToolRegistry() {
+    registryOrder.clear();
     qDeleteAll(registry.values());
 }
 
@@ -62,23 +107,33 @@ bool ExternalToolRegistry::registerEntry(ExternalTool *t){
     if (registry.contains(t->getName())) {
         return false;
     } else {
+        registryOrder.append(t);
         registry.insert(t->getName(), t);
         return true;
     }
 }
 
 void ExternalToolRegistry::unregisterEntry(const QString &id){
-    delete registry.take(id);
+    ExternalTool* et = registry.take(id);
+    if(et!=NULL){
+        int idx = registryOrder.indexOf(et);
+        if (idx!=-1){
+            registryOrder.removeAt(idx);
+        }
+
+        delete et;
+    }
+
 }
 
 QList<ExternalTool*> ExternalToolRegistry::getAllEntries() const
 {
-    return registry.values();
+    return registryOrder;
 }
 QList< QList<ExternalTool*> > ExternalToolRegistry::getAllEntriesSortedByToolKits() const
 {
     QList< QList<ExternalTool*> > res;
-    QList<ExternalTool*> list=registry.values();
+    QList<ExternalTool*> list= registryOrder;
     while(!list.isEmpty()){
         QString name=list.first()->getToolKitName();
         QList<ExternalTool*> toolKitList;
@@ -92,4 +147,37 @@ QList< QList<ExternalTool*> > ExternalToolRegistry::getAllEntriesSortedByToolKit
     }
     return res;
 }
+
+void ExternalToolRegistry::setManager(ExternalToolManager* _manager) {
+    manager = _manager;
+}
+
+ExternalToolManager* ExternalToolRegistry::getManager() const {
+    return manager;
+}
+
+ExternalToolValidation DefaultExternalToolValidations::pythonValidation(){
+    QString pythonExecutable = "python";
+    QStringList pythonArgs;
+    pythonArgs << "--version";
+    QString pmsg = "Python";
+    QStrStrMap perrMsgs;
+    perrMsgs.insert(ExternalToolValidation::DEFAULT_DESCR_KEY, "Python 2 required for this tool. Please install Python or set your PATH variable if you have it installed.");
+
+    ExternalToolValidation pythonValidation("", pythonExecutable, pythonArgs, pmsg, perrMsgs);
+    return pythonValidation;
+}
+
+ExternalToolValidation DefaultExternalToolValidations::rValidation(){
+    QString rExecutable = "Rscript";
+    QStringList rArgs;
+    rArgs << "--version";
+    QString rmsg = "R";
+    QStrStrMap rerrMsgs;
+    rerrMsgs.insert(ExternalToolValidation::DEFAULT_DESCR_KEY, "R Script required for this tool. Please install R Script or set your PATH variable if you have it installed.");
+
+    ExternalToolValidation rValidation("", rExecutable, rArgs, rmsg, rerrMsgs);
+    return rValidation;
+}
+
 }//namespace

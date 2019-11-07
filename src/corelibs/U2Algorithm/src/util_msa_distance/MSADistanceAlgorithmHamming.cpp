@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 
 namespace U2 {
 
-MSADistanceAlgorithmFactoryHamming::MSADistanceAlgorithmFactoryHamming(QObject* p) 
+MSADistanceAlgorithmFactoryHamming::MSADistanceAlgorithmFactoryHamming(QObject* p)
 : MSADistanceAlgorithmFactory(BuiltInDistanceAlgorithms::HAMMING_ALGO, DistanceAlgorithmFlags_NuclAmino, p)
 {
 
@@ -37,12 +37,18 @@ QString MSADistanceAlgorithmFactoryHamming::getDescription() const {
 }
 
 QString MSADistanceAlgorithmFactoryHamming::getName() const {
-    return tr("Hamming");
+    return tr("Hamming dissimilarity");
 }
 
 
 MSADistanceAlgorithm* MSADistanceAlgorithmFactoryHamming::createAlgorithm(const MAlignment& ma, QObject* ) {
-    return new MSADistanceAlgorithmHamming(this, ma);
+    MSADistanceAlgorithm* res = new MSADistanceAlgorithmHamming(this, ma);
+     if(flags.testFlag(DistanceAlgorithmFlag_ExcludeGaps)){
+        res->setExcludeGaps(true);
+    }else{
+         res->setExcludeGaps(false);
+     }
+    return res;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -54,12 +60,22 @@ void MSADistanceAlgorithmHamming::run() {
         for (int j = i; j < nSeq; j++) {
             int sim = 0;
             for (int k = 0; k < ma.getLength(); k++) {
-                if (ma.charAt(i, k) == ma.charAt(j, k)) sim++;
+                if (isCanceled()) {
+                    return;
+                }
+                bool dissimilar = (ma.charAt(i, k) != ma.charAt(j, k));
+
+                if(!excludeGaps){
+                    if (dissimilar) sim++;
+                }else{
+                    if (dissimilar && (ma.charAt(i, k)!=MAlignment_GapChar && ma.charAt(j, k)!=MAlignment_GapChar)) sim++;
+                }
             }
             lock.lock();
-            distanceTable[i][j] = distanceTable[j][i] = sim;
+            setDistanceValue(i, j, sim);
             lock.unlock();
         }
+        stateInfo.setProgress(i * 100 / nSeq);
     }
 }
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,31 +19,33 @@
  * MA 02110-1301, USA.
  */
 
-#include "CircularViewSplitter.h"
-#include "CircularView.h"
-#include "RestrictionMapWidget.h"
-#include "ExportImageCircularViewDialog.h"
+#include <QApplication>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QMessageBox>
+#include <QPainter>
+#include <QPixmap>
+#include <QPrinter>
+#include <QScrollArea>
+#include <QTreeWidget>
+#include <QVBoxLayout>
 
-#include <U2Core/L10n.h>
+#include <U2Core/DNASequenceObject.h>
 #include <U2Core/GObject.h>
-#include <U2Core/Settings.h>
 #include <U2Core/GObjectTypes.h>
-#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/L10n.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <U2Gui/HBar.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/ExportImageDialog.h>
+#include <U2Gui/HBar.h>
+#include <U2Core/QObjectScopedPointer.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QVBoxLayout>
-#include <QtGui/QHBoxLayout>
-#include <QtGui/QPrinter>
-#include <QtGui/QPixmap>
-#include <QtGui/QPainter>
-#include <QtGui/QMessageBox>
-#include <QtGui/QTreeWidget>
-
-#include <QtGui/QApplication>
-
+#include "CircularView.h"
+#include "CircularViewImageExportTask.h"
+#include "CircularViewSplitter.h"
+#include "RestrictionMapWidget.h"
 
 namespace U2 {
 
@@ -52,6 +54,7 @@ CircularViewSplitter::CircularViewSplitter(AnnotatedDNAView* view) : ADVSplitWid
     tbZoomIn->setIcon(QIcon(":/core/images/zoom_in.png"));
     tbZoomIn->setToolTip(tr("Zoom In"));
     tbZoomIn->setFixedSize(20,20);
+    tbZoomIn->setObjectName("tbZoomIn_" + view->getName());
 
     tbZoomOut = new QToolButton(this);
     tbZoomOut->setIcon(QIcon(":/core/images/zoom_out.png"));
@@ -124,7 +127,6 @@ void CircularViewSplitter::saveState( QVariantMap& m ) {
 
 void CircularViewSplitter::addView(CircularView* view, RestrctionMapWidget* rmapWidget) {
     tbFitInView->setDisabled(true);
-    tbZoomOut->setDisabled(true);
     connect(tbZoomIn, SIGNAL(pressed()), view, SLOT(sl_zoomIn()));
     connect(tbZoomOut, SIGNAL(pressed()), view, SLOT(sl_zoomOut()));
     connect(tbFitInView, SIGNAL(pressed()), view, SLOT(sl_fitInView()));
@@ -136,12 +138,17 @@ void CircularViewSplitter::addView(CircularView* view, RestrctionMapWidget* rmap
     circularViewList.append(view);
     restrictionMapWidgets.append(rmapWidget);
 
-    splitter->addWidget(view);
+    QScrollArea *scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(view);
+    scrollArea->setFrameStyle(QFrame::NoFrame);
+    scrollArea->setWidgetResizable(true);
+    view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    splitter->addWidget(scrollArea);
     splitter->addWidget(rmapWidget);
-    
-    splitter->setStretchFactor(splitter->indexOf(view), 10);
+
+    splitter->setStretchFactor(splitter->indexOf(scrollArea), 10);
     splitter->setStretchFactor(splitter->indexOf(rmapWidget), 1);
-    
+
     connect(view, SIGNAL(si_wheelMoved(int)), SLOT(sl_moveSlider(int)));
 }
 
@@ -158,6 +165,14 @@ void CircularViewSplitter::sl_moveSlider(int delta) {
 }
 
 void CircularViewSplitter::removeView(CircularView* view, RestrctionMapWidget* rmapWidget) {
+    SAFE_POINT( view != NULL, tr("Circular View is NULL"), );
+    QWidget* viewport = view->parentWidget();
+    SAFE_POINT( viewport != NULL, tr("Circular View viewport is NULL"), );
+    QScrollArea* scrollArea = qobject_cast<QScrollArea*>(viewport->parentWidget());
+    SAFE_POINT( scrollArea != NULL, tr("Scroll area is NULL"), );
+    view->setParent(NULL);
+    delete scrollArea;
+
     circularViewList.removeAll(view);
     restrictionMapWidgets.removeAll(rmapWidget);
 }
@@ -183,10 +198,37 @@ bool noValidExtension(const QString& url) {
     return false;
 }
 
+void CircularViewSplitter::updateViews() {
+    foreach(CircularView* cv, circularViewList) {
+        cv->redraw();
+    }
+}
+
 void CircularViewSplitter::sl_export() {
-    CircularView* cv = circularViewList.last();
-    ExportImageCVDialog dialog(cv);
-    dialog.exec();
+    CircularView* cvInFocus = NULL;
+    foreach(CircularView* cv, circularViewList) {
+        if (cv->hasFocus()) {
+            cvInFocus = cv;
+            break;
+        }
+    }
+    if (cvInFocus == NULL) {
+        cvInFocus = circularViewList.last();
+    }
+
+    SAFE_POINT(cvInFocus->getSequenceContext() != NULL, tr("Sequence context is NULL"), );
+    U2SequenceObject* seqObj = cvInFocus->getSequenceContext()->getSequenceObject();
+    SAFE_POINT(seqObj != NULL, tr("Sequence obejct is NULL"), );
+
+    CircularViewImageExportController factory(circularViewList, cvInFocus);
+
+    QObjectScopedPointer<ExportImageDialog> dialog = new ExportImageDialog(&factory, ExportImageDialog::CircularView,
+                                                                      ExportImageDialog::SupportScaling,
+                                                                      NULL,
+                                                                      "circular_" + seqObj->getSequenceName());
+    dialog->exec();
+    CHECK(!dialog.isNull(), );
+
     tbExport->setDown(false);
 }
 
@@ -199,7 +241,7 @@ void CircularViewSplitter::sl_horSliderMoved(int newVal) {
 void CircularViewSplitter::adaptSize() {
 
     QWidget* widget = parentWidget();
-    
+
     Q_ASSERT(widget != NULL);
     QSplitter* parentSplitter = qobject_cast<QSplitter* > (widget);
 

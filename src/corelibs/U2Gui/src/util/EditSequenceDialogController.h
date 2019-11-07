@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,59 +22,85 @@
 #ifndef _U2_EDIT_SEQUENCE_CONTROLLER_H_
 #define _U2_EDIT_SEQUENCE_CONTROLLER_H_
 
+#include <QDialog>
+
 #include <U2Core/U2Region.h>
 #include <U2Core/U1AnnotationUtils.h>
 #include <U2Core/GUrl.h>
 #include <U2Gui/SeqPasterWidgetController.h>
 #include <U2Gui/DialogUtils.h>
 
-#include <QtGui/QDialog>
-
 class Ui_EditSequenceDialog;
 
-namespace U2{
+namespace U2 {
 
 enum EditSequenceDialogMode {
     EditSequenceMode_Replace,
     EditSequenceMode_Insert
 };
 
+/**
+ * A workaround to listen to enter in the pattern field and
+ * make a correct (almost) tab order.
+ */
+class U2GUI_EXPORT SeqPasterEventFilter : public QObject
+{
+    Q_OBJECT
+public:
+    SeqPasterEventFilter(QObject* parent);
+
+signals:
+    void si_enterPressed();
+
+protected:
+    bool eventFilter(QObject* obj, QEvent *event);
+};
 
 struct U2GUI_EXPORT EditSequencDialogConfig {
     EditSequenceDialogMode mode;
     U2Region source;
-    DNAAlphabet* alphabet;
+    const DNAAlphabet* alphabet;
     QByteArray initialText;
+    QVector<U2Region> selectionRegions; 
+    int position;
 };
 
 class U2GUI_EXPORT EditSequenceDialogController : public QDialog {
     Q_OBJECT
 public:
-    EditSequenceDialogController(EditSequencDialogConfig cfg, QWidget *p = NULL);
+    EditSequenceDialogController(const EditSequencDialogConfig &cfg, QWidget *p = NULL);
     ~EditSequenceDialogController();
-    virtual void accept();
+    void accept();
 
-    DNASequence getNewSequence(){return w->getSequence();};
-    GUrl getDocumentPath(); 
-    int getPosToInsert(){return pos;};
-    U1AnnotationUtils::AnnotationStrategyForResize getAnnotationStrategy();
-    bool mergeAnnotations();
-    DocumentFormatId getDocumentFormatId();
+    DNASequence getNewSequence() const;
+    GUrl getDocumentPath() const;
+    int getPosToInsert() const;
+    U1AnnotationUtils::AnnotationStrategyForResize getAnnotationStrategy() const;
+    bool mergeAnnotations() const;
+    bool recalculateQualifiers() const;
+    DocumentFormatId getDocumentFormatId() const;
+
 private slots:
     void sl_browseButtonClicked();
     void sl_indexChanged(int);
     void sl_mergeAnnotationsToggled(bool);
+    void sl_startPositionliClicked();
+    void sl_endPositionliClicked();
+    void sl_beforeSlectionClicked();
+    void sl_afterSlectionClicked();
+    void sl_enterPressed();
 
 private:
     void addSeqpasterWidget();
-    bool modifyCurrentDocument();
-
+    bool modifyCurrentDocument() const;
 
     QString filter;
     int pos;
     SeqPasterWidgetController *w;
     EditSequencDialogConfig config;
     Ui_EditSequenceDialog* ui;
+
+    int seqEndPos;
 };
 
 }//ns

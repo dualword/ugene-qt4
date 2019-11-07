@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ public:
 protected:
     QString composeRichDoc();
 
-}; // FilterSequencePrompter
+}; // PassFilterPrompter
 
 class PassFilterWorker : public BaseWorker {
     Q_OBJECT
@@ -44,16 +44,13 @@ public:
     PassFilterWorker(Actor *p);
 
     virtual void init();
-    virtual bool isReady();
     virtual Task *tick();
-    virtual bool isDone();
     virtual void cleanup();
 
 private:
     CommunicationChannel *inChannel;
     CommunicationChannel *outChannel;
     DataTypePtr mtype;
-    bool done;
     QStringList passedValues;
 
 }; // PassFilterWorker

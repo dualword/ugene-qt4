@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,13 @@
 #ifndef _CRASH_HANDLER_H_
 #define _CRASH_HANDLER_H_
 
-#if defined(USE_CRASHHANDLER)
-
-
 
 #include "StackWalker.h"
 
 #include <U2Core/global.h>
+#include <U2Core/LogCache.h>
+#include <U2Core/AppResources.h>
+#include <U2Core/U2SqlHelpers.h>
 
 #include <QtCore/QString>
 #include <QtCore/QStringList>
@@ -41,7 +41,7 @@
 
 #include <windows.h>
     //LONG NTAPI CrashHandlerFunc(PEXCEPTION_POINTERS pExceptionInfo );
-#else 
+#else
 #include <stdlib.h>
 
 #include <stdio.h>
@@ -70,6 +70,7 @@ class LogMessage;
 class U2PRIVATE_EXPORT CrashHandler {
 public:
     static void setupHandler();
+    static bool isEnabled();
 #if defined( Q_OS_WIN )
     static LONG NTAPI CrashHandlerFunc(PEXCEPTION_POINTERS pExceptionInfo );
     static LONG NTAPI CrashHandlerFuncSecond(PEXCEPTION_POINTERS pExceptionInfo );
@@ -92,10 +93,68 @@ public:
 
     static char*            buffer;
     static LogCache*        crashLogCache;
+    static bool             sendCrashReports;
 };
 
-} //namespace
+class CrashLogCache : public LogCache {
+    Q_OBJECT
+public:
+    virtual void onMessage(const LogMessage& msg) {
+        static int count=0;
+        if (!(count++ % logMemoryInfoEvery)) {
+            cmdLog.trace(formMemInfo());
+        }
 
-#endif //crash handler flag
+        LogCache::onMessage(msg);
+    }
+
+private:
+    static const int logMemoryInfoEvery = 20;
+
+    QString formMemInfo() {
+        AppResourcePool* pool = AppResourcePool::instance();
+        CHECK(pool, QString());
+
+        size_t memoryBytes = pool->getCurrentAppMemory();
+        QString memInfo = QString("AppMemory: %1Mb").arg(memoryBytes/(1000*1000));
+        AppResource *mem = pool->getResource(RESOURCE_MEMORY);
+        if (mem) {
+            memInfo += QString("; Locked memory AppResource: %1/%2").arg(mem->maxUse() - mem->available()).arg(mem->maxUse());
+        }
+
+        int currentMemory=0, maxMemory=0;
+        if (SQLiteUtils::getMemoryHint(currentMemory, maxMemory, 0)) {
+            memInfo += QString("; SQLite memory %1Mb, max %2Mb").arg(currentMemory/(1000*1000)).arg(maxMemory/(1000*1000));
+        }
+
+        return memInfo;
+    }
+};
+
+class CrashHandlerArgsHelper {
+public:
+    CrashHandlerArgsHelper();
+    ~CrashHandlerArgsHelper();
+
+    int getMaxReportSize() const;
+    QStringList getArguments() const;
+    void setReportData(const QString &data);
+
+private:
+    QString reportUrl;
+    QString databaseUrl;
+    bool useFile;
+    QFile file;
+    QString report;
+
+private:
+    void shutdownSessionDatabase();
+
+    static QString findTempDir(U2OpStatus &os);
+    static QString findFilePathToWrite(U2OpStatus &os);
+};
+
+
+} //namespace
 
 #endif

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,16 @@
  * MA 02110-1301, USA.
  */
 
-#include <QtGui/QMenu>
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#include <QtGui/QMenu>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QMessageBox>
+#endif
 #include <QtCore/QMap>
 #include <QtCore/QFile>
 
@@ -57,6 +64,7 @@ SecStructPredictPlugin::SecStructPredictPlugin() : Plugin(tr("GORIV"), tr("GORIV
     //Register GORIV annotation settings
     AnnotationSettingsRegistry* asr =AppContext::getAnnotationsSettingsRegistry();
     AnnotationSettings* as = new AnnotationSettings(GORIV_ANNOTATION_NAME, true, QColor(102,255, 0), true);
+    as->showNameQuals = true;
     as->nameQuals.append(BioStruct3D::SecStructTypeQualifierName);
     asr->changeSettings(QList<AnnotationSettings*>() << as, false);
 }

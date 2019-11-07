@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,111 +19,41 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/U2SafePoints.h>
+
 #include "RemoveAnnotationsTask.h"
-
-#include "LoadDocumentTask.h"
-
-#include <U2Core/DocumentModel.h>
-#include <U2Core/Timer.h>
-#include <U2Core/GObjectUtils.h>
 
 namespace U2 {
 
-RemoveAnnotationsTask::RemoveAnnotationsTask( AnnotationTableObject* ao, const QString& gName )
-:Task("RemoveAnnotationsTask",TaskFlag_NoRun), aobj(ao), groupName(gName), pos(0)
+RemoveAnnotationsTask::RemoveAnnotationsTask(AnnotationTableObject *ao, const QString &gName)
+    : Task("Remove Annotations Task",TaskFlag_NoRun), aobj(ao), groupName(gName)
 {
-    annsSet = false;
-    assert(ao != NULL);
+    SAFE_POINT(!aobj.isNull(), "Invalid annotation table detected!", );
 }
-
-void RemoveAnnotationsTask::prepare()
-{
-    if (aobj == NULL) {
-        stateInfo.setError(tr("Annotation object is not valid"));
-        return;
-    }
-
-    /*subGroup = aobj->getRootGroup()->getSubgroup(groupName, false);
-    if (subGroup == NULL) {
-        stateInfo.setError(tr("Subgroup %1 is not found").arg(groupName));
-        return;
-    }
-    
-    QSet<Annotation*> annotations;
-    subGroup->findAllAnnotationsInGroupSubTree(annotations);
-    toDelete = annotations.toList();
-
-    GTIMER(c1,t1,"RemoveAnnotationsTask::report");
-    
-    if (hasError() || isCanceled() )  {
-        return ;
-    }
-    
-    
-    if (aobj->isStateLocked()) {
-        stateInfo.setDescription(tr("Waiting for object lock released"));
-        return ;
-    }
-    stateInfo.setDescription("");
-    
-    int size = toDelete.size();
-    if (size == 0) {
-        return ;
-    }*/
-
- //   aobj->removeAnnotationsInGroup(toDelete, subGroup);
-}
-
-
-
 
 Task::ReportResult RemoveAnnotationsTask::report() {
-    //aobj->releaseLocker();
-    if(!annsSet) {
-        if(aobj->isLocked()) {
-            return ReportResult_CallMeAgain;
-        } else {
-            
-            subGroup = aobj->getRootGroup()->getSubgroup(groupName, false);
-            if (subGroup == NULL) {
-                return ReportResult_Finished;
-            }
-            QSet<Annotation*> annotations;
-            subGroup->findAllAnnotationsInGroupSubTree(annotations);
-            toDelete = annotations.toList();
-
-            if (hasError() || isCanceled() )  {
-                return ReportResult_Finished;
-            }
-
-
-            if (aobj->isStateLocked()) {
-                stateInfo.setDescription(tr("Waiting for object lock released"));
-                return ReportResult_Finished;
-            }
-
-            int size = toDelete.size();
-            if (size == 0) {
-                return ReportResult_Finished;
-            }
-
-            annsSet = true;
-            aobj->removeAnnotationsInGroup(toDelete, subGroup);
-            return ReportResult_CallMeAgain;
-        }
-    } else {
-        if(aobj->isLocked()) {
-            return ReportResult_CallMeAgain;
-        } else {
-            aobj->cleanAnnotations();
-            annsSet = false;
-        }
+    AnnotationGroup *rootGroup = aobj->getRootGroup();
+    AnnotationGroup *subGroup = rootGroup->getSubgroup(groupName, false);
+    if (subGroup == NULL) { // subgroup having @groupName does not exist
+        return ReportResult_Finished;
     }
+
+    if (hasError() || isCanceled()) {
+        return ReportResult_Finished;
+    }
+
+    if (aobj->isStateLocked()) {
+        stateInfo.setDescription(tr("Waiting for object lock released"));
+        return ReportResult_Finished;
+    }
+
+    if (!subGroup->hasAnnotations()) {
+        return ReportResult_Finished;
+    }
+
+    rootGroup->removeSubgroup(subGroup);
+
     return ReportResult_Finished;
 }
 
-
-
-
-
-} // namespace
+} // namespace U2

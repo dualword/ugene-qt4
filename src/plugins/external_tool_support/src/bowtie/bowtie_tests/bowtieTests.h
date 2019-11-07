@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,43 +34,37 @@ namespace U2 {
 class BowtieGObjectTask;
 class DnaAssemblyMultiTask;
 class MAlignmentObject;
-class LoadDocumentTask;
 class MAlignment;
 
 class GTest_Bowtie : public GTest {
     Q_OBJECT
 public:
-	SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_Bowtie, "bowtie", TaskFlag_FailOnSubtaskCancel);
-	~GTest_Bowtie();
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_Bowtie, "bowtie", TaskFlag_FailOnSubtaskCancel);
+    ~GTest_Bowtie();
     void prepare();
-	void run();
+    void run();
     Task::ReportResult report();
     void cleanup();
     QString getTempDataDir();
-	QList<Task*> onSubTaskFinished(Task* subTask);
-	
-private:    
-	void parseBowtieOutput(MAlignment& result, QString text);
-	DnaAssemblyToRefTaskSettings config;
+    QList<Task*> onSubTaskFinished(Task* subTask);
+
+private:
+    DnaAssemblyToRefTaskSettings config;
     QString readsFileName;
     GUrl readsFileUrl;
-	QString indexName;
-	QString patternFileName;
-	QString negativeError;
-	bool usePrebuildIndex;
-	bool subTaskFailed;
-	LoadDocumentTask* resultLoadTask;
-	LoadDocumentTask* patternLoadTask;
-	BowtieTask* bowtieTask;
-	MAlignment ma1;
-	MAlignment ma2;
-	DocumentFormatId format;
-	DocumentFormatId patternFormat;
+    QString indexName;
+    QString patternFileName;
+    QString negativeError;
+    bool usePrebuildIndex;
+    bool subTaskFailed;
+    BowtieTask* bowtieTask;
+    DocumentFormatId format;
+    DocumentFormatId patternFormat;
 };
 
 class BowtieTests {
 public:
-	static QList<XMLTestFactory*> createTestFactories();
+    static QList<XMLTestFactory*> createTestFactories();
 };
 } //namespace U2
 

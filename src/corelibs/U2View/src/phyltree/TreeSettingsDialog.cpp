@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,66 +21,79 @@
 
 #include "TreeSettingsDialog.h"
 #include <U2Core/global.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Gui/HelpButton.h>
+
 
 namespace U2 {
 
-int TreeSettings::default_width_coef = 1;
-int TreeSettings::default_height_coef = 1;
-
-TreeSettings::TreeSettings() {
-    width_coef = default_width_coef;
-    height_coef = default_height_coef;
-    type = PHYLOGRAM;
-}
-
-TreeSettingsDialog::TreeSettingsDialog(QWidget *parent, const TreeSettings &treeSettings, bool isRectLayout)
-: QDialog(parent), settings(treeSettings), changedSettings(treeSettings) {
-
+TreeSettingsDialog::TreeSettingsDialog(QWidget *parent, const OptionsMap &settings, bool isRectLayout)
+: BaseSettingsDialog(parent) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122303");
 
-    heightSlider->setValue(settings.height_coef);
-    widthlSlider->setValue(settings.width_coef);
+    heightSlider->setValue(settings[HEIGHT_COEF].toUInt());
+    widthlSlider->setValue(settings[WIDTH_COEF].toUInt());
 
     heightSlider->setEnabled(isRectLayout);
 
+    scaleSpinBox->setValue(settings[SCALEBAR_RANGE].toDouble());
+
+    treeViewCombo->addItem(treeDefaultText());
     treeViewCombo->addItem(treePhylogramText());
     treeViewCombo->addItem(treeCladogramText());
 
-    switch ( settings.type )
-    {
-    case TreeSettings::PHYLOGRAM:
+    switch(settings[BRANCHES_TRANSFORMATION_TYPE].toUInt()) {
+    case DEFAULT:
+        treeViewCombo->setCurrentIndex(treeViewCombo->findText(treeDefaultText()));
+        break;
+    case PHYLOGRAM:
         treeViewCombo->setCurrentIndex(treeViewCombo->findText(treePhylogramText()));
         break;
-    case TreeSettings::CLADOGRAM:
+    case CLADOGRAM:
         treeViewCombo->setCurrentIndex(treeViewCombo->findText(treeCladogramText()));
         break;
     default:
         assert(false && "Unexpected tree type value.");
         break;
     }
-    
+
+    connect(treeViewCombo, SIGNAL(currentIndexChanged(int)), SLOT(sl_treeTypeChanged(int)));
+}
+
+void TreeSettingsDialog::sl_treeTypeChanged(int value) {
+    scaleLabel->setEnabled(value == PHYLOGRAM);
+    scaleSpinBox->setEnabled(value == PHYLOGRAM);
 }
 
 void TreeSettingsDialog::accept() {
-    changedSettings.height_coef = heightSlider->value();
-    changedSettings.width_coef = widthlSlider->value();
+    changedSettings[HEIGHT_COEF] = heightSlider->value();
+    changedSettings[WIDTH_COEF] = widthlSlider->value();
 
-    if (treeViewCombo->currentText() == treePhylogramText())
-    {
-        changedSettings.type = TreeSettings::PHYLOGRAM;
+    if (treeViewCombo->currentText() == treeDefaultText()) {
+        changedSettings[BRANCHES_TRANSFORMATION_TYPE] = DEFAULT;
+    } else if (treeViewCombo->currentText() == treePhylogramText()) {
+        changedSettings[BRANCHES_TRANSFORMATION_TYPE] = PHYLOGRAM;
     } else if (treeViewCombo->currentText() == treeCladogramText()) {
-        changedSettings.type = TreeSettings::CLADOGRAM;
+        changedSettings[BRANCHES_TRANSFORMATION_TYPE] = CLADOGRAM;
     } else {
-        assert(false && "Unexpected tree type value");
+        FAIL("Unexpected tree type value",);
+    }
+    if(scaleSpinBox->isEnabled()) {
+        changedSettings[SCALEBAR_RANGE] = scaleSpinBox->value();
     }
 
-    settings = changedSettings;
     QDialog::accept();
 }
 
-TreeSettings TreeSettingsDialog::getSettings() const {
-
-    return settings;
+QString TreeSettingsDialog::treeDefaultText() {
+    return tr("Default");
+}
+QString TreeSettingsDialog::treePhylogramText() {
+    return tr("Phylogram"); 
+}
+QString TreeSettingsDialog::treeCladogramText() {
+    return tr("Cladogram");
 }
 
 } //namespace

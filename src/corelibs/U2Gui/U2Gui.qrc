@@ -1,6 +1,8 @@
 <RCC>
-    <qresource prefix="core/" >
+    <qresource prefix="/core">
         <file>images/add_existing_document.png</file>
+        <file>images/arrow_down.png</file>
+        <file>images/arrow_right.png</file>
         <file>images/arrow_rotate_clockwise.png</file>
         <file>images/add_new_document.png</file>
         <file>images/add_gobject.png</file>
@@ -8,6 +10,8 @@
         <file>images/create_annotation.png</file>
         <file>images/create_annotation_icon.png</file>
         <file>images/group_green_active.png</file>
+        <file>images/info.png</file>
+        <file>images/progress.gif</file>
         <file>images/zoom_in.png</file>
         <file>images/zoom_out.png</file>
         <file>images/zoom_sel.png</file>
@@ -25,6 +29,7 @@
         <file>images/copy_annotation_sequence.png</file>
         <file>images/copy_annotation_translation.png</file>
         <file>images/find_dialog.png</file>
+        <file>images/recycle_bin.png</file>
         <file>images/remove_selected_documents.png</file>
         <file>images/remove_gobject.png</file>
         <file>images/load_selected_documents.png</file>
@@ -101,5 +106,67 @@
         <file>images/notch.png</file>
         <file>images/layers.png</file>
         <file>images/collapse.png</file>
+        <file>images/collapse_update.png</file>
+        <file>images/ruler_coverage.png</file>
+        <file>images/tooltip.png</file>
+        <file>images/settings.png</file>
+        <file>images/close_tab.png</file>
+        <file>images/add_sequence.png</file>
+        <file>images/todo.png</file>
+        <file>images/add_tree.png</file>
+        <file>images/pairwise.png</file>
+        <file>images/highlight.png</file>
+        <file>images/settings2.png</file>
+        <file>images/navi_right.png</file>
+        <file>images/close_small.png</file>
+        <file>images/refresh.png</file>
+        <file>images/regions.png</file>
+        <file>images/save.png</file>
+        <file>images/save_as.png</file>
+        <file>images/forward.png</file>
+        <file>images/backward.png</file>
+        <file>images/ro_texto.png</file>
+        <file>images/ro_dna.png</file>
+        <file>images/ro_msa.png</file>
+        <file>images/ro_tree.png</file>
+        <file>images/ro_biostruct3d.png</file>
+        <file>images/ro_gobject.png</file>
+        <file>images/db/database.png</file>
+        <file>images/db/database_add.png</file>
+        <file>images/db/database_connect.png</file>
+        <file>images/db/database_copy.png</file>
+        <file>images/db/database_delete.png</file>
+        <file>images/db/database_edit.png</file>
+        <file>images/db/database_error.png</file>
+        <file>images/db/database_gear.png</file>
+        <file>images/db/database_go.png</file>
+        <file>images/db/database_key.png</file>
+        <file>images/db/database_lightning.png</file>
+        <file>images/db/database_link.png</file>
+        <file>images/db/database_lock.png</file>
+        <file>images/db/database_lock_yellow.png</file>
+        <file>images/db/database_refresh.png</file>
+        <file>images/db/database_save.png</file>
+        <file>images/db/database_start.png</file>
+        <file>images/db/database_stop.png</file>
+        <file>images/db/database_table.png</file>
+        <file>images/db/database_wrench.png</file>
+        <file>images/db/database_yellow.png</file>
+        <file>images/db/database_yellow_start.png</file>
+        <file>images/db/database_yellow_stop.png</file>
+        <file>images/msa_save.png</file>
+        <file>images/msa_save_as.png</file>
+        <file>images/msa_show_overview.png</file>
+        <file>images/bin_restore1.png</file>
+        <file>images/bin_restore2.png</file>
+        <file>images/clean_empty_bin.png</file>
+        <file>images/clean_full_bin.png</file>
+        <file>images/consensus.png</file>
+        <file>images/warning_notification.png</file>
+        <file>images/collapse_tree.png</file>
+        <file>images/reroot.png</file>
+        <file>images/swap.png</file>
+        <file>images/expand_tree.png</file>
+        <file>images/add_to_alignment.png</file>
     </qresource>
 </RCC>

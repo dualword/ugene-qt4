@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,30 @@
  * MA 02110-1301, USA.
  */
 
-#include "CreateDocumentFromTextDialogController.h"
-#include "ui/ui_CreateDocumentFromTextDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
 
+#include <U2Core/AppContext.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DocumentSelection.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/GUrlUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/Task.h>
+#include <U2Core/L10n.h>
+#include <U2Core/Log.h>
 #include <U2Core/ProjectModel.h>
-#include <U2Core/DocumentSelection.h>
-#include <U2Core/SelectionModel.h>
-#include <U2Core/TaskSignalMapper.h>
 #include <U2Core/ProjectService.h>
 #include <U2Core/SaveDocumentTask.h>
-#include <U2Core/Log.h>
-#include <U2Core/L10n.h>
-#include <U2Core/GUrlUtils.h>
-#include <U2Core/GObjectUtils.h>
+#include <U2Core/SelectionModel.h>
+#include <U2Core/Task.h>
+#include <U2Core/U2ObjectDbi.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
 
@@ -43,23 +50,28 @@
 #include <U2Formats/FastaFormat.h>
 #include <U2Formats/GenbankPlainTextFormat.h>
 
-#include <U2Gui/ObjectViewModel.h>
-#include <U2Gui/MainWindow.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/MainWindow.h>
+#include <U2Gui/ObjectViewModel.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-#include <QtGui/QMessageBox>
+#include "CreateDocumentFromTextDialogController.h"
+#include "ui/ui_CreateDocumentFromTextDialog.h"
 
 namespace U2{
 
 CreateDocumentFromTextDialogController::CreateDocumentFromTextDialogController(QWidget* p): QDialog(p) {
     ui = new Ui_CreateDocumentFromTextDialog();
     ui->setupUi(this);
+    new HelpButton(this, ui->buttonBox, "16122107");
 
     //TODO: use format name here 
-	ui->formatBox->addItem("FASTA", BaseDocumentFormats::FASTA);
+    ui->formatBox->addItem("FASTA", BaseDocumentFormats::FASTA);
     ui->formatBox->addItem("Genbank", BaseDocumentFormats::PLAIN_GENBANK);
+
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Create"));
+    ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     connect(ui->browseButton, SIGNAL(clicked()), SLOT(sl_browseButtonClicked()));
     connect(ui->formatBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sl_indexChanged(int)));
@@ -73,7 +85,7 @@ CreateDocumentFromTextDialogController::CreateDocumentFromTextDialogController(Q
 
 void CreateDocumentFromTextDialogController::sl_browseButtonClicked(){
     LastUsedDirHelper h;
-    h.url = QFileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
+    h.url = U2FileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
     ui->filepathEdit->setText(QDir::toNativeSeparators(h.url));
     sl_indexChanged(ui->formatBox->currentIndex());   
 }
@@ -154,12 +166,15 @@ void CreateDocumentFromTextDialogController::acceptWithExistingProject() {
     doc = df->createNewLoadedDocument(iof, fullPath, os);
     CHECK_OP_EXT(os, delete doc, );
     
-    DNASequence seq = w->getSequence();
-    seq.setName(ui->nameEdit->text());
-    QList<GObject*> objs;
-    U2SequenceObject* seqObj = DocumentFormatUtils::addSequenceObjectDeprecated(doc->getDbiRef(), seq.getName(), objs, seq, os);
-    CHECK_OP_EXT(os, delete doc, );
-    doc->addObject(seqObj);
+    foreach (DNASequence sequence, w->getSequences()) {
+        QList<GObject*> objs;
+        if (sequence.getName().isEmpty()) {
+            sequence.setName(ui->nameEdit->text());
+        }
+        U2SequenceObject *seqObj = DocumentFormatUtils::addSequenceObjectDeprecated(doc->getDbiRef(), U2ObjectDbi::ROOT_FOLDER, sequence.getName(), objs, sequence, os);
+        CHECK_OP_EXT(os, delete doc, );
+        doc->addObject(seqObj);
+    }
 
     p->addDocument(doc);
     if(ui->saveImmediatelyBox->isChecked()){
@@ -168,7 +183,7 @@ void CreateDocumentFromTextDialogController::acceptWithExistingProject() {
     
     // Open view for created document
     DocumentSelection ds;
-    ds.setSelection(QList<Document*>() <<doc);
+    ds.setSelection(QList<Document*>() << doc);
     MultiGSelection ms;
     ms.addSelection(&ds);
     foreach(GObjectViewFactory *f, AppContext::getObjectViewFactoryRegistry()->getAllFactories()) {
@@ -190,6 +205,7 @@ void CreateDocumentFromTextDialogController::reject(){
 
 void CreateDocumentFromTextDialogController::addSeqPasterWidget(){
     w = new SeqPasterWidgetController(this);
+    w->allowFastaFormat(true);
     ui->verticalLayout->insertWidget(0, w);
 }
 
@@ -203,7 +219,12 @@ void CreateDocumentFromTextDialogController::sl_indexChanged( int index ){
         return;
     }
     QFileInfo fi(filepath);
-    ui->filepathEdit->setText(fi.absoluteDir().absolutePath() + "/" + fi.baseName() + "." + newExt);
+    QString abspath = fi.absoluteDir().absolutePath();
+    if(abspath.at(abspath.size()-1) == QChar('/')){
+        ui->filepathEdit->setText(abspath + fi.baseName() + "." + newExt);
+    }else{
+        ui->filepathEdit->setText(abspath + "/" + fi.baseName() + "." + newExt);
+    }
 }
 
 CreateDocumentFromTextDialogController::~CreateDocumentFromTextDialogController()

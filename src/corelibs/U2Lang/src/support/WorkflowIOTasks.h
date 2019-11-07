@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,14 +43,14 @@ public:
     QString getURL() const {return url;}
     Metadata * getMetadata() {return meta;}
     QMap<ActorId, ActorId> getRemapping() {return remap;}
-    
+
     enum FileFormat {
-        HR, 
+        HR,
         XML,
         UNKNOWN
     };
     static FileFormat detectFormat(const QString & rawData);
-    
+
 protected:
     const QString url;
     Schema* schema;
@@ -58,7 +58,7 @@ protected:
     QString rawData;
     FileFormat format;
     QMap<ActorId, ActorId> remap;
-    
+
 }; // LoadWorkflowTask
 
 class U2LANG_EXPORT SaveWorkflowTask : public Task {
@@ -67,11 +67,11 @@ public:
     SaveWorkflowTask(Schema* schema, const Metadata& meta, bool copyMode);
     Task::ReportResult report();
     virtual void run();
-    
+
 private:
     QString rawData;
     QString url;
-    
+
 }; // SaveWorkflowTask
 
 } //namespace

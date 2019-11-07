@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,13 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportTasks.h"
+#include <QtCore/QFileInfo>
 
 #include <U2Core/DocumentModel.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNATranslation.h>
 #include <U2Core/DNATranslationImpl.h>
 #include <U2Core/Counter.h>
@@ -35,6 +36,7 @@
 #include <U2Core/MSAUtils.h>
 #include <U2Core/TextUtils.h>
 #include <U2Core/ProjectModel.h>
+#include <U2Core/MAlignmentImporter.h>
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/U2SafePoints.h>
 #include <U2Core/U2SequenceUtils.h>
@@ -43,14 +45,17 @@
 
 #include <U2Gui/OpenViewTask.h>
 
+#include "ExportTasks.h"
+
 namespace U2 {
 
 
 //////////////////////////////////////////////////////////////////////////
 // AddDocumentAndOpenViewTask
 
-AddExportedDocumentAndOpenViewTask::AddExportedDocumentAndOpenViewTask(DocumentProviderTask* t) 
-: Task("Export sequence to document", TaskFlags_NR_FOSCOE)
+AddExportedDocumentAndOpenViewTask::AddExportedDocumentAndOpenViewTask(DocumentProviderTask* t)
+: Task("Export sequence to document", TaskFlags_NR_FOSCOE),
+  loadTask(NULL)
 {
     exportTask = t;
     addSubTask(exportTask);
@@ -59,7 +64,7 @@ AddExportedDocumentAndOpenViewTask::AddExportedDocumentAndOpenViewTask(DocumentP
 
 QList<Task*> AddExportedDocumentAndOpenViewTask::onSubTaskFinished( Task* subTask ) {
     QList<Task*> subTasks;
-    if (subTask == exportTask && !subTask->hasError()) {
+    if (subTask == exportTask && !subTask->hasError() && !subTask->isCanceled()) {
         Document* doc = exportTask->getDocument();
         const GUrl& fullPath = doc->getURL();
         Project* prj = AppContext::getProject();
@@ -71,9 +76,11 @@ QList<Task*> AddExportedDocumentAndOpenViewTask::onSubTaskFinished( Task* subTas
                 return subTasks;
             }
         }
-        exportTask->takeDocument();
-        subTasks << new AddDocumentTask(doc);
-        subTasks << new LoadUnloadedDocumentAndOpenViewTask(doc);
+        loadTask = LoadDocumentTask::getDefaultLoadDocTask(doc->getURL());
+        subTasks << loadTask;
+    }
+    if (subTask == loadTask) {
+        subTasks << new AddDocumentAndOpenViewTask(loadTask->takeDocument());
     }
     //TODO: provide a report if subtask fails
     return subTasks;
@@ -97,7 +104,11 @@ void ExportAlignmentTask::run() {
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(fileName));
     resultDocument = f->createNewLoadedDocument(iof, fileName, stateInfo);
     CHECK_OP(stateInfo, );
-    resultDocument->addObject(new MAlignmentObject(ma));
+
+    MAlignmentObject* obj = MAlignmentImporter::createAlignment(resultDocument->getDbiRef(), ma, stateInfo);
+    CHECK_OP(stateInfo, );
+
+    resultDocument->addObject(obj);
     f->storeDocument(resultDocument, stateInfo);
 }
 
@@ -105,8 +116,8 @@ void ExportAlignmentTask::run() {
 //////////////////////////////////////////////////////////////////////////
 // export alignment  2 sequence format
 
-ExportMSA2SequencesTask::ExportMSA2SequencesTask(const MAlignment& _ma, const QString& _url, bool _trimAli, DocumentFormatId _format) 
-: DocumentProviderTask(tr("Export alignment to sequence: %1").arg(_url), TaskFlag_None), 
+ExportMSA2SequencesTask::ExportMSA2SequencesTask(const MAlignment& _ma, const QString& _url, bool _trimAli, DocumentFormatId _format)
+: DocumentProviderTask(tr("Export alignment to sequence: %1").arg(_url), TaskFlag_None),
 ma(_ma), url(_url), trimAli(_trimAli), format(_format)
 {
     GCOUNTER( cvar, tvar, "ExportMSA2SequencesTask");
@@ -139,11 +150,12 @@ void ExportMSA2SequencesTask::run() {
 // export nucleic alignment 2 amino alignment
 
 ExportMSA2MSATask::ExportMSA2MSATask(const MAlignment& _ma, int _offset, int _len, const QString& _url,
-    const QList<DNATranslation*>& _aminoTranslations, DocumentFormatId _format) 
-: DocumentProviderTask(tr("Export alignment to alignment: %1").arg(_url), TaskFlag_None), 
+    const QList<DNATranslation*>& _aminoTranslations, DocumentFormatId _format)
+: DocumentProviderTask(tr("Export alignment to alignment: %1").arg(_url), TaskFlag_None),
 ma(_ma), offset(_offset), len(_len), url(_url), format(_format), aminoTranslations(_aminoTranslations)
 {
     GCOUNTER( cvar, tvar, "ExportMSA2MSATask" );
+    CHECK_EXT( !ma.isEmpty(), setError(tr("Nothing to export: multiple alignment is empty")), );
     setVerboseLogMode(true);
 }
 
@@ -156,7 +168,7 @@ void ExportMSA2MSATask::run() {
 
     QList<DNASequence> lst = MSAUtils::ma2seq(ma, true);
     QList<DNASequence> seqList;
-    for (int i = offset; i < offset + len; i++) {    
+    for (int i = offset; i < offset + len; i++) {
         DNASequence& s = lst[i];
         QString name = s.getName();
         if (!aminoTranslations.isEmpty()) {
@@ -178,11 +190,15 @@ void ExportMSA2MSATask::run() {
             seqList << rs;
         } else {
             seqList << s;
-        }                
+        }
     }
     MAlignment ma = MSAUtils::seq2ma(seqList, stateInfo);
     CHECK_OP(stateInfo, );
-    resultDocument->addObject(new MAlignmentObject(ma));
+
+    MAlignmentObject* obj = MAlignmentImporter::createAlignment(resultDocument->getDbiRef(), ma, stateInfo);
+    CHECK_OP(stateInfo, );
+
+    resultDocument->addObject(obj);
     f->storeDocument(resultDocument, stateInfo);
 }
 
@@ -190,7 +206,7 @@ void ExportMSA2MSATask::run() {
 // export chromatogram to SCF
 
 ExportDNAChromatogramTask::ExportDNAChromatogramTask( DNAChromatogramObject* _obj, const ExportChromatogramTaskSettings& _settings)
- : DocumentProviderTask(tr("Export chromatogram to SCF"), TaskFlags_NR_FOSCOE), 
+ : DocumentProviderTask(tr("Export chromatogram to SCF"), TaskFlags_NR_FOSCOE),
    cObj(_obj), settings(_settings), loadTask(NULL)
 {
     GCOUNTER( cvar, tvar, "ExportDNAChromatogramTask" );
@@ -205,7 +221,7 @@ void ExportDNAChromatogramTask::prepare() {
         return;
     }
 
-    QList<GObjectRelation> relatedObjs = cObj->findRelatedObjectsByRole(GObjectRelationRole::SEQUENCE);
+    QList<GObjectRelation> relatedObjs = cObj->findRelatedObjectsByRole(ObjectRole_Sequence);
     assert(relatedObjs.count() == 1);
     if (relatedObjs.count() != 1) {
         stateInfo.setError("Sequence related to chromatogram is not found!");
@@ -217,8 +233,9 @@ void ExportDNAChromatogramTask::prepare() {
     assert(sObj != NULL);
 
     DNAChromatogram cd = cObj->getChromatogram();
-    QByteArray seq = sObj->getWholeSequenceData();
-    
+    QByteArray seq = sObj->getWholeSequenceData(stateInfo);
+    CHECK_OP(stateInfo, );
+
     if (settings.reverse) {
         TextUtils::reverse(seq.data(), seq.length());
         reverseVector(cd.A);
@@ -229,7 +246,7 @@ void ExportDNAChromatogramTask::prepare() {
         if (cObj->getDocument()->getDocumentFormatId() == BaseDocumentFormats::ABIF) {
             int baseNum = cd.baseCalls.count();
             int seqLen = cd.seqLength;
-            // this is required for base <-> peak correspondence 
+            // this is required for base <-> peak correspondence
             if (baseNum > seqLen) {
                 cd.baseCalls.remove(baseNum - 1);
                 cd.prob_A.remove(baseNum - 1);
@@ -244,7 +261,7 @@ void ExportDNAChromatogramTask::prepare() {
 
         for (int i = 0; i < cd.seqLength; ++i) {
             cd.baseCalls[i] = cd.traceLength - cd.baseCalls[i] + offset;
-        } 
+        }
         reverseVector(cd.baseCalls);
         reverseVector(cd.prob_A);
         reverseVector(cd.prob_C);
@@ -259,12 +276,12 @@ void ExportDNAChromatogramTask::prepare() {
         qSwap(cd.C, cd.G);
         qSwap(cd.prob_A, cd.prob_T);
         qSwap(cd.prob_C, cd.prob_G);
-    
+
     }
-    
+
     SCFFormat::exportDocumentToSCF(settings.url, cd, seq, stateInfo);
     CHECK_OP(stateInfo, );
-    
+
     if (settings.loadDocument) {
         IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
         loadTask = new LoadDocumentTask(BaseDocumentFormats::SCF, settings.url, iof );

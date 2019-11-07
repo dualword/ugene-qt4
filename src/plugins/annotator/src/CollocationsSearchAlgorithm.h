@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@
 #ifndef _U2_COLLOCATION_SEARCH_ALGORITHM_H_
 #define _U2_COLLOCATION_SEARCH_ALGORITHM_H_
 
+#include <U2Core/SequenceWalkerTask.h>
 #include <U2Core/Task.h>
 #include <U2Core/U2Region.h>
 
@@ -50,7 +51,7 @@ public:
     static void find(const QList<CollocationsAlgorithmItem>& items, TaskStateInfo& si,
         CollocationsAlgorithmListener* l, const CollocationsAlgorithmSettings& cfg);
 private:
-    static void findN(const QList<CollocationsAlgorithmItem>& items, TaskStateInfo& si, 
+    static void findN(const QList<CollocationsAlgorithmItem>& items, TaskStateInfo& si,
                     CollocationsAlgorithmListener* l, const U2Region& searchRegion, qint64 distance);
     static void findP(const QList<CollocationsAlgorithmItem>& items, TaskStateInfo& si,
                     CollocationsAlgorithmListener* l, const U2Region& searchRegion, qint64 distance);
@@ -59,10 +60,14 @@ private:
 
 class CollocationsAlgorithmSettings {
 public:
-    CollocationsAlgorithmSettings() : distance(-1), st(CollocationsAlgorithm::NormalSearch) {}
+    CollocationsAlgorithmSettings()
+        : distance(-1), st(CollocationsAlgorithm::NormalSearch), includeBoundaries(true), strand(StrandOption_Both) {}
     U2Region searchRegion;
     int distance;
     CollocationsAlgorithm::SearchType st;
+    QString resultAnnotationsName;
+    bool includeBoundaries;
+    StrandOption strand;
 };
 
 

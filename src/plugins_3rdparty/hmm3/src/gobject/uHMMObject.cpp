@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,9 @@ const QString UHMMObject::OT_NAME  = "Hidden Markov model";
 const QString UHMMObject::OT_PNAME = "Hidden Markov models";
 const QString UHMMObject::OT_SIGN  = "hmm";
 const QString UHMMObject::OT_ICON  = "";
+const QString UHMMObject::OT_LOCKED_ICON  = "";
 const GObjectType UHMMObject::UHMM_OT = 
-    GObjectTypes::registerTypeInfo( GObjectTypeInfo( OT_ID, OT_NAME, OT_PNAME, OT_SIGN, OT_ICON ) );
+    GObjectTypes::registerTypeInfo( GObjectTypeInfo( OT_ID, OT_NAME, OT_PNAME, OT_SIGN, OT_ICON, OT_LOCKED_ICON ) );
 
 
 UHMMObject::UHMMObject( P7_HMM* ahmm, const QString& name ) : GObject( UHMM_OT, name ), hmm( ahmm ) {
@@ -53,7 +54,7 @@ P7_HMM* UHMMObject::takeHMM() {
     return ret;
 }
 
-GObject* UHMMObject::clone(const U2DbiRef&, U2OpStatus&) const {
+GObject* UHMMObject::clone(const U2DbiRef&, U2OpStatus&, const QVariantMap &) const {
     P7_HMM* newHMM = p7_hmm_Clone( hmm );
     UHMMObject* cln = new UHMMObject( newHMM, getGObjectName() );
     cln->setIndexInfo( getIndexInfo() );

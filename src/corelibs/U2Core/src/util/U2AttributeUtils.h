@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,7 @@ namespace U2 {
 class U2AttributeDbi;
 class U2OpStatus;
 
-/**                                           
+/**
     U2Attribute utility functions
 
     All functions return empty attribute if it is not found or error occured.
@@ -53,6 +53,10 @@ public:
     static void init(U2Attribute &attr, U2Object & obj, const QString& name);
 
     static void removeAttribute(U2AttributeDbi* adbi, const U2DataId& attrId, U2OpStatus& os);
+
+    static void copyObjectAttributes(const U2DataId &srcObjId, const U2DataId &dstObjId,
+        U2AttributeDbi *srcAttributeDbi, U2AttributeDbi *dstAttributeDbi,
+        U2OpStatus &os);
 
 };
 

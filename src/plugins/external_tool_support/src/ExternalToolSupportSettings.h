@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,10 +27,12 @@
 #include <QtGui/QFont>
 
 #include <U2Core/global.h>
+#include <QtCore/QDirIterator>
+#include <QtCore/QQueue>
 
 namespace U2 {
 
-class U2OpStatus;    
+class U2OpStatus;
 
 class Watcher : public QObject {
     Q_OBJECT
@@ -55,6 +57,34 @@ public:
 private:
     static int prevNumberExternalTools;
 };
+
+/**Helper class that iterates through subdirectories up to given deep level*/
+class LimitedDirIterator{
+public:
+    //deepLevel = 0 - returns only the root dir
+    //deepLevel = 1 - returns the root dir and its subdirs
+    //...
+    LimitedDirIterator(const QDir &dir, int deepLevel = DEFAULT_DEEP_LEVEL);
+
+    bool hasNext();
+
+    QString next();
+    QString filePath();
+
+    static const int DEFAULT_DEEP_LEVEL = 5;
+
+private:
+    void fetchNext();
+
+private:
+    int deepLevel;
+
+    QQueue< QPair<QString, int> > data;
+
+    QString curPath;
+
+};
+
 
 }//namespace
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,29 +19,30 @@
  * MA 02110-1301, USA.
  */
 
-#include "DistributedComputingUtil.h"
+#include <cassert>
+
+#include <QCheckBox>
+#include <QFile>
+#include <QMenu>
+#include <QString>
+#include <QUrl>
 
 #include <AppContextImpl.h>
 
-#include <U2Gui/MainWindow.h>
-#include <QtCore/QString>
-#include <QtCore/QUrl>
-#include <QtCore/QFile>
-
-#include <U2Core/NetworkConfiguration.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/Log.h>
-#include <U2Remote/SynchHttp.h>
+#include <U2Core/NetworkConfiguration.h>
+
+#include <U2Gui/MainWindow.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2Remote/PingTask.h>
-#include <U2Remote/SerializeUtils.h>
 #include <U2Remote/RemoteWorkflowRunTask.h>
+#include <U2Remote/SerializeUtils.h>
+#include <U2Remote/SynchHttp.h>
+
+#include "DistributedComputingUtil.h"
 #include "RemoteMachineMonitorDialogImpl.h"
-
-#include <QtGui/QMenu>
-#include <QtGui/QCheckBox>
-
-#include <cassert>
-#include <memory>
 
 namespace U2 {
 
@@ -52,17 +53,16 @@ namespace U2 {
 DistributedComputingUtil::DistributedComputingUtil() {
     AppContextImpl * appContext = AppContextImpl::getApplicationContext();
     assert( NULL != appContext );
-    
+
     pir = new ProtocolInfoRegistry();
     appContext->setProtocolInfoRegistry( pir );
     rmm = new RemoteMachineMonitor();
     appContext->setRemoteMachineMonitor( rmm );
-    
+
     if( NULL != AppContext::getMainWindow() ) { /* if not congene */
         QAction * showRemoteMachinesMonitor = new QAction( QIcon( ":core/images/remote_machine_monitor.png" ),
                                                            tr( "Remote machines monitor..." ), this );
-        connect( showRemoteMachinesMonitor, SIGNAL( triggered() ), SLOT( sl_showRemoteMachinesMonitor() ) );
-        AppContext::getMainWindow()->getTopLevelMenu( MWMENU_SETTINGS )->addAction( showRemoteMachinesMonitor );
+        showRemoteMachinesMonitor->setObjectName("Remote machines monitor");
     }
 }
 
@@ -72,9 +72,11 @@ DistributedComputingUtil::~DistributedComputingUtil() {
 }
 
 void DistributedComputingUtil::sl_showRemoteMachinesMonitor() {
-    RemoteMachineMonitorDialogImpl dlg( QApplication::activeWindow(), rmm );
-    int ret = dlg.exec();
-    if( QDialog::Rejected == ret ) {
+    QObjectScopedPointer<RemoteMachineMonitorDialogImpl> dlg = new RemoteMachineMonitorDialogImpl(QApplication::activeWindow(), rmm);
+    const int ret = dlg->exec();
+    CHECK(!dlg.isNull(), );
+
+    if (QDialog::Rejected == ret) {
         return;
     }
     assert( QDialog::Accepted == ret );
@@ -91,7 +93,7 @@ QStringList DistributedComputingUtil::filterRemoteMachineServices( const QString
 *******************************************/
 
 UpdateActiveTasks::UpdateActiveTasks(const RemoteMachineSettingsPtr& s) :
- Task("UpdateActiveTasks", TaskFlags_FOSCOE), settings(s), machine(NULL) 
+ Task("UpdateActiveTasks", TaskFlags_FOSCOE), settings(s), machine(NULL)
  {
      rsLog.details(tr("Updating active tasks..."));
      ProtocolInfo* pi = AppContext::getProtocolInfoRegistry()->getProtocolInfo( settings->getProtocolId() );
@@ -110,7 +112,7 @@ void UpdateActiveTasks::run() {
     if (hasError() || isCanceled()) {
         return;
     }
-    
+
     QList<qint64> taskIds;
     taskIds = machine->getActiveTasks(stateInfo);
     if (hasError()) {
@@ -133,7 +135,7 @@ void UpdateActiveTasks::addTaskToScheduler( qint64 taskid ) {
         RemoteWorkflowRunTask* workflowTask = qobject_cast<RemoteWorkflowRunTask*> (task);
         if (workflowTask == NULL) {
             continue;
-        } 
+        }
         activeIds.append(workflowTask->getRemoteTaskId());
     }
 

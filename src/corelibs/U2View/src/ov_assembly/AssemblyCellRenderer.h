@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,14 +48,16 @@ public:
     virtual QPixmap cellImage(const U2AssemblyRead &read, char c, char ref) = 0;
 
 protected:
-    static void drawCell(QPixmap &img, const QColor &color, bool text, char c, const QFont &font, const QColor &textColor);
-    static void drawBackground(QPixmap &img, const QColor & color);
-    static void drawText(QPixmap &img, char c, const QFont &font, const QColor & color);
+    static void drawCell(QPixmap &img, const QColor &topColor, const QColor&bottomColor, bool text, char c, const QFont &font, const QColor &textColor);
+    static void drawCell(QPixmap &img, const QColor &color, bool text, char c, const QFont &font, const QColor &textColor) {
+        drawCell(img, color, color, text, c, font, textColor);
+    }
 };
 
 class AssemblyCellRendererFactory {
 public:
     AssemblyCellRendererFactory(const QString& _id, const QString& _name);
+    virtual ~AssemblyCellRendererFactory() {}
     virtual AssemblyCellRenderer* create() = 0;
 
     const QString& getId() const {return id;}

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,12 +24,17 @@
 #include <U2Lang/LastReadyScheduler.h>
 #include <U2Lang/Schema.h>
 #include <U2Lang/IntegralBusType.h>
+#include <U2Lang/WorkflowMonitor.h>
 #include <U2Lang/WorkflowSettings.h>
+#include <U2Lang/BaseAttributes.h>
+#include <U2Lang/ActorModel.h>
+
 #include <U2Core/Log.h>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/CMDLineRegistry.h>
 #include <U2Core/CMDLineUtils.h>
+
 
 namespace U2 {
 namespace LocalWorkflow {
@@ -39,7 +44,9 @@ const QString LocalDomainFactory::ID("domain.local.bio");
 /*****************************
  * BaseWorker
  *****************************/
-BaseWorker::BaseWorker(Actor* a, bool autoTransitBus) : actor(a) {
+BaseWorker::BaseWorker(Actor* a, bool autoTransitBus)
+: processDone(false), actor(a)
+{
     foreach(Port* p, a->getPorts()) {
         if (qobject_cast<IntegralBusPort*>(p)) {
             IntegralBus* bus = new IntegralBus(p);
@@ -73,6 +80,20 @@ BaseWorker::~BaseWorker() {
     actor->setPeer(NULL);
 }
 
+QStringList BaseWorker::getOutputFiles(){
+    QStringList res;
+    foreach(Attribute *attr, actor->getProto()->getAttributes()) {
+        if(attr->getId() == BaseAttributes::URL_OUT_ATTRIBUTE().getId()) {
+            QString str = actor->getParameter(BaseAttributes::URL_OUT_ATTRIBUTE().getId())->getAttributeValueWithoutScript<QString>();
+            QUrl url(str);
+            if(url.isValid()) {
+                res << url.toString();
+            }
+        }
+    }
+    return res;
+}
+
 bool BaseWorker::addCommunication(const QString& id, CommunicationChannel* ch) {
     Q_UNUSED(id);
     Q_UNUSED(ch);
@@ -92,7 +113,11 @@ Message BaseWorker::getMessageAndSetupScriptValues( CommunicationChannel * chann
     assert(channel != NULL);
     assert(channel->hasMessage());
     bindScriptValues();
-    return channel->get();
+    Message currentMessage = channel->get();
+    currentMessage.isEmpty();
+    messagesProcessedOnLastTick[channel].enqueue(currentMessage);
+
+    return currentMessage;
 }
 
 void BaseWorker::bindScriptValues() {
@@ -101,105 +126,128 @@ void BaseWorker::bindScriptValues() {
         if(!bus->hasMessage()) { // means that it is bus for output port
             continue;
         }
-        
-        QVariantMap busData = bus->look().getData().toMap();
+
         foreach( Attribute * attribute, actor->getParameters().values() ) {
             assert(attribute != NULL);
-            foreach(const QString & slotDesc, busData.keys()) {
-                ActorId actorId = IntegralBusType::parseSlotDesc(slotDesc);
-                QString attrId = IntegralBusType::parseAttributeIdFromSlotDesc(slotDesc);
-                QString portId = bus->getPortId();
-                IntegralBusPort * busPort = qobject_cast<IntegralBusPort*>(actor->getPort(portId));
-                assert(busPort != NULL);
-                
-                Actor * bindedAttrOwner = busPort->getLinkedActorById(actorId);
-                if(bindedAttrOwner == NULL) {
-                    continue;
-                }
-                //attrId.replace(".", "_");
-                //attrId.replace("-", "_");
-                AttributeScript & attrScript = attribute->getAttributeScript();
-                if( !attrScript.getScriptText().isEmpty() ) {
-                    //attrScript.setVarValueWithId(attrId, busData.value(slotDesc));
-                    attrScript.setScriptVar(attrId, busData.value(slotDesc));
-                }
+            setScriptVariableFromBus(&attribute->getAttributeScript(), bus);
+
+            if(actor->getCondition()->hasVarWithId(attribute->getId())) {
+                actor->getCondition()->setVarValueWithId(attribute->getId(), attribute->getAttributePureValue());
+            }
+        }
+
+        QVariantMap busData = bus->lookMessage().getData().toMap();
+        foreach(const QString & slotId, busData.keys()) {
+            QString attrId = "in_" + slotId;
+            if( actor->getCondition()->hasVarWithId(attrId)) {
+                actor->getCondition()->setVarValueWithId(attrId, busData.value(slotId));
             }
         }
     }
 }
 
-/*****************************
- * SimplestSequentialScheduler
- *****************************/
-SimplestSequentialScheduler::SimplestSequentialScheduler(Schema* sh) : schema(sh), lastWorker(NULL), lastTask(NULL) {
-}
+void BaseWorker::setScriptVariableFromBus(AttributeScript *script, IntegralBus *bus) {
+    QVariantMap busData = bus->look().getData().toMap();
+    foreach(const QString & slotDesc, busData.keys()) {
+        ActorId actorId = IntegralBusType::parseSlotDesc(slotDesc);
+        QString attrId = IntegralBusType::parseAttributeIdFromSlotDesc(slotDesc);
+        QString portId = bus->getPortId();
+        IntegralBusPort * busPort = qobject_cast<IntegralBusPort*>(actor->getPort(portId));
+        assert(busPort != NULL);
 
-void SimplestSequentialScheduler::init() {
-    foreach(Actor* a, schema->getProcesses()) {
-        BaseWorker *w = a->castPeer<BaseWorker>();
-        foreach (IntegralBus *bus, w->getPorts().values()) {
-            bus->setWorkflowContext(context);
+        Actor * bindedAttrOwner = busPort->getLinkedActorById(actorId);
+        if(bindedAttrOwner == NULL) {
+            continue;
         }
-        w->setContext(context);
-        w->init();
+        //attrId.replace(".", "_");
+        //attrId.replace("-", "_");
+        if( !script->getScriptText().isEmpty() ) {
+            //attrScript.setVarValueWithId(attrId, busData.value(slotDesc));
+            script->setScriptVar(attrId, busData.value(slotDesc));
+        }
     }
 }
 
-bool SimplestSequentialScheduler::isReady() {
-    foreach(Actor* a, schema->getProcesses()) {
-        if (a->castPeer<BaseWorker>()->isReady()) {
+void BaseWorker::setDone() {
+    processDone = true;
+}
+
+bool BaseWorker::isDone() const {
+    return processDone;
+}
+
+bool BaseWorker::isReady() const {
+    if (isDone()) {
+        return false;
+    }
+
+    QList<Port*> inPorts = actor->getInputPorts();
+    if (inPorts.isEmpty()) {
+        return true;
+    } else if (1 == inPorts.size()) {
+        IntegralBus *inChannel = ports.value(inPorts.first()->getId());
+        int hasMsg = inChannel->hasMessage();
+        bool ended = inChannel->isEnded();
+        if (hasMsg || ended) {
             return true;
         }
     }
+
     return false;
 }
 
-Task* SimplestSequentialScheduler::tick() {
-    foreach(Actor* a, schema->getProcesses()) {
-        if (a->castPeer<BaseWorker>()->isReady()) {
-            lastWorker = a->castPeer<BaseWorker>();
-            return lastTask = lastWorker->tick();
+void BaseWorker::saveCurrentChannelsStateAndRestorePrevious() {
+    foreach(CommunicationChannel *channel, messagesProcessedOnLastTick.keys()) {
+        assert(ports.values().contains(dynamic_cast<IntegralBus *>(channel)));
+
+        QQueue<Message> currentMessagesBackup;
+        while(channel->hasMessage()) {
+            currentMessagesBackup.enqueue(channel->get());
         }
-    }
-    assert(0);
-    return NULL;
-}
+        addMessagesFromBackupToAppropriratePort(channel);
 
-bool SimplestSequentialScheduler::isDone() {
-    foreach(Actor* a, schema->getProcesses()) {
-        if (!a->castPeer<BaseWorker>()->isDone()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void SimplestSequentialScheduler::cleanup() {
-    foreach(Actor* a, schema->getProcesses()) {
-        a->castPeer<BaseWorker>()->cleanup();
+        messagesProcessedOnLastTick[channel] = currentMessagesBackup;
     }
 }
 
-SimplestSequentialScheduler::~SimplestSequentialScheduler() {
+WorkflowMonitor * BaseWorker::monitor() const {
+    CHECK(NULL != context, NULL);
+    return context->getMonitor();
 }
 
-U2::Workflow::WorkerState SimplestSequentialScheduler::getWorkerState( ActorId id) {
-    Actor* a = schema->actorById(id);
-    assert(a);
-    BaseWorker* w = a->castPeer<BaseWorker>();
-    if (lastWorker == w) {
-        Task* t = lastTask;
-        if (w->isDone() && t && t->isFinished()) {
-            return WorkerDone;
-        }
-        return WorkerRunning;
+void BaseWorker::reportError(const QString &message) {
+    CHECK(NULL != monitor(), );
+    monitor()->addError(message, getActorId());
+}
+
+void BaseWorker::restoreActualChannelsState() {
+    foreach(CommunicationChannel *channel, messagesProcessedOnLastTick.keys()) {
+        assert(!channel->hasMessage());
+        addMessagesFromBackupToAppropriratePort(channel);
     }
-    if (w->isDone()) {
-        return WorkerDone;
-    } else if (w->isReady()) {
-        return WorkerReady;
+}
+
+QList<ExternalToolListener*> BaseWorker::createLogListeners(int listenersNumber) {
+    return context->getMonitor()->createWorkflowListeners(actor->getLabel(), listenersNumber);
+}
+
+void BaseWorker::addMessagesFromBackupToAppropriratePort(CommunicationChannel *channel) {
+    while(!messagesProcessedOnLastTick[channel].isEmpty()) {
+        channel->put(messagesProcessedOnLastTick[channel].dequeue(), true);
     }
-    return WorkerWaiting;
+}
+
+bool BaseWorker::canTaskBeCanceled(Task * /*workerTask*/) const {
+    return false;
+}
+
+Task * BaseWorker::tick(bool &canResultBeCanceled) {
+    Task *result = tick();
+    if(NULL != result) {
+        canResultBeCanceled = canTaskBeCanceled(result);
+    }
+
+    return result;
 }
 
 /*****************************
@@ -215,12 +263,15 @@ Message SimpleQueue::get() {
 }
 
 Message SimpleQueue::look() const {
-    assert(hasMessage()); 
+    assert(hasMessage());
     return que.head();
 }
 
-void SimpleQueue::put(const Message& m) {
+void SimpleQueue::put(const Message& m, bool isMessageRestored) {
     que.enqueue(m);
+    if(isMessageRestored) {
+        --takenMsgs;
+    }
 }
 
 int SimpleQueue::hasMessage() const {
@@ -248,6 +299,19 @@ int SimpleQueue::capacity() const {
 }
 
 void SimpleQueue::setCapacity(int) {
+}
+
+QQueue<Message> SimpleQueue::getMessages(int startIndex, int endIndex) const {
+    if(-1 == endIndex) {
+        endIndex = hasMessage() - 1;
+    }
+    Q_ASSERT(0 <= startIndex && que.size() >= startIndex
+        && 0 <= endIndex && que.size() >= endIndex);
+    QQueue<Message> result;
+    foreach(Message message, que.mid(startIndex, endIndex - startIndex + 1)) {
+        result.enqueue(message);
+    }
+    return result;
 }
 
 /*****************************
@@ -335,8 +399,8 @@ Worker* LocalDomainFactory::createWorker(Actor* a) {
         assert(bw == a->getPeer());
 #endif
     }
-    
-    return w;    
+
+    return w;
 }
 
 CommunicationChannel* LocalDomainFactory::createConnection(Link* l) {
@@ -355,12 +419,7 @@ CommunicationChannel* LocalDomainFactory::createConnection(Link* l) {
 }
 
 Scheduler* LocalDomainFactory::createScheduler(Schema* sh) {
-    Scheduler *sc = NULL;
-    if (NULL == sh->getActorBindingsGraph()) {
-        sc = new SimplestSequentialScheduler(sh);
-    } else {
-        sc = new LastReadyScheduler(sh);
-    }
+    Scheduler *sc = new LastReadyScheduler(sh);
     return sc;
 }
 

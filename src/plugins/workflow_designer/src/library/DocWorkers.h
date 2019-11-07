@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,30 +22,84 @@
 #ifndef _U2_WORKFLOW_DOC_WORKERS_H_
 #define _U2_WORKFLOW_DOC_WORKERS_H_
 
-#include "BaseDocWorker.h"
+#include "BaseDocWriter.h"
 #include "CoreLib.h"
 #include <U2Lang/CoreLibConstants.h>
 #include <U2Core/IOAdapter.h>
 
 
 namespace U2 {
+
+class DatasetFilesIterator;
+
 namespace LocalWorkflow {
 
-class TextReader : public BaseDocReader {
+// generic sequence writer
+class SeqWriter : public BaseDocWriter {
     Q_OBJECT
 public:
-    TextReader(Actor* a) : BaseDocReader(a, CoreLibConstants::TEXT_TYPESET_ID, BaseDocumentFormats::PLAIN_TEXT), io(NULL), done(false){}
-    void init();
-    bool isDone();
-    bool isReady();
-    Task *tick();
+    SeqWriter(Actor *a);
+    SeqWriter(Actor *a, const DocumentFormatId &fid);
+
+    static bool hasSequence(const QVariantMap &data);
+    static bool hasSequenceOrAnns(const QVariantMap &data);
+    static GObject * getSeqObject(const QVariantMap &data, WorkflowContext *context);
+    static GObject * getAnnObject(const QVariantMap &data, WorkflowContext *context);
+
 protected:
-    virtual void doc2data(Document* doc);
+    int numSplitSequences;
+    int currentSplitSequence;
+
+    virtual void data2doc(Document*, const QVariantMap&);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
+    virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
+
+    virtual void takeParameters(U2OpStatus &os);
+    virtual QStringList takeUrlList(const QVariantMap &data, int metadataId, U2OpStatus &os);
+    virtual bool isStreamingSupport() const;
+};
+
+class MSAWriter : public BaseDocWriter {
+    Q_OBJECT
+public:
+    MSAWriter(Actor* a, const DocumentFormatId& fid) : BaseDocWriter(a, fid){}
+    MSAWriter(Actor * a) : BaseDocWriter(a){}
+protected:
+    virtual void data2doc(Document*, const QVariantMap&);
+    virtual bool isStreamingSupport() const;
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
+public:
+    static void data2document(Document*, const QVariantMap&, WorkflowContext*);
+};
+
+class TextReader : public BaseWorker {
+    Q_OBJECT
+public:
+    TextReader(Actor *a);
+
+    void init();
+    Task * tick();
+    void cleanup();
+
 private:
+    DataTypePtr mtype;
+    CommunicationChannel* ch;
     IOAdapter *io;
-    QStringList urls;
+    DatasetFilesIterator *urls;
     QString url;
-    bool done;
+
+    static const int MAX_LINE_LEN;
+    static const int READ_BLOCK_SIZE;
+
+private:
+    void sendMessage(const QByteArray &data);
+    void processNextLine();
+    Task * processUrlEntity(const QString &url);
+    Task * processFile(const QString &url);
+    Task * processDbObject(const QString &url);
+    Task * createDbObjectReadFailTask(const QString &url);
 };
 
 class TextWriter : public BaseDocWriter {
@@ -54,17 +108,23 @@ public:
     TextWriter(Actor* a) : BaseDocWriter(a, BaseDocumentFormats::PLAIN_TEXT){}
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
+    virtual bool isStreamingSupport() const;
+    virtual bool isSupportedSeveralMessages() const;
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
 };
 
-class FastaWriter : public BaseDocWriter {
+class FastaWriter : public SeqWriter {
     Q_OBJECT
 public:
-    FastaWriter(Actor* a) : BaseDocWriter(a, BaseDocumentFormats::FASTA){}
+    FastaWriter(Actor* a) : SeqWriter(a, BaseDocumentFormats::FASTA){}
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
     virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
 public:
-    static void data2document(Document*, const QVariantMap&, WorkflowContext*);
+    static void data2document(Document*, const QVariantMap&, WorkflowContext*, int numSplitSequences, int currentSplit);
+    static U2Region getSplitRegion(int numSplitSequences, int currentSplit, qint64 seqLen);
     static void streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum);
 };
 
@@ -75,6 +135,8 @@ public:
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
     virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
 public:
     static void data2document(Document*, const QVariantMap&, WorkflowContext*);
     static void streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum);
@@ -87,6 +149,8 @@ public:
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
     virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
 public:
     static void data2document(Document*, const QVariantMap&, WorkflowContext*);
     static void streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum);
@@ -99,6 +163,8 @@ public:
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
     virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual GObject * getObjectToWrite(const QVariantMap &data) const;
 public:
     static void data2document(Document*, const QVariantMap&, WorkflowContext*);
     static void streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum);
@@ -110,27 +176,10 @@ public:
     GFFWriter(Actor* a) : BaseDocWriter(a, BaseDocumentFormats::GFF){}
 protected:
     virtual void data2doc(Document*, const QVariantMap&);
+    virtual bool hasDataToWrite(const QVariantMap &data) const;
+    virtual QSet<GObject *> getObjectsToWrite(const QVariantMap &data) const;
 public:
     static void data2document(Document*, const QVariantMap&, WorkflowContext*);
-};
-
-// generic sequence writer
-class SeqWriter : public BaseDocWriter {
-    Q_OBJECT
-public:
-    SeqWriter( Actor * a ) : BaseDocWriter(a) {}
-protected:
-    virtual void data2doc(Document*, const QVariantMap&);
-    virtual void storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum);
-};
-
-class MSAWriter : public BaseDocWriter {
-    Q_OBJECT
-public:
-    MSAWriter(Actor* a, const DocumentFormatId& fid) : BaseDocWriter(a, fid){}
-    MSAWriter(Actor * a) : BaseDocWriter(a){}
-protected:
-    virtual void data2doc(Document*, const QVariantMap&);
 };
 
 class DataWorkerFactory : public DomainFactory {

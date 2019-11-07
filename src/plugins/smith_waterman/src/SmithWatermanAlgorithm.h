@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@
 #include "PairAlignSequences.h"
 
 #include <U2Core/SMatrix.h>
+#include <U2Algorithm/SmithWatermanSettings.h>
 
 #include <QtCore/QVector>
 #include <QtCore/QByteArray>
@@ -35,23 +36,28 @@ class SmithWatermanAlgorithm {
 
 public:
     SmithWatermanAlgorithm();
-    virtual ~SmithWatermanAlgorithm() {};
+    virtual ~SmithWatermanAlgorithm() {}
 
-    virtual void launch(const SMatrix& m, QByteArray const & _patternSeq,
-        QByteArray const & _searchSeq, int _gapOpen, int _gapExtension, int _minScore);
-    
+    virtual void launch(const SMatrix& m, const QByteArray  & _patternSeq, const QByteArray & _searchSeq,
+        int _gapOpen, int _gapExtension, int _minScore, SmithWatermanSettings::SWResultView _resultView);
+
     QList<PairAlignSequences> getResults();
     static void sortByScore(QList<PairAlignSequences> & pairAlignmentStrings);
+    static quint64 estimateNeededRamAmount(const qint32 gapOpen, const qint32 gapExtension,
+                                           const quint32 minScore, const quint32 maxScore,
+                                           const QByteArray & patternSeq, const QByteArray & searchSeq,
+                                           const SmithWatermanSettings::SWResultView resultView);
+    static const char STOP;
+    static const char UP;
+    static const char LEFT;
+    static const char DIAG;
 
 protected:
     bool calculateMatrixLength();
-    void printMatrix() const;
-    int getRow(int row) const;
     bool isValidParams();
-    int maximum(int var1, int var2, int var3, int var4 = 0);
-    void setValues(const SMatrix& _substitutionMatrix, 
-        QByteArray const & _patternSeq, QByteArray const & _searchSeq, 
-        int _gapOpen, int _gapExtension, int _minScore);
+    void setValues(const SMatrix& _substitutionMatrix,
+        const QByteArray & _patternSeq, const QByteArray & _searchSeq,
+        int _gapOpen, int _gapExtension, int _minScore, SmithWatermanSettings::SWResultView _resultView);
 
     QList<PairAlignSequences> pairAlignmentStrings;
 
@@ -61,38 +67,18 @@ protected:
     QByteArray searchSeq;
 
     int gapOpen;
-    int gapExtension;    
+    int gapExtension;
     int minScore;
     int matrixLength;
-    int storedResults;
+    SmithWatermanSettings::SWResultView resultView;
 
     QVector<QVector<char> > directionMatrix;
-
-    void backtrace(int row, int col, int score);
-
-    static const char STOP;
-    static const char UP;
-    static const char LEFT;
-    static const char DIAG;
 
     struct KeyOfPairAlignSeq
     {
         KeyOfPairAlignSeq(int _score, U2Region const & _intervalSeq1) {
             setValues(_score, _intervalSeq1);
         }
-//         KeyOfPairAlignSeq(int _score, U2Region const & _intervalSeq1, U2Region const & _intervalSeq2) {
-//             setValues(_score, _intervalSeq1, _intervalSeq2);
-//         }
-
-//         KeyOfPairAlignSeq() {
-//             score = 0;
-// 
-//             intervalSeq1.startPos = 0;
-//             intervalSeq1.len = 0;
-// 
-//             intervalSeq2.startPos = 0;;
-//             intervalSeq2.len = 0;
-//         };
 
         KeyOfPairAlignSeq() {
             score = 0;
@@ -101,19 +87,6 @@ protected:
             intervalSeq1.length = 0;
         };
 
-
-//         static void exchange(KeyOfPairAlignSeq & a, int & pos1, KeyOfPairAlignSeq & b, int & pos2) {
-//             KeyOfPairAlignSeq bufKey;
-//             int buf;
-// 
-//             buf = pos1;
-//             pos1 = pos2;
-//             pos2 = buf;
-// 
-//             bufKey = a;
-//             a = b;
-//             b = bufKey;
-//         }
         static void exchange(PairAlignSequences & a, PairAlignSequences & b) {
             PairAlignSequences bufKey;
 
@@ -122,20 +95,14 @@ protected:
             b = bufKey;
         }
 
-//         void setValues(int _score, U2Region const & _intervalSeq1, U2Region const & _intervalSeq2) {
-//             score = _score;
-//             intervalSeq1 = _intervalSeq1;
-//             intervalSeq2 = _intervalSeq2;
-//         }
-
         void setValues(int _score, U2Region const & _intervalSeq1) {
             score = _score;
-            intervalSeq1 = _intervalSeq1;            
+            intervalSeq1 = _intervalSeq1;
         }
 
         int score;
         U2Region intervalSeq1;
-        
+
     };
 
 
@@ -143,10 +110,10 @@ private:
 
     QVector<QVector<int> > matrix;
     QVector<int> EMatrix;
-    QVector<int> FMatrix;    
+    QVector<int> FMatrix;
 
-    void calculateMatrix();    
-    
+    void calculateMatrixForMultipleAlignmentResult();
+    void calculateMatrixForAnnotationsResult();
 };
 
 }//namespace

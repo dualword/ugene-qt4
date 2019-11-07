@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,8 +25,14 @@
 #include <U2Core/global.h>
 #include <U2Core/U2Region.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QWidget>
+#endif
+
 
 namespace U2 {
 
@@ -49,11 +55,11 @@ public:
 
     /** actions associated with this block. Automatically deleted with block*/
     virtual void addADVSequenceWidgetAction(ADVSequenceWidgetAction* action);
-    
+
     ADVSequenceWidgetAction* getADVSequenceWidgetAction(const QString& objName) const;
 
     QList<ADVSequenceWidgetAction*> getADVSequenceWidgetActions() const { return wActions; }
-    
+
     virtual ADVSequenceObjectContext* getActiveSequenceContext() const = 0;
 
     virtual void centerPosition(int pos, QWidget* skipView = NULL) = 0;
@@ -64,11 +70,11 @@ public:
     virtual bool isWidgetOnlyObject(GObject* o) const { Q_UNUSED(o); return false;}
 
     virtual void updateState(const QVariantMap& m) {Q_UNUSED(m);}
-    
+
     virtual void saveState(QVariantMap& m) {Q_UNUSED(m);}
 
     virtual U2Region getVisibleRange() const = 0;
-    
+
     virtual void setVisibleRange(const U2Region& r) = 0;
 
     virtual int getNumBasesVisible() const = 0;
@@ -76,11 +82,11 @@ public:
     virtual void setNumBasesVisible(qint64 n) = 0;
 
     virtual void onSequenceObjectRenamed(const QString& oldName) = 0;
-    
+
 signals:
     void si_sequenceObjectAdded(U2SequenceObject*);
     void si_sequenceObjectRemoved(U2SequenceObject* );
-    
+
 protected:
     AnnotatedDNAView*                   ctx;
     QList<ADVSequenceObjectContext*>    seqContexts;
@@ -90,7 +96,7 @@ protected:
 class U2VIEW_EXPORT ADVSequenceWidgetAction : public QAction {
     Q_OBJECT
 public:
-    ADVSequenceWidgetAction(const QString& objName, const QString& text) 
+    ADVSequenceWidgetAction(const QString& objName, const QString& text)
         : QAction(text, NULL), addToBar(false), addToMenu(false), seqWidget(NULL) { setObjectName(objName); }
 
     bool                addToBar;

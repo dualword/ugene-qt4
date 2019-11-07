@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,20 +24,26 @@
 
 #include <U2Core/global.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLineEdit>
-#include <QtGui/QValidator>
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QDialog>
+#endif
+#include <QtGui/QValidator>
 
 namespace U2 {
 
 class U2GUI_EXPORT PositionSelector : public QWidget {
     Q_OBJECT
 public:
-    PositionSelector(QWidget* p, int rangeStart, int rangeEnd);
-    PositionSelector(QDialog* d, int rangeStart, int rangeEnd, bool autoclose);
+    PositionSelector(QWidget* p, qint64 rangeStart, qint64 rangeEnd, bool fixedSize = true);
+    PositionSelector(QDialog* d, qint64 rangeStart, qint64 rangeEnd, bool autoclose);
 
     ~PositionSelector();
-    
+
+    void updateRange(qint64 rangeStart, qint64 rangeEnd);
     QLineEdit* getPosEdit() const {return posEdit;}
 
 signals:
@@ -48,11 +54,11 @@ private slots:
     void sl_onReturnPressed();
 
 private:
-    void init();
+    void init(bool fixedSize);
     void exec();
 
-    int rangeStart;
-    int rangeEnd;
+    qint64 rangeStart;
+    qint64 rangeEnd;
     QLineEdit* posEdit;
     bool autoclose;
     QDialog* dialog;

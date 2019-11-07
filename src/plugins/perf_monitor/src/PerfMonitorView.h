@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,13 @@
 
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 
 namespace U2 {
 
@@ -42,7 +47,7 @@ protected:
 
 private:
     void updateCounters();
-    PerfTreeItem* findCounterItem(const GCounter* c) const; 
+    PerfTreeItem* findCounterItem(const GCounter* c) const;
     QTreeWidget* tree;
 };
 

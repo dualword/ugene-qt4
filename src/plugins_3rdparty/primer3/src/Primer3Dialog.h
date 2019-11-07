@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,18 @@
 #ifndef PRIMER3DIALOG_H
 #define PRIMER3DIALOG_H
 
-#include <QtGui/QDialog>
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2Gui/CreateAnnotationWidgetController.h>
 #include <U2Gui/RegionSelector.h>
 
 #include "ui_Primer3Dialog.h"
 #include "Primer3Task.h"
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -42,10 +47,17 @@ public:
     const CreateAnnotationModel &getCreateAnnotationModel()const;
     U2Region getRegion(bool *ok = NULL)const;
     QString checkModel();
-    void prepareAnnotationObject();
+    bool prepareAnnotationObject();
 public:
-    static bool parseIntervalList(QString inputString, QString delimiter, QList<QPair<int, int> > *outputList);
-    static QString intervalListToString(QList<QPair<int, int> > intervalList, QString delimiter);
+    enum IntervalDefinition {
+        Start_Length,
+        Start_End
+    };
+
+    static bool parseIntervalList(const QString& inputString, const QString& delimiter, QList< U2Region > *outputList,
+                                  IntervalDefinition way = Start_Length);
+    static QString intervalListToString(const QList< U2Region>& intervalList, const QString& delimiter,
+                                        IntervalDefinition way = Start_Length);
 private:
     void reset();
     bool doDataExchange();
@@ -64,8 +76,10 @@ private:
     Primer3TaskSettings settings;
     RegionSelector* rs;
 private slots:
-    void on_pbReset_clicked();
-    void on_pbPick_clicked();
+    void sl_pbReset_clicked();
+    void sl_pbPick_clicked();
+    void sl_saveSettings();
+    void sl_loadSettings();
 };
 
 } // namespace U2

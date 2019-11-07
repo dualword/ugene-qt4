@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -61,6 +61,7 @@ enum PFMatrixType {
 
 //Position frequency matrix
 class U2CORE_EXPORT PFMatrix {
+    friend class FMatrixSerializer;
 public:
     //create empty matrix
     PFMatrix() : data(QVarLengthArray<int>()), length(0), type(PFM_MONONUCLEOTIDE) {};
@@ -73,6 +74,8 @@ public:
 
     //create matrix from set of sequences with equal length
     PFMatrix(const QList<DNASequence*>& data, const PFMatrixType type);
+
+    PFMatrix(const PFMatrix &m):data(m.data), length(m.length), type(m.type), info(m.info){};
 
     //get internal index of position in 1-dimensional array
     int index (int row, int column) const;
@@ -91,7 +94,7 @@ public:
 
     //get specified Jaspar property
     QString getProperty (const QString& propertyName) const;
-    
+
     //get all Jaspar properties
     QMap<QString, QString> getProperties() const;
 

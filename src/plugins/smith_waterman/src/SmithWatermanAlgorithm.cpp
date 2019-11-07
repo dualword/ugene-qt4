@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,9 @@
  * MA 02110-1301, USA.
  */
 
+#include <stdio.h>
 #include "SmithWatermanAlgorithm.h"
 #include <U2Core/U2Region.h>
-#include <U2Core/Timer.h>
-#include <U2Core/Log.h>
-
 
 namespace U2 {
 
@@ -32,99 +30,101 @@ const char SmithWatermanAlgorithm::UP = 'u';
 const char SmithWatermanAlgorithm::LEFT = 'l';
 const char SmithWatermanAlgorithm::DIAG = 'd';
 
-SmithWatermanAlgorithm::SmithWatermanAlgorithm() {    
-//default values
-
+SmithWatermanAlgorithm::SmithWatermanAlgorithm() {
     gapOpen = 0;
     gapExtension = 0;
     minScore = 0;
     matrixLength = 0;
-    storedResults = 0; 
 }
 
+quint64 SmithWatermanAlgorithm::estimateNeededRamAmount(const qint32 gapOpen,
+    const qint32 gapExtension, const quint32 minScore, const quint32 maxScore,
+    const QByteArray & patternSeq, const QByteArray & searchSeq,
+    const SmithWatermanSettings::SWResultView resultView)
+{
+    const double b_to_mb_factor = 1048576.0;
 
+    const quint64 queryLength = patternSeq.length();
+    const quint64 searchLength = searchSeq.length();
 
-//notes: Gap < 0
-bool SmithWatermanAlgorithm::calculateMatrixLength() {    
+    quint64 memToAllocInBytes = 0;
+    if(SmithWatermanSettings::MULTIPLE_ALIGNMENT == resultView) {
+        const qint32 maxGapPenalty = (gapOpen > gapExtension) ? gapOpen : gapExtension;
+        assert(0 > maxGapPenalty);
+        quint64 matrixLength = queryLength - (maxScore - minScore) / maxGapPenalty + 1;
+        if (searchLength + 1 < matrixLength) {
+            matrixLength = searchLength + 1;
+        }
+        memToAllocInBytes = queryLength * (2 * sizeof(int) + 0x80) + matrixLength
+            * ((4 + queryLength + 3) >> 2);
+    } else if(SmithWatermanSettings::ANNOTATIONS == resultView) {
+        memToAllocInBytes = queryLength * (3 * sizeof(int) + 0x80);
+    } else {
+        assert(false);
+    }
+
+    return memToAllocInBytes / b_to_mb_factor;
+}
+
+bool SmithWatermanAlgorithm::calculateMatrixLength() {
     int maxScore = 0;
-    int max;    
-    int substValue = 0;    
-    
+
     QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    int nCharsInAlphabet = alphaChars.size();
     for (int i = 0; i < patternSeq.length(); i++) {
-        max = 0;        
-        int nCharsInAlphabet = alphaChars.size();
+        int max = 0;
         for (int j = 0; j < nCharsInAlphabet; j++) {
             //TODO: cache pattern seq raw pointer and alphaChars row pointer out of the loop
-            char c1 = patternSeq.at(i);
-            char c2 = alphaChars.at(j);
-            substValue = (int) substitutionMatrix.getScore(c1, c2);
+            int substValue = substitutionMatrix.getScore(patternSeq.at(i), alphaChars.at(j));
             max = qMax(max, substValue);
         }
         maxScore += max;
-    }        
-    
-    if (minScore > maxScore) {                        
-        //Error: perhaps minScore > maxScore
-        algoLog.trace(QString("SW Error min score > max score. Min score: %1, max score: %2").arg(minScore).arg(maxScore));
-        return false;
-    }    
-    
-    int gap = gapOpen;
-    if (gapOpen < gapExtension) gap = gapExtension;
+    }
 
-    
-    if (gap < 0) matrixLength = patternSeq.length() + (maxScore - minScore)/gap * (-1) + 1;    
-
-    if (searchSeq.length() + 1 < matrixLength) matrixLength = searchSeq.length() + 1;
-
-    return true;    
-
+    if (minScore > maxScore) return 0;
+    int gap = gapOpen > gapExtension ? gapOpen : gapExtension;
+    matrixLength = patternSeq.length() + (maxScore - minScore)/gap * (-1) + 1;
+    if(searchSeq.length() + 1 < matrixLength) matrixLength = searchSeq.length() + 1;
+    return 1;
 }
 
-void SmithWatermanAlgorithm::setValues(const SMatrix& _substitutionMatrix, 
-                                       QByteArray const & _patternSeq, QByteArray const & _searchSeq, 
-                                       int _gapOpen, int _gapExtension, int _minScore) {
-
+void SmithWatermanAlgorithm::setValues(const SMatrix& _substitutionMatrix,
+        const QByteArray & _patternSeq, const QByteArray & _searchSeq,
+        int _gapOpen, int _gapExtension, int _minScore, SmithWatermanSettings::SWResultView _resultView)
+{
     substitutionMatrix = _substitutionMatrix;
     patternSeq = _patternSeq;
     searchSeq = _searchSeq;
     gapOpen = _gapOpen;
     gapExtension = _gapExtension;
-    minScore = _minScore;    
-
+    minScore = _minScore;
+    resultView = _resultView;
 }
 
-void SmithWatermanAlgorithm::launch(const SMatrix& _substitutionMatrix, 
-                                    QByteArray const & _patternSeq, QByteArray const & _searchSeq, 
-                                    int _gapOpen, int _gapExtension, int _minScore) 
-{    
-    //set values
-    setValues(_substitutionMatrix, _patternSeq, _searchSeq, _gapOpen, _gapExtension, _minScore);
-
-//launch algorithm
-
-    if (isValidParams() && calculateMatrixLength()) {            
-        calculateMatrix();        
-    }    
-    else {        
-        //No result
-        // See validationParams();
-        //Perhaps reason: minScore > maxScore 
-        //  or gap_open >= 0 or gap_extension >= 0
+void SmithWatermanAlgorithm::launch(const SMatrix& _substitutionMatrix,
+        const QByteArray & _patternSeq, const QByteArray & _searchSeq,
+        int _gapOpen, int _gapExtension, int _minScore, SmithWatermanSettings::SWResultView _resultView)
+{
+    setValues(_substitutionMatrix, _patternSeq, _searchSeq, _gapOpen, _gapExtension, _minScore,
+        _resultView);
+    if(isValidParams() && calculateMatrixLength()) {
+        switch(resultView) {
+        case SmithWatermanSettings::MULTIPLE_ALIGNMENT:
+            calculateMatrixForMultipleAlignmentResult();
+            break;
+        case SmithWatermanSettings::ANNOTATIONS:
+            calculateMatrixForAnnotationsResult();
+            break;
+        default:
+            assert(false);
+        }
     }
-//    clock_t eTime = clock();
-
 }
-
 
 bool SmithWatermanAlgorithm::isValidParams() {
-    if (searchSeq.length() <= 0) return false;
-    if (patternSeq.length() <= 0) return false;
-    if (searchSeq.length() < patternSeq.length()) return false;
-    if (gapOpen >= 0 || gapExtension >= 0) return false;    
-//    if (substitutionMatrix.alphabet.isEmpty() || substitutionMatrix.alphabet.isNull()) return false;
-
+    if(searchSeq.length() <= 0 || patternSeq.length() <= 0) return false;
+    if(searchSeq.length() < patternSeq.length()) return false;
+    if(gapOpen >= 0 || gapExtension >= 0) return false;
     return true;
 }
 
@@ -135,253 +135,239 @@ QList<PairAlignSequences> SmithWatermanAlgorithm::getResults() {
 }
 
 void SmithWatermanAlgorithm::sortByScore( QList<PairAlignSequences> & res) {
-    algoLog.trace("RUN sortByScore");
     QList<PairAlignSequences> buf;
-    QVector<int> pos;    
+    QVector<int> pos;
     QVector<KeyOfPairAlignSeq> sortedScores;
 
-//     for (int i = 0; i < res.size(); i++) {
-//         pos.append(i);        
-//         sortedScores.append(
-//             KeyOfPairAlignSeq(res.at(i).score, 
-//             res.at(i).intervalSeq1));
-//     }
-
-    for (int i = 0; i < res.size(); i++) 
+    for (int i = 0; i < res.size(); i++)
         for (int j = i + 1; j < res.size(); j++) {
-
-
-//             if (sortedScores.at(i).score < sortedScores.at(j).score)
-//                 KeyOfPairAlignSeq::exchange(sortedScores[i], pos[i], sortedScores[j] , pos[j]);
-// 
-//             else if (sortedScores.at(i).score == sortedScores.at(j).score 
-//                 && sortedScores.at(i).intervalSeq1.startPos > sortedScores.at(j).intervalSeq1.startPos)                                 KeyOfPairAlignSeq::exchange(sortedScores[i], pos[i], sortedScores[j] , pos[j]);
-// 
-//             else if (sortedScores.at(i).score == sortedScores.at(j).score 
-//                 && sortedScores.at(i).intervalSeq1.startPos == sortedScores.at(j).intervalSeq1.startPos
-//                 && sortedScores.at(i).intervalSeq1.len > sortedScores.at(j).intervalSeq1.len) 
-//                 KeyOfPairAlignSeq::exchange(sortedScores[i], pos[i], sortedScores[j] , pos[j]);
-// 
-//             else if (sortedScores.at(i).score == sortedScores.at(j).score 
-//                 && sortedScores.at(i).intervalSeq1.startPos == sortedScores.at(j).intervalSeq1.startPos
-//                 && sortedScores.at(i).intervalSeq1.len == sortedScores.at(j).intervalSeq1.len
-//                 && sortedScores.at(i).intervalSeq2.startPos > sortedScores.at(j).intervalSeq2.startPos) 
-//                 KeyOfPairAlignSeq::exchange(sortedScores[i], pos[i], sortedScores[j] , pos[j]);                    
 
             if (res.at(i).score < res.at(j).score) {
                 KeyOfPairAlignSeq::exchange(res[i],res[j]);
             }
-            else if (res.at(i).score == res.at(j).score 
-                && res.at(i).intervalSeq1.startPos > res.at(j).intervalSeq1.startPos) {
+            else if (res.at(i).score == res.at(j).score
+                && res.at(i).refSubseqInterval.startPos > res.at(j).refSubseqInterval.startPos) {
                     KeyOfPairAlignSeq::exchange(res[i], res[j]);
             }
-            else if (res.at(i).score == res.at(j).score 
-                && res.at(i).intervalSeq1.startPos == res.at(j).intervalSeq1.startPos
-                && res.at(i).intervalSeq1.length > res.at(j).intervalSeq1.length) {
+            else if (res.at(i).score == res.at(j).score
+                && res.at(i).refSubseqInterval.startPos == res.at(j).refSubseqInterval.startPos
+                && res.at(i).refSubseqInterval.length > res.at(j).refSubseqInterval.length) {
                     KeyOfPairAlignSeq::exchange(res[i], res[j]);
             }
         }
-
-//         for (int i = 0; i < res.size(); i++) {        
-//             buf.append(res.at(pos.at(i)));
-//         }
-//        res = buf;
-
-
-        algoLog.trace("FINISH sortByScore");
 }
 
+void SmithWatermanAlgorithm::calculateMatrixForMultipleAlignmentResult() {
+    int subst, max, max1;
+    int i, j, n, e1, f1, x; unsigned int xpos = 0;
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
 
-//Calculating dynamic matrix
-//and save results
-void SmithWatermanAlgorithm::calculateMatrix() {
-    QString str;        
-    char ch;
-    int substValue = 0, max = 0;
-    int f1, f2, e1, e2;
+    n = pat_n * 2; int dirn = (4 + pat_n + 3) >> 2;
+    int *buf, *matrix = (int*)malloc(n * sizeof(int) + pat_n * 0x80 + matrixLength * dirn);
+    char *score, *score1 = (char*)(matrix + n);
+    unsigned char *dir, *dir2, *dir1 = (unsigned char*)score1 + pat_n * 0x80;
+    memset(matrix, 0, n * sizeof(int));
+    memset(dir1, 0, dirn);
+    dir = dir1 + dirn;
+    dir2 = dir1 + matrixLength * dirn;
 
-    //initialization dynamic matrices
-    QVector<int> rowInts;
-    QVector<char> rowChars;
-    for (int tt = 0; tt < patternSeq.length() + 2; tt++) {        
-        rowInts.append(0);
-        rowChars.append(STOP);
-        EMatrix.append(0);
-        FMatrix.append(0);
-    }    
-
-    for (int tt = 0; tt < matrixLength; tt++) {            
-        matrix.append(rowInts);
-        directionMatrix.append(rowChars);            
+    QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * pat_n;
+        j = 0;
+        do {
+            score[j] = substitutionMatrix.getScore(ch, pat[j]);
+        } while(++j < static_cast<int>(pat_n));
     }
 
     PairAlignSequences p;
-    QByteArray pairAlign;
-    U2Region sReg;
-    U2Region pReg;
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
 
-    QVector<QVector<int> > directionSearchSeq;    
-    directionSearchSeq.push_back(rowInts);
-    directionSearchSeq.push_back(rowInts);
+#define SW_LOOP(SWX, N) \
+        max = subst + *score++; x = 3 << N; \
+        f1 = buf[1]; \
+        if(max <= 0) { max = 0; x = 0; } \
+        if(max >= max1) { max1 = max; xpos = j; } \
+        if(max < f1) { max = f1; x = 2 << N; } \
+        if(max < e1) { max = e1; x = 1 << N; } \
+        subst = buf[0]; \
+        buf[0] = max; SWX; \
+        \
+        e1 += gapExtension; \
+        max += gapOpen; \
+        f1 = buf[1] + gapExtension; \
+        e1 = e1 > max ? e1 : max; \
+        f1 = f1 > max ? f1 : max; \
+        buf[1] = f1; \
+        buf += 2; \
 
-    int even = 0;
-    int odd = 0;
-    for (int i = 1; i < searchSeq.length() + 1; i++) {
-        ch = searchSeq.at(i - 1);
-        even = i % 2;
-        odd = (i + 1) % 2;
+    i = 1;
+    do {
+        buf = matrix;
+        score = score1 + src[i - 1] * pat_n;
+        e1 = 0; max1 = 0;
+        subst = 0;
 
-        directionSearchSeq[odd][0] = i - 1;
-        p.score = 0;
-
-        for (int j = 1; j < patternSeq.length()+1; j++) {                
-
-            f1 = FMatrix[j] + gapExtension;                
-            f2 = matrix[getRow(i-1)][j] + gapOpen;
-
-            if (f1 > f2) FMatrix[j] = f1;
-            else FMatrix[j] = f2;
-
-            e1 = EMatrix[j - 1] + gapExtension;                
-            e2 = matrix[getRow(i)][j-1] + gapOpen;
-
-            if (e1 > e2) EMatrix[j] = e1;
-            else EMatrix[j] = e2;
-
-            substValue = matrix[getRow(i-1)][j-1] 
-                + substitutionMatrix.getScore(ch, patternSeq.at(j-1));
-
-            //Get max value and store them
-            max = maximum(EMatrix[j], FMatrix[j], substValue);
-            matrix[getRow(i)][j] = max;
-
-            //Save direction from we come here for back trace
-//             if (max == 0) directionMatrix[getRow(i)][j] = STOP; 
-//             else if (max == EMatrix[j]) directionMatrix[getRow(i)][j] = LEFT;
-//             else if (max == FMatrix[j]) directionMatrix[getRow(i)][j] = UP;
-//             else if (max == substValue) directionMatrix[getRow(i)][j] = DIAG;
-/*
-            //If value meet the conditions then start backtrace()
-
-            if ( max >= minScore ) backtrace(i, j, max);                
-            */
-            
-            if (max == 0) {
-                directionSearchSeq[even][j] = i;                
-            }
-            else if (max == EMatrix[j]) {
-                directionSearchSeq[even][j] = directionSearchSeq[even][j - 1];                
-            }
-            else if (max == FMatrix[j]) {
-                directionSearchSeq[even][j] = directionSearchSeq[odd][j];                                
-            }
-            else if (max == substValue) {
-                directionSearchSeq[even][j] = directionSearchSeq[odd][j - 1];                
-            }
-            if (max >= p.score) {
-                p.intervalSeq1.startPos = directionSearchSeq[even][j];
-                p.intervalSeq1.length = i - directionSearchSeq[even][j];
-                p.score = max;
-            }
+        if(dir == dir2) {
+            dir = dir1;
         }
-        if (p.score >= minScore) {
-            pairAlignmentStrings.append(p);
-        }
+        *dir++ = 0;
+        j = pat_n;
+        do {
+            SW_LOOP(*dir++ = x, 0);
+            if(!(--j)) break;
+            SW_LOOP(dir[-1] |= x, 2);
+            if(!(--j)) break;
+            SW_LOOP(dir[-1] |= x, 4);
+            if(!(--j)) break;
+            SW_LOOP(dir[-1] |= x, 6);
+        } while(--j);
 
-//         for (int qq = 0; qq < directionSearchSeq[0].size(); qq++) {
-//             cout <<directionSearchSeq[even][qq] <<" ";
-//         }
-//         cout <<endl;
+        #undef SW_LOOP
 
-        //Print matrix
-//         QString str = "";
-//         for(int k = 1; k < patternSeq.length() + 1; k++) str += QString::number(directionSearchSeq[even][k]) + " ";
-//        for(int k = 1; k < patternSeq.length() + 1; k++) str += QString::number(FMatrix[k]) + " ";
-//        for(int k = 1; k < patternSeq.length() + 1; k++) str += QString::number(matrix[getRow(i)][k]) + " ";
-//       log.info(str);
-
-    }        
-}
-
-
-//Trace back in matrix
-//Get similar sequences
-void SmithWatermanAlgorithm::backtrace(int row, int col, int score) {            
-    QByteArray pairAlign;
-    int rBegin = row, cBegin = col;
-
-        //algorithm back trace
-        while (directionMatrix[getRow(row)][col] != STOP) {
-            if (DIAG == directionMatrix[getRow(row)][col]) {
-                // substitution                
-                pairAlign.append(PairAlignSequences::DIAG);
-
-                row--; col--;
-                // skip to the next iteration
-                continue;
-            }
-
-            if (LEFT == directionMatrix[getRow(row)][col]) {
-                // insertion                                
+    /*
+        for(j = 0; j < pat_n; j++)
+        printf(" %02X", matrix[j * 2]);
+        printf("\n");
+    */
+        if(max1 >= minScore) {
+        QByteArray pairAlign;
+        xpos = pat_n - xpos + 4; j = i;
+        int xend = xpos - 3;
+        unsigned char *xdir = (unsigned char*)dir - dirn;
+        for(;;) {
+            x = (xdir[xpos >> 2] >> ((xpos & 3) * 2)) & 3;
+            if(!x) break;
+            if(x == 1) {
                 pairAlign.append(PairAlignSequences::LEFT);
-
-                col--;
-                // skip to the next iteration
-                continue;            
-            }
-
-            if (UP == directionMatrix[getRow(row)][col]) {
-                // must be a deletion                                                            
-                pairAlign.append(PairAlignSequences::UP);
-
-                row--;
-                // skip to the next iteration
+                xpos--;
                 continue;
-            }                                                                            
+            }
+            if(x == 2) {
+                pairAlign.append(PairAlignSequences::UP);
+            } else if(x == 3) {
+                pairAlign.append(PairAlignSequences::DIAG);
+                xpos--;
+            }
+            if(xdir == dir1) {
+                xdir = dir2;
+            }
+            if(xdir == dir) {
+                /* printf("#error\n"); */ break;
+            }
+            xdir -= dirn; j--;
+        }
+        xpos -= 3;
 
-        }                
-        //Save sequences
-        U2Region sReg(row, rBegin - row);
-        U2Region pReg(col, cBegin - col);
-        
-
-
-//             PairAlignSequences p;
-//             p.setValues(score, pairAlign, sReg, pReg);
-//             pairAlignmentStrings.append(p);
-//             storedResults++;
-
-        PairAlignSequences p;
-        p.setValues(score, sReg);
+        p.score = max1;
+        p.refSubseqInterval.startPos = j;
+        p.refSubseqInterval.length = i - j;
+        p.ptrnSubseqInterval.startPos = xpos;
+        p.ptrnSubseqInterval.length = xend - xpos;
+        p.pairAlignment = pairAlign;
         pairAlignmentStrings.append(p);
-        storedResults++;
 
+        // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+        // printf("#%i-%i %s\n", xpos, xend - xpos, pairAlign.data());
+        }
+    } while(++i <= static_cast<int>(src_n));
 
+    free(matrix);
 }
 
-//GetRow with shift
-int SmithWatermanAlgorithm::getRow(int row) const {
-    return row % (matrixLength - 1) + 1;    
+void SmithWatermanAlgorithm::calculateMatrixForAnnotationsResult() {
+
+    int subst, max, pos = 0, max1;
+    int i, j, n, e1, f1, fpos;
+    unsigned int src_n = searchSeq.length(), pat_n = patternSeq.length();
+    unsigned char *src = (unsigned char*)searchSeq.data(), *pat = (unsigned char*)patternSeq.data();
+
+    n = pat_n * 3;
+    int *buf, *matrix = (int*)malloc(n * sizeof(int) + pat_n * 0x80);
+    char *score, *score1 = (char*)(matrix + n);
+    memset(matrix, 0, n * sizeof(int));
+
+        QByteArray alphaChars = substitutionMatrix.getAlphabet()->getAlphabetChars();
+    char *alphaCharsData = alphaChars.data(); n = alphaChars.size();
+    for(i = 0; i < n; i++) {
+        unsigned char ch = alphaCharsData[i];
+        score = score1 + ch * pat_n;
+        j = 0;
+        do {
+            score[j] = substitutionMatrix.getScore(ch, pat[j]);
+        } while(++j < static_cast<int>(pat_n));
+    }
+
+    PairAlignSequences p;
+
+    p.refSubseqInterval.startPos = 0;
+    p.score = 0;
+
+    i = 1;
+    do {
+        buf = matrix;
+        score = score1 + src[i - 1] * pat_n;
+        e1 = 0; max1 = 0;
+        subst = 0; fpos = i - 1;
+        j = pat_n;
+        do {
+            max = subst + *score++; n = fpos; \
+            f1 = buf[2];
+            if(max <= 0) { max = 0; n = i; }
+            if(max >= max1) { max1 = max; pos = n; } \
+            if(max < f1) { max = f1; n = buf[1]; }
+            if(max < e1) { max = e1; n = buf[1 - 3]; }
+            subst = buf[0]; fpos = buf[1];
+            buf[0] = max; buf[1] = n;
+
+            e1 += gapExtension;
+            max += gapOpen;
+            f1 = buf[2] + gapExtension;
+            e1 = e1 > max ? e1 : max;
+            f1 = f1 > max ? f1 : max; \
+            buf[2] = f1; \
+            buf += 3;
+        } while(--j);
+
+    // #define SW_FILT
+
+        if(max1 >= minScore) {
+        #ifdef SW_FILT
+            if(p.refSubseqInterval.startPos != pos) {
+                if(p.score) {
+                pairAlignmentStrings.append(p);
+                // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+                }
+                p.refSubseqInterval.startPos = pos;
+                p.refSubseqInterval.length = i - pos;
+                p.score = max1;
+            } else if(p.score < max1) {
+                p.refSubseqInterval.length = i - pos;
+                p.score = max1;
+            }
+        #else
+            p.refSubseqInterval.startPos = pos;
+            p.refSubseqInterval.length = i - pos;
+            p.score = max1;
+            pairAlignmentStrings.append(p);
+            // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+        #endif
+        }
+    } while(++i <= static_cast<int>(src_n));
+
+#ifdef SW_FILT
+    if(p.score) {
+      pairAlignmentStrings.append(p);
+      // printf("#%i-%i %i\n", (int)p.refSubseqInterval.startPos, (int)p.refSubseqInterval.length, (int)p.score);
+    }
+#endif
+
+    free(matrix);
 }
 
+} // namespace U2
 
-//Print matrix
-void SmithWatermanAlgorithm::printMatrix() const {
-    /*cout <<"-------------" <<endl;
-    for (int i = 0; i < matrixLength; i++) {
-        for (int j = 0; j < matrixLength; j++) cout <<matrix[i][j] <<" ";
-        cout <<endl;
-    }*/
-}
-//Get maximum value
-int SmithWatermanAlgorithm::maximum (int var1, int var2, int var3, int var4) {
-    int maxValue = var1;
-
-    if (var2 > maxValue) maxValue = var2;
-    if (var3 > maxValue) maxValue = var3;
-    if (var4 > maxValue) maxValue = var4;
-
-    return maxValue;
-}
-
-}//namespace

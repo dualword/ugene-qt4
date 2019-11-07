@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,11 @@
 #include <U2Core/U2Region.h>
 
 #include <QtCore/QSet>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -36,7 +40,7 @@ class U2VIEW_EXPORT CreateRulerDialogController : public QDialog, public Ui_Crea
     Q_OBJECT
 public:
     CreateRulerDialogController(const QSet<QString>& namesToFilter, const U2Region& range, int offset = -1, QWidget* p=NULL);
-    
+
     virtual void accept ();
 
 private slots:

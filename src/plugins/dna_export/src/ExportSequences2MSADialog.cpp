@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,18 +25,29 @@
 #include <U2Core/Settings.h>
 #include <U2Core/BaseDocumentFormats.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/SaveDocumentGroupController.h>
 #include <U2Core/L10n.h>
-
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
 #include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
+
 
 #define SETTINGS_ROOT QString("dna_export/")
 
 namespace U2 {
 
 ExportSequences2MSADialog::ExportSequences2MSADialog(QWidget* p, const QString& defaultUrl): QDialog(p) {
-    setupUi(this);    
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122113");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Export"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+    okButton = buttonBox->button(QDialogButtonBox::Ok);
+
     addToProjectFlag = true;
     useGenbankHeader = false;
 
@@ -59,7 +70,7 @@ void ExportSequences2MSADialog::accept() {
         QMessageBox::critical(this, L10N::errorTitle(), tr("File name is empty!"));
         return;
     }
-    
+
     url = saveContoller->getSaveFileName();
     format = saveContoller->getFormatIdToSave();
     addToProjectFlag = addToProjectBox->isChecked();

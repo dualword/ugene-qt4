@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@
 
 namespace U2 {
 
-RFSArrayWAlgorithm::RFSArrayWAlgorithm(RFResultsListener* rl, const char* seqX, int sizeX, 
-                                       const char* seqY, int sizeY,  DNAAlphabet *al, int w) 
+RFSArrayWAlgorithm::RFSArrayWAlgorithm(RFResultsListener* rl, const char* seqX, int sizeX,
+                                       const char* seqY, int sizeY,  const DNAAlphabet *al, int w)
 : RFAlgorithmBase(rl, seqX, sizeX, seqY, sizeY, al->getType(), w, w, TaskFlags_FOSCOE)
 {
     indexTask = NULL;
@@ -93,7 +93,7 @@ void RFSArrayWAlgorithm::prepare() {
     //create index task that must be executed before all other tasks
     int matchSize = getWGap(WINDOW_SIZE);
     int gap = WINDOW_SIZE - matchSize;
-    
+
     indexTask = new CreateSArrayIndexTask(arraySeq, ARRAY_SIZE, matchSize, unknownChar, bitMask, bitMaskCharBitsNum, gap);
     indexTask->setSubtaskProgressWeight(arrayPercent/100.0F);
     addSubTask(indexTask);
@@ -122,10 +122,15 @@ QList<Task*> RFSArrayWAlgorithm::onSubTaskFinished(Task* subTask) {
 
 void RFSArrayWAlgorithm::run(RFSArrayWSubtask* t) {
     calculate(t);
-} 
+}
 
 void RFSArrayWAlgorithm::run() {
-    processBoundaryResults();
+    try {
+        processBoundaryResults();
+    }
+    catch(...) {
+        setError("Not enough memory");
+    }
 }
 
 void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
@@ -133,7 +138,7 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
 
     int W = WINDOW_SIZE;
     int W_GAP = getWGap(W);
-    int GAP = W - W_GAP; 
+    int GAP = W - W_GAP;
     int aSize = ARRAY_SIZE;
     int sSize = t->sEnd - t->sStart;
     const char* dataA = arraySeq;
@@ -152,7 +157,7 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
     bool _useBitMask = bitMask!=NULL;
     SArrayIndex* index = indexTask->index;
     assert(index!=NULL);
-    
+
     quint32 bitValue = 0xFFFFFFFF;
     quint32 charBitsNum = bitMaskCharBitsNum;
     int wCharsInMask = index->getCharsInMask();
@@ -167,7 +172,7 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
             progress++;
             reportPos += reportLen;
         }
-        
+
         //validate edges from prev steps
         CheckEdge* chain = chains[chainIdx];
         for (CheckEdge *edge = chain->next, *next = NULL; edge->lastS < posS && edge!=chain; edge = next) {
@@ -176,13 +181,13 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
             // now extend result forward
             const char* lastS = edge->lastS;
             const char* lastA = dataA + (lastS-dataS) + edge->diag;
-            int allMatches = 0;
-            for (;lastS < dataSEnd && lastA < dataAEnd && PCHAR_MATCHES(lastS, lastA); lastS++, lastA++, allMatches++){};
+            for (;lastS < dataSEnd && lastA < dataAEnd && PCHAR_MATCHES(lastS, lastA); lastS++, lastA++){}
+
             int len = lastS - edge->posS;
             if (len >= W) {
                 int s = edge->posS - dataS;
                 int a = edge->diag + s;
-                addResult(a, s, len, allMatches, t);
+                addResult(a, s, len, 0, t); // 0 mismatches
             }
             edgePool.returnEdge(edge);
         }
@@ -192,7 +197,7 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
             uchar c = *(posS + wCharsInMask - 1);
             bool bitValueCreated = true;
 
-            if (c != unknownChar && posS!= dataS) { 
+            if (c != unknownChar && posS!= dataS) {
                 bitValue = ((bitValue<<charBitsNum) | bm[c]) & bitFilter;
             } else { //if there are unknown chars -> rebuild mask starting from the first W without unknown chars
                 bitValue = 0;
@@ -251,7 +256,7 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
                 edge->fromChain();
                 edge->toChain(chain);//making edge last
                 break;
-            } 
+            }
             if (!merged) {
                 //extend backward
                 const char* edgeS = posS - 1;
@@ -269,24 +274,51 @@ void RFSArrayWAlgorithm::calculate(RFSArrayWSubtask* t) {
             next = edge->next;
             const char* lastS = edge->lastS;
             const char* lastA = dataA + (lastS-dataS) + edge->diag;
-            int allMatches = 0;
-            for (;lastS < dataSEnd && lastA < dataAEnd && PCHAR_MATCHES(lastS, lastA); lastS++, lastA++, allMatches++){}
+            for (;lastS < dataSEnd && lastA < dataAEnd && PCHAR_MATCHES(lastS, lastA); lastS++, lastA++){}
             edge->lastS = lastS;
 
             int len = edge->lastS - edge->posS;
             int s = edge->posS - dataS;
             int a = edge->diag + s;
             if (len >= W) {
-                addResult(a, s, len, allMatches, t);
+                addResult(a, s, len, 0, t); // 0 mismatches
             }
             delete edge;
         }
         delete chains[chainIdx];
     }
-    
+
     quint64 t1 = GTimer::currentTimeMicros();
     algoLog.trace(QString("Done, nNew %1, nMatches %2").arg(nNew).arg(nMatches));
     algoLog.trace(QString("Done. Thread %1, Search time: %2 sec").arg(t->tid).arg(double(t1-t0)/(1000*1000)));
+}
+
+static bool resultsIntrersectR1R2(const RFResult &r1, const RFResult &r2) {
+    if (r1.x <= r2.x) {
+        if (r1.x + r1.l >= r2.x) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
+static bool resultsIntrersectR2R1(const RFResult &r1, const RFResult &r2) {
+    if (r2.x <= r1.x) {
+        if (r2.x + r2.l >= r1.x) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
+static bool resultsIntrersect(const RFResult &r1, const RFResult &r2) {
+    bool r1r2 = resultsIntrersectR1R2(r1, r2);
+    bool r2r1 = resultsIntrersectR2R1(r1, r2);
+    return (r1r2 || r2r1);
 }
 
 void RFSArrayWAlgorithm::processBoundaryResults() {
@@ -298,7 +330,10 @@ void RFSArrayWAlgorithm::processBoundaryResults() {
             continue;
         }
         int dj = rj.x - rj.y;
-        for (int i = j + 1; i < n; i++) {
+        for (int i = 0; i < n; i++) {
+            if (i == j) {
+                continue;
+            }
             RFResult& ri = rs[i];
             if (ri.l == -1) { //was merged
                 continue;
@@ -307,11 +342,24 @@ void RFSArrayWAlgorithm::processBoundaryResults() {
             if (dj != di) {
                 continue;
             }
-            if (ri.x + ri.l >= rj.x) {
+            if (!resultsIntrersect(rj, ri)) {
+                continue;
+            }
+            bool rjri = resultsIntrersectR1R2(rj, ri);
+            bool rirj = resultsIntrersectR2R1(rj, ri);
+
+            if (rirj) {
                 ri.l = rj.x + rj.l - ri.x;
+                ri.c = ri.l;
+                assert(ri.l >=0);
+
                 rj.l = -1;
-            } else if (rj.x + rj.l >= ri.x) {
+                break;
+            } else if (rjri) {
                 rj.l = ri.x + ri.l - rj.x;
+                rj.c = rj.l;
+                assert(rj.l >=0);
+
                 ri.l = -1;
             }
         }
@@ -331,7 +379,7 @@ void RFSArrayWAlgorithm::processBoundaryResults() {
 // ast: add one hit in sequence
 void RFSArrayWAlgorithm::addResult( int a, int s, int l, int c, RFSArrayWSubtask* t )
 {
-    bool boundary = nThreads > 1 && (s == 0 || s + l == t->sEnd - t->sStart); 
+    bool boundary = nThreads > 1 && (s == 0 || s + l == t->sEnd - t->sStart);
     s+=t->sStart;
     RFResult r((arrayIsX ? a : s), (arrayIsX ? s : a), l, c);
     if (boundary) {
@@ -349,8 +397,8 @@ int RFSArrayWAlgorithm::getWGap(int W) {
 
 //////////////////////////////////////////////////////////////////////////
 //Worker
-RFSArrayWSubtask::RFSArrayWSubtask(RFSArrayWAlgorithm* _owner, int _sStart, int _sEnd, int _tid) 
-: Task(tr("Find repeats subtask (suffix)"), TaskFlag_None), owner(_owner), sStart(_sStart), sEnd(_sEnd), tid(_tid) 
+RFSArrayWSubtask::RFSArrayWSubtask(RFSArrayWAlgorithm* _owner, int _sStart, int _sEnd, int _tid)
+: Task(tr("Find repeats subtask (suffix)"), TaskFlag_None), owner(_owner), sStart(_sStart), sEnd(_sEnd), tid(_tid)
 {
     tpm = Task::Progress_Manual;
 }

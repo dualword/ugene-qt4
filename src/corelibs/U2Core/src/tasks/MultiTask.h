@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,25 +23,44 @@
 #define _U2_MULTI_TASK_H_
 
 #include <U2Core/Task.h>
+#include <U2Core/StateLockableDataModel.h>
 
 #include <QtCore/QList>
 #include <QtCore/QString>
 
 namespace U2
 {
-
+//runs all given tasks as subtasks
 class U2CORE_EXPORT MultiTask : public Task {
     Q_OBJECT
 public:
-    MultiTask( const QString & name, const QList<Task *>& taskz );
+    MultiTask( const QString & name, const QList<Task *>& taskz, bool withLock = false, TaskFlags f = TaskFlags_NR_FOSCOE);
 
+    QList<Task*> getTasks() const;
+
+    ReportResult report();
+    QString generateReport() const;
+
+private:
+    StateLock *l;
+    QList<Task*> tasks;
+
+};
+
+//waits until each given task is finished and runs the next task after that
+class U2CORE_EXPORT SequentialMultiTask : public Task{
+    Q_OBJECT
+public:
+    SequentialMultiTask ( const QString & name, const QList<Task *>& taskz, TaskFlags f = TaskFlags_NR_FOSCOE);
+
+    void prepare();
+    virtual QList<Task*> onSubTaskFinished(Task* subTask);
     QList<Task*> getTasks() const;
 
 private:
     QList<Task*> tasks;
-    
 };
 
 } //namespace
 
-#endif 
+#endif

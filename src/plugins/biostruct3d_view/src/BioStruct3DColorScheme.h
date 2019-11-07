@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,7 @@
 
 #include "GraphicUtils.h"
 
-namespace U2 { 
+namespace U2 {
 
 class BioStruct3DObject;
 class BioStruct3DColorScheme;
@@ -73,7 +73,7 @@ private:
 class BioStruct3DColorSchemeFactory {
 public:
     virtual BioStruct3DColorScheme* createInstance(const BioStruct3DObject *biostruct) const = 0;
-    //! Method creates factories 
+    //! Method creates factories
 };
 
 #define COLOR_SCHEME_FACTORY(c) \
@@ -81,7 +81,7 @@ public: \
     static const QString schemeName; \
     class Factory : public BioStruct3DColorSchemeFactory { \
     public: \
-        BioStruct3DColorScheme* createInstance(const BioStruct3DObject *biostrucObj) const { return new c(biostrucObj); } \
+        BioStruct3DColorScheme* createInstance(const BioStruct3DObject *biostructObj) const { return new c(biostructObj); } \
     };
 
 //! Abstract BioStruct3DColorScheme

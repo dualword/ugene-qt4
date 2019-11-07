@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,6 @@ namespace U2 {
 class BwaGObjectTask;
 class DnaAssemblyMultiTask;
 class MAlignmentObject;
-class LoadDocumentTask;
 class MAlignment;
 
 class GTest_Bwa : public GTest {
@@ -49,20 +48,17 @@ public:
     QString getTempDataDir();
     QList<Task*> onSubTaskFinished(Task* subTask);
 
-private:    
+private:
     DnaAssemblyToRefTaskSettings config;
     QString readsFileName;
     GUrl readsFileUrl;
     QString indexName;
     QString patternFileName;
     QString negativeError;
+    QString resultDirPath;
     bool usePrebuildIndex;
     bool subTaskFailed;
-    LoadDocumentTask* resultLoadTask;
-    LoadDocumentTask* patternLoadTask;
     BwaTask* bwaTask;
-    MAlignment ma1;
-    MAlignment ma2;
 };
 
 class BwaTests {

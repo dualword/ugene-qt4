@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,26 +30,26 @@ namespace Workflow {
 /**
  * registry of actor prototypes
  * register proto to one of groups - computational categories
- * 
+ *
  * Base categories are listed in BioActorLibrary
  */
 class U2LANG_EXPORT ActorPrototypeRegistry: public QObject {
     Q_OBJECT
 public:
     virtual ~ActorPrototypeRegistry();
-    
+
     // standard registry
     void registerProto(const Descriptor& group, ActorPrototype* proto);
     ActorPrototype* unregisterProto(const QString& id);
     const QMap<Descriptor, QList<ActorPrototype*> >& getProtos() const {return groups;}
     ActorPrototype* getProto(const QString& id) const;
-    
+
 signals:
     void si_registryModified();
-    
+
 private:
      QMap<Descriptor, QList<ActorPrototype*> > groups;
-    
+
 }; // ActorPrototypeRegistry
 
 }//namespace Workflow

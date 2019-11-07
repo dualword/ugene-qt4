@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,10 @@
 #include <U2Core/GObjectReference.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
+#include <U2Core/L10n.h>
 #include <U2Core/Log.h>
 #include <U2Core/Timer.h>
+#include <U2Gui/HelpButton.h>
 
 #include <U2Gui/CreateAnnotationWidgetController.h>
 #include <U2Gui/LastUsedDirHelper.h>
@@ -42,14 +44,22 @@
 #include <U2Formats/GenbankLocationParser.h>
 
 #include <QtCore/QCoreApplication>
-#include <QtCore/QFileInfo>
 #include <QtCore/QDir>
+#include <QtCore/QTextStream>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QVBoxLayout>
 #include <QtGui/QTreeWidget>
 #include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
 #include <QtGui/QInputDialog>
 #include <QtGui/QHeaderView>
+#else
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QInputDialog>
+#include <QtWidgets/QHeaderView>
+#endif
+
 
 //TODO: group by TYPE, ORGANIZM
 //TODO: check whole group (tristate mode)
@@ -77,13 +87,16 @@ EnzymesSelectorWidget::EnzymesSelectorWidget() {
     totalEnzymes = 0;
     minLength = 1;
 
-    connect(enzymesFileButton, SIGNAL(clicked()), SLOT(sl_selectFile()));
+    connect(enzymesFileButton, SIGNAL(clicked()), SLOT(sl_openEnzymesFile()));
+    connect(saveEnzymesButton, SIGNAL(clicked()), SLOT(sl_saveEnzymesFile()));
     connect(selectAllButton, SIGNAL(clicked()), SLOT(sl_selectAll()));
     connect(selectNoneButton, SIGNAL(clicked()), SLOT(sl_selectNone()));
     connect(selectByLengthButton, SIGNAL(clicked()), SLOT(sl_selectByLength()));
     connect(invertSelectionButton, SIGNAL(clicked()), SLOT(sl_inverseSelection()));
+    connect(loadSelectionButton, SIGNAL(clicked()), SLOT(sl_loadSelectionFromFile()));
     connect(saveSelectionButton, SIGNAL(clicked()), SLOT(sl_saveSelectionToFile()));
     connect(enzymeInfo, SIGNAL(clicked()), SLOT(sl_openDBPage()));
+    connect(enzymesFilterEdit, SIGNAL(textChanged(const QString&)), SLOT(sl_filterTextChanged(const QString&)));
 
     if (loadedEnzymes.isEmpty()) {
         QString lastUsedFile = AppContext::getSettings()->getValue(EnzymeSettings::DATA_FILE_KEY).toString();
@@ -205,6 +218,9 @@ void EnzymesSelectorWidget::setEnzymesList(const QList<SEnzymeData>& enzymes) {
     totalEnzymes = 0;
 
     GTIMER(c2,t2,"FindEnzymesDialog::loadFile [refill data tree]");
+
+    enzymesFilterEdit->clear();
+
     foreach (const SEnzymeData& enz, enzymes) {
         EnzymeTreeItem* item = new EnzymeTreeItem(enz);
         if (lastSelection.contains(enz->id)) {
@@ -254,6 +270,27 @@ EnzymeGroupTreeItem* EnzymesSelectorWidget::findGroupItem(const QString& s, bool
     return NULL;
 }
 
+void EnzymesSelectorWidget::sl_filterTextChanged(const QString& filterText) {
+
+    for(int i = 0, n = tree->topLevelItemCount(); i < n; ++i){
+        EnzymeGroupTreeItem* gi = static_cast<EnzymeGroupTreeItem*>(tree->topLevelItem(i));
+        int numHiddenItems = 0;
+        int itemCount = gi->childCount();
+        for( int j = 0; j < itemCount; ++j) {
+            EnzymeTreeItem* item = static_cast<EnzymeTreeItem*>(gi->child(j));
+            if ( item->enzyme->id.contains(filterText, Qt::CaseInsensitive) ) {
+                item->setHidden(false);
+            } else {
+                item->setHidden(true);
+                ++numHiddenItems;
+            }
+        }
+        gi->setHidden(numHiddenItems == itemCount);
+
+    }
+
+}
+
 void EnzymesSelectorWidget::updateStatus() {
     int nChecked = 0;
     QStringList checkedNamesList;
@@ -270,9 +307,9 @@ void EnzymesSelectorWidget::updateStatus() {
     emit si_selectionModified(totalEnzymes, nChecked);
 }
 
-void EnzymesSelectorWidget::sl_selectFile() {
+void EnzymesSelectorWidget::sl_openEnzymesFile() {
     LastUsedDirHelper dir(EnzymeSettings::DATA_DIR_KEY);
-    dir.url = QFileDialog::getOpenFileName(this, tr("Select enzyme database file"), dir.dir, EnzymesIO::getFileDialogFilter());
+    dir.url = U2FileDialog::getOpenFileName(this, tr("Select enzyme database file"), dir.dir, EnzymesIO::getFileDialogFilter());
     if (!dir.url.isEmpty()) {
         loadFile(dir.url);
     }
@@ -345,12 +382,26 @@ void EnzymesSelectorWidget::sl_inverseSelection() {
 }
 
 void EnzymesSelectorWidget::sl_saveSelectionToFile() {
-    LastUsedDirHelper dir(EnzymeSettings::DATA_DIR_KEY);
-    dir.url = QFileDialog::getSaveFileName(this, tr("Select enzyme database file"), dir.dir, EnzymesIO::getFileDialogFilter());
-    if (!dir.url.isEmpty()) {
-        saveFile(dir.url);
+
+    QString selectionData =  checkedEnzymesEdit->toPlainText();
+
+    if (selectionData.size() == 0) {
+        QMessageBox::warning(this, tr("Save selection"), tr("Can not save empty selection!"));
+        return;
     }
-    updateStatus();
+
+    LastUsedDirHelper dir;
+    dir.url = U2FileDialog::getSaveFileName(this, tr("Select enzymes selection"), dir.dir );
+    if (!dir.url.isEmpty()) {
+        QFile data(dir.url);
+        if (!data.open(QFile::WriteOnly)) {
+            QMessageBox::critical(this, tr("Save selection"), tr("Failed to open %1 for writing").arg(dir.url));
+            return;
+        }
+        QTextStream out(&data);
+        out << selectionData;
+    }
+
 }
 
 void EnzymesSelectorWidget::sl_openDBPage() {
@@ -360,14 +411,12 @@ void EnzymesSelectorWidget::sl_openDBPage() {
         QMessageBox::critical(this, tr("Error!"), tr("No enzyme selected!"));
         return;
     }
-    QString suffix = item->enzyme->accession;
-    if (suffix.isEmpty()){
-        suffix = item->enzyme->id;
-    } else if (suffix.startsWith("RB")) {
-        suffix = suffix.mid(2);
-
+    QString id = item->enzyme->id;
+    if (id.isEmpty()) {
+        QMessageBox::critical(this, L10N::errorTitle(), tr("Selected enzyme has no ID!"));
+        return;
     }
-    GUIUtils::runWebBrowser("http://rebase.neb.com/cgi-bin/reb_get.pl?enzname="+suffix);
+    GUIUtils::runWebBrowser("http://rebase.neb.com/cgi-bin/reb_get.pl?enzname=" + id);
 }
 
 void EnzymesSelectorWidget::sl_itemChanged(QTreeWidgetItem* item, int col) {
@@ -407,11 +456,71 @@ void EnzymesSelectorWidget::initSelection()
     lastSelection = selStr.split(ENZYME_LIST_SEPARATOR).toSet();
 }
 
+void EnzymesSelectorWidget::sl_loadSelectionFromFile()
+{
+    LastUsedDirHelper dir;
+    dir.url = U2FileDialog::getOpenFileName(this, tr("Select enzymes selection"), dir.dir, DialogUtils::prepareFileFilter(tr("Selection files"), QStringList("*")) );
+    if (!dir.url.isEmpty()) {
+
+        QFile selectionFile(dir.url);
+        if (!selectionFile.open(QIODevice::ReadOnly)) {
+            QMessageBox::critical(this, tr("Load selection"), tr("Failed to open selection file %1").arg(dir.url));
+            return;
+        }
+
+        QSet<QString> enzymeNames;
+        QTextStream in(&selectionFile);
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            QStringList enzymes = line.split(QRegExp("[,;\\s]+"), QString::SkipEmptyParts );
+            foreach (const QString& enz, enzymes) {
+                enzymeNames.insert(enz);
+            }
+        }
+
+        if (enzymeNames.isEmpty()) {
+            QMessageBox::critical(this, tr("Load selection"), tr("Enzymes selection is empty!"));
+            return;
+        }
+
+        ignoreItemChecks =  true;
+        for(int i=0, n = tree->topLevelItemCount(); i<n; i++){
+            EnzymeGroupTreeItem* gi = static_cast<EnzymeGroupTreeItem*>(tree->topLevelItem(i));
+            for (int j=0, m = gi->childCount(); j < m; j++) {
+                EnzymeTreeItem* item = static_cast<EnzymeTreeItem*>(gi->child(j));
+                QString eName = item->enzyme->id;
+                if (enzymeNames.contains(eName)) {
+                    item->setCheckState(0, Qt::Checked);
+                    enzymeNames.remove(eName);
+                } else {
+                    item->setCheckState(0, Qt::Unchecked);
+                }
+            }
+            gi->updateVisual();
+        }
+        ignoreItemChecks = false;
+
+        updateStatus();
+
+        foreach (const QString& enzyme, enzymeNames) {
+            ioLog.error(tr("Failed to load %1 from selection.").arg(enzyme));
+        }
+    }
+}
+
+void EnzymesSelectorWidget::sl_saveEnzymesFile()
+{
+    LastUsedDirHelper dir(EnzymeSettings::DATA_DIR_KEY);
+    dir.url = U2FileDialog::getSaveFileName(this, tr("Select enzyme database file"), dir.dir, EnzymesIO::getFileDialogFilter());
+    if (!dir.url.isEmpty()) {
+        saveFile(dir.url);
+    }
+}
+
 FindEnzymesDialog::FindEnzymesDialog(ADVSequenceObjectContext* sctx)
 : QDialog(sctx->getAnnotatedDNAView()->getWidget()), seqCtx(sctx) {
     setupUi(this);
-
-    circularButton->setChecked(seqCtx->getSequenceObject()->isCircular());
+    new HelpButton(this, buttonBox, "16122335");
 
     maxHitSB->setMaximum(INT_MAX);
     minHitSB->setMaximum(INT_MAX);
@@ -435,7 +544,7 @@ FindEnzymesDialog::FindEnzymesDialog(ADVSequenceObjectContext* sctx)
 
     connect(enzSel, SIGNAL(si_selectionModified(int,int)), SLOT(sl_onSelectionModified(int,int)));
     sl_onSelectionModified( enzSel->getTotalNumber(),enzSel->getNumSelected());
-    
+
 }
 
 #define MAX_ENZYMES_TO_FIND 100*1000
@@ -446,7 +555,7 @@ void FindEnzymesDialog::sl_onSelectionModified(int total, int nChecked) {
 
 void FindEnzymesDialog::accept() {
     QList<SEnzymeData> selectedEnzymes = enzSel->getSelectedEnzymes();
-    
+
     if (excludeRegionBox->isChecked()){
         bool isRegionOk=false;
         rs->getRegion(&isRegionOk);
@@ -456,7 +565,7 @@ void FindEnzymesDialog::accept() {
         }
     }
     if (selectedEnzymes.isEmpty()) {
-        int ret = QMessageBox::question(this, windowTitle(), 
+        int ret = QMessageBox::question(this, windowTitle(),
             tr("<html><body align=\"center\">No enzymes are selected!\
                 Do you want to turn off <br>enzymes annotations highlighting?</body></html>"),
             QMessageBox::Yes, QMessageBox::No );
@@ -469,7 +578,7 @@ void FindEnzymesDialog::accept() {
         }
         return;
     }
-    
+
     int maxHitVal = maxHitSB->value(), minHitVal = minHitSB->value();
     if(maxHitVal == ANY_VALUE){
         maxHitVal = INT_MAX;
@@ -482,11 +591,11 @@ void FindEnzymesDialog::accept() {
         QMessageBox::critical(this, tr("Error!"), tr("Minimum hit value must be lesser or equal then maximum!"));
         return;
     }
-    
+
     saveSettings();
-    
+
     AutoAnnotationUtils::triggerAutoAnnotationsUpdate(seqCtx, ANNOTATION_GROUP_ENZYME);
-    
+
     QDialog::accept();
 }
 
@@ -497,7 +606,7 @@ void FindEnzymesDialog::initSettings()
     bool useHitCountControl = AppContext::getSettings()->getValue(EnzymeSettings::ENABLE_HIT_COUNT, false).toBool();
     int minHitValue = AppContext::getSettings()->getValue(EnzymeSettings::MIN_HIT_VALUE, 1).toInt();
     int maxHitValue = AppContext::getSettings()->getValue(EnzymeSettings::MAX_HIT_VALUE, 2).toInt();
-    
+
     QString exludedRegionStr = AppContext::getSettings()->getValue(EnzymeSettings::NON_CUT_REGION, "").toString();
     bool excludeRegionOn = false;
     if (!exludedRegionStr.isEmpty()) {
@@ -506,10 +615,10 @@ void FindEnzymesDialog::initSettings()
         if (!location->isEmpty()) {
             excludeRegionOn = true;
             const U2Region& range = location->regions.first();
-            rs->setRegion(range);
+            rs->setCustomRegion(range);
         }
     }
-    
+
     excludeRegionBox->setChecked(excludeRegionOn);
 
     filterGroupBox->setChecked(useHitCountControl);
@@ -541,7 +650,7 @@ void FindEnzymesDialog::saveSettings()
         }
     }
     AppContext::getSettings()->setValue(EnzymeSettings::NON_CUT_REGION, QVariant::fromValue(range) );
-    
+
     enzSel->saveSettings();
 
 }
@@ -553,10 +662,10 @@ void FindEnzymesDialog::initDefaultSettings()
 
 //////////////////////////////////////////////////////////////////////////
 // Tree item
-EnzymeTreeItem::EnzymeTreeItem(const SEnzymeData& ed) 
+EnzymeTreeItem::EnzymeTreeItem(const SEnzymeData& ed)
 : enzyme(ed)
 {
-    setText(0, enzyme->id);  
+    setText(0, enzyme->id);
     setCheckState(0, Qt::Unchecked);
     setText(1, enzyme->accession);
     setText(2, enzyme->type);
@@ -575,7 +684,7 @@ bool EnzymeTreeItem::operator<(const QTreeWidgetItem & other) const {
             return enzyme->id < ei.enzyme->id;
         }
         return this < &ei;
-    } 
+    }
     return text(col) < ei.text(col);
 }
 
@@ -594,7 +703,7 @@ void EnzymeGroupTreeItem::updateVisual() {
     }
     QString text0 = s + " (" + QString::number(checkedEnzymes.size()) + ", " + QString::number(numChilds) + ")";
     setText(0, text0);
-    
+
     if (numChilds > 0) {
         QString text4 = (static_cast<EnzymeTreeItem*>(child(0)))->enzyme->id;
         if (childCount() > 1) {

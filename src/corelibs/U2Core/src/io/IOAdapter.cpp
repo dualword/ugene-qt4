@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,6 @@
 #include "IOAdapter.h"
 
 #include <U2Core/TextUtils.h>
-#include <memory>
 
 namespace U2 {
 
@@ -32,9 +31,10 @@ const IOAdapterId BaseIOAdapters::HTTP_FILE( "http_file" );
 const IOAdapterId BaseIOAdapters::GZIPPED_HTTP_FILE( "http_file_gzip" );
 const IOAdapterId BaseIOAdapters::VFS_FILE( "memory_buffer" );
 const IOAdapterId BaseIOAdapters::STRING( "string" );
+const IOAdapterId BaseIOAdapters::DATABASE_CONNECTION("database_connection");
 
 
-qint64 IOAdapter::readUntil(char* buf, qint64 maxSize, 
+qint64 IOAdapter::readUntil(char* buf, qint64 maxSize,
                             const QBitArray& readTerminators,
                             TerminatorHandling th,  bool* terminatorFound)
 {
@@ -47,6 +47,10 @@ qint64 IOAdapter::readUntil(char* buf, qint64 maxSize,
     do {
         chunk_start = buf;
         len = readBlock(buf, qMin(CHUNK, (qint64)end - (qint64)buf));
+        if (len == -1){
+            //error
+            return -1;
+        }
         if (len < CHUNK) {
             // last chunk, no more data or buffer space
             end = buf + len;

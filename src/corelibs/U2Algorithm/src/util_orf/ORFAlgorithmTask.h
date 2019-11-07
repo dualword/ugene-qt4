@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,16 +37,16 @@ class U2ALGORITHM_EXPORT ORFFindTask : public Task, public ORFFindResultsListene
 public:
     ORFFindTask(const ORFAlgorithmSettings& s,const U2EntityRef& entityRef);
 
-	virtual void run();
+    virtual void run();
     virtual void onResult(const ORFFindResult& r, U2OpStatus& oss);
 
     QList<ORFFindResult> popResults();
 
     const ORFAlgorithmSettings& getSettings() const {return config;}
-private:	
-	ORFAlgorithmSettings config;
-	U2EntityRef entityRef;
-	QList<ORFFindResult> newResults;
+private:
+    ORFAlgorithmSettings config;
+    U2EntityRef entityRef;
+    QList<ORFFindResult> newResults;
     QMutex lock;
 };
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 
 #include "SWAlgorithmTask.h"
 #include "SWTaskFactory.h"
+#include "PairwiseAlignmentSmithWatermanGUIExtension.h"
 #include "SmithWatermanTests.h"
 #include "SWQuery.h"
 #include "SWWorker.h"
@@ -30,7 +31,14 @@
 #include <U2Gui/GUIUtils.h>
 #include <U2View/AnnotatedDNAView.h>
 #include <U2View/ADVConstants.h>
-#include <U2Core/AnnotationTableObject.h>
+
+#include <U2View/MSAEditor.h>
+#include <U2Gui/OptionsPanel.h>
+#include <U2Core/MAlignment.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/DNASequence.h>
+#include <U2Algorithm/SubstMatrixRegistry.h>
+#include <U2Algorithm/AlignmentAlgorithmsRegistry.h>
 
 #include <U2Test/XMLTestFormat.h>
 #include <U2Test/GTest.h>
@@ -39,6 +47,7 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Algorithm/CudaGpuRegistry.h>
 #include <U2Algorithm/OpenCLGpuRegistry.h>
 
@@ -81,26 +90,32 @@ SWAlgorithmPlugin::SWAlgorithmPlugin()
     //Smith-Waterman algorithm tests
     GTestFormatRegistry * tfr = AppContext::getTestFramework()->getTestFormatRegistry();
     XMLTestFormat *xmlTestFormat = qobject_cast<XMLTestFormat*>(tfr->findFormat("XML"));
-    assert(xmlTestFormat!=NULL);    
+    assert(xmlTestFormat!=NULL);
 
     U2::GAutoDeleteList<U2::XMLTestFactory>* l = new U2::GAutoDeleteList<U2::XMLTestFactory>(this);
     l->qlist = SWAlgorithmTests::createTestFactories();
 
-    foreach(XMLTestFactory* f, l->qlist) { 
+    foreach(XMLTestFactory* f, l->qlist) {
         bool res = xmlTestFormat->registerTestFactory(f);
         Q_UNUSED(res);
         assert(res);
-    }    
+    }
+
+    AlignmentAlgorithmsRegistry* par = AppContext::getAlignmentAlgorithmsRegistry();
     SmithWatermanTaskFactoryRegistry* swar = AppContext::getSmithWatermanTaskFactoryRegistry();
 
     coreLog.trace("Registering classic SW implementation");
-    swar->registerFactory(new SWTaskFactory(SW_classic), QString("Classic 2"));
+    swar->registerFactory(new SWTaskFactory(SW_classic), QString("Classic 2"));     //ADV search register
+    par->registerAlgorithm(new SWPairwiseAlignmentAlgorithm());
     regDependedIMPLFromOtherPlugins();
 
 #ifdef SW2_BUILD_WITH_SSE2
     coreLog.trace("Registering SSE2 SW implementation");
     swar->registerFactory(new SWTaskFactory(SW_sse2), QString("SSE2"));
-#endif    
+    par->getAlgorithm("Smith-Waterman")->addAlgorithmRealization(new PairwiseAlignmentSmithWatermanTaskFactory(SW_sse2),
+                                                                 new PairwiseAlignmentSmithWatermanGUIExtensionFactory(SW_sse2),
+                                                                 "SSE2");
+#endif
 
     this->connect(AppContext::getPluginSupport(), SIGNAL(si_allStartUpPluginsLoaded()), SLOT(regDependedIMPLFromOtherPlugins()));
 }
@@ -115,25 +130,32 @@ QList<XMLTestFactory*> SWAlgorithmTests::createTestFactories() {
 //SLOT
 void SWAlgorithmPlugin::regDependedIMPLFromOtherPlugins() {
     SmithWatermanTaskFactoryRegistry* swar = AppContext::getSmithWatermanTaskFactoryRegistry();
+    AlignmentAlgorithmsRegistry* par = AppContext::getAlignmentAlgorithmsRegistry();
     Q_UNUSED( swar );
 
 #ifdef SW2_BUILD_WITH_CUDA
     if ( !AppContext::getCudaGpuRegistry()->empty() ) {
-        coreLog.trace("Registering CUDA SW implementation");        
+        coreLog.trace("Registering CUDA SW implementation");
         swar->registerFactory(new SWTaskFactory(SW_cuda), QString("CUDA"));
+        par->getAlgorithm("Smith-Waterman")->addAlgorithmRealization(new PairwiseAlignmentSmithWatermanTaskFactory(SW_cuda),
+                                                                     new PairwiseAlignmentSmithWatermanGUIExtensionFactory(SW_cuda),
+                                                                     "CUDA");
     }
 #endif
 
 #ifdef SW2_BUILD_WITH_OPENCL
     if ( !AppContext::getOpenCLGpuRegistry()->empty() ) {
-        coreLog.trace("Registering OpenCL SW implementation");        
+        coreLog.trace("Registering OpenCL SW implementation");
         swar->registerFactory(new SWTaskFactory(SW_opencl), QString("OPENCL"));
+        par->getAlgorithm("Smith-Waterman")->addAlgorithmRealization(new PairwiseAlignmentSmithWatermanTaskFactory(SW_opencl),
+                                                                     new PairwiseAlignmentSmithWatermanGUIExtensionFactory(SW_opencl),
+                                                                     "OPENCL");
     }
 #endif
 }
 
-SWAlgorithmADVContext::SWAlgorithmADVContext(QObject* p) : 
-GObjectViewWindowContext(p, ANNOTATED_DNA_VIEW_FACTORY_ID)
+SWAlgorithmADVContext::SWAlgorithmADVContext(QObject* p) :
+GObjectViewWindowContext(p, ANNOTATED_DNA_VIEW_FACTORY_ID), dialogConfig()
 {
 }
 
@@ -141,6 +163,7 @@ void SWAlgorithmADVContext::initViewContext(GObjectView* view) {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(view);
     assert(av != NULL);
     ADVGlobalAction* a = new ADVGlobalAction(av, QIcon(":core/images/sw.png"), tr("Find pattern [Smith-Waterman]..."), 15);
+    a->setObjectName("find_pattern_smith_waterman_action");
 
     a->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
     a->setShortcutContext(Qt::WindowShortcut);
@@ -161,5 +184,21 @@ void SWAlgorithmADVContext::sl_search() {
     SmithWatermanDialogController::run(av->getWidget(), seqCtx, &dialogConfig);
 }
 
-} //namespace
+SWPairwiseAlignmentAlgorithm::SWPairwiseAlignmentAlgorithm()
+    : AlignmentAlgorithm(PairwiseAlignment, "Smith-Waterman",
+                                 new PairwiseAlignmentSmithWatermanTaskFactory(SW_classic),
+                                 new PairwiseAlignmentSmithWatermanGUIExtensionFactory(SW_classic),
+                                 "SW_classic")
+{
+}
 
+bool SWPairwiseAlignmentAlgorithm::checkAlphabet(const DNAAlphabet *alphabet) const {
+    SAFE_POINT(NULL != alphabet, "Alphabet is NULL.", false);
+    SubstMatrixRegistry* matrixReg = AppContext::getSubstMatrixRegistry();
+    SAFE_POINT(matrixReg, "SubstMatrixRegistry is NULL.", false);
+    QStringList matrixList = matrixReg->selectMatrixNamesByAlphabet(alphabet);
+    return !matrixList.isEmpty();
+
+}
+
+} //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 
 namespace U2 {
 
+#define Translation_Table_Id_Attribute "transl_table"
 
 /**
     Attribute for any top-level object record.
@@ -38,7 +39,7 @@ namespace U2 {
 class U2CORE_EXPORT U2Attribute : public U2Entity {
 public:
     U2Attribute(const U2DataId& o = U2DataId(), const QString& n = QString()) : objectId(o), version(0), name(n) {}
-    
+
     /** parent object id */
     U2DataId    objectId;
 
@@ -47,7 +48,7 @@ public:
 
     /** parent object version this attribute is related to. If <=0 -> any is OK. */
     qint64      version;
-    
+
     /* Name of the attribute */
     QString     name;
 };
@@ -55,7 +56,7 @@ public:
 /** 64 bit signed integer attribute */
 class U2CORE_EXPORT U2IntegerAttribute : public U2Attribute {
 public:
-    U2IntegerAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), int val = 0) : U2Attribute(o, n), value(val) {}
+    U2IntegerAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), qint64 val = 0) : U2Attribute(o, n), value(val) {}
     qint64 value;
 };
 
@@ -69,7 +70,7 @@ public:
 /** String attribute */
 class U2CORE_EXPORT U2StringAttribute : public U2Attribute {
 public:
-    U2StringAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), const QString& val = QString()) 
+    U2StringAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), const QString& val = QString())
         : U2Attribute(o, n), value(val) {}
 
     QString value;
@@ -78,7 +79,7 @@ public:
 /** Byte array attribute */
 class U2CORE_EXPORT U2ByteArrayAttribute: public U2Attribute {
 public:
-    U2ByteArrayAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), const QByteArray& val = QByteArray()) 
+    U2ByteArrayAttribute(const U2DataId& o = U2DataId(), const QString& n = QString(), const QByteArray& val = QByteArray())
         : U2Attribute(o, n), value(val) {}
 
     QByteArray value;

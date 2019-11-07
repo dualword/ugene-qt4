@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,34 +19,33 @@
  * MA 02110-1301, USA.
  */
 
-#include "ProjectServiceImpl.h"
-
-#include "ProjectImpl.h"
-#include "ProjectLoaderImpl.h"
-#include "ProjectTasksGui.h"
-
-#include <project_support/ExportProjectDialogController.h>
+#include <QMenu>
+#include <QToolBar>
 
 #include <AppContextImpl.h>
 
-#include <U2Core/L10n.h>
 #include <U2Core/GUrlUtils.h>
+#include <U2Core/L10n.h>
+#include <U2Core/Settings.h>
 #include <U2Core/U2OpStatusUtils.h>
 
-#include <U2Gui/MainWindow.h>
-#include <U2Core/Settings.h>
-#include <U2Gui/GUIUtils.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/MainWindow.h>
+#include <U2Core/QObjectScopedPointer.h>
 
-#include <QtGui/QMenu>
-#include <QtGui/QToolBar>
+#include "ExportProjectDialogController.h"
+#include "ProjectImpl.h"
+#include "ProjectLoaderImpl.h"
+#include "ProjectServiceImpl.h"
+#include "ProjectTasksGui.h"
 
 namespace U2 {
 
 #define SETTINGS_DIR QString("project_loader/")
 
 ProjectServiceImpl::ProjectServiceImpl(Project* _pr) 
-: ProjectService(tr("project_sname"), tr("project_sdesc"))
+: ProjectService(tr("Project"), tr("Project service is available when opened a project file. Other services that depends on Project service will be automatically started after this service is enabled."))
 {
     saveAction = NULL;
     saveAsAction = NULL;
@@ -93,27 +92,27 @@ void ProjectServiceImpl::sl_save() {
 
 void ProjectServiceImpl::sl_saveAs() {
     QWidget *p = qobject_cast<QWidget*>(AppContext::getMainWindow()->getQMainWindow());
-    ProjectDialogController d(ProjectDialogController::Save_Project, p);
-    int rc = d.exec();
+    QObjectScopedPointer<ProjectDialogController> d = new ProjectDialogController(ProjectDialogController::Save_Project, p);
+    const int rc = d->exec();
+    CHECK(!d.isNull(), );
+
     if (rc == QDialog::Rejected) {
         return;
     }
 
-    QDir dir(d.projectFolderEdit->text());
-
     U2OpStatus2Log os;
-    QString fullPath = GUrlUtils::prepareDirLocation(d.projectFolderEdit->text(), os);
+    QString fullPath = GUrlUtils::prepareDirLocation(d->projectFolderEdit->text(), os);
 
     if (fullPath.isEmpty()) {
         QMessageBox::critical(0, L10N::errorTitle(), os.getError());
         return;
     }
 
-    AppContext::getSettings()->setValue(SETTINGS_DIR + "last_dir", fullPath);
+    AppContext::getSettings()->setValue(SETTINGS_DIR + "last_dir", fullPath, true);
     
-    AppContext::getProject()->setProjectName(d.projectNameEdit->text());
+    AppContext::getProject()->setProjectName(d->projectNameEdit->text());
     
-    QString fileName = fullPath + "/" + d.projectFileEdit->text();
+    QString fileName = fullPath + "/" + d->projectFileEdit->text();
     if (!fileName.endsWith(PROJECTFILE_EXT)) {
         fileName.append(PROJECTFILE_EXT);
     }
@@ -126,18 +125,21 @@ void ProjectServiceImpl::sl_exportProject(){
     Project* p = getProject();
     QString pUrl = p->getProjectURL();
     QString projectFileName = pUrl.isEmpty() ? QString() : QFileInfo(pUrl).fileName();
-    ExportProjectDialogController dialog(AppContext::getMainWindow()->getQMainWindow(), projectFileName);
-    dialog.exec();
-    if (dialog.result() == QDialog::Accepted){
-        Task *t = new ExportProjectTask(dialog.getDirToSave(), dialog.getProjectFile(), dialog.useCompression());
+    QObjectScopedPointer<ExportProjectDialogController> dialog = new ExportProjectDialogController(AppContext::getMainWindow()->getQMainWindow(), projectFileName);
+    dialog->exec();
+    CHECK(!dialog.isNull(), );
+
+    if (dialog->result() == QDialog::Accepted){
+        Task *t = new ExportProjectTask(dialog->getDirToSave(), dialog->getProjectFile(), dialog->useCompression());
         AppContext::getTaskScheduler()->registerTopLevelTask(t);
     }
 }
+
 //////////////////////////////////////////////////////////////////////////
 /// Service tasks
 
 ProjectServiceEnableTask::ProjectServiceEnableTask(ProjectServiceImpl* _psi) 
-: Task(tr("project_enable_task"), TaskFlag_NoRun), psi(_psi)
+: Task(tr("Enable Project"), TaskFlag_NoRun), psi(_psi)
 {}
 
 Task::ReportResult ProjectServiceEnableTask::report() {
@@ -153,6 +155,7 @@ Task::ReportResult ProjectServiceEnableTask::report() {
     connect(psi->saveAction, SIGNAL(triggered()), psi, SLOT(sl_save()));
 
     psi->saveAsAction = new QAction(tr("Save project &as..."), psi);
+    psi->saveAsAction->setObjectName(ACTION_PROJECTSUPPORT__SAVE_AS_PROJECT);
     connect(psi->saveAsAction, SIGNAL(triggered()), psi, SLOT(sl_saveAs()));
 
     psi->closeProjectAction = new QAction(tr("&Close project"), psi);
@@ -167,12 +170,12 @@ Task::ReportResult ProjectServiceEnableTask::report() {
 
     MainWindow* mw = AppContext::getMainWindow();
     QMenu* fileMenu = mw->getTopLevelMenu(MWMENU_FILE);
-    QAction* beforeAction= GUIUtils::findActionAfter(fileMenu->actions(), ACTION_PROJECTSUPPORT__OPEN_PROJECT);
+    QAction* beforeAction= GUIUtils::findActionAfter(fileMenu->actions(), ACTION_PROJECTSUPPORT__OPEN_AS);
     fileMenu->insertAction(beforeAction,  psi->saveAction);
     fileMenu->insertAction(beforeAction,  psi->saveAsAction);
     fileMenu->insertAction(beforeAction,  psi->exportProjectAction);
-        fileMenu->insertAction(beforeAction,  psi->closeProjectAction);
-    
+    fileMenu->insertAction(beforeAction,  psi->closeProjectAction);
+
     QToolBar* tb = mw->getToolbar(MWTOOLBAR_MAIN);
     beforeAction= GUIUtils::findActionAfter(tb->actions(), ACTION_PROJECTSUPPORT__OPEN_PROJECT);
     tb->insertAction(beforeAction,  psi->saveAction);
@@ -180,10 +183,11 @@ Task::ReportResult ProjectServiceEnableTask::report() {
     return ReportResult_Finished;
 }
 
-
 ProjectServiceDisableTask::ProjectServiceDisableTask(ProjectServiceImpl* _psi) 
-: Task(tr("project_disable_task"), TaskFlag_NoRun), psi(_psi)
-{}
+    : Task(tr("Disable Project"), TaskFlag_NoRun), psi(_psi)
+{
+
+}
 
 Task::ReportResult ProjectServiceDisableTask::report() {
     AppContextImpl::getApplicationContext()->setProject(NULL);

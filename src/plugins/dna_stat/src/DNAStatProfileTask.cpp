@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/U2SafePoints.h>
 #include <U2Core/GObject.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/DNASequenceObject.h>
@@ -28,21 +29,52 @@
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/WebWindow.h>
 
+#include <U2View/CharOccurTask.h>
+#include <U2View/DinuclOccurTask.h>
+#include <U2View/DNAStatisticsTask.h>
+
 #include "DNAStatProfileTask.h"
 
 namespace U2 {
 
-DNAStatProfileTask::DNAStatProfileTask(ADVSequenceObjectContext* context):Task(tr("Generate sequence statistics profile"), TaskFlag_None){
-    ctx = context;
-    contentCounter.resize(256);
-    contentCounter.fill(0);
-	nA = nC = nG = nT = 0;
+DNAStatProfileTask::DNAStatProfileTask(ADVSequenceObjectContext* context)
+    :Task(tr("Generate sequence statistics profile"), TaskFlags_NR_FOSE_COSC),
+      ctx(context),
+      charTask(NULL),
+      dinucTask(NULL),
+      statTask(NULL)
+{
+    SAFE_POINT_EXT(ctx != NULL, setError(tr("Sequence context is NULL")), );
+
+    charTask = new CharOccurTask(ctx->getAlphabet(), ctx->getSequenceRef(), U2Region(0, ctx->getSequenceLength()));
+    dinucTask = new DinuclOccurTask(ctx->getAlphabet(), ctx->getSequenceRef(), U2Region(0, ctx->getSequenceLength()));
+    statTask = new DNAStatisticsTask(ctx->getAlphabet(), ctx->getSequenceRef(), U2Region(0, ctx->getSequenceLength()));
+
+    addSubTask(charTask);
+    addSubTask(dinucTask);
+    addSubTask(statTask);
+
+    seqLen = ctx->getSequenceLength();
 }
 
-void DNAStatProfileTask::run(){
-    computeStats();
-    QString seqName = ctx->getSequenceGObject()->getGObjectName(), url = ctx->getSequenceGObject()->getDocument()->getURL().getURLString();   
-	U2SequenceObject* dnaObj = ctx->getSequenceObject();
+QList <Task*> DNAStatProfileTask::onSubTaskFinished(Task *subTask) {
+    QList <Task*> res;
+
+    if (subTask == charTask) {
+        charResult = formCharResultString();
+    }
+    if (subTask == dinucTask) {
+        dinucResult = formDinucResultString();
+    }
+    if (subTask == statTask) {
+        statResult = formStatResultString();
+    }
+
+    return res;
+}
+
+QString DNAStatProfileTask::getResult() const {
+    QString resultText;
 
     //setup style
     resultText= "<STYLE TYPE=\"text/css\"><!-- \n";
@@ -51,131 +83,95 @@ void DNAStatProfileTask::run(){
     resultText+="border-style: solid;\n margin:0px;\n padding: 0px;\n}\n";
     resultText+="--></STYLE>\n";
 
-    //header
-    resultText+="<h2>" + DNAStatProfileTask::tr("Sequence Statistics") + "</h2><br>\n";
-    
-    resultText+="<table>\n";
-    resultText+="<tr><td><b>" + DNAStatProfileTask::tr("Sequence file:") + "</b></td><td>" + url + "@" + seqName + "</td></tr><tr><td><b>" + 
-        DNAStatProfileTask::tr("Sequence length:") + "</b></td><td>" + QString::number(seqLen) + "</td></tr>\n";
-	resultText += "<tr><td><b>Molecule Type:</b></td><td>" + ctx->getSequenceObject()->getAlphabet()->getName() + "</td></tr>\n";
-	
-	DNAAlphabet* al = dnaObj->getAlphabet();
-	if (al->isNucleic()) {
-		
-		float gcContent = 100.0 * (nG + nC) / (float) seqLen;
-		resultText += "<tr><td><b>GC content:</b></td><td>" + QString("%1 %").arg(gcContent, 0, 'f', 2) + "</td></tr>\n";
-		
-		// Calculating molar weight
-		// Source: http://www.basic.northwestern.edu/biotools/oligocalc.html
-		bool isRna = al->getId() == BaseDNAAlphabetIds::NUCL_RNA_DEFAULT() ||
-			al->getId() == BaseDNAAlphabetIds::NUCL_RNA_EXTENDED();
-		
-		float molarWeight = 0;
-		if (isRna) {
-			molarWeight = nA * 329.21 + nT * 306.17 + nC * 305.18 + nG * 345.21 + 159.0;
-		} else {
-			molarWeight = nA * 313.21 + nT * 304.2 + nC * 289.18 + nG * 329.21 + 17.04;
-		}
-		
-		int molarAbsCoef = nA*15400 + nT*8800 + nC*7300 + nG*11700;
-		
-		float meltingTm = 0;
-		if (seqLen < 15) {
-			meltingTm = (nA+nT) * 2 + (nG + nC) * 4;
-		} else {
-			meltingTm = 64.9 + 41*(nG + nC-16.4)/(float)(nA+nT+nG+nC);
-		}
+    resultText += statResult;
+    resultText += charResult;
+    resultText += dinucResult;
 
-		resultText += "<tr><td><b>Molar Weight:</b></td><td>" + QString("%1 Da").arg(molarWeight, 0, 'f', 2) + "</td></tr>\n";
-		resultText += "<tr><td><b>Molar ext. coef.:</b></td><td>" + QString("%1 I/mol (at 260 nm)").arg(molarAbsCoef) + "</td></tr>\n";
-		resultText += "<tr><td><b>Melting Tm:</b></td><td>" + QString("%1 C (at salt CC 50 mM, primer CC 50 mM, pH 7.0)").arg(meltingTm, 0, 'f', 2) + "</td></tr>\n";
-	}
-	
-    resultText+="</table>\n";
-    resultText+="<br><br>\n";
+    return resultText;
+}
 
+QString DNAStatProfileTask::formCharResultString() const {
+    QList<CharOccurResult> result = charTask->getResult();
+
+    QString resultText;
     resultText+="<table class=tbl>";
-
-    resultText+="<table class=tbl>";
-    resultText+="<tr><td></td><td>" + 
+    resultText+="<tr><td></td><td>" +
         DNAStatProfileTask::tr("Symbol counts") + "</td><td>" +
         DNAStatProfileTask::tr("Symbol percents %") + "</td></tr>";
 
-    for (int i = 0; i < 256; i++) {
-        char symbol = char(i);
-        qint64 cnt = contentCounter[i];
-        if (cnt == 0) {
-            continue;
-        }
-        float percentage = cnt/(float)seqLen * 100;
-        resultText+=QString("<tr><td><b>%1</b></td><td>%2</td><td>%3</td></tr>").arg(symbol).arg(QString::number(cnt)).arg(QString::number(percentage, 'g', 4));
+    foreach (CharOccurResult r, result) {
+        resultText += QString("<tr><td><b>%1</b></td><td>%2</td><td>%3</td></tr>")
+                .arg( r.getChar() )
+                .arg(QString::number( r.getNumberOfOccur() ))
+                .arg(QString::number( r.getPercentage(), 'g', 4));
     }
     resultText+= "</table>\n";
-    if(!diNuclCounter.isEmpty()){
+    return resultText;
+}
+
+QString DNAStatProfileTask::formDinucResultString() const {
+    CHECK(seqLen != 0, QString());
+    QMap <QByteArray, qint64> result = dinucTask->getResult();
+
+    QString resultText;
+    if (!result.isEmpty()){
         resultText+="<br>";
         resultText+="<table class=tbl>";
-        resultText+="<tr><td></td><td>" + 
+        resultText+="<tr><td></td><td>" +
             DNAStatProfileTask::tr("Dinucleotide counts") + "</td><td>" +
             DNAStatProfileTask::tr("Dinucleotide percents %") + "</td></tr>";
-		QMap<QByteArray, int>::const_iterator it(diNuclCounter.begin());
-        for(;it != diNuclCounter.end(); it++){
+        QMap<QByteArray, qint64>::const_iterator it(result.begin());
+        for(;it != result.end(); it++){
             const QByteArray diNucl = it.key();
-            const int cnt = it.value();
-            float percentage = cnt/(float)seqLen * 100;
+            const qint64 cnt = it.value();
+            double percentage = cnt/(double)seqLen * 100;
             resultText+=QString("<tr><td><b>%1</b></td><td>%2</td><td>%3</td></tr>").arg(QString(diNucl)).arg(QString::number(cnt)).arg(QString::number(percentage, 'g', 4));
         }
         resultText+= "</table>\n";
     }
+
+    return resultText;
 }
 
-Task::ReportResult DNAStatProfileTask::report(){
-    assert(!resultText.isEmpty());
-    
-    return ReportResult_Finished;
-}
+QString DNAStatProfileTask::formStatResultString() const {
+    QString seqName = ctx->getSequenceGObject()->getGObjectName();
+    QString url = ctx->getSequenceGObject()->getDocument()->getURL().getURLString();
+    U2SequenceObject* dnaObj = ctx->getSequenceObject();
 
-void DNAStatProfileTask::computeStats(){
-    seqLen = ctx->getSequenceLength();
-    QByteArray alphabetChars = ctx->getAlphabet()->getAlphabetChars();
-    
-    U2Region wholeSeqReg(0, ctx->getSequenceLength());
-    qint64 blockSize = 1024*1024;
-    qint64 prevEnd = 0;
-    bool dinucl = ctx->getAlphabet()->getId() == BaseDNAAlphabetIds::NUCL_DNA_DEFAULT();
-    QByteArray nucPair = "NN";
+    QString resultText;
+    resultText+="<h2>" + DNAStatProfileTask::tr("Sequence Statistics") + "</h2><br>\n";
+    resultText+="<table>\n";
+    resultText+="<tr><td><b>" + DNAStatProfileTask::tr("Sequence file:") + "</b></td><td>" + url + "@" + seqName + "</td></tr><tr><td><b>" +
+        DNAStatProfileTask::tr("Sequence length:") + "</b></td><td>" + QString::number(seqLen) + "</td></tr>\n";
+    resultText += "<tr><td><b>Molecule Type:</b></td><td>" + ctx->getSequenceObject()->getAlphabet()->getName() + "</td></tr>\n";
 
-    do {
-        U2Region r = wholeSeqReg.intersect(U2Region(prevEnd, blockSize));
-        prevEnd += blockSize;
-        QByteArray seqBlock = ctx->getSequenceData(r);
-        foreach(char c, seqBlock){
-			if (c == 'A') {
-				nA++;
-			} else if (c == 'G') {
-				nG++;
-			} else if (c == 'T' || c == 'U') {
-				nT++;
-			} else if (c == 'C') {
-				nC++;
-			}
-			contentCounter[uchar(c)]++;
-			if (!dinucl) {
-                continue;
-            }
-            nucPair[0] = nucPair[1];
-            nucPair[1] = c;
-            if (!nucPair.contains("-") && !nucPair.contains("N")) {
-                continue;
-            }
-            if (diNuclCounter.contains(nucPair)){
-                diNuclCounter[nucPair]++;
-            } else {
-                diNuclCounter.insert(nucPair, 1);
-            }
-        }
-    } while (prevEnd < wholeSeqReg.endPos());
+    const DNAAlphabet* al = dnaObj->getAlphabet();
+    DNAStatistics result = statTask->getResult();
+    if (al->isNucleic()) {
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("GC content:") + "</b></td><td>"
+                + QString("%1 %").arg(result.gcContent, 0, 'f', 2) + "</td></tr>\n";
 
-        
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("Molar Weight:") + "</b></td><td>"
+                + QString("%1 Da").arg(result.molarWeight, 0, 'f', 2) + "</td></tr>\n";
+
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("Molar ext. coef.:") + "</b></td><td>"
+                + QString("%1 I/mol (at 260 nm)").arg(result.molarExtCoef) + "</td></tr>\n";
+
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("Melting Tm:") + "</b></td><td>"
+                + QString("%1 C (at salt CC 50 mM, primer CC 50 mM, pH 7.0)").arg(result.meltingTm, 0, 'f', 2) + "</td></tr>\n";
+
+    } else if (al->isAmino()) {
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("Molecular Weight:") + "</b></td><td>"
+                + QString("%1").arg(result.molecularWeight, 0, 'f', 2) + "</td></tr>\n";
+
+        resultText += "<tr><td><b>" + DNAStatProfileTask::tr("Isoelectric Point (pI):") + "</b></td><td>"
+                + QString("%1").arg(result.isoelectricPoint, 0, 'f', 2) + "</td></tr>\n";
+    }
+
+    resultText+="</table>\n";
+    resultText+="<br><br>\n";
+
+    return resultText;
 }
 
 } //namespace

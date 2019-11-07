@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,14 +47,14 @@ public:
     static const QString    GRAPH_VIZ_CHART_TYPE;
     static const QSize      CHART_SIZE_DEFAULT;
     static const QString    GOOGLE_CHART_BASE_URL;
-    
+
 public:
     GoogleChartImage(Schema * sc, const Metadata& meta);
     QString getImageUrl() const;
-    
+
 private:
     QString getUrlArguments() const;
-    
+
 private:
     QSize chartSize;
     Schema * schema;
@@ -69,24 +69,24 @@ class ProduceSchemaImageLinkTask : public Task {
 public:
     ProduceSchemaImageLinkTask(const QString & schemaName);
     ~ProduceSchemaImageLinkTask();
-    
+
     virtual void prepare();
     virtual ReportResult report();
     virtual QList<Task*> onSubTaskFinished(Task* subTask);
-    
+
     QString getImageLink() const;
 
 private:
     ProduceSchemaImageLinkTask();
     ProduceSchemaImageLinkTask(const ProduceSchemaImageLinkTask &);
     ProduceSchemaImageLinkTask & operator=(const ProduceSchemaImageLinkTask &);
-    
+
 private:
     QString schemaPath;
     Schema * schema;
     Metadata meta;
     QString imageLink;
-    
+
 }; // ProduceSchemaImageLinkTask
 
 } // U2

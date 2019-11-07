@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #ifndef __U2_WORKFLOW_BASE_SLOTS_H_
 #define __U2_WORKFLOW_BASE_SLOTS_H_
 
+#include <U2Core/U2Type.h>
+
 #include <U2Lang/Descriptor.h>
 
 namespace U2 {
@@ -36,7 +38,9 @@ public:
     static const Descriptor TEXT_SLOT();
     static const Descriptor URL_SLOT();
     static const Descriptor FASTA_HEADER_SLOT();
-    
+    static const Descriptor VARIATION_TRACK_SLOT();
+    static const Descriptor ASSEMBLY_SLOT();
+    static const Descriptor DATASET_SLOT();
 }; // BaseSlots
 
 } // Workflow

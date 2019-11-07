@@ -2,139 +2,246 @@
 <!DOCTYPE TS>
 <TS version="2.0" language="ru">
 <context>
-    <name>PhyTreeGeneratorLauncherTask</name>
-    <message>
-        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="45"/>
-        <source>Calculating Phylogenetic Tree</source>
-        <translation type="unfinished">Создание филогенетического дерева</translation>
-    </message>
-    <message>
-        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="54"/>
-        <source>Tree construction algorithm %1 not found</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>PhyTreeGeneratorTask</name>
-    <message>
-        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="32"/>
-        <source>Calculating Phylogenetic Tree</source>
-        <translation>Создание филогенетического дерева</translation>
-    </message>
-    <message>
-        <source>Calculating phylogenetic tree</source>
-        <translation type="obsolete">Создание филогенетического дерева</translation>
-    </message>
-</context>
-<context>
     <name>QObject</name>
     <message>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="58"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="64"/>
         <source>Loading OPENCL driver library</source>
-        <translation type="unfinished"></translation>
+        <translation>Загрузка драйверов библиотеки OPENCL</translation>
     </message>
     <message>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="62"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="68"/>
         <source>Cannot load OpenCL library. Error while loading %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Невозможно загрузить OpenCL библиотеку. Ошибка в процессе загрузки %1</translation>
     </message>
     <message>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="69"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="76"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="83"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="90"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="99"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="106"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="113"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="120"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="127"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="134"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="141"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="148"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="155"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="162"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="169"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="176"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="183"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="190"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="197"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="204"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="211"/>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="218"/>
-        <source>Cannot resolve symbol %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="235"/>
-        <source>Cannot load library: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="75"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="82"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="89"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="96"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="105"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="112"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="119"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="126"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="133"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="140"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="147"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="154"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="161"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="168"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="175"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="182"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="189"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="196"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="203"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="210"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="217"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="224"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="231"/>
         <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="238"/>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="245"/>
+        <source>Cannot resolve symbol %1</source>
+        <translation>Невозможно разрешить символ %1</translation>
+    </message>
+    <message>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="260"/>
+        <source>Cannot load library: %1</source>
+        <translation>Невозможно загрузить библиотеку: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/util_gpu/opencl/OpenCLHelper.cpp" line="263"/>
         <source>Some errors occurs in library: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Найдены ошибки в библиотеке: %1</translation>
     </message>
     <message>
         <location filename="../src/util_msa_consensus/MSAConsensusUtils.cpp" line="109"/>
         <source>Gaps:</source>
-        <translation type="unfinished"></translation>
+        <translation>Пробелы:</translation>
     </message>
     <message>
-        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="96"/>
-        <source>blocks: %1 globalWorkSize %2 localWorkSize %3 iterationsNum %4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="197"/>
-        <source>GPU execution time: %1 GPUMem ussage: %2 Mb GPUContantMem %3 Kb</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="222"/>
+        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="70"/>
         <source>clear OpenCL resources</source>
-        <translation type="unfinished"></translation>
+        <translation>очистка OpenCL ресурсов</translation>
     </message>
     <message>
-        <location filename="../src/util_gpu/opencl/OpenCLUtils.cpp" line="70"/>
+        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="169"/>
+        <source>GPU memory usage: %1 Mb</source>
+        <translation>Использование памяти: %1 Mb</translation>
+    </message>
+    <message>
+        <location filename="../src/misc/BinaryFindOpenCL.cpp" line="183"/>
+        <source>Device&apos;s preferred work group size multiple is %1</source>
+        <translation>Предпочтительный размер рабочей группы кратен %1</translation>
+    </message>
+    <message>
+        <location filename="../src/util_gpu/opencl/OpenCLUtils.cpp" line="72"/>
         <source>OPENCL: BUILD LOG 
  ******************** 
  %1 
  ********************</source>
-        <translation type="unfinished"></translation>
+        <translation>OPENCL: BUILD LOG 
+ ******************** 
+ %1 
+ ********************</translation>
     </message>
     <message>
-        <location filename="../src/util_gpu/opencl/OpenCLUtils.cpp" line="71"/>
+        <location filename="../src/util_gpu/opencl/OpenCLUtils.cpp" line="73"/>
         <source>OPENCL: Program::build() failed. (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>OPENCL: Program::build() failed. (%1)</translation>
     </message>
 </context>
 <context>
     <name>U2::AlignInAminoFormTask</name>
     <message>
-        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="122"/>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="97"/>
+        <source>Align in amino form</source>
+        <translation>Выравнивание в амино форму</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="107"/>
+        <source>Invalid MSA object detected</source>
+        <translation>Обнаружен некорректный MSA объект</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="108"/>
+        <source>AlignInAminoFormTask: Input alphabet is not nucleic!</source>
+        <translation>AlignInAminoFormTask: Входной алфавит не является нуклеотидным!</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="109"/>
+        <source>AlignInAminoFormTask: Input alignment is empty!</source>
+        <translation>AlignInAminoFormTask: Входное выравнивание пустое!</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="116"/>
+        <source>Invalid applications settings detected</source>
+        <translation>Обнаружены некорректные настройки приложений</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="119"/>
+        <source>Invalid users applications settings detected</source>
+        <translation>Обнаружены некорректные настройки приложений</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="126"/>
+        <source>Invalid MSA document detected</source>
+        <translation>Обнаружен некорректный MSA документ</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="147"/>
+        <source>NULL clonedObj in AlignInAminoFormTask::prepare!</source>
+        <translation>NULL clonedObj in AlignInAminoFormTask::prepare!</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="157"/>
         <source>Can not find row %1 in original alignment.</source>
-        <translation type="unfinished"></translation>
+        <translation>Строка %1 не может быть найдена в исходном выравнивании.</translation>
+    </message>
+</context>
+<context>
+    <name>U2::AssemblyConsensusAlgorithmFactoryDefault</name>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmDefault.cpp" line="39"/>
+        <source>Default</source>
+        <translation>Схема по умолчанию</translation>
+    </message>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmDefault.cpp" line="43"/>
+        <source>Returns simply the most frequent base and &apos;N&apos; are no reads intersecting this position</source>
+        <translation>Выдает наиболее часто встречающееся основание в столбце ридов или N если нету ридов в данном столбце</translation>
+    </message>
+</context>
+<context>
+    <name>U2::AssemblyConsensusAlgorithmFactorySamtools</name>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp" line="45"/>
+        <source>SAMtools</source>
+        <translation>SAMtools</translation>
+    </message>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp" line="49"/>
+        <source>Uses SAMtools to calculate consensus with regard to quality of reads</source>
+        <translation>Использует SAMtools для расчета консенсуса по отношению к качеству ридов</translation>
+    </message>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp" line="71"/>
+        <source>Fetching reads from database and converting to SAMtools format</source>
+        <translation>Выборка ридов из базы данных и конвертация в формат SAMtools</translation>
+    </message>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp" line="74"/>
+        <source>Sorting reads</source>
+        <translation>Сортировка ридов</translation>
+    </message>
+    <message>
+        <location filename="../src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp" line="77"/>
+        <source>Calculating consensus</source>
+        <translation>Вычисление консенсуса</translation>
+    </message>
+</context>
+<context>
+    <name>U2::BestPositionFindTask</name>
+    <message>
+        <location filename="../src/msa_alignment/SimpleAddingToAlignment.cpp" line="102"/>
+        <source>Best position find task</source>
+        <translation>Best position find task</translation>
     </message>
 </context>
 <context>
     <name>U2::CreateSubalignmentTask</name>
     <message>
-        <location filename="../src/util_msaedit/CreateSubalignmentTask.cpp" line="37"/>
+        <location filename="../src/util_msaedit/CreateSubalignmentTask.cpp" line="40"/>
         <source>Create sub-alignment: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Создание участка выравнивания: %1</translation>
     </message>
     <message>
-        <location filename="../src/util_msaedit/CreateSubalignmentTask.cpp" line="68"/>
+        <location filename="../src/util_msaedit/CreateSubalignmentTask.cpp" line="75"/>
         <source>Document is locked: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Документ заблокирован: %1</translation>
+    </message>
+</context>
+<context>
+    <name>U2::DnaAssemblyMultiTask</name>
+    <message>
+        <location filename="../src/misc/DnaAssemblyMultiTask.cpp" line="86"/>
+        <source>The short reads can&apos;t be mapped to the reference sequence!</source>
+        <translation>Короткие риды не могут быть отражены в референсной последовательности!</translation>
+    </message>
+</context>
+<context>
+    <name>U2::DnaAssemblyToReferenceTask</name>
+    <message>
+        <location filename="../src/registry/DnaAssemblyTask.cpp" line="30"/>
+        <source>Align short reads</source>
+        <translation>Align short reads</translation>
     </message>
 </context>
 <context>
     <name>U2::FindAlgorithmTask</name>
     <message>
-        <location filename="../src/misc/FindAlgorithmTask.cpp" line="31"/>
+        <location filename="../src/misc/FindAlgorithmTask.cpp" line="44"/>
         <source>Find in sequence task</source>
         <translation>Поиск Смита-Ватермана</translation>
+    </message>
+</context>
+<context>
+    <name>U2::GenomeAssemblyMultiTask</name>
+    <message>
+        <location filename="../src/misc/GenomeAssemblyMultiTask.cpp" line="86"/>
+        <source>Assembly cannot be performed.</source>
+        <translation>Assembly cannot be performed.</translation>
+    </message>
+</context>
+<context>
+    <name>U2::LoadPatternsFileTask</name>
+    <message>
+        <location filename="../src/misc/FindAlgorithmTask.cpp" line="107"/>
+        <source>Load pattern from file</source>
+        <translation>Загрузить паттерн из файла</translation>
+    </message>
+    <message>
+        <location filename="../src/misc/FindAlgorithmTask.cpp" line="128"/>
+        <source>Detecting format error for file %1</source>
+        <translation>Ошибка распознавания формата для файла %1</translation>
     </message>
 </context>
 <context>
@@ -196,9 +303,9 @@ For every column selects the most rare symbol in the whole alignment with percen
 <context>
     <name>U2::MSADistanceAlgorithm</name>
     <message>
-        <location filename="../src/util_msa_distance/MSADistanceAlgorithm.cpp" line="53"/>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithm.cpp" line="60"/>
         <source>MSA distance algorithm &quot;%1&quot; task</source>
-        <translation type="unfinished"></translation>
+        <translation>Задача вычисления алгоритма дистанций в MSA &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
@@ -206,31 +313,52 @@ For every column selects the most rare symbol in the whole alignment with percen
     <message>
         <location filename="../src/util_msa_distance/MSADistanceAlgorithmHamming.cpp" line="36"/>
         <source>Based on Hamming distance between two sequences</source>
-        <translation type="unfinished"></translation>
+        <translation>На основании расстояния Хэмминга между двумя последовательностями</translation>
     </message>
     <message>
         <location filename="../src/util_msa_distance/MSADistanceAlgorithmHamming.cpp" line="40"/>
-        <source>Hamming</source>
-        <translation type="unfinished"></translation>
+        <source>Hamming dissimilarity</source>
+        <translation>Расхождение Хэмминга</translation>
     </message>
 </context>
 <context>
     <name>U2::MSADistanceAlgorithmFactoryHammingRevCompl</name>
     <message>
-        <location filename="../src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp" line="39"/>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp" line="42"/>
         <source>Based on Hamming distance between two sequences</source>
-        <translation type="unfinished"></translation>
+        <translation>На основании расстояния Хэмминга между двумя последовательностями</translation>
     </message>
     <message>
-        <location filename="../src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp" line="43"/>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp" line="46"/>
         <source>Hamming reverse-complement</source>
-        <translation type="unfinished"></translation>
+        <translation>Значение Хэмминга для обратно-комплементарной</translation>
+    </message>
+</context>
+<context>
+    <name>U2::MSADistanceAlgorithmFactorySimilarity</name>
+    <message>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithmSimilarity.cpp" line="36"/>
+        <source>Based on similarity distance between two sequences</source>
+        <translation>На основании расстояния сходства между двумя последовательностями</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithmSimilarity.cpp" line="40"/>
+        <source>Simple identity</source>
+        <translation>Простое сходство</translation>
+    </message>
+</context>
+<context>
+    <name>U2::MSADistanceAlgorithmHammingRevCompl</name>
+    <message>
+        <location filename="../src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp" line="78"/>
+        <source>An unexpected error has occurred during running the Hamming reverse-complement algorithm.</source>
+        <translation>Произошла ошибка во время запуска обратно-комплементарного алгоритма Хэмминга.</translation>
     </message>
 </context>
 <context>
     <name>U2::MolecularSurfaceCalcTask</name>
     <message>
-        <location filename="../src/molecular_geometry/MolecularSurface.cpp" line="123"/>
+        <location filename="../src/molecular_geometry/MolecularSurface.cpp" line="122"/>
         <source>Molecular surface calculation</source>
         <translation>Вычисление молекулярной поверхности</translation>
     </message>
@@ -238,14 +366,9 @@ For every column selects the most rare symbol in the whole alignment with percen
 <context>
     <name>U2::ORFFindTask</name>
     <message>
-        <location filename="../src/util_orf/ORFAlgorithmTask.cpp" line="33"/>
+        <location filename="../src/util_orf/ORFAlgorithmTask.cpp" line="31"/>
         <source>ORF find</source>
         <translation>Поиск ORF (рамок считывания)</translation>
-    </message>
-    <message>
-        <location filename="../src/util_orf/ORFAlgorithmTask.cpp" line="53"/>
-        <source>Number of results exceeds %1</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -261,12 +384,12 @@ For every column selects the most rare symbol in the whole alignment with percen
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmLOD.cpp" line="38"/>
         <source>log-odds</source>
-        <translation type="unfinished"></translation>
+        <translation>log-odds</translation>
     </message>
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmLOD.cpp" line="42"/>
         <source>log-odds weight function</source>
-        <translation type="unfinished"></translation>
+        <translation>Весовая функция log-odds</translation>
     </message>
 </context>
 <context>
@@ -274,12 +397,12 @@ For every column selects the most rare symbol in the whole alignment with percen
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmMCH.cpp" line="37"/>
         <source>Match</source>
-        <translation type="unfinished"></translation>
+        <translation>Совпадение</translation>
     </message>
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmMCH.cpp" line="41"/>
         <source>Match weight function</source>
-        <translation type="unfinished"></translation>
+        <translation>Весовая функция совпадений</translation>
     </message>
 </context>
 <context>
@@ -287,23 +410,41 @@ For every column selects the most rare symbol in the whole alignment with percen
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmNLG.cpp" line="37"/>
         <source>NLG</source>
-        <translation type="unfinished"></translation>
+        <translation>NLG</translation>
     </message>
     <message>
         <location filename="../src/util_weight_matrix/PWMConversionAlgorithmNLG.cpp" line="41"/>
         <source>NLG weight function</source>
-        <translation type="unfinished"></translation>
+        <translation>Весовая функция NLG</translation>
+    </message>
+</context>
+<context>
+    <name>U2::PairwiseAlignmentTask</name>
+    <message>
+        <location filename="../src/pairwise_alignment/PairwiseAlignmentTask.cpp" line="47"/>
+        <source>Pairwise alignment task</source>
+        <translation>Pairwise alignment task</translation>
+    </message>
+</context>
+<context>
+    <name>U2::PhyTreeGeneratorLauncherTask</name>
+    <message>
+        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="45"/>
+        <source>Calculating Phylogenetic Tree</source>
+        <translation>Создание филогенетического дерева</translation>
+    </message>
+    <message>
+        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="54"/>
+        <source>Tree construction algorithm %1 not found</source>
+        <translation>Алгоритм %1 построения дерева не найден</translation>
     </message>
 </context>
 <context>
     <name>U2::PhyTreeGeneratorTask</name>
     <message>
+        <location filename="../src/phyltree/PhyTreeGeneratorTask.cpp" line="32"/>
         <source>Calculating Phylogenetic Tree</source>
-        <translation type="obsolete">Создание филогенетического дерева</translation>
-    </message>
-    <message>
-        <source>Calculating phylogenetic tree</source>
-        <translation type="obsolete">Создание филогенетического дерева</translation>
+        <translation>Создание филогенетического дерева</translation>
     </message>
 </context>
 <context>
@@ -315,91 +456,181 @@ For every column selects the most rare symbol in the whole alignment with percen
     </message>
 </context>
 <context>
-    <name>U2::SmithWatermanReportCallbackImpl</name>
+    <name>U2::SequenceContentFilterTask</name>
     <message>
-        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="39"/>
+        <location filename="../src/misc/SequenceContentFilterTask.cpp" line="39"/>
+        <source>Sequence content</source>
+        <translation>Sequence content</translation>
+    </message>
+</context>
+<context>
+    <name>U2::SimpleAddToAlignmentTask</name>
+    <message>
+        <location filename="../src/msa_alignment/SimpleAddingToAlignment.cpp" line="49"/>
+        <source>Align sequences to an existing alignment by UGENE started</source>
+        <translation>Align sequences to an existing alignment by UGENE started</translation>
+    </message>
+</context>
+<context>
+    <name>U2::SmithWatermanReportCallbackAnnotImpl</name>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="67"/>
         <source>Annotation object not found.</source>
-        <translation>Не найдена таблица аннотаций</translation>
+        <translation>Не найдена таблица аннотаций.</translation>
     </message>
     <message>
-        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="43"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="71"/>
         <source>Annotation table is read-only</source>
-        <translation>Запрещена запись в таблицу аннотаций </translation>
+        <translation>Запрещена запись в таблицу аннотаций</translation>
+    </message>
+</context>
+<context>
+    <name>U2::SmithWatermanReportCallbackMAImpl</name>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="205"/>
+        <source>SmithWatermanReportCallback failed to create new MA document</source>
+        <translation>SmithWatermanReportCallback не может создать новый MA документ</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="215"/>
+        <source>Failed to add a reference subsequence row.</source>
+        <translation>Неудачная попытка добавления строки реверенсной подпоследовательности.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="219"/>
+        <source>Failed to add a pattern subsequence row.</source>
+        <translation>Неудачная попытка добавления строки подпоследовательности.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="222"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="310"/>
+        <source>Failed to create an alignment.</source>
+        <translation>Неудачная попытка создания выравнивания.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="253"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="332"/>
+        <source>Smith-Waterman pairwise alignment: no results</source>
+        <translation>Парное выравнивание Smith-Waterman: нет результатов</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="260"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="338"/>
+        <source>Sequences aren&apos;t stored in the source msa dbi</source>
+        <translation>Последовательности не хранятся в источнике msa dbi</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="274"/>
+        <source>SmithWatermanReportCallback failed to create new MA document.</source>
+        <translation>SmithWatermanReportCallback не может создать новый MA документ.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="280"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="282"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="348"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="350"/>
+        <source>Failed to get the sequence object.</source>
+        <translation>Неудачная попытка получения объекта последовательности.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="296"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="298"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="364"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="367"/>
+        <source>Failed to get the sequence data.</source>
+        <translation>Неудачная попытка получения данных последовательности.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="305"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="307"/>
+        <source>Failed to add row to result msa.</source>
+        <translation>Неудачная попытка добавления строки в результирующее выравнивание.</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="376"/>
+        <source>Failed to get msa from dbi</source>
+        <translation>Неудачная попытка получения msa из dbi</translation>
+    </message>
+    <message>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="397"/>
+        <location filename="../src/smith_waterman/SmithWatermanReportCallback.cpp" line="399"/>
+        <source>Failed to update row gap model</source>
+        <translation>Неудачная попытка обновить модель пропусков строк</translation>
+    </message>
+</context>
+<context>
+    <name>U2::SplicedAlignmentTask</name>
+    <message>
+        <location filename="../src/registry/SplicedAlignmentTask.cpp" line="27"/>
+        <source>SplicedAlignmentTask</source>
+        <translation>SplicedAlignmentTask</translation>
     </message>
 </context>
 <context>
     <name>U2::SubstMatrixRegistry</name>
     <message>
-        <source>Matrix %1 already registered.</source>
-        <translation type="obsolete">Матрица %1 уже зарегестрирована.</translation>
-    </message>
-    <message>
-        <source>Error parsing weight-matrix file: %1</source>
-        <translation type="obsolete">Ошибка чтения матрицы: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="92"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="104"/>
         <source>Reading substitution matrix from %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Чтение подстановочной матрицы из %1</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="100"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="112"/>
         <source>Error weight matrix file &apos;%1&apos; : %2</source>
         <translation>Ошибка в файле матрицы &quot;%1&quot; : &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="108"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="120"/>
         <source>Error opening file for read: %1</source>
         <translation>Ошибка открытия файла для чтения: &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="115"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="127"/>
         <source>Error reading file: %1</source>
         <translation>Ошибка чтения файла: &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="148"/>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="172"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="160"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="184"/>
         <source>Invalid character token &apos;%1&apos; , line %2</source>
         <translation>Неверный символ: &quot;%1&quot; в строке: &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="153"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="165"/>
         <source>Duplicate character &apos;%1&apos; , line %2</source>
         <translation>Дублированный символ: &quot;%1&quot; в строке &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="160"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="172"/>
         <source>Alphabet is neither nucleic nor protein!</source>
         <translation>Алфавит не является ни нуклеиновым, ни протеиновым!</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="164"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="176"/>
         <source>Matrix doesn&apos;t contains score for default alphabet character &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Матрица не содержит оценки для символов алфавита по умолчанию &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="177"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="189"/>
         <source>Invalid character row &apos;%1&apos; , line %2</source>
         <translation>Некорректная последовательность символов &quot;%1&quot; в строке: %2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="181"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="193"/>
         <source>Duplicate character mapping &apos;%1&apos; , line %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Дублированный символ &quot;%1&quot; в строке &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="186"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="198"/>
         <source>Invalid number of columns &apos;%1&apos; , line %2</source>
         <translation>Неверное число столбцов &quot;%1&quot; в строке %2</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="194"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="206"/>
         <source>Can&apos;t parse numeric value &apos;%1&apos;, line %2</source>
         <translation>Не могу распознать числовое значение &quot;%1&quot; в строке &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="203"/>
+        <location filename="../src/registry/SubstMatrixRegistry.cpp" line="215"/>
         <source>Unexpected end of file!</source>
         <translation>Неожиданный конец файла!</translation>
     </message>
@@ -407,9 +638,32 @@ For every column selects the most rare symbol in the whole alignment with percen
 <context>
     <name>U2::TranslateMSA2AminoTask</name>
     <message>
-        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="51"/>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="46"/>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="59"/>
+        <source>Translate nucleic alignment to amino</source>
+        <translation>Трансляция нуклеотидного выравнивания в амино</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="48"/>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="61"/>
+        <source>Invalid MSA object detected</source>
+        <translation>Обнаружен некорректный MSA объект</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="49"/>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="62"/>
+        <source>Multiple alignment already has amino-acid alphabet</source>
+        <translation>Выравнивание уже имеет аминокислотный алфавит</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="53"/>
         <source>Unable to find suitable translation for %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Невозможно найти подходящую трансляцию для %1</translation>
+    </message>
+    <message>
+        <location filename="../src/util_msaedit/MAlignmentUtilTasks.cpp" line="69"/>
+        <source>Invalid translation object</source>
+        <translation>Некорректный объект трансляции</translation>
     </message>
 </context>
 </TS>

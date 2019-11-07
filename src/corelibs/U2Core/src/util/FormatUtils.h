@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,9 +24,11 @@
 
 #include <U2Core/global.h>
 
-#include <QtCore/QString>
+#include <QtCore/QStringList>
 
 namespace U2 {
+
+class DocumentFormatConstraints;
 
 class U2CORE_EXPORT FormatUtils {
 
@@ -36,12 +38,18 @@ public:
     static QString formatNumber(qint64 num);
     static QString formatNumberWithSeparators(int num);
     static QString insertSeparators(int num);
-    
+
     // QDate::getShortMonthName() returns date in local translation
-    // This is English version of this function, required by EMBL and Genbank 
+    // This is English version of this function, required by EMBL and Genbank
     // for correct date formatting
     static QString getShortMonthName(int num);
 
+    static QString prepareFileFilter(const QString& name, const QStringList& exts, bool any = true, const QStringList& extraExts = QStringList(".gz"));
+    static QString prepareDocumentsFileFilter(const DocumentFormatId &fid, bool any, const QStringList &extra = QStringList(".gz"));
+    //returns filter for all formats supported. All-docs filter is returned first if any==true
+    static QString prepareDocumentsFileFilter(bool any, const QStringList& extraExts = QStringList(".gz"));
+    static QString prepareDocumentsFileFilter(const DocumentFormatConstraints& c, bool any);
+    static QString prepareDocumentsFileFilterByObjType(const GObjectType& t, bool any);
 };
 
 }//namespace

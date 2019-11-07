@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,16 +25,17 @@
 #include <QtCore/QMutex>
 
 #include <U2Core/Task.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/SequenceWalkerTask.h>
 #include <U2Core/CreateAnnotationTask.h>
 #include <U2Core/DNASequence.h>
 #include <U2Core/DNATranslation.h>
-#include <U2Core/AnnotationTableObject.h>
 
 #include "uhmm3search.h"
 
 namespace U2 {
+
+class AnnotationTableObject;
+class LoadDocumentTask;
 
 /**************************************
 * General hmmer3 search task.
@@ -51,21 +52,21 @@ class UHMM3SearchTask : public Task {
     Q_OBJECT
 
 public:
-    UHMM3SearchTask(const UHMM3SearchTaskSettings &settings, P7_HMM *hmmProfile, const QByteArray &sequence);
+    UHMM3SearchTask(const UHMM3SearchTaskSettings &settings, const QList<const P7_HMM *>& hmmProfiles, const QByteArray &sequence);
     
     virtual void prepare();
     virtual void run();
 
-    UHMM3SearchResult getResult() const {
+    QList<UHMM3SearchResult> getResult() const {
         assert(isFinished());
         return result;
     }
 
 private:
-    UHMM3SearchTaskSettings settings;
-    P7_HMM                  *hmmProfile;
-    QByteArray              sequence;
-    UHMM3SearchResult       result;
+    UHMM3SearchTaskSettings   settings;
+    QList<const P7_HMM *>     hmmProfiles;
+    QByteArray                sequence;
+    QList<UHMM3SearchResult>  result;
 
 }; // UHMM3SearchTask
 
@@ -75,7 +76,7 @@ class UHMM3LoadProfileAndSearchTask : public Task {
 public:
     UHMM3LoadProfileAndSearchTask(const UHMM3SearchTaskSettings &settings, const QString &hmmProfileFile, const QByteArray &sequence);
 
-    UHMM3SearchResult getResult() const {
+    QList<UHMM3SearchResult> getResult() const {
         assert(isFinished());
         return hmmSearchTask->getResult();
     }
@@ -87,7 +88,6 @@ private:
     LoadDocumentTask        *loadHmmProfileTask;
     UHMM3SearchTask         *hmmSearchTask;
 
-    P7_HMM                  *hmmProfile;
     UHMM3SearchTaskSettings settings;
     QByteArray              sequence;
 
@@ -122,42 +122,42 @@ public:
     static bool uhmm3SearchDomainResultLessThan(const UHMM3SWSearchTaskDomainResult & r1, const UHMM3SWSearchTaskDomainResult & r2);
     
 public:
-    UHMM3SWSearchTask( const P7_HMM* hmm, const DNASequence& sequence, 
-                       const UHMM3SearchTaskSettings& set, int chunk = DEFAULT_CHUNK_SIZE );
+    UHMM3SWSearchTask(const P7_HMM* hmm, const DNASequence& sequence, 
+                       const UHMM3SearchTaskSettings& set, int chunk = DEFAULT_CHUNK_SIZE);
     
-    UHMM3SWSearchTask( const QString& hmmFilename, const DNASequence& sequence,
-                       const UHMM3SearchTaskSettings&, int chunk = DEFAULT_CHUNK_SIZE );
+    UHMM3SWSearchTask(const QString& hmmFilename, const DNASequence& sequence,
+                       const UHMM3SearchTaskSettings&, int chunk = DEFAULT_CHUNK_SIZE);
     
     virtual void prepare();
     
     QList<UHMM3SWSearchTaskDomainResult> getResults() const;
     
-    static QList< SharedAnnotationData > getResultsAsAnnotations( const QList<UHMM3SWSearchTaskDomainResult> & results,
-        const P7_HMM * hmm, const QString & name );
+    static QList< SharedAnnotationData > getResultsAsAnnotations(const QList<UHMM3SWSearchTaskDomainResult> & results,
+        const P7_HMM * hmm, U2FeatureType type, const QString & name);
     
-    QList< SharedAnnotationData > getResultsAsAnnotations( const QString & aname );
+    QList<SharedAnnotationData> getResultsAsAnnotations(U2FeatureType aType, const QString & aname);
     
-    QList< Task* > onSubTaskFinished( Task* subTask );
+    QList<Task *> onSubTaskFinished(Task* subTask);
     
-    virtual void onRegion( SequenceWalkerSubtask* t, TaskStateInfo& ti );
+    virtual void onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti);
     
-    virtual QList< TaskResourceUsage > getResources( SequenceWalkerSubtask * t );
+    virtual QList< TaskResourceUsage > getResources(SequenceWalkerSubtask * t);
     
     ReportResult report();
     
 private:
-    bool setTranslations( int hmmAl, DNAAlphabet* seqAl );
-    bool checkAlphabets( int hmmAl, DNAAlphabet* seqAl );
+    bool setTranslations(int hmmAl, const DNAAlphabet* seqAl);
+    bool checkAlphabets(int hmmAl, const DNAAlphabet* seqAl);
     SequenceWalkerTask* getSWSubtask();
     
 private:
-    const P7_HMM*                       hmm;
+    QList<const P7_HMM*>                hmms;
     DNASequence                         sequence;
     UHMM3SearchTaskSettings             settings;
     DNATranslation*                     complTranslation;
     DNATranslation*                     aminoTranslation;
-    QList<UHMM3SWSearchTaskDomainResult> results;
-    QList<UHMM3SWSearchTaskDomainResult> overlaps;
+    QMap<int, QList<UHMM3SWSearchTaskDomainResult> > results;
+    QMap<int, QList<UHMM3SWSearchTaskDomainResult> > overlaps;
     QMutex                              writeResultsMtx;
     SequenceWalkerTask*                 swTask;
     LoadDocumentTask*                   loadHmmTask;
@@ -172,13 +172,13 @@ private:
 class UHMM3SWSearchToAnnotationsTask : public Task {
     Q_OBJECT
 public:
-    UHMM3SWSearchToAnnotationsTask( const QString & hmmfile, const DNASequence & seq, AnnotationTableObject * obj,
-        const QString & group, const QString & aname, const UHMM3SearchTaskSettings & settings );
+    UHMM3SWSearchToAnnotationsTask(const QString & hmmfile, const DNASequence & seq, AnnotationTableObject *obj,
+        const QString & group, const QString &annDescription, U2FeatureType aType, const QString & aname, const UHMM3SearchTaskSettings & settings);
     
-    UHMM3SWSearchToAnnotationsTask( const QString & hmmfile, const QString & seqFile, AnnotationTableObject * obj,
-        const QString & group, const QString & aname, const UHMM3SearchTaskSettings & settings );
+    UHMM3SWSearchToAnnotationsTask(const QString & hmmfile, const QString & seqFile, AnnotationTableObject *obj,
+        const QString & group, const QString &annDescription, U2FeatureType aType, const QString & aname, const UHMM3SearchTaskSettings & settings);
     
-    QList< Task* > onSubTaskFinished( Task * subTask );
+    QList< Task* > onSubTaskFinished(Task * subTask);
     
     QString generateReport() const;
     
@@ -190,9 +190,11 @@ private:
     QString                             hmmfile;
     DNASequence                         sequence;
     QString                             agroup;
+    const QString                       annDescription;
+    U2FeatureType                       aType;
     QString                             aname;
     UHMM3SearchTaskSettings             searchSettings;
-    QPointer< AnnotationTableObject >   annotationObj;
+    QPointer<AnnotationTableObject>     annotationObj;
     LoadDocumentTask *                  loadSequenceTask;
     UHMM3SWSearchTask *                 searchTask;
     CreateAnnotationsTask *             createAnnotationsTask;

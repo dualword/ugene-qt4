@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@
 #ifndef _U2_ENZYMES_TESTS_H_
 #define _U2_ENZYMES_TESTS_H_
 
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/GObject.h>
 #include <U2Core/U2Region.h>
 #include <U2Test/XMLTestUtils.h>
@@ -34,7 +35,6 @@
 namespace U2 {
 
 class LoadEnzymeFileTask;
-class AnnotationTableObject;
 class U2SequenceObject;
 
 //cppcheck-suppress noConstructor
@@ -46,17 +46,17 @@ class GTest_FindEnzymes : public GTest {
     QList<Task*> onSubTaskFinished(Task* subTask);
     ReportResult report();
     void cleanup();
-    
+
 private:
     int minHits;
     int maxHits;
     QString                 enzymesUrl;
     QString                 seqObjCtx;
     QString                 aObjName;
-    U2SequenceObject*      seqObj;
-    QVector<U2Region>         excludedRegions;
+    U2SequenceObject*       seqObj;
+    QVector<U2Region>       excludedRegions;
     QStringList             enzymeNames;
-    AnnotationTableObject*  aObj;
+    AnnotationTableObject*    aObj;
     LoadEnzymeFileTask*     loadTask;
     bool                    contextIsAdded;
     QMultiMap<QString, U2Region> resultsPerEnzyme;
@@ -69,18 +69,17 @@ class GTest_DigestIntoFragments : public GTest {
 
     void prepare();
     QList<Task*> onSubTaskFinished(Task* subTask);
-     
+
 private:
     QString                 seqObjCtx;
     QString                 aObjCtx;
     QString                 enzymesUrl;
     QStringList             enzymeNames;
     bool                    searchForEnzymes;
-    AnnotationTableObject*  aObj;
-    U2SequenceObject*      seqObj;
+    AnnotationTableObject*    aObj;
+    U2SequenceObject*       seqObj;
     LoadEnzymeFileTask*     loadTask;
 };
-
 
 class LigateFragmentsTask;
 

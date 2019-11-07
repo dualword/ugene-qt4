@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -45,5 +45,25 @@ void DocumentImportersRegistry::addDocumentImporter(DocumentImporter* i) {
     }
 }
 
+const QString DocumentImporter::LOAD_RESULT_DOCUMENT = "load_result_document";
+
+void DocumentImporter::setDialogFactory(ImportDialogFactory* factory) {
+    if (dialogFactory) {
+        delete dialogFactory;
+    }
+    dialogFactory = factory;
+}
+
+const QSet<GObjectType> &DocumentImporter::getSupportedObjectTypes() const {
+    return supportedObjectTypes;
+}
+
+void ImportDialog::accept() {
+    if (!isValid()) {
+        return;
+    }
+    applySettings();
+    QDialog::accept();
+}
 
 } //namespace

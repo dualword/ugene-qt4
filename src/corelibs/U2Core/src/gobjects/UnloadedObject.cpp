@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,27 +19,32 @@
  * MA 02110-1301, USA.
  */
 
-#include "UnloadedObject.h"
-
 #include <U2Core/GHints.h>
 #include <U2Core/U2SafePoints.h>
 
+#include "UnloadedObject.h"
+
 namespace U2 {
 
-UnloadedObject::UnloadedObject(const QString& objectName, const GObjectType& lot, const QVariantMap& hintsMap)
-: GObject(GObjectTypes::UNLOADED, objectName, hintsMap)
+UnloadedObject::UnloadedObject(const QString& objectName, const GObjectType& lot, const U2EntityRef &_entityRef, const QVariantMap& hintsMap)
+    : GObject(GObjectTypes::UNLOADED, objectName, hintsMap)
 {
     setLoadedObjectType(lot);
+    entityRef = _entityRef;
 }
 
-UnloadedObject::UnloadedObject(const UnloadedObjectInfo& info) 
-: GObject(GObjectTypes::UNLOADED, info.name, info.hints) 
+UnloadedObject::UnloadedObject(const UnloadedObjectInfo& info)
+    : GObject(GObjectTypes::UNLOADED, info.name, info.hints)
 {
     setLoadedObjectType(info.type);
+    entityRef = info.entityRef;
 }
 
-GObject* UnloadedObject::clone(const U2DbiRef&, U2OpStatus&) const {
-    UnloadedObject* cln = new UnloadedObject(getGObjectName(), getLoadedObjectType(), getGHintsMap());
+GObject* UnloadedObject::clone(const U2DbiRef &/*dstDbiRef*/, U2OpStatus &/*os*/, const QVariantMap &hints) const {
+    GHintsDefaultImpl gHints(getGHintsMap());
+    gHints.setAll(hints);
+
+    UnloadedObject* cln = new UnloadedObject(getGObjectName(), getLoadedObjectType(), getEntityRef(), gHints.getMap());
     cln->setIndexInfo(getIndexInfo());
     return cln;
 }
@@ -50,11 +55,12 @@ void UnloadedObject::setLoadedObjectType(const GObjectType& lot) {
 }
 
 UnloadedObjectInfo::UnloadedObjectInfo(GObject* obj) {
-    if (obj == NULL) {
-        return;
-    }
+    CHECK(NULL != obj, );
+
     name = obj->getGObjectName();
     hints = obj->getGHintsMap();
+    entityRef = obj->getEntityRef();
+
     if (obj->isUnloaded()) {
         UnloadedObject* uo = qobject_cast<UnloadedObject*>(obj);
         type = uo->getLoadedObjectType();

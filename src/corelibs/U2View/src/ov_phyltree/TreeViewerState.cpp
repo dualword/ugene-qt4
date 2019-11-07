@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,6 @@
 #include "TreeViewerFactory.h"
 
 #include <U2Core/DocumentModel.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/DNASequenceSelection.h>
 
@@ -32,7 +31,8 @@ namespace U2 {
 
 #define VIEW_ID     QString("view_id")
 #define PHY_OBJ     QString("phy_obj_ref")
-#define ZOOM        QString("zoom")
+#define V_ZOOM      QString("vertical_zoom")
+#define H_ZOOM      QString("horizontal_zoom")
 #define TRANSFORM   QString("transform")
 
 bool TreeViewerState::isValid() const {
@@ -48,9 +48,9 @@ void TreeViewerState::setPhyObject(const GObjectReference& ref) {
 }
 
 
-qreal TreeViewerState::getZoom() const {
+qreal TreeViewerState::getVerticalZoom() const {
 
-    QVariant v = stateData.value(ZOOM);
+    QVariant v = stateData.value(V_ZOOM);
     if (v.isValid()) {
         return v.value<qreal>();
     }
@@ -59,9 +59,25 @@ qreal TreeViewerState::getZoom() const {
     }
 }
 
-void TreeViewerState::setZoom(qreal s) {
+qreal TreeViewerState::getHorizontalZoom() const {
 
-    stateData[ZOOM] = s;
+    QVariant v = stateData.value(H_ZOOM);
+    if (v.isValid()) {
+        return v.value<qreal>();
+    }
+    else {
+        return 1.0f;
+    }
+}
+
+void TreeViewerState::setVerticalZoom(qreal s) {
+
+    stateData[V_ZOOM] = s;
+}
+
+void TreeViewerState::setHorizontalZoom(qreal s) {
+
+    stateData[H_ZOOM] = s;
 }
 
 QTransform TreeViewerState::getTransform() const {
@@ -90,7 +106,8 @@ QVariantMap TreeViewerState::saveState(TreeViewer* v) {
         ss.setPhyObject(GObjectReference(phyObj));
     }
 
-    ss.setZoom(v->getZoom());
+    ss.setHorizontalZoom(v->getHorizontalZoom());
+    ss.setVerticalZoom(v->getVerticalZoom());
     ss.setTransform(v->getTransform());
 
     ss.stateData.unite(v->getSettingsState());

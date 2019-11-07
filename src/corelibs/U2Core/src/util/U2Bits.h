@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,12 +31,12 @@ namespace U2 {
 
 class U2OpStatus;
 
-/** 
+/**
     Utility class that can compress any string with a small alphabet size ( < 20-30 symbols types)
 */
 class U2CORE_EXPORT U2BitCompression : public QObject {
-public:    
-	Q_OBJECT
+public:
+    Q_OBJECT
     static QByteArray compress(const char* text, int uncompressedLen, int alphabetSize, const int* alphabetCharNums, U2OpStatus& os);
 
     static QByteArray uncompress(const char* data, const QByteArray& alphabetChars, U2OpStatus& os);
@@ -56,28 +56,28 @@ public:
     static int getByteIndex(int bit);
 
     static int getNumberOfBytes(int nBits);
-    
+
     static int getNumberOfBitsPerChar(int nChars);
-        
+
     static QByteArray allocateBits(int nBits);
 
     static bool getBit(const uchar* bitSet, int idx);
 
     static void setBit(uchar* bits, int pos, bool val) { if (val) setBit(bits, pos); else clearBit(bits, pos);}
-    
-    static void setBit(uchar* bits, int pos);  
+
+    static void setBit(uchar* bits, int pos);
 
     static void clearBit(uchar* bits, int pos);
 
-    static void setBits(uchar* dstBits, int pos, const uchar* srcBits, int nBits);        
-       
+    static void setBits(uchar* dstBits, int pos, const uchar* srcBits, int nBits);
+
     static int bitsRange2Int32(const uchar* bits, int pos, int len);
 
     static qint64 makeFirstNSignedBitsValue(int nBits);
 
     static qint8 readInt8(const uchar* bits, int pos);
     static void writeInt8(uchar* bits, int pos, qint8 val);
-    
+
     static qint8 readInt16(const uchar* bits, int pos);
     static void writeInt16(uchar* bits, int pos, qint16 val);
 
@@ -95,7 +95,7 @@ inline int U2Bits::getByteIndex(int bit) {
 
 inline int U2Bits::getNumberOfBytes(int nBits) {
     return nBits == 0 ? 0 : getByteIndex(nBits - 1) + 1;
-} 
+}
 
 inline bool U2Bits::getBit(const uchar* bits, int idx) {
     const uchar* b = bits + + getByteIndex(idx);

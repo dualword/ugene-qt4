@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@
 class Object3D;
 class AtomData;
 
-namespace U2 { 
+namespace U2 {
 
 class WormsGLRenderer : public BioStruct3DGLRenderer {
 
@@ -56,7 +56,7 @@ class WormsGLRenderer : public BioStruct3DGLRenderer {
     struct BioPolymer
     {
         // multiple models
-        QVector<BioPolymerModel> bpModels;
+        QMap<int, BioPolymerModel> bpModels;
     };
 
     QMap<int, BioPolymer > bioPolymerMap;
@@ -90,6 +90,9 @@ class WormsGLRenderer : public BioStruct3DGLRenderer {
     void drawWorms();
     void drawSecondaryStructure();
     const float* getAtomColor(const SharedAtom& atom);
+
+private:
+    static void createBioPolymerMap(const QMap <int, SharedMolecule>& moleculeMap, QMap<int, BioPolymer>& bioPolymerMap);
 
 protected:
     WormsGLRenderer(const BioStruct3D& struc, const BioStruct3DColorScheme* s, const QList<int> &shownModels, const BioStruct3DRendererSettings *settings);

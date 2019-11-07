@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 #include <QtCore/QSignalMapper>
 #include <QtCore/QEvent>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMdiArea>
 #include <QtGui/QMdiSubWindow>
+#else
+#include <QtWidgets/QMdiArea>
+#include <QtWidgets/QMdiSubWindow>
+#endif
 
 namespace U2 {
 
@@ -85,6 +90,7 @@ private:
 
 	MDIItem* getCurrentMDIItem() const ;
 
+    void onWindowsSwitched(QMdiSubWindow *deactivated, MWMDIWindow *activated);
 
 	MainWindow* mw;
 	FixedMdiArea*	mdiArea;

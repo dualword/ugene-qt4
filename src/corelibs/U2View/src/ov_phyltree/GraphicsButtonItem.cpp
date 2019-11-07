@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,54 +22,67 @@
 #include "GraphicsButtonItem.h"
 #include "GraphicsBranchItem.h"
 #include "GraphicsRectangularBranchItem.h"
-#include <QtGui/QPainter>
-#include <QtGui/QPen>
-#include <QtGui/QGraphicsSceneMouseEvent>
+#include "TreeViewerUtils.h"
+
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/PhyTreeObject.h>
 #include <QtCore/QList>
-#include <QtGui/QMenu>
-#include <QtGui/QGraphicsScene>
+
+#include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QPen>
 
 namespace U2 {
 
-const qreal GraphicsButtonItem::radiusMin = 2.0;
-const qreal GraphicsButtonItem::radiusMax = 5.0;
+const qreal GraphicsButtonItem::radiusMin = 3.0;
+const qreal GraphicsButtonItem::radiusMax = 4.0;
+const QBrush GraphicsButtonItem::highlightingBrush = QBrush(QColor(170, 170, 230));
+const QBrush GraphicsButtonItem::ordinaryBrush = QBrush(Qt::gray);
 
-GraphicsButtonItem::GraphicsButtonItem() {
+
+GraphicsButtonItem::GraphicsButtonItem(double nodeValue)
+    : QGraphicsEllipseItem(QRectF(-radiusMin, -radiusMin, 2 * radiusMin, 2 * radiusMin)), isSelected(false), nodeLabel(NULL), scaleFactor(1.0), nodeValue(nodeValue) {
     setPen(QColor(0, 0, 0));
-    setBrush(Qt::gray);
+    setBrush(ordinaryBrush);
     setAcceptHoverEvents(true);
     setAcceptedMouseButtons(Qt::LeftButton);
     setZValue(2);
     setFlag(QGraphicsItem::ItemIsSelectable);
+    setToolTip(QObject::tr("Left click to select the branch\nDouble-click to collapse the branch"));
+
+    if(nodeValue >= 0) {
+        nodeLabel = new QGraphicsSimpleTextItem(QString::number(nodeValue), this);
+        nodeLabel->setFont(TreeViewerUtils::getFont());
+        nodeLabel->setBrush(Qt::darkGray);
+        QRectF rect = nodeLabel->boundingRect();
+        nodeLabel->setPos(GraphicsBranchItem::TextSpace, -rect.height() / 2);
+        nodeLabel->setParentItem(this);
+        nodeLabel->setFlag(QGraphicsItem::ItemIgnoresTransformations,false);
+        nodeLabel->setZValue(1);
+    }
+}
+
+void GraphicsButtonItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
+    QTransform worldTransform = painter->worldTransform();
+    //worldTransform = worldTransform.scale(1.0 / worldTransform.m11(), 1.0 / worldTransform.m22());
+    scaleFactor = 1.0 / worldTransform.m11();
+    worldTransform.setMatrix(1.0, 0, 0, 0, 1.0, 0, worldTransform.m31(), worldTransform.m32(), worldTransform.m33());
+    painter->setWorldTransform(worldTransform);
+    QGraphicsEllipseItem::paint(painter, option, widget);
 }
 
 QRectF GraphicsButtonItem::boundingRect() const {
-    return QRectF(-radiusMax, -radiusMax, 2 * radiusMax, 2 * radiusMax);
+    QRectF resultRect = QGraphicsEllipseItem::boundingRect();
+    qreal delta = (resultRect.width() / scaleFactor - resultRect.width()) / 2;
+    return resultRect.adjusted(delta, delta, delta, delta);
 }
 
-QPainterPath GraphicsButtonItem::shape() const {
-    QPainterPath path;
-    path.addEllipse(boundingRect());
-    return path;
+const QGraphicsSimpleTextItem* GraphicsButtonItem::getLabel() const{
+    return nodeLabel;
 }
 
-void GraphicsButtonItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
-
-    QBrush br(Qt::gray);
-
-    int radius = radiusMin;
-    bool mouseHovered = isUnderMouse();
-    bool itemSelected = isSelected();
-
-    if (mouseHovered || itemSelected) {
-        radius = radiusMax;
-        br = QBrush(QColor(0, 0, 255));
-    }
-    painter->setPen(pen());
-    painter->setBrush(br);
-    painter->drawEllipse(QPointF(0, 0), radius, radius);
-
-}
 
 void GraphicsButtonItem::mousePressEvent(QGraphicsSceneMouseEvent *e) {
     uiLog.trace("Tree button pressed");
@@ -80,9 +93,8 @@ void GraphicsButtonItem::mousePressEvent(QGraphicsSceneMouseEvent *e) {
     if (leftButton && p!=NULL) {
         bool newSelection = true;
         if (shiftPressed) {
-            newSelection = !isSelected();
+            newSelection = !isSelected;
         }
-
         p->setSelectedRecurs(newSelection, true);
 
         e->accept();
@@ -90,17 +102,57 @@ void GraphicsButtonItem::mousePressEvent(QGraphicsSceneMouseEvent *e) {
     }
 }
 
+
 void GraphicsButtonItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) {
     uiLog.trace("Tree button double-clicked");
     collapse();
     QAbstractGraphicsShapeItem::mouseDoubleClickEvent(e);
 }
 
+void GraphicsButtonItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event) {
+    if(isSelected) {
+        return;
+    }
+    QGraphicsItem::hoverEnterEvent(event);
+    setHighlighting(true);
+}
+void GraphicsButtonItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event) {
+    if(isSelected) {
+        return;
+    }
+    QGraphicsItem::hoverLeaveEvent(event);
+    setHighlighting(false);
+}
+
+void GraphicsButtonItem::setSelected(bool selected){
+    isSelected = selected;
+    if(selected) {
+        setHighlighting(true);
+    }
+    else {
+        setHighlighting(false);
+    }
+}
+
+void GraphicsButtonItem::setHighlighting(bool enabled) {
+    if(enabled) {
+        setRect(QRectF(-radiusMax, -radiusMax, 2 * radiusMax, 2 * radiusMax));
+        setBrush(highlightingBrush);
+    }
+    else {
+        setRect(QRectF(-radiusMin, -radiusMin, 2 * radiusMin, 2 * radiusMin));
+        setBrush(ordinaryBrush);
+    }
+    update();
+}
+
 void GraphicsButtonItem::collapse() {
-    GraphicsBranchItem *p = dynamic_cast<GraphicsBranchItem*>(parentItem());
-    Q_ASSERT(p);
-    if (p) {
-        p->collapse();
+    GraphicsBranchItem *branch = dynamic_cast<GraphicsBranchItem*>(parentItem());
+    SAFE_POINT(NULL != branch, "Collapsing is impossible because button has not parent branch",);
+
+    GraphicsBranchItem *parentBranch = dynamic_cast<GraphicsBranchItem*>(branch->parentItem());
+    if(NULL != parentBranch) {
+        branch->collapse();
     }
 }
 
@@ -117,7 +169,7 @@ void GraphicsButtonItem::swapSiblings() {
         if(!branchItem->getCorrespondingItem()){
             return;
         }
-        
+
         rectBranchItem = dynamic_cast<GraphicsRectangularBranchItem*>(branchItem->getCorrespondingItem());
         if(!rectBranchItem){
             return;
@@ -128,7 +180,7 @@ void GraphicsButtonItem::swapSiblings() {
 }
 
 bool GraphicsButtonItem::isSelectedTop() {
-    if (!isSelected()) {
+    if (!isSelected) {
         return false;
     }
     GraphicsBranchItem *branchItem = dynamic_cast<GraphicsBranchItem*>(parentItem());
@@ -150,7 +202,44 @@ bool GraphicsButtonItem::isCollapsed(){
         return p->isCollapsed();
     }
     return false;
-    
+
+}
+
+void GraphicsButtonItem::rerootTree(PhyTreeObject* treeObject) {
+    uiLog.trace("Rerooting of the PhyTree");
+    SAFE_POINT(NULL != treeObject, "Null pointer argument 'treeObject' was passed to 'PhyTreeUtils::rerootPhyTree' function",);
+
+    GraphicsBranchItem *branchItem = dynamic_cast<GraphicsBranchItem*>(parentItem());
+    CHECK(NULL != branchItem , );
+
+    GraphicsRectangularBranchItem *rectBranchItem = dynamic_cast<GraphicsRectangularBranchItem*>(branchItem);
+    if(NULL == rectBranchItem){
+        CHECK(branchItem->getCorrespondingItem(), );
+
+        rectBranchItem = dynamic_cast<GraphicsRectangularBranchItem*>(branchItem->getCorrespondingItem());
+        CHECK(NULL != rectBranchItem,);
+    }
+
+    const PhyBranch* nodeBranch = rectBranchItem->getPhyBranch();
+    CHECK(NULL != nodeBranch, );
+    PhyNode* newRoot = nodeBranch->node2;
+    CHECK(NULL != newRoot, );
+
+    treeObject->rerootPhyTree(newRoot);
+}
+
+void GraphicsButtonItem::updateSettings(const OptionsMap& settings) {
+    CHECK(NULL != nodeLabel,);
+    QFont newFont = qvariant_cast<QFont>(settings[LABEL_FONT]);
+    nodeLabel->setFont(newFont);
+    QColor labelsColor = qvariant_cast<QColor>(settings[LABEL_COLOR]);
+    nodeLabel->setBrush(labelsColor);
+    bool showNodeLabels = settings[SHOW_NODE_LABELS].toBool();
+    nodeLabel->setVisible(showNodeLabels);
+}
+
+bool GraphicsButtonItem::getIsSelected() const {
+    return isSelected;
 }
 
 }//namespace

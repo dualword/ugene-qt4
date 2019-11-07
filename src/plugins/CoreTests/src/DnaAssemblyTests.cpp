@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,15 +19,14 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/MAlignmentObject.h>
-
 #include <U2Core/AppContext.h>
 #include <U2Core/GUrlUtils.h>
 #include <U2Core/DocumentUtils.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/IOAdapter.h>
 
 #include <U2Formats/SAMFormat.h>
+#include <U2Formats/BAMUtils.h>
+
 
 #include <U2Algorithm/DnaAssemblyTask.h>
 #include <U2Algorithm/DnaAssemblyMultiTask.h>
@@ -39,15 +38,20 @@
 
 namespace U2 {
 
+#define FILE1_ATTR "file1"
+#define FILE2_ATTR "file2"
 #define REF_SEQ_ATTR "ref-seq"
 #define INDEX_FILE_ATTR "index-file"
 #define METHOD_NAME_ATTR "assembly-method"
 #define SHORT_READS_ATTR "shortreads"
 #define RES_OBJ_NAME "res-index"
+#define RES_FILE_NAME "res-file"
 #define CUSTOM_ATTR "custom-options"
+#define PAIRED_READS_ATTR "paired-reads"
+#define IS_BAM_ATTR "isbam"
 
 void GTest_DnaAssemblyToReferenceTask::init(XMLTestFormat*, const QDomElement& el)  {
-    
+
     refSeqUrl = el.attribute(REF_SEQ_ATTR);
     if (refSeqUrl.isEmpty()) {
         failMissingValue(REF_SEQ_ATTR);
@@ -71,13 +75,18 @@ void GTest_DnaAssemblyToReferenceTask::init(XMLTestFormat*, const QDomElement& e
         failMissingValue(SHORT_READS_ATTR);
         return;
     }
-    
+
     objName = el.attribute(RES_OBJ_NAME);
-    if (objName.isEmpty()) {
-        failMissingValue(RES_OBJ_NAME);
-        return;
+    QString pr = el.attribute(PAIRED_READS_ATTR);
+    pairedReads = !pr.isEmpty();
+
+    QString resName = el.attribute(RES_FILE_NAME);
+    if (!resName.isEmpty()) {
+        resName.prepend(env->getVar("TEMP_DATA_DIR") + "/");
+        resultFileName = resName;
     }
-    
+    resultFileName = resName;
+
     QStringList shortReadList = shortReads.split(";");
     if (shortReadList.isEmpty()) {
         setError("No short reads urls are found in test");
@@ -105,12 +114,6 @@ void GTest_DnaAssemblyToReferenceTask::init(XMLTestFormat*, const QDomElement& e
 
 void GTest_DnaAssemblyToReferenceTask::prepare()
 {
-    expectedObj = getContext<MAlignmentObject>(this, objName);
-    if(expectedObj == NULL){
-        stateInfo.setError(  QString("Error can't cast to malignment object from GObject %1").arg(objName) );
-        return;
-    }
-    
     QString dir(env->getVar("TEMP_DATA_DIR"));
     if (!QDir(dir).exists()) {
         bool ok = QDir::root().mkpath(dir);
@@ -119,7 +122,9 @@ void GTest_DnaAssemblyToReferenceTask::prepare()
         }
     }
     QString id = QString::number(rand());
-    resultFileName = GUrlUtils::rollFileName(dir+"/"+GUrl(refSeqUrl).baseFileName() + "_" + id + "_aligned.sam",DocumentUtils::getNewDocFileNameExcludesHint());
+    if (resultFileName.isEmpty()) {
+        resultFileName = GUrlUtils::rollFileName(dir+"/"+GUrl(refSeqUrl).baseFileName() + "_" + id + "_aligned.sam",DocumentUtils::getNewDocFileNameExcludesHint());
+    }
     DnaAssemblyToRefTaskSettings settings;
     if (indexFileName.isEmpty()) {
         indexFileName = GUrlUtils::rollFileName(dir+"/"+GUrl(refSeqUrl).baseFileName() + "_index_" + id,DocumentUtils::getNewDocFileNameExcludesHint());
@@ -133,44 +138,23 @@ void GTest_DnaAssemblyToReferenceTask::prepare()
     settings.refSeqUrl = refSeqUrl;
     settings.indexFileName = indexFileName;
     settings.resultFileName = resultFileName;
-    settings.shortReadUrls = shortReadUrls;
+    settings.pairedReads = pairedReads;
+
+    foreach (const GUrl& url, shortReadUrls) {
+        settings.shortReadSets.append( url );
+    }
     foreach (const QString& optionName, customOptions.keys()) {
         settings.setCustomValue(optionName, customOptions.value(optionName));
     }
 
     assemblyMultiTask = new DnaAssemblyMultiTask( settings,  false);
     addSubTask(assemblyMultiTask);
-    
-    SAMFormat* samFormat = new SAMFormat();
-    loadResultTask = new LoadDocumentTask(samFormat, settings.resultFileName, AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE));
-    samFormat->setParent(loadResultTask);
-    addSubTask(loadResultTask);
 }
 
 Task::ReportResult GTest_DnaAssemblyToReferenceTask::report() {
     if (hasError() || isCanceled()) {
         return ReportResult_Finished;
     }
-    
-    Document* resultDoc = loadResultTask->getDocument();
-    QList<GObject*> resObjects = resultDoc->getObjects();
-    if (resObjects.size() != 1) {
-        setError("Invalid number of objects in result!");
-        return ReportResult_Finished;
-    }
-    MAlignmentObject* obj = qobject_cast<MAlignmentObject*>(resObjects.first());
-    if (obj == NULL) {
-        setError("Failed to load result alignment");
-        return ReportResult_Finished;
-    }
-    const MAlignment& aln = obj->getMAlignment();
-    const_cast<MAlignment&>(aln).sortRowsByName();
-    const_cast<MAlignment&>(expectedObj->getMAlignment()).sortRowsByName();
-    
-    if (aln != expectedObj->getMAlignment()) {
-        setError("Expected and result alignments don't match");
-    }
-
 
     return ReportResult_Finished;
 }
@@ -179,10 +163,46 @@ void GTest_DnaAssemblyToReferenceTask::cleanup()
 {
     // cleanup temporary files
 
-    QDir dir(env->getVar("TEMP_DATA_DIR"));
-    dir.remove(resultFileName.getURLString());
-    QDir::root().rmpath(env->getVar("TEMP_DATA_DIR"));
+     QDir dir(env->getVar("TEMP_DATA_DIR"));
+     QStringList tmpFiles = dir.entryList(QStringList() << "*.sarr" << "*.idx" << "*.ref", QDir::Files);
+
+     foreach (const QString& f, tmpFiles) {
+         QFile::remove(dir.absoluteFilePath(f));
+     }
 }
+
+//----------------------------------------------------------
+void GTest_AssemblycompareTwoSAMbyLength::init(XMLTestFormat *tf, const QDomElement& el) {
+    Q_UNUSED(tf);
+
+    file1Url = el.attribute(FILE1_ATTR);
+    if (file1Url.isEmpty()) {
+        failMissingValue(FILE1_ATTR);
+        return;
+    }
+    file1Url = env->getVar("TEMP_DATA_DIR")+"/" + file1Url;
+
+    file2Url = el.attribute(FILE2_ATTR);
+    if (file2Url.isEmpty()) {
+        failMissingValue(FILE2_ATTR);
+        return;
+    }
+    file2Url = env->getVar("COMMON_DATA_DIR")+"/" + file2Url;
+
+    QString isBamAtr = el.attribute(IS_BAM_ATTR);
+    if (!isBamAtr.isEmpty()) {
+        isBam = true;
+    }else{
+        isBam = false;
+    }
+}
+
+Task::ReportResult GTest_AssemblycompareTwoSAMbyLength::report() {
+    BAMUtils::isEqualByLength(file1Url, file2Url, stateInfo, isBam);
+
+    return ReportResult_Finished;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +210,8 @@ QList<XMLTestFactory*> DnaAssemblyTests::createTestFactories()
 {
     QList<XMLTestFactory*> res;
     res.append(GTest_DnaAssemblyToReferenceTask::createFactory());
-    
+    res.append(GTest_AssemblycompareTwoSAMbyLength::createFactory());
+
     return res;
 }
 

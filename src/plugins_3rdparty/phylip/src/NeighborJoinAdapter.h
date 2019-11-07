@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 
 #include <QtCore/QObject>
 
+#include <U2Core/AppResources.h>
 #include <U2Core/PhyTree.h>
 #include <U2Algorithm/SubstMatrixRegistry.h>
 #include <U2View/CreatePhyTreeDialogController.h>
@@ -48,6 +49,7 @@ public:
     void run();
 private:
     static QMutex runLock;
+    MemoryLocker memLocker;
 };
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_WORKFLOW_CONFIGURATION_VALIDATOR_H_
 
 #include <U2Lang/Descriptor.h>
+#include <U2Lang/SupportClass.h>
 
 namespace U2 {
 
@@ -36,8 +37,8 @@ class Configuration;
 class U2LANG_EXPORT ConfigurationValidator {
 public:
     virtual ~ConfigurationValidator() { }
-    virtual bool validate(const Configuration*, QStringList& output) const = 0;
-    
+    virtual bool validate(const Configuration*, ProblemList& problemList) const = 0;
+
 }; // ConfigurationValidator
 
 } // U2

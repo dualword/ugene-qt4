@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,72 +19,88 @@
  * MA 02110-1301, USA.
  */
 
-#include "PWMBuildDialogController.h"
-
-#include "WeightMatrixPlugin.h"
-#include "WeightMatrixIO.h"
-
-#include <U2Core/AppContext.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/IOAdapterUtils.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/Settings.h>
-#include <U2Core/Counter.h>
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/DocumentUtils.h>
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/DIProperties.h>
-#include <U2Core/U2SafePoints.h>
-
-#include <U2Formats/DocumentFormatUtils.h>
-
-#include <U2Gui/LastUsedDirHelper.h>
-#include <U2Gui/DialogUtils.h>
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
 #include <U2Algorithm/PWMConversionAlgorithm.h>
 #include <U2Algorithm/PWMConversionAlgorithmRegistry.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include <U2Core/AppContext.h>
+#include <U2Core/Counter.h>
+#include <U2Core/DIProperties.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/IOAdapterUtils.h>
+#include <U2Core/L10n.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Formats/DocumentFormatUtils.h>
+
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include "PWMBuildDialogController.h"
+#include "WeightMatrixIO.h"
+#include "WeightMatrixPlugin.h"
 
 #define SETTINGS_ROOT   QString("plugin_weight_matrix/")
 
 namespace U2 {
 
-PWMBuildDialogController::PWMBuildDialogController(QWidget* w) 
+PWMBuildDialogController::PWMBuildDialogController(QWidget* w)
 : QDialog(w), logoArea(NULL)
 {
     task = NULL;
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122388");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Start"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     QStringList algo = AppContext::getPWMConversionAlgorithmRegistry()->getAlgorithmIds();
     algorithmCombo->addItems(algo);
 
     this->resize(this->width(), this->minimumHeight());
 
+    okButton = buttonBox->button(QDialogButtonBox::Ok);
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(inputButton, SIGNAL(clicked()), SLOT(sl_inFileButtonClicked()));
     connect(outputButton, SIGNAL(clicked()), SLOT(sl_outFileButtonClicked()));
     connect(okButton, SIGNAL(clicked()), SLOT(sl_okButtonClicked()));
     connect(weightButton, SIGNAL(toggled(bool)), SLOT(sl_matrixTypeChanged(bool)));
+
 }
 
 
 void PWMBuildDialogController::sl_inFileButtonClicked() {
     LastUsedDirHelper lod;
-    lod.url = QFileDialog::getOpenFileName(this, tr("Select file with alignment"), lod, 
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Select file with alignment"), lod,
         DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::MULTIPLE_ALIGNMENT, true).append("\n").append(
         DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::SEQUENCE, false)));
     if (lod.url.isEmpty()) {
         return;
     }
 
-    
+
     QString inFile = QFileInfo(lod.url).absoluteFilePath();
     QList<FormatDetectionResult> formats = DocumentUtils::detectFormat(inFile);
     if (formats.isEmpty()) {
+        reportError(L10N::notSupportedFileFormat(lod.url));
         return;
     }
 
@@ -93,7 +109,7 @@ void PWMBuildDialogController::sl_inFileButtonClicked() {
         if (i.format->getSupportedObjectTypes().contains(GObjectTypes::MULTIPLE_ALIGNMENT)) {
             format = i.format;
             break;
-        } 
+        }
     }
 
     if (format == NULL) {
@@ -106,83 +122,47 @@ void PWMBuildDialogController::sl_inFileButtonClicked() {
     }
 
     if(format == NULL){
-        QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("Could not detect format of the file. Files must be in supported malignment or sequence formats."));
-        mb.exec();
+        reportError(tr("Could not detect the format of the file. Files must be in supported multiple alignment or sequence formats."));
         return;
     }
-    
     inputEdit->setText(inFile);
 
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(inFile));
     TaskStateInfo ti;
     QVariantMap hints;
     Document *doc = format->loadDocument(iof, inFile, hints, ti);
-    CHECK_OP(ti, );
-    
-    assert (doc != NULL);
+    CHECK_OP_EXT(ti, reportError(ti.getError()), );
 
     QList<GObject*> mobjs = doc->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
     if (!mobjs.isEmpty()) {
         MAlignmentObject* mobj =  qobject_cast<MAlignmentObject*>(mobjs.first());
-        MAlignment ma = mobj->getMAlignment();
+        const MAlignment &ma = mobj->getMAlignment();
         replaceLogo(ma);
     } else {
         mobjs = doc->findGObjectByType(GObjectTypes::SEQUENCE);
-        if (!mobjs.isEmpty()) {
-            QList<MAlignmentRow> rows;
-            foreach (GObject* obj, mobjs) {
-                U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(obj);
-                if (dnaObj->getAlphabet()->getType() != DNAAlphabet_NUCL) {
-                    ti.setError(  tr("Wrong sequence alphabet") );
-                }
-                rows.append(MAlignmentRow(dnaObj->getSequenceName(), dnaObj->getWholeSequenceData()));
-            }
-            U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
-            MAlignment ma(dnaObj->getSequenceName(), dnaObj->getAlphabet(), rows);
-            replaceLogo(ma);
-        } else {
-            PFMatrix pfm = WeightMatrixIO::readPFMatrix(iof, lod.url, ti);
-            if (ti.hasError()) {
-                logoArea->hide();
-                return;
-            }
-            int len = pfm.getLength();
-            if (len == 0) {
-                logoArea->hide();
-                ti.setError(tr("Zero length matrix is not allowed"));
-                return;
-            }
-            int size = 0;
-            
-            for (int i = 0, n = pfm.getType() == PFM_MONONUCLEOTIDE ? 4 : 16; i < n; i++) {
-                size += pfm.getValue(i, 0);
-            }
-            QList<MAlignmentRow> rows;
-            for (int i = 0; i < size; i++) {
-                QByteArray arr;
-                for (int j = 0; j < len; j++) {
-                    int row = 0;
-                    int sum = i;
-                    while (sum >= pfm.getValue(row, j)) {
-                        sum -= pfm.getValue(row, j);
-                        row++;
-                    }   
-                    if (pfm.getType() == PFM_MONONUCLEOTIDE) {
-                        arr.append(DiProperty::fromIndex(row));
-                    } else {
-                        arr.append(DiProperty::fromIndexHi(row));
-                        if (j == len - 1) {
-                            arr.append(DiProperty::fromIndexLo(row));
-                        }
-                    }
-                }
-                rows.append(MAlignmentRow("", arr));
-            }
-            DNAAlphabet* al = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT());
-            MAlignment ma(QString("Temporary alignment"), al, rows);
-            replaceLogo(ma);
+        if (mobjs.isEmpty()) {
+            reportError(tr("There are no sequences in the file."));
+            return;
         }
+        U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
+        MAlignment ma(dnaObj->getSequenceName(), dnaObj->getAlphabet());
+        foreach (GObject* obj, mobjs) {
+            U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(obj);
+            if (dnaObj->getAlphabet()->getType() != DNAAlphabet_NUCL) {
+                ti.setError(  tr("Wrong sequence alphabet") );
+            }
+            U2OpStatus2Log os;
+            QByteArray seqData = dnaObj->getWholeSequenceData(os);
+            CHECK_OP_EXT(os, reportError(os.getError()), );
+            ma.addRow(dnaObj->getSequenceName(), seqData, os);
+            CHECK_OP_EXT(os, reportError(os.getError()), );
+        }
+        replaceLogo(ma);
     }
+}
+
+void PWMBuildDialogController::reportError(const QString &message) {
+    QMessageBox::warning(this, L10N::errorTitle(), message);
 }
 
 void PWMBuildDialogController::replaceLogo(const MAlignment& ma) {
@@ -194,7 +174,7 @@ void PWMBuildDialogController::replaceLogo(const MAlignment& ma) {
         logoWidget->show();
 
         if (logoArea != NULL) {
-            logoArea->replaceSettings(logoSettings);   
+            logoArea->replaceSettings(logoSettings);
         } else {
             logoArea = new AlignmentLogoRenderArea(logoSettings, logoWidget);
         }
@@ -205,9 +185,9 @@ void PWMBuildDialogController::replaceLogo(const MAlignment& ma) {
 void PWMBuildDialogController::sl_outFileButtonClicked() {
     LastUsedDirHelper lod(WeightMatrixIO::WEIGHT_MATRIX_ID);
     if (frequencyButton->isChecked()) {
-        lod.url = QFileDialog::getSaveFileName(this, tr("Select file to save frequency matrix to..."), lod, WeightMatrixIO::getPFMFileFilter(false));
+        lod.url = U2FileDialog::getSaveFileName(this, tr("Select file to save frequency matrix to..."), lod, WeightMatrixIO::getPFMFileFilter(false));
     } else {
-        lod.url = QFileDialog::getSaveFileName(this, tr("Select file to save weight matrix to..."), lod, WeightMatrixIO::getPWMFileFilter(false));
+        lod.url = U2FileDialog::getSaveFileName(this, tr("Select file to save weight matrix to..."), lod, WeightMatrixIO::getPWMFileFilter(false));
     }
     if (lod.url.isEmpty()) {
         return;
@@ -335,7 +315,7 @@ void PWMBuildDialogController::reject() {
         task->cancel();
     }
     if (lastURL != "") {
-        QDialog::accept();    
+        QDialog::accept();
     } else {
         QDialog::reject();
     }
@@ -345,16 +325,16 @@ void PWMBuildDialogController::reject() {
 //////////////////////////////////////////////////////////////////////////
 // tasks
 
-PFMatrixBuildTask::PFMatrixBuildTask(const PMBuildSettings& s, const MAlignment& ma) 
-: Task (tr("Build frequency matrix"), TaskFlag_None), settings(s), ma(ma)
+PFMatrixBuildTask::PFMatrixBuildTask(const PMBuildSettings& s, const MAlignment& ma)
+: Task (tr("Build Frequency Matrix"), TaskFlag_None), settings(s), ma(ma)
 {
     GCOUNTER( cvar, tvar, "PFMatrixBuildTask" );
     tpm = Task::Progress_Manual;
 }
 
 void PFMatrixBuildTask::run() {
-    if (ma.hasGaps()) {
-        stateInfo.setError(  tr("Alignment has gaps") );
+    if (!ma.hasEqualLength()) {
+        stateInfo.setError(  tr("Sequences in alignment have various lengths") );
         return;
     }
     if (ma.isEmpty()) {
@@ -378,11 +358,11 @@ void PFMatrixBuildTask::run() {
     return;
 }
 
-PFMatrixBuildToFileTask::PFMatrixBuildToFileTask(const QString& inFile, const QString& _outFile, const PMBuildSettings& s) 
-: Task (tr("Build weight matrix"), TaskFlag_NoRun), loadTask(NULL), buildTask(NULL), outFile(_outFile), settings(s)
+PFMatrixBuildToFileTask::PFMatrixBuildToFileTask(const QString& inFile, const QString& _outFile, const PMBuildSettings& s)
+: Task (tr("Build Weight Matrix"), TaskFlag_NoRun), loadTask(NULL), buildTask(NULL), outFile(_outFile), settings(s)
 {
     tpm = Task::Progress_SubTasksBased;
-    
+
     DocumentFormatConstraints c;
     c.checkRawData = true;
     c.supportedObjectTypes += GObjectTypes::MULTIPLE_ALIGNMENT;
@@ -399,7 +379,7 @@ PFMatrixBuildToFileTask::PFMatrixBuildToFileTask(const QString& inFile, const QS
         if (i.format->getSupportedObjectTypes().contains(GObjectTypes::MULTIPLE_ALIGNMENT)) {
             format = i.format->getFormatId();
             break;
-        } 
+        }
     }
     if(format.isEmpty()) {
         foreach(const FormatDetectionResult& i, formats) {
@@ -435,23 +415,26 @@ QList<Task*> PFMatrixBuildToFileTask::onSubTaskFinished(Task* subTask) {
         QList<GObject*> mobjs = d->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
         if (!mobjs.isEmpty()) {
             MAlignmentObject* mobj =  qobject_cast<MAlignmentObject*>(mobjs.first());
-            MAlignment ma = mobj->getMAlignment();
+            const MAlignment &ma = mobj->getMAlignment();
             buildTask = new PFMatrixBuildTask(settings, ma);
             res.append(buildTask);
         } else {
             mobjs = d->findGObjectByType(GObjectTypes::SEQUENCE);
             if (!mobjs.isEmpty()) {
+                U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
+                QString baseName = d->getURL().baseFileName();
+                MAlignment ma(baseName, dnaObj->getAlphabet());
                 QList<MAlignmentRow> rows;
                 foreach (GObject* obj, mobjs) {
                     U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(obj);
                     if (dnaObj->getAlphabet()->getType() != DNAAlphabet_NUCL) {
                         stateInfo.setError(  tr("Wrong sequence alphabet") );
                     }
-                    rows.append(MAlignmentRow(dnaObj->getSequenceName(), dnaObj->getWholeSequenceData()));
+                    QByteArray seqData = dnaObj->getWholeSequenceData(stateInfo);
+                    CHECK_OP(stateInfo, res);
+                    ma.addRow(dnaObj->getSequenceName(), seqData, stateInfo);
+                    CHECK_OP(stateInfo, res);
                 }
-                U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
-                QString baseName = d->getURL().baseFileName();
-                MAlignment ma(baseName, dnaObj->getAlphabet(), rows);
                 buildTask = new PFMatrixBuildTask(settings, ma);
                 res.append(buildTask);
             } else {
@@ -466,15 +449,15 @@ QList<Task*> PFMatrixBuildToFileTask::onSubTaskFinished(Task* subTask) {
     return res;
 }
 
-PWMatrixBuildTask::PWMatrixBuildTask(const PMBuildSettings& s, const MAlignment& ma) 
-: Task (tr("Build weight matrix"), TaskFlag_None), settings(s), ma(ma)
+PWMatrixBuildTask::PWMatrixBuildTask(const PMBuildSettings& s, const MAlignment& ma)
+: Task (tr("Build Weight Matrix"), TaskFlag_None), settings(s), ma(ma)
 {
     GCOUNTER( cvar, tvar, "PWMatrixBuildTask" );
     tpm = Task::Progress_Manual;
 }
 
-PWMatrixBuildTask::PWMatrixBuildTask(const PMBuildSettings& s, const PFMatrix& ma) 
-: Task (tr("Build weight matrix"), TaskFlag_None), settings(s), tempMatrix(ma)
+PWMatrixBuildTask::PWMatrixBuildTask(const PMBuildSettings& s, const PFMatrix& ma)
+: Task (tr("Build Weight Matrix"), TaskFlag_None), settings(s), tempMatrix(ma)
 {
     GCOUNTER( cvar, tvar, "PWMatrixBuildTask" );
     tpm = Task::Progress_Manual;
@@ -494,8 +477,8 @@ void PWMatrixBuildTask::run() {
             return;
         }
     } else {
-        if (ma.hasGaps()) {
-            stateInfo.setError(  tr("Alignment has gaps") );
+        if (!ma.hasEqualLength()) {
+            stateInfo.setError(  tr("Sequences in alignment have various lengths") );
             return;
         }
         if (ma.isEmpty()) {
@@ -525,11 +508,11 @@ void PWMatrixBuildTask::run() {
     return;
 }
 
-PWMatrixBuildToFileTask::PWMatrixBuildToFileTask(const QString& inFile, const QString& _outFile, const PMBuildSettings& s) 
-: Task (tr("Build weight matrix"), TaskFlag_NoRun), loadTask(NULL), buildTask(NULL), outFile(_outFile), settings(s)
+PWMatrixBuildToFileTask::PWMatrixBuildToFileTask(const QString& inFile, const QString& _outFile, const PMBuildSettings& s)
+: Task (tr("Build Weight Matrix"), TaskFlag_NoRun), loadTask(NULL), buildTask(NULL), outFile(_outFile), settings(s)
 {
     tpm = Task::Progress_SubTasksBased;
-    
+
     DocumentFormatConstraints c;
     c.checkRawData = true;
     c.supportedObjectTypes += GObjectTypes::MULTIPLE_ALIGNMENT;
@@ -565,23 +548,26 @@ QList<Task*> PWMatrixBuildToFileTask::onSubTaskFinished(Task* subTask) {
         QList<GObject*> mobjs = d->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
         if (!mobjs.isEmpty()) {
             MAlignmentObject* mobj =  qobject_cast<MAlignmentObject*>(mobjs.first());
-            MAlignment ma = mobj->getMAlignment();
+            const MAlignment &ma = mobj->getMAlignment();
             buildTask = new PWMatrixBuildTask(settings, ma);
             res.append(buildTask);
         } else {
             mobjs = d->findGObjectByType(GObjectTypes::SEQUENCE);
             if (!mobjs.isEmpty()) {
-                QList<MAlignmentRow> rows;
+                U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
+                QString baseName = d->getURL().baseFileName();
+                MAlignment ma(baseName, dnaObj->getAlphabet());
                 foreach (GObject* obj, mobjs) {
                     U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(obj);
                     if (dnaObj->getAlphabet()->getType() != DNAAlphabet_NUCL) {
                         stateInfo.setError(  tr("Wrong sequence alphabet") );
                     }
-                    rows.append(MAlignmentRow(dnaObj->getSequenceName(), dnaObj->getWholeSequenceData()));
+                    QByteArray seqData = dnaObj->getWholeSequenceData(stateInfo);
+                    CHECK_OP(stateInfo, res);
+                    ma.addRow(dnaObj->getSequenceName(), seqData, stateInfo);
+                    CHECK_OP(stateInfo, res);
                 }
-                U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(mobjs.first());
-                QString baseName = d->getURL().baseFileName();
-                MAlignment ma(baseName, dnaObj->getAlphabet(), rows);
+
                 buildTask = new PWMatrixBuildTask(settings, ma);
                 res.append(buildTask);
             } else {

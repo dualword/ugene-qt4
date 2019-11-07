@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,11 @@
 
 #include <QToolBar>
 #include <QToolButton>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 
 class QScrollBar;
@@ -54,18 +58,19 @@ public:
     void removeView(CircularView* view, RestrctionMapWidget* rmapWidget);
     bool isEmpty();
     const QList<CircularView*>& getViewList() const { return circularViewList; }
+    void updateViews();
 protected slots:
     void sl_export();
     void sl_horSliderMoved(int);
     void sl_moveSlider(int);
-    
+
     void sl_updateZoomInAction(bool);
     void sl_updateZoomOutAction(bool);
     void sl_updateFitInViewAction(bool);
     void sl_toggleRestrictionMap(bool);
 private:
     QSplitter* splitter;
-    HBar* toolBar;    
+    HBar* toolBar;
     QScrollBar* horScroll;
 
     QToolButton* tbZoomIn;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,10 +30,10 @@
 
 #include "StateLockableDataModel.h"
 
-
+#include <QtCore/QDateTime>
 #include <QtCore/QMimeData>
 #include <QtCore/QPointer>
-#include <QtScript>
+#include <QtScript/QScriptValue>
 
 namespace U2 {
 
@@ -52,15 +52,26 @@ class U2SequenceObject;
 // Additional info about document format
 enum DocumentFormatFlag {
     // Document support reading objects from data stream and can detect object boundaries for all object types correctly
-    DocumentFormatFlag_SupportStreaming     = 1<<0,
+    DocumentFormatFlag_SupportStreaming      = 1<<0,
     // Document support writing
-    DocumentFormatFlag_SupportWriting       = 1<<1,
+    DocumentFormatFlag_SupportWriting        = 1<<1,
     // Document can only contain 1 object: like text, raw sequence or some formats that do not support streaming
-    DocumentFormatFlag_SingleObjectFormat   = 1<<2,
+    DocumentFormatFlag_SingleObjectFormat    = 1<<2,
     // Document can't be read from packed stream. Used for database files
-    DocumentFormatFlag_NoPack               = 1<<3,
+    DocumentFormatFlag_NoPack                = 1<<3,
     // Document is not fully loaded to memory. Used for database files
-    DocumentFormatFlag_NoFullMemoryLoad     = 1<<4,
+    DocumentFormatFlag_NoFullMemoryLoad      = 1<<4,
+    // Document is not included into format recognition by default
+    DocumentFormatFlag_Hidden                = 1<<5,
+    // Document contains only one object of each supported type
+    DocumentFormatFlag_OnlyOneObject         = 1<<6,
+    // UGENE is unable to create a new document of this format
+    // although it can modify existing documents
+    DocumentFormatFlag_CannotBeCreated       = 1<<7,
+    // Document can contain objects with duplicate names
+    DocumentFormatFlag_AllowDuplicateNames   = 1<<8,
+    // Document changes are written immedeately, they should'n be saved on closing. Used for databases.
+    DocumentFormatFlag_DirectWriteOperations = 1<<9
 };
 
 
@@ -86,6 +97,8 @@ typedef QFlags<DocumentFormatFlag> DocumentFormatFlags;
 /** contains estimation of maximum size of a sequence from document */
 #define RawDataCheckResult_MaxSequenceSize "sequence-max-size"
 
+/*Contains length of sequence that was read from header of sequence file. Used in merge files option*/
+#define RawDataCheckResult_HeaderSequenceLength "header-sequence-length"
 
 /** Set of hints that can be processed during document loading */
 #define DocumentReadingMode_SequenceMergeGapSize            "merge-gap"
@@ -93,14 +106,28 @@ typedef QFlags<DocumentFormatFlag> DocumentFormatFlags;
 #define DocumentReadingMode_SequenceAsAlignmentHint         "sequences-are-msa"
 #define DocumentReadingMode_SequenceAsShortReadsHint        "sequences-are-short-reads"
 #define DocumentReadingMode_MaxObjectsInDoc                 "max-objects-in-doc"
+#define DocumentReadingMode_DontMakeUniqueNames             "no-unique-names"
 
+/** Set of hints that can be processed during document storing */
+#define DocumentWritingMode_SimpleNames                     "simple-names"
+
+/** Set of hints that can affect a document's removal */
+#define DocumentRemovalMode_Synchronous                     "synchronous-delete"
+
+/** Hint for splitting variations*/
+#define DocumentReadingMode_SplitVariationAlleles           "split-alleles"
+
+/** Set of hints that can be processed during objects conversion */
+#define ObjectConvertion_UseGenbankHeader                   "use-genbank-header"
 
 class U2CORE_EXPORT DocumentFormat: public QObject {
     Q_OBJECT
 public:
     static const QString CREATED_NOT_BY_UGENE;
     static const QString MERGED_SEQ_LOCK;
-    static const QString DBI_ALIAS_HINT;
+    static const QString DBI_REF_HINT;
+    static const QString DBI_FOLDER_HINT;
+    static const QString DEEP_COPY_OBJECT;
 
     enum DocObjectOp {
         DocObjectOp_Add,
@@ -109,7 +136,10 @@ public:
 
 
     DocumentFormat(QObject* p, DocumentFormatFlags _flags, const QStringList& fileExts = QStringList())
-        : QObject(p), formatFlags(_flags),  fileExtensions(fileExts) {}
+        : QObject(p),
+          formatFlags(_flags),
+          fileExtensions(fileExts)
+    {}
 
     /* returns unique document format id */
     virtual DocumentFormatId getFormatId() const = 0;
@@ -130,8 +160,8 @@ public:
     virtual Document* createNewLoadedDocument(IOAdapterFactory* io, const GUrl& url, U2OpStatus& os, const QVariantMap& hints = QVariantMap());
 
     /** Creates new document in unloaded state. Assigns DBI if needed */
-    virtual Document* createNewUnloadedDocument(IOAdapterFactory* iof, const GUrl& url, U2OpStatus& os, 
-        const QVariantMap& hints = QVariantMap(),  const QList<UnloadedObjectInfo>& info = QList<UnloadedObjectInfo>(), 
+    virtual Document* createNewUnloadedDocument(IOAdapterFactory* iof, const GUrl& url, U2OpStatus& os,
+        const QVariantMap& hints = QVariantMap(),  const QList<UnloadedObjectInfo>& info = QList<UnloadedObjectInfo>(),
         const QString& instanceModLockDesc = QString());
 
     /** A method for compatibility with old code : creates IO adapter and loads document in DocumentLoadMode_Whole
@@ -140,19 +170,19 @@ public:
      */
     virtual Document* loadDocument(IOAdapterFactory* iof, const GUrl& url, const QVariantMap& hints, U2OpStatus& os);
 
-    /** 
-        Loads single dna sequence in streaming mode. 
+    /**
+        Loads single dna sequence in streaming mode.
         Note! this function is available only if format supports streaming mode and sequences as an stored data type
     */
     virtual DNASequence* loadSequence( IOAdapter* io, U2OpStatus& ti);
 
     virtual void storeDocument(Document* d, U2OpStatus& os, IOAdapterFactory* io = NULL, const GUrl& newDocURL = GUrl());
-    
+
     /* io - opened IOAdapter
      * so you can store many documents to this file
      */
     virtual void storeDocument( Document* d, IOAdapter* io, U2OpStatus& os);
-    
+
     /** Checks if object can be added/removed to the document */
     virtual bool isObjectOpSupported(const Document* d, DocObjectOp op, GObjectType t) const;
 
@@ -165,10 +195,10 @@ public:
 
     /** Returns generic format description */
     virtual QString getFormatDescription() const {return formatDescription;}
-    
-    /* Checks that document format satisfies given constraints */ 
+
+    /* Checks that document format satisfies given constraints */
     virtual bool checkConstraints(const DocumentFormatConstraints& c) const;
-    
+
     /* Default implementation does nothing */
     virtual void updateFormatSettings(Document* d) const {Q_UNUSED(d);}
 
@@ -185,12 +215,12 @@ public:
     /**
      * Streaming mode formats implement getSequence() and storeEntry() methods
      */
-    virtual bool isStreamingSupport() {return false;}
+    virtual bool isStreamingSupport() {return formatFlags.testFlag(DocumentFormatFlag_SupportStreaming);}
 
-    virtual void storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os);
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
 
 protected:
-    
+
    /* io - opened IOAdapter.
     * if document format supports streaming reading it must correctly process DocumentLoadMode
     * otherwise, it will load all file from starting position ( default )
@@ -201,12 +231,19 @@ protected:
     QStringList         fileExtensions;
     QSet<GObjectType>   supportedObjectTypes;
     QString             formatDescription;
+
+private:
+    U2DbiRef fetchDbiRef( const QVariantMap &hints, U2OpStatus &os ) const;
 };
 
 class DocumentFormatConstraints {
 public:
-    DocumentFormatConstraints() : flagsToSupport(0), flagsToExclude(0), 
-                                checkRawData(false), minDataCheckResult(FormatDetection_VeryLowSimilarity){}
+    DocumentFormatConstraints()
+        : flagsToSupport(0), flagsToExclude(0), checkRawData(false),
+        minDataCheckResult(FormatDetection_VeryLowSimilarity), allowPartialTypeMapping(false)
+    {
+
+    }
 
     void clear() {
         flagsToSupport = 0;
@@ -214,6 +251,7 @@ public:
         checkRawData = false;
         rawData.clear();
         minDataCheckResult = FormatDetection_VeryLowSimilarity;
+        allowPartialTypeMapping = false;
     }
     void addFlagToSupport(DocumentFormatFlag f) {flagsToSupport |= f;}
     void addFlagToExclude(DocumentFormatFlag f) {flagsToExclude |= f;}
@@ -226,7 +264,7 @@ public:
     bool                    checkRawData;
     QByteArray              rawData;
     FormatDetectionScore    minDataCheckResult;
-
+    bool                    allowPartialTypeMapping;
 };
 
 class DocumentImportersRegistry;
@@ -265,10 +303,20 @@ enum DocumentModLock {
     DocumentModLock_NUM_LOCKS
 };
 
+enum DocumentObjectRemovalMode {
+    DocumentObjectRemovalMode_Deallocate,
+    DocumentObjectRemovalMode_OnlyNotify,
+    DocumentObjectRemovalMode_Release
+};
+
+class DocumentChildEventsHelper;
+
 class U2CORE_EXPORT Document : public  StateLockableTreeItem {
     Q_OBJECT
     Q_PROPERTY( QString name WRITE setName READ getName )
     Q_PROPERTY( GUrl url WRITE setURL READ getURL )
+
+    friend class DocumentChildEventsHelper;
 
 public:
     class Constraints {
@@ -279,20 +327,21 @@ public:
         QList<DocumentFormatId> formats;              // document format must be in list to match
         GObjectType             objectTypeToAdd;      // document must be ready to add objects of the specified type
     };
+    static const QString UNLOAD_LOCK_NAME;
 
 
     //Creates document in unloaded state. Populates it with unloaded objects
     Document(DocumentFormat* _df, IOAdapterFactory* _io, const GUrl& _url,
                     const U2DbiRef& _dbiRef,
                     const QList<UnloadedObjectInfo>& unloadedObjects = QList<UnloadedObjectInfo>(),
-                    const QVariantMap& hints = QVariantMap(), 
+                    const QVariantMap& hints = QVariantMap(),
                     const QString& instanceModLockDesc = QString());
 
-    //Creates document in loaded state. 
-    Document(DocumentFormat* _df, IOAdapterFactory* _io, const GUrl& _url, 
+    //Creates document in loaded state.
+    Document(DocumentFormat* _df, IOAdapterFactory* _io, const GUrl& _url,
                     const U2DbiRef& _dbiRef,
-                    const QList<GObject*>& objects, 
-                    const QVariantMap& hints = QVariantMap(), 
+                    const QList<GObject*>& objects,
+                    const QVariantMap& hints = QVariantMap(),
                     const QString& instanceModLockDesc = QString());
 
     virtual ~Document();
@@ -305,12 +354,16 @@ public:
 
     const QList<GObject*>& getObjects() const {return objects;}
 
+    GObject * getObjectById(const U2DataId &id) const;
+
     void addObject(GObject* ref);
 
-    void removeObject(GObject* o);
+    bool removeObject(GObject* o, DocumentObjectRemovalMode removalMode = DocumentObjectRemovalMode_Deallocate);
+
+    void setObjectsInUse(const QSet<U2DataId> &objs);
 
     const QString& getName() const {return name;}
-    
+
     void setName(const QString& newName);
 
     const GUrl& getURL() const {return url;}
@@ -321,7 +374,10 @@ public:
 
     void makeClean();
 
-    GObject* findGObjectByName(const QString& name) const;
+    // avoid using this method against shared databases documents,
+    // since databases allow many objects with the same name. The method returns
+    // first matched GObject. Use `getObjectById` instead.
+    GObject * findGObjectByName(const QString &name) const;
 
     QList<GObject*> findGObjectByType(GObjectType t, UnloadedObjectFilter f = UOF_LoadedOnly) const;
 
@@ -336,7 +392,7 @@ public:
     bool unload(bool deleteObjects = true);
 
     bool checkConstraints(const Constraints& c) const;
-    
+
     GHints* getGHints() const {return ctxState;}
 
     void setGHints(GHints* state);
@@ -344,7 +400,7 @@ public:
     QVariantMap getGHintsMap() const;
 
     StateLock* getDocumentModLock(DocumentModLock type) const {return modLocks[type];}
-    
+
     void propagateModLocks(Document* doc) const;
 
     bool hasUserModLock() const {return modLocks[DocumentModLock_USER]!=NULL;}
@@ -367,35 +423,47 @@ public:
 
     inline void setDocumentOwnsDbiResources(bool value) { documentOwnsDbiResources = value; }
 
+    virtual bool isDatabaseConnection() const;
+
     static void setupToEngine(QScriptEngine *engine);
+
+    Document *getSimpleCopy(DocumentFormat *df, IOAdapterFactory *io, const GUrl &url) const;
+
 private:
     static QScriptValue toScriptValue(QScriptEngine *engine, Document* const &in);
     static void fromScriptValue(const QScriptValue &object, Document* &out);
+
 protected:
-    void _removeObject(GObject* o, bool deleteObjects = true);
+    void removeObjectsDataFromDbi(QList<GObject*>objects);
+    bool _removeObject(GObject* o, bool deleteObjects = true);
     void _addObject(GObject* obj);
     void _addObjectToHierarchy(GObject* obj);
 
     void initModLocks(const QString& instanceModLockDesc, bool loaded);
-    
+
     void checkUnloadedState() const;
     void checkLoadedState() const;
     void checkUniqueObjectNames() const;
     void addUnloadedObjects(const QList<UnloadedObjectInfo>& info);
+
+    GObject * findGObjectByNameInDb(const QString &name) const;
+    GObject * findGObjectByNameInMem(const QString &name) const;
 
     DocumentFormat* const       df;
     IOAdapterFactory* const     io;
     GUrl                        url;
     U2DbiRef                    dbiRef; // Default dbi ref for the document
 
-    QString             name; /* display name == short pathname, excluding the path */
-    QList<GObject*>     objects;
-    GHints*             ctxState;
-    QDateTime           lastUpdateTime;
-    bool                documentOwnsDbiResources;
+    QString                     name; /* display name == short pathname, excluding the path */
+    QList<GObject*>             objects;
+    QHash<U2DataId, GObject *>  id2Object;
+    QSet<U2DataId>              objectsInUse;
+    GHints*                     ctxState;
+    QDateTime                   lastUpdateTime;
+    bool                        documentOwnsDbiResources;
 
-    StateLock*          modLocks[DocumentModLock_NUM_LOCKS];
-    bool                loadStateChangeMode;
+    StateLock*                  modLocks[DocumentModLock_NUM_LOCKS];
+    bool                        loadStateChangeMode;
 
 signals:
     void si_urlChanged();
@@ -409,14 +477,14 @@ signals:
 
 class U2CORE_EXPORT DocumentFilter {
 public:
-    virtual ~DocumentFilter(){};
+    virtual ~DocumentFilter(){}
     virtual bool matches(Document* doc) const = 0;
 };
 
 class U2CORE_EXPORT DocumentConstraintsFilter : public DocumentFilter {
 public:
     DocumentConstraintsFilter(const Document::Constraints& _c) : constraints(_c){}
-    
+
     virtual bool matches(Document* doc) const {
         return doc->checkConstraints(constraints);
     }
@@ -429,7 +497,7 @@ class U2CORE_EXPORT DocumentMimeData : public QMimeData {
     Q_OBJECT
 public:
     static const QString MIME_TYPE;
-    DocumentMimeData(Document* obj) : objPtr(obj){};
+    DocumentMimeData(Document* obj);
     QPointer<Document> objPtr;
     bool hasFormat ( const QString & mimeType ) const { return (mimeType == MIME_TYPE);}
     QStringList formats () const {return (QStringList() << MIME_TYPE);}

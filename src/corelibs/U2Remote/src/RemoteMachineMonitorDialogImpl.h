@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,10 +27,13 @@
 
 #include <ui/ui_RemoteMachineMonitorDialog.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
 #include <QtGui/QCheckBox>
-
-
+#else
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QCheckBox>
+#endif
 
 namespace U2 {
 
@@ -48,15 +51,15 @@ struct RemoteMachineItemInfo {
     RemoteMachineSettingsPtr    settings;
     QString                     hostname;
     bool                        isSelected;
-    
-    RemoteMachineItemInfo(const RemoteMachineSettingsPtr& s) 
+
+    RemoteMachineItemInfo(const RemoteMachineSettingsPtr& s)
         : settings( s ) {
         assert( NULL != settings );
     }
-    RemoteMachineItemInfo() 
+    RemoteMachineItemInfo()
         : settings( NULL ), isSelected(false)  {
     }
-    
+
 }; // RemoteMachineMonitorItemInfo
 
 class RemoteMachineMonitorDialogImpl : public QDialog, Ui::RemoteMachineMonitorDialog {
@@ -65,14 +68,14 @@ private:
     static const QString OK_BUTTON_RUN;
     static const int CHECKBOX_SIZE_HINT_MAGIC_NUMBER = 2;
     static const QString SAVE_SETTINGS_FILE_DOMAIN;
-    
+
 public:
     RemoteMachineMonitorDialogImpl( QWidget * p, RemoteMachineMonitor* monitor,
                                     bool runTaskMode = false );
-    
+
     QList< RemoteMachineItemInfo > getModel() const;
     RemoteMachineSettingsPtr getSelectedMachine() const;
-    
+
 private:
     bool addMachineSettings( const RemoteMachineSettingsPtr& machine, bool ping );
     QTreeWidgetItem * addItemToTheView( RemoteMachineItemInfo & item );
@@ -88,7 +91,7 @@ private:
     void resizeTreeWidget();
     void initMachineActionsMenu();
     void updateState();
-    
+
 private slots:
     void sl_okPushButtonClicked();
     void sl_cancelPushButtonClicked();
@@ -103,22 +106,22 @@ private slots:
     void sl_machinesTreeMenuRequested(const QPoint&);
     void sl_showUserTasksButtonClicked();
     void sl_saveMachine();
-    
+
 private:
     QMenu* machineActionsMenu;
     int currentlySelectedItemIndex;
     QList< RemoteMachineItemInfo > machinesItemsByOrder;
     QMap< RemoteMachineSettingsPtr, QTreeWidgetItem * > pingingItems; /* ping sent to machines with this items */
-    
+
     /* not static because QApplication must be constructed before any graphical object */
     const QPixmap PING_YES;
     const QPixmap PING_NO;
     const QPixmap PING_WAIT_FOR_RESPONSE;
     const QPixmap PING_QUESTION;
-    
-    RemoteMachineMonitor* rmm; 
+
+    RemoteMachineMonitor* rmm;
     RetrievePublicMachinesTask * getPublicMachinesTask;
-    
+
 }; // RemoteMachineMonitorDialogImpl
 
 } // U2

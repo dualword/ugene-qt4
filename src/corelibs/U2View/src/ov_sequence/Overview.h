@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,18 @@
 #ifndef _U2_OVERVIEW_H_
 #define _U2_OVERVIEW_H_
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QToolButton>
+#endif
+
+#include <U2Core/Annotation.h>
+#include <U2Core/AnnotationGroup.h>
+
 #include "GSequenceLineView.h"
 #include "ADVSequenceObjectContext.h"
-
-#include <QToolButton>
 
 namespace U2 {
 
@@ -33,23 +41,25 @@ class PanView;
 class DetView;
 class OverviewRenderArea;
 class AnnotationModification;
-class AnnotationGroup;
+class AnnotationTableObject;
+class ADVSingleSequenceWidget;
+
 
 class Overview : public GSequenceLineView {
     Q_OBJECT
 public:
-    Overview(QWidget* p, ADVSequenceObjectContext* ctx);
+    Overview(ADVSingleSequenceWidget* p, ADVSequenceObjectContext* ctx);
 
 protected slots:
     void sl_visibleRangeChanged();
     void sl_tbToggled();
-    void sl_annotationsAdded(const QList<Annotation*>& a);
-    void sl_annotationsRemoved(const QList<Annotation*>& a);
-    void sl_onAnnotationsInGroupRemoved(const QList<Annotation*>&, AnnotationGroup*);
-    void sl_annotationModified(const AnnotationModification& md);
-    void sl_onAnnotationSettingsChanged(const QStringList& changedSettings);
-    void sl_annotationObjectAdded(AnnotationTableObject* obj);
-    void sl_annotationObjectRemoved(AnnotationTableObject* obj);
+    void sl_annotationsAdded(const QList<Annotation *> &a);
+    void sl_annotationsRemoved(const QList<Annotation *> &a);
+    void sl_onAnnotationsInGroupRemoved(const QList<Annotation *> &, AnnotationGroup *);
+    void sl_annotationModified(const AnnotationModification &md);
+    void sl_onAnnotationSettingsChanged(const QStringList &changedSettings);
+    void sl_annotationObjectAdded(AnnotationTableObject *obj);
+    void sl_annotationObjectRemoved(AnnotationTableObject *obj);
     void sl_sequenceChanged();
 protected:
     void pack();
@@ -61,8 +71,8 @@ protected:
     void wheelEvent(QWheelEvent* we);
 
     QString createToolTip(QHelpEvent* he);
-    PanView* getPan() const {return panView;};
-    DetView* getDet() const {return detView;};
+    PanView *getPan() const;
+    DetView *getDet() const;
 
     bool        panSliderClicked;
     bool        detSliderClicked;
@@ -75,6 +85,8 @@ private:
     DetView*        detView;
     QPoint          mousePosToSlider;
     QToolButton*    tb;
+    ADVSingleSequenceWidget* seqWidget;
+
 
 friend class OverviewRenderArea;
 };
@@ -84,8 +96,8 @@ class OverviewRenderArea : public GSequenceLineViewRenderArea {
 public:
     OverviewRenderArea(Overview* p);
 
-    const QRectF getPanSlider() const {return panSlider;};
-    const QRectF getDetSlider() const {return detSlider;};
+    const QRectF getPanSlider() const;
+    const QRectF getDetSlider() const;
 
     int getAnnotationDensity(int pos) const;
 

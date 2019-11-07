@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,6 @@
 #include <U2Core/IOAdapter.h>
 #include <U2Core/U2OpStatusUtils.h>
 
-#include <U2Formats/SAMFormat.h>
 #include <U2Formats/FastaFormat.h>
 
 #include "StreamSequenceWriter.h"
@@ -33,10 +32,10 @@
 namespace U2 {
 
 
-StreamShortReadsWriter::StreamShortReadsWriter(const GUrl& url, const QString& refName , int refLength ) 
+StreamShortReadsWriter::StreamShortReadsWriter(const GUrl& url, const QString& refName , int refLength )
 : numSeqWritten(0), refSeqLength(refLength)
 {
-    refSeqName = QString(refName).replace(QRegExp("\\s|\\t"), "_").toAscii();
+    refSeqName = QString(refName).replace(QRegExp("\\s|\\t"), "_").toLatin1();
 
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
     io = iof->createIOAdapter();
@@ -66,7 +65,7 @@ StreamShortReadsWriter::~StreamShortReadsWriter() {
 }
 
 
-StreamShortReadWriter::StreamShortReadWriter( bool writeQualityExplicitly) : writeQuality(writeQualityExplicitly) {
+StreamShortReadWriter::StreamShortReadWriter() {
     DocumentFormat* df = AppContext::getDocumentFormatRegistry()->getFormatById(BaseDocumentFormats::FASTA);
     fastaFormat = qobject_cast<FastaFormat*> (df);
     assert(fastaFormat != NULL);
@@ -79,13 +78,20 @@ StreamShortReadWriter::StreamShortReadWriter( bool writeQualityExplicitly) : wri
 bool StreamShortReadWriter::init( const GUrl& url ) {
     ouputPath = url;
     bool res = io->open(url, IOAdapterMode_Write);
-    return res;   
+    return res;
 }
 
-bool StreamShortReadWriter::writeNextSequence( const DNASequence& seq ) {   
+bool StreamShortReadWriter::writeNextSequence( const DNASequence& seq ) {
     U2OpStatus2Log os;
     fastaFormat->storeSequence(seq, io, os);
-    
+
+    return !os.hasError();
+}
+
+bool StreamShortReadWriter::writeNextSequence(const U2SequenceObject *seq) {
+    U2OpStatus2Log os;
+    fastaFormat->storeSequence(seq, io, os);
+
     return !os.hasError();
 }
 
@@ -93,5 +99,5 @@ void StreamShortReadWriter::close() {
     io->close();
 }
 
-} //namespace 
+} //namespace
 

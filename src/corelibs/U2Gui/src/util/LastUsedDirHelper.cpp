@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,6 @@
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
 
-#include <QtCore/QFileInfo>
 #include <QtCore/QDir>
 
 namespace U2 {
@@ -40,10 +39,10 @@ LastUsedDirHelper::~LastUsedDirHelper() {
 
 void LastUsedDirHelper::saveLastUsedDir() {
     if (!url.isEmpty()) {
-        QString newDir = QFileInfo(url).absoluteDir().absolutePath();
-        if (dir != newDir) {
-            setLastUsedDir(newDir, domain);
-        }
+        dir = QFileInfo(url).absoluteDir().absolutePath();
+    }
+    if (!dir.isEmpty()) {
+        setLastUsedDir(dir, domain);
     }
 }
 

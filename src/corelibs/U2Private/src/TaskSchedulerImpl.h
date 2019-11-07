@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
 #include <QtCore/QMutex>
+#include <QtCore/QWaitCondition>
 
 namespace U2 {
 
@@ -35,27 +36,56 @@ class TaskInfo;
 class AppResourcePool;
 class AppResource;
 
+/**
+ * Some systems can go to hibernation during UGENE work.
+ * This class prevents this behavior if top-level tasks exist.
+ */
+class SleepPreventer {
+public:
+    virtual ~SleepPreventer() {}
+    virtual void capture() {}
+    virtual void release() {}
+};
+
 class TaskThread : public QThread {
 public:
-    TaskThread(TaskInfo* _ti) : ti(_ti),finishEventListener(NULL) {}
+    TaskThread(TaskInfo* _ti);
     void run();
+    void resume();
 
     TaskInfo* ti;
     QObject*  finishEventListener;
+    QMutex subtasksLocker;
+    QList<Task *> unconsideredNewSubtasks;
+    volatile bool newSubtasksObtained;
+
+    QWaitCondition pauser;
+    volatile bool isPaused;
+    QMutex pauseLocker;
+
+protected:
+    bool event(QEvent *event);
+
+private:
+    void getNewSubtasks();
+    void terminateMessageLoop();
+    void pause();
+
+    QList<Task *> processedSubtasks;
 };
 
 
 class TaskInfo {
 public:
-    TaskInfo(Task* t, TaskInfo* p) 
+    TaskInfo(Task* t, TaskInfo* p)
         : task(t), parentTaskInfo(p), wasPrepared(false), subtasksWereCanceled(false), selfRunFinished(false),
         hasLockedPrepareResources(false), hasLockedRunResources(false),
         prevProgress(0), numPreparedSubtasks(0), numRunningSubtasks(0), numFinishedSubtasks(0),  thread(NULL) {}
-    
+
     virtual ~TaskInfo();
 
     //true if task state >= RUN && thread is finished or not used at all
-    
+
     Task*           task;
     TaskInfo*       parentTaskInfo;
     QList<Task*>    newSubtasks;
@@ -65,7 +95,7 @@ public:
     bool            selfRunFinished;        // indicates that the 'run' method of this task was finished
     bool            hasLockedPrepareResources;  //true if there were resource locks for 'prepare' stage
     bool            hasLockedRunResources;      //true if there were resource locks for 'run' stage
-    
+
 
     int             prevProgress;   //used for TaskProgress_Manual
     QString         prevDesc;
@@ -86,6 +116,8 @@ public:
 class U2PRIVATE_EXPORT TaskSchedulerImpl : public TaskScheduler {
     Q_OBJECT
 public:
+    using TaskScheduler::onSubTaskFinished;
+
     TaskSchedulerImpl(AppResourcePool* rp);
     ~TaskSchedulerImpl();
 
@@ -98,16 +130,19 @@ public:
     Task * getTopLevelTaskById( qint64 id ) const;
 
     QDateTime estimatedFinishTime(Task*) const;
-    
+
     virtual void cancelTask(Task* t);
-    
+
     virtual void cancelAllTasks();
-    
+
     virtual QString getStateName(Task* t) const;
 
     void addThreadId(qint64 taskId, Qt::HANDLE id) {/*threadIds.insert(taskId, id);*/threadIds[taskId] = id;}
     void removeThreadId(qint64 taskId) {threadIds.remove(taskId);}
     qint64 getNameByThreadId(Qt::HANDLE id) const{return threadIds.key(id);}
+    void pauseThreadWithTask(const Task *task);
+    void resumeThreadWithTask(const Task *task);
+    void onSubTaskFinished(TaskThread *thread, Task *subtask);
 
 private slots:
     void update();
@@ -127,13 +162,15 @@ private:
     void updateTaskProgressAndDesc(TaskInfo* ti);
     void promoteTask(TaskInfo* ti, Task::State newState);
     void deleteTask(Task* t);
-    
+    void finishSubtasks(TaskInfo *pti);
+
     QString tryLockResources(Task* task, bool prepareStage, bool& hasLockedResourcesAfterCall); //returns error message
     void releaseResources(TaskInfo* ti, bool prepareStage);
 
     void propagateStateToParent(Task* t);
     void updateOldTasksPriority();
     void checkSerialPromotion(TaskInfo* pti, Task* subtask);
+    void createSleepPreventer();
 
 private:
     QTimer                  timer;
@@ -143,10 +180,11 @@ private:
     QList<Task*>            newTasks;
     QStringList             stateNames;
     QMap<quint64, Qt::HANDLE>    threadIds;
-    
+
     AppResourcePool*        resourcePool;
     AppResource*            threadsResource;
     bool                    stateChangesObserved;
+    SleepPreventer*         sleepPreventer;
 };
 
 } //namespace

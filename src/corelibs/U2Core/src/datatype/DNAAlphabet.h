@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,6 +37,7 @@ public:
     static const QString NUCL_RNA_DEFAULT();
     static const QString NUCL_RNA_EXTENDED();
     static const QString AMINO_DEFAULT();
+    static const QString AMINO_EXTENDED();
 };
 
 
@@ -63,21 +64,27 @@ public:
 
     char getDefaultSymbol() const {return defSym;}
 
+    bool isDefault() const {return id.contains("DEFAULT");}
+
+    bool isExtended() const {return id.contains("EXTENDED");}
+
     bool isRaw() const {return type == DNAAlphabet_RAW;}
-    
+
     bool isNucleic() const {return type == DNAAlphabet_NUCL;}
 
     bool isAmino() const {return type == DNAAlphabet_AMINO;}
 
+    bool isDNA() const {return id.contains("DNA");}
+
     bool isRNA() const {return id.contains("RNA");}
-    
+
     // returns sorted array of all chars used in alphabet
     // forceBothCases == true : even case-insensitive alphabet will return both cases
     // forceBothCases == false: case-sensitivity in result depends on alphabets case-sensitivity
     QByteArray getAlphabetChars(bool forceBothCases = false) const;
 
     int getNumAlphabetChars() const {return numChars;}
-    
+
 private:
     QString             id;
     QString             name;
@@ -90,13 +97,13 @@ private:
 
 class U2CORE_EXPORT DNAAlphabetRegistry : public QObject {
 public:
-    virtual bool registerAlphabet(DNAAlphabet* a) = 0;
+    virtual bool registerAlphabet(const DNAAlphabet* a) = 0;
 
-    virtual void unregisterAlphabet(DNAAlphabet* a) = 0;
+    virtual void unregisterAlphabet(const DNAAlphabet* a) = 0;
 
-    virtual DNAAlphabet* findById(const QString& id) const = 0;
+    virtual const DNAAlphabet* findById(const QString& id) const = 0;
 
-    virtual QList<DNAAlphabet*> getRegisteredAlphabets() const =  0;
+    virtual QList<const DNAAlphabet*> getRegisteredAlphabets() const =  0;
 };
 
 }//namespace

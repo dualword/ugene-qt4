@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,19 @@
 #include <U2Gui/GlassView.h>
 #include <U2Core/Task.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#include <QtGui/QHBoxLayout>
 #include <QtGui/QToolBox>
 #include <QtGui/QButtonGroup>
 #include <QtGui/QTreeWidget>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QToolBox>
+#include <QtWidgets/QButtonGroup>
+#include <QtWidgets/QTreeWidget>
+#endif
 
 #include <QtXml/qdom.h>
 
@@ -43,6 +52,7 @@ public:
     QIcon ico;
     QString data;
     QString content;
+    QString id; // UWL file name of the sample workflow
 };
 
 class SampleCategory {
@@ -59,9 +69,10 @@ public:
     void run();
     ReportResult report();
 private:
-    void scanDir(const QString&);
+    void scanDir(const QString&, int depth = 0);
     QStringList dirs;
     QList<SampleCategory> result;
+    static const int maxDepth;
 };
 
 class SampleRegistry {
@@ -84,16 +95,13 @@ public:
     }
 
 public slots:
-    void test();
-    void setItem(QTreeWidgetItem*);
+    void setItem(QTreeWidgetItem *it){item = it;};
 signals:
     void itemActivated(QTreeWidgetItem * item);
     void cancel();
 protected:
     virtual void mouseDoubleClickEvent ( QMouseEvent * event );
     virtual void keyPressEvent ( QKeyEvent * event );
-    //    virtual void mousePressEvent ( QMouseEvent * event );
-    //virtual void mouseReleaseEvent ( QMouseEvent * event );
 private:
     QTextDocument*      m_document;
     QTreeWidgetItem*    item;
@@ -107,23 +115,12 @@ public:
     static const QString MIME_TYPE;
 
     SamplesWidget(WorkflowScene *scene, QWidget *parent = 0);
-//     QList<Descriptor> getCategories() const;
-//     QList<Descriptor> getItems(const Descriptor& cat) const;
-//     QMenu* createMenu(const QString& name);
-// 
-//     QVariant saveState() const;
-//     void restoreState(const QVariant&);
-// 
-//     public slots:
-//         void resetSelection();
-// 
-// signals:
-//         void processSelected(Workflow::ActorPrototype*);
-// 
-// protected:
-//     void contextMenuEvent(QContextMenuEvent *e);
+    void activateSample(const QString &category, const QString &id);
+    void loadSample(const QString &category, const QString &id);
+
 public slots:
     void cancelItem();
+    void sl_nameFilterChanged(const QString &nameFilter);
 protected:
     void resizeEvent(QResizeEvent *e) {
         QTreeWidget::resizeEvent(e);
@@ -133,18 +130,38 @@ protected:
 private slots:
     void handleTreeItem(QTreeWidgetItem * item);
     void activateItem(QTreeWidgetItem * item);
-    
+    void sl_refreshSampesItems();
+
 signals:
     void setupGlass(GlassPane*);
     void sampleSelected(const QString&);
 private:
+    QTreeWidgetItem * getSampleItem(const QString &category, const QString &id);
     void addCategory(const SampleCategory& cat);
+    void revisible(const QString &nameFilter);
 
     SamplePane* glass;
 };
 
-}//namespace
+class NameFilterLayout : public QHBoxLayout {
+    Q_OBJECT
+public:
+    NameFilterLayout(QWidget *parent);
 
-//Q_DECLARE_METATYPE(QAction *)
+    QLineEdit * getNameEdit() const;
+
+    static bool filterMatched(const QString &nameFilter, const QString &name);
+
+private:
+    QLineEdit *nameEdit;
+    QAction *delTextAction;
+};
+
+class SamplesWrapper : public QWidget {
+public:
+    SamplesWrapper(SamplesWidget *samples, QWidget *parent);
+};
+
+}//namespace
 
 #endif

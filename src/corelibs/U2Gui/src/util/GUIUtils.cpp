@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,21 +23,59 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
+#include <U2Core/L10n.h>
 #include <U2Core/Settings.h>
-#include <U2Gui/AppSettingsGUI.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Core/UserApplicationsSettings.h>
+
+#include <U2Gui/AppSettingsGUI.h>
+#include <U2Gui/MainWindow.h>
 
 #include <QtCore/QFile>
 #include <QtCore/QProcess>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
-#include <QtGui/QPainter>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
+#endif
+#include <QtGui/QPainter>
 
 #include <QUrl>
 #include <QDesktopServices>
 
 namespace U2 {
+
+QAction* GUIUtils::getCheckedAction(QList<QAction*> actions){
+        foreach(QAction* action, actions) {
+            if(action->isChecked()){
+                return action;
+            }
+        }
+        return NULL;
+}
+
+QAction* GUIUtils::findActionByData(QList<QAction*> actions, const QString& data){
+        foreach(QAction* action, actions) {
+            if(action->data() == data){
+                return action;
+            }
+        }
+        return NULL;
+}
+
+QAction *GUIUtils::findActionByTooltip(QList<QAction *> actions, const QString &tooltip) {
+    foreach (QAction* action, actions) {
+        if (action->toolTip() == tooltip) {
+            return action;
+        }
+    }
+    return NULL;
+}
+
 
 QAction* GUIUtils::findAction(const QList<QAction*>& actions, const QString& name) {
     foreach(QAction* a, actions) {
@@ -187,6 +225,16 @@ void GUIUtils::setMutedLnF( QTreeWidgetItem* item, bool enableMute, bool recursi
             }
         }
     }
+}
+
+static const QColor warningColor(255,200,200);
+static const QColor okColor(255,255,255);
+
+void GUIUtils::setWidgetWarning(QWidget *widget, bool value) {
+    QColor color = value ? warningColor : okColor;
+    QPalette p = widget->palette();
+    p.setColor(QPalette::Active, QPalette::Base, color);
+    widget->setPalette(p);
 }
 
 } //endif

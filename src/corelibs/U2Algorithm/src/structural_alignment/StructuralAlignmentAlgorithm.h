@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,6 @@
 #include <U2Core/Task.h>
 #include <U2Core/BioStruct3D.h>
 #include <U2Core/BioStruct3DObject.h>
-
-#include <memory>
 
 namespace U2 {
 
@@ -83,6 +81,8 @@ public:
 /** Structural alignment algorithm abstract interface */
 class U2ALGORITHM_EXPORT StructuralAlignmentAlgorithm {
 public:
+    virtual ~StructuralAlignmentAlgorithm() {}
+
     /** Test settings for algorithm specific constraints.
       * @returns "" on ok and error descripton on fail
       */
@@ -105,7 +105,7 @@ public:
     StructuralAlignmentTaskSettings getSettings() const { return settings; }
 
 private:
-    std::auto_ptr<StructuralAlignmentAlgorithm> algorithm;
+    QScopedPointer<StructuralAlignmentAlgorithm> algorithm;
     StructuralAlignmentTaskSettings settings;
 
     StructuralAlignment result;

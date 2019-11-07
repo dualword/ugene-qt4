@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,11 +26,11 @@
 
 namespace U2 {
 
-SWResultFilterRegistry::SWResultFilterRegistry(QObject* pOwn): 
+SWResultFilterRegistry::SWResultFilterRegistry(QObject* pOwn):
     QObject(pOwn)
 {
     registerFilter(new SWRF_EmptyFilter());
-    
+
     SmithWatermanResultFilter* f = new SWRF_WithoutIntersect();
     registerFilter(f);
     defaultFilterId = f->getId();

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,58 +22,95 @@
 #ifndef __ASSEMBLY_REFERENCE_AREA_H__
 #define __ASSEMBLY_REFERENCE_AREA_H__
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QMenu>
+#endif
 #include <QtCore/QSharedPointer>
 
 #include "AssemblyCellRenderer.h"
 #include "AssemblyModel.h"
 
-#include <memory>
-using std::auto_ptr;
-
 namespace U2 {
 
 class AssemblyBrowserUi;
 class AssemblyBrowser;
+class U2OpStatus;
 
-class AssemblyReferenceArea: public QWidget {
+// TODO: move class to separate file
+class AssemblySequenceArea : public QWidget {
+    Q_OBJECT
+public:
+    AssemblySequenceArea(AssemblyBrowserUi * ui, char skipChar = '\0');
+
+protected:
+    virtual QByteArray getSequenceRegion(U2OpStatus &os) = 0;
+    virtual bool canDrawSequence() = 0;
+    virtual void drawSequence(QPainter & p);
+
+    QSharedPointer<AssemblyModel> getModel() const { return model; }
+    bool areCellsVisible() const;
+    U2Region getVisibleRegion() const;
+
+    void setNormalCellRenderer();
+    void setDiffCellRenderer();
+
+    void paintEvent(QPaintEvent * e);
+    void resizeEvent(QResizeEvent * e);
+    void mouseMoveEvent(QMouseEvent * e);
+
+signals:
+    void si_mouseMovedToPos(const QPoint &);
+
+protected slots:
+    void sl_redraw();
+    virtual void sl_offsetsChanged();
+    virtual void sl_zoomPerformed();
+
+private:
+    void initCellRenderer(QString id);
+    void connectSlots();
+    void drawAll();
+
+protected:
+    AssemblyBrowser *browser;
+
+private:
+    AssemblyBrowserUi * ui;
+    QSharedPointer<AssemblyModel> model;
+
+    QPixmap cachedView;
+    bool redraw;
+    QScopedPointer<AssemblyCellRenderer> cellRenderer;
+    bool needsReference;
+    char skipChar;
+
+    const static int FIXED_HEIGHT = 25;
+};
+
+class AssemblyReferenceArea: public AssemblySequenceArea {
     Q_OBJECT
 public:
     AssemblyReferenceArea(AssemblyBrowserUi * ui);
 
 protected:
-    void paintEvent(QPaintEvent * e);
-    void resizeEvent(QResizeEvent * e);
-    void mouseMoveEvent(QMouseEvent * e);
+    virtual QByteArray getSequenceRegion(U2OpStatus &os);
+    virtual bool canDrawSequence();
+    virtual void drawSequence(QPainter & p);
+
     void mousePressEvent(QMouseEvent* e);
-    
+
 signals:
-    void si_mouseMovedToPos(const QPoint &);
     void si_unassociateReference();
-    
-private slots:
-    void sl_redraw();
 
 private:
-    void connectSlots();
-    void drawAll();
-    void drawReference(QPainter & p);
-
-private:
-    AssemblyBrowserUi * ui;
-    AssemblyBrowser * browser;
-    QSharedPointer<AssemblyModel> model;
-
-    QPixmap cachedView;
-    bool redraw;
-    auto_ptr<AssemblyCellRenderer> cellRenderer;
-
-    const static int FIXED_HEIGHT = 25;
-
     QMenu * referenceAreaMenu;
 };
 
 } //ns
 
-#endif 
+#endif

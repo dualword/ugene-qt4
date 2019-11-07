@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,11 +24,18 @@
 
 #include <U2Core/global.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QMenu>
 #include <QtGui/QTreeWidgetItem>
-#include <QtCore/QList>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 
+#include <QtCore/QList>
+#include "U2FileDialog.h"
 
 namespace U2 {
 
@@ -37,6 +44,10 @@ class U2GUI_EXPORT GUIUtils : public QObject {
 public:
     
     static QAction* findAction(const QList<QAction*>& actions, const QString& name);
+
+    static QAction* getCheckedAction(QList<QAction*> actions);
+    static QAction* findActionByData(QList<QAction*> actions, const QString& data);
+    static QAction* findActionByTooltip(QList<QAction*> actions, const QString& tooltip);
     
     static QAction* findActionAfter(const QList<QAction*>& actions, const QString& name);
 
@@ -54,6 +65,8 @@ public:
     
 
     static bool runWebBrowser(const QString& url);
+
+    static void setWidgetWarning(QWidget *widget, bool value);
 };
 
 } //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,7 +37,12 @@ public:
         Sets local object id assigned to the new value
         Requires: U2DbiFeature_WriteCrossDatabaseReferences
     */
-    virtual void createCrossReference(U2CrossDatabaseReference& reference, U2OpStatus& os) = 0;
+    virtual void createCrossReference(U2CrossDatabaseReference& reference, const QString &folder, U2OpStatus& os) = 0;
+
+    /**
+        Removes a DB representation of CrossDatabaseReference
+    */
+    virtual void removeCrossReferenceData(const U2DataId& referenceId, U2OpStatus& os) = 0;
 
     /**
         Loads remote object information from DB

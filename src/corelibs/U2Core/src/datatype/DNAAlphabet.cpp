@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,8 +47,12 @@ const QString BaseDNAAlphabetIds::AMINO_DEFAULT() {
     return "AMINO_DEFAULT_ALPHABET";
 }
 
-DNAAlphabet::DNAAlphabet(const QString& _id, const QString& _name, DNAAlphabetType _t, const QBitArray& _map, 
-                         Qt::CaseSensitivity cm, char _defSym) 
+const QString BaseDNAAlphabetIds::AMINO_EXTENDED() {
+    return "AMINO_EXTENDED_ALPHABET";
+}
+
+DNAAlphabet::DNAAlphabet(const QString& _id, const QString& _name, DNAAlphabetType _t, const QBitArray& _map,
+                         Qt::CaseSensitivity cm, char _defSym)
 : id(_id), name(_name), type(_t), map(_map), caseMode(cm), defSym(_defSym)
 {
     assert(map[defSym] == true);

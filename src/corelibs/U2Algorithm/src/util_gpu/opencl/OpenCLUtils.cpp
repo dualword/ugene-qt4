@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -75,6 +75,24 @@ cl_program OpenCLUtils::createProgramByResource(
     }
 
     return clProgram;
+}
+
+size_t OpenCLUtils::getPreferredWorkGroupSize(
+                cl_kernel kernel,
+                cl_device_id deviceId,
+                const OpenCLHelper& openCLHelper,
+                cl_int &/*err*/) {
+
+    cl_int err2 = 0;
+    size_t preferredWorkGroupSize = 0;
+    err2 |= openCLHelper.clGetKernelWorkGroupInfo_p(kernel, deviceId, CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+        sizeof(size_t), &preferredWorkGroupSize, NULL);
+
+    if (err2 != CL_SUCCESS) {
+        preferredWorkGroupSize = 32; // set default value to prevent calculation error because of this "performance hint" error
+    }
+
+    return preferredWorkGroupSize;
 }
 
 }//namespace

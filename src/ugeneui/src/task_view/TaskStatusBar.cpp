@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #include "TaskViewController.h"
 
 #include <U2Core/AppContext.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Gui/MainWindow.h>
 
 #include <QtCore/QEvent>
@@ -51,6 +52,7 @@ TaskStatusBar::TaskStatusBar() {
     taskInfoLabel = new QLabel();
     taskInfoLabel->setTextFormat(Qt::PlainText);
     taskInfoLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    taskInfoLabel->setObjectName("taskInfoLabel");
     l->addWidget(taskInfoLabel);
 
     taskCountLabel = new QLabel();
@@ -58,7 +60,7 @@ TaskStatusBar::TaskStatusBar() {
     taskCountLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
     taskCountLabel->setMinimumWidth(100);
     taskCountLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
+    taskCountLabel->setObjectName("taskCountLabel");
     l->addWidget(taskCountLabel);
 
     notificationEmpty = QPixmap(":ugene/images/empty_notification.png");
@@ -82,10 +84,10 @@ TaskStatusBar::TaskStatusBar() {
     connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), SLOT(sl_taskStateChanged(Task*)));
     connect(AppContext::getTaskScheduler(), SIGNAL(si_topLevelTaskUnregistered(Task*)), SLOT(sl_newReport(Task*)));
 
-	nStack = AppContext::getMainWindow()->getNotificationStack();
-	//nStack = new NotificationStack;
+    nStack = AppContext::getMainWindow()->getNotificationStack();
+    //nStack = new NotificationStack;
     connect(nStack, SIGNAL(si_changed()), SLOT(sl_notificationChanged()));
-    
+
     lampLabel->installEventFilter(this);
     taskCountLabel->installEventFilter(this);
     notificationLabel->installEventFilter(this);
@@ -95,23 +97,47 @@ TaskStatusBar::TaskStatusBar() {
     taskProgressBar->setValue(0);
     taskProgressBar->setFixedWidth(120);
     taskProgressBar->setFixedHeight(16);
+    taskProgressBar->setObjectName("taskProgressBar");
     l->insertWidget(2, taskProgressBar);
 
     setObjectName("taskStatusBar");
     updateState();
 }
 
+namespace {
+    NotificationType getNotificationType(const U2OpStatus &os) {
+        if (os.hasError()) {
+            return Error_Not;
+        }
+        if (os.hasWarnings()) {
+            return Warning_Not;
+        }
+        return Report_Not;
+    }
+}
+
 void TaskStatusBar::sl_newReport(Task* task) {
-    QString time = "[" + QTime::currentTime().toString() + "] "; 
-    if(task->isReportingEnabled()) {
-        QAction *action = new QAction("action", this);
-        action->setData(QVariant(task->getTaskName() + "|" + QString::number(task->getTaskId()) + "|" + TVReportWindow::prepareReportHTML(task)));
-        connect(action, SIGNAL(triggered()), SLOT(sl_showReport()));
-        NotificationType nType = task->hasError()? Error_Not : Report_Not;
-        Notification *t = new Notification(tr("%1Report for task: '%2'").arg(time).arg(task->getTaskName()), nType, action);
-        nStack->addNotification(t);
+    Notification *t = NULL;
+    if (task->isReportingEnabled()) {
+        NotificationType nType = getNotificationType(task->getStateInfo());
+        if (task->isNotificationReport()) {
+            t = new Notification(tr("The task '%1' has been finished").arg(task->getTaskName()), nType);
+        } else {
+            QAction *action = new QAction("action", this);
+            action->setData(QVariant(task->getTaskName() + "|" + QString::number(task->getTaskId()) + "|" + TVReportWindow::prepareReportHTML(task)));
+            connect(action, SIGNAL(triggered()), SLOT(sl_showReport()));
+            t = new Notification(tr("Report for task: '%1'").arg(task->getTaskName()), nType, action);
+        }
     } else if (task->hasError() && !task->isErrorNotificationSuppressed()) {
-        Notification *t = new Notification(tr("%1'%2' task failed: %3").arg(time).arg(task->getTaskName()).arg(task->getError()), Error_Not);
+        t = new Notification(tr("'%1' task failed: %2").arg(task->getTaskName()).arg(task->getError()), Error_Not);
+    } else if (task->getStateInfo().hasWarnings()) {
+        QStringList warnings = task->getWarnings();
+        t = new Notification(tr("There %1:\n")
+                                           .arg(warnings.size() == 1
+                                                ? "was 1 warning"
+                                                : QString("were %1 warnings").arg(warnings.size())) + warnings.join("\n"), Warning_Not);
+    }
+    if (NULL != t) {
         nStack->addNotification(t);
     }
 }
@@ -140,13 +166,13 @@ void TaskStatusBar::sl_showReport() {
     }
 }
 
-void TaskStatusBar::updateState() {    
-    QString reportsString = nReports == 0 ? QString("") : tr("num_reports_%1").arg(nReports);
+void TaskStatusBar::updateState() {
+    QString reportsString = nReports == 0 ? QString("") : tr("Reports: %1").arg(nReports);
     if (taskToTrack ==  NULL) {
         taskInfoLabel->setText("");
         taskProgressBar->setVisible(false);
         if (nReports == 0) {
-            taskCountLabel->setText(tr("no_active_tasks"));
+            taskCountLabel->setText(tr("No active tasks"));
         } else {
             taskCountLabel->setText(reportsString);
         }
@@ -155,7 +181,7 @@ void TaskStatusBar::updateState() {
     }
 
     QString desc = taskToTrack->getStateInfo().getDescription();
-    QString text = tr("running_task_%1").arg(taskToTrack->getTaskName());
+    QString text = tr("Running task: %1").arg(taskToTrack->getTaskName());
     if (taskToTrack->isCanceled() && !taskToTrack->isFinished()) {
         QString cancelStr = tr("canceling...");
         if (!desc.isEmpty()) {
@@ -164,14 +190,14 @@ void TaskStatusBar::updateState() {
         desc+=cancelStr;
     }
     if (!desc.isEmpty()) {
-        text+=tr("_info_%1").arg(desc);
+        text+=tr(": %1").arg(desc);
     }
     taskInfoLabel->setText(text);
     int nTasks = AppContext::getTaskScheduler()->getTopLevelTasks().size();
     if (nReports > 0) {
-        taskCountLabel->setText(tr("num_tasks_%1_num_reports_%2").arg(nTasks).arg(nReports));
+        taskCountLabel->setText(tr("Tasks: %1, Reports %2").arg(nTasks).arg(nReports));
     } else {
-        taskCountLabel->setText(tr("num_tasks_%1").arg(nTasks));
+        taskCountLabel->setText(tr("Tasks: %1").arg(nTasks));
     }
 
     taskProgressBar->setVisible(true);
@@ -193,8 +219,11 @@ void TaskStatusBar::sl_taskStateChanged(Task* t) {
     disconnect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), this, SLOT(sl_taskStateChanged(Task*)));
 }
 
-void TaskStatusBar::setTaskToTrack(Task* t) { 
+void TaskStatusBar::setTaskToTrack(Task* t) {
     assert(taskToTrack == NULL);
+    if (Q_UNLIKELY(NULL != taskToTrack)) {
+        disconnect(taskToTrack, NULL, this, NULL);
+    }
     taskToTrack = t;
     connect(taskToTrack, SIGNAL(si_stateChanged()), SLOT(sl_taskStateChanged()));
     connect(taskToTrack, SIGNAL(si_progressChanged()), SLOT(sl_taskProgressChanged()));
@@ -268,7 +297,7 @@ void TaskStatusBar::sl_notificationChanged() {
 
         if(nStack->hasError()) {
             iconWithNumber = notificationError;
-        
+
         } else {
             iconWithNumber = notificationReport;
         }
@@ -286,7 +315,8 @@ void TaskStatusBar::sl_notificationChanged() {
 }
 
 void TaskStatusBar::sl_taskProgressChanged() {
-    assert(taskToTrack == sender());
+    CHECK(sender() != NULL, );
+    SAFE_POINT(taskToTrack == sender(), tr("Wrong signal sender!"), );
     updateState();
 }
 
@@ -297,7 +327,7 @@ void TaskStatusBar::sl_taskDescChanged() {
 
 void TaskStatusBar::drawProgress(QLabel* label) {
     static QColor piecolor("#fdc689");
-    
+
     int percent = taskToTrack->getStateInfo().progress;
     int h = height()-2;
     //float radius = h / 2;
@@ -305,7 +335,7 @@ void TaskStatusBar::drawProgress(QLabel* label) {
     QPainter p(&pix);
 
     p.fillRect(pix.rect(), palette().window().color());
-    
+
     p.setPen(piecolor);
     p.setBrush(piecolor);
     p.drawPie(pix.rect(), -90, qRound(- percent * 57.60));

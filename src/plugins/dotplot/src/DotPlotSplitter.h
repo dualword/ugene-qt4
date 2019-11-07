@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -53,6 +53,9 @@ public:
     bool isEmpty() const;
     void buildPopupMenu(QMenu *);
 
+protected:
+    virtual bool onCloseEvent();
+
 private:
     QToolButton *createToolButton(const QString& iconPath, const QString& toolTip, const char *slot, bool checkable = true);
     QToolButton *createToolButton(const QIcon& ic, const QString& toolTip, const char *slot, bool checkable = true);
@@ -62,13 +65,15 @@ private:
     QList<DotPlotWidget*> dotPlotList;
 
     bool locked;
-    QToolButton *syncLockButton, *aspectRatioButton, *zoomInButton, *zoomOutButton, *resetZoomingButton, *zoomToButton, *handButton, *selButton;
+    QToolButton *syncLockButton, *filterButton, *aspectRatioButton, *zoomInButton, *zoomOutButton,
+        *resetZoomingButton, *zoomToButton, *handButton, *selButton;
 
     void updateButtonState();
     void checkLockButtonState();
 
 private slots:
     void sl_toggleSyncLock(bool);
+    void sl_toggleFilter();
     void sl_toggleAspectRatio(bool);
     void sl_toggleSel();
     void sl_toggleHand();

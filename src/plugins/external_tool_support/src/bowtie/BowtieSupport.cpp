@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,11 +35,11 @@ BowtieSupport::BowtieSupport(const QString &name, const QString &path):
         grayIcon = QIcon(":external_tool_support/images/cmdline_gray.png");
         warnIcon = QIcon(":external_tool_support/images/cmdline_warn.png");
     }
-    if(BOWTIE_TOOL_NAME == name) {
+    if(ET_BOWTIE == name) {
 #ifdef Q_OS_WIN
         executableFileName="bowtie.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
         executableFileName="bowtie";
     #endif
 #endif
@@ -47,14 +47,14 @@ BowtieSupport::BowtieSupport(const QString &name, const QString &path):
 #ifdef Q_OS_WIN
         executableFileName="bowtie-build.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
         executableFileName="bowtie-build";
     #endif
 #endif
     }
     validationArguments.append("--version");
     validMessage="version";
-    description=tr("<i>Bowtie<i> is an ultrafast, memory-efficient short read aligner. "
+    description=tr("<i>Bowtie</i> is an ultrafast, memory-efficient short read aligner. "
                    "It aligns short DNA sequences (reads) to the human genome at "
                    "a rate of over 25 million 35-bp reads per hour. "
                    "Bowtie indexes the genome with a Burrows-Wheeler index to keep "

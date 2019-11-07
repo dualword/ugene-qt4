@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,36 +19,58 @@
  * MA 02110-1301, USA.
  */
 
-#include "DistanceMatrixMSAProfileDialog.h"
+#include <QtCore/QDateTime>
 
-#include <U2Core/AppContext.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/TextUtils.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/MAlignmentObject.h>
-
-#include <U2Gui/LastUsedDirHelper.h>
-
-#include <U2View/MSAEditor.h>
-#include <U2View/WebWindow.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
 
 #include <U2Algorithm/MSADistanceAlgorithm.h>
 #include <U2Algorithm/MSADistanceAlgorithmRegistry.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include <U2Core/AppContext.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/TextUtils.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include <U2View/MSAEditor.h>
+#include <U2View/WebWindow.h>
+
+#include "DistanceMatrixMSAProfileDialog.h"
 
 namespace U2 {
 
 DistanceMatrixMSAProfileDialog::DistanceMatrixMSAProfileDialog(QWidget* p, MSAEditor* _c) : QDialog(p), ctx(_c) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122268");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Generate"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     QStringList algo = AppContext::getMSADistanceAlgorithmRegistry()->getAlgorithmIds();
     algoCombo->addItems(algo);
 
+    MAlignmentObject* msaObj = ctx->getMSAObject();
+    if (msaObj != NULL) {
+        QVector<U2Region> unitedRows;
+        MAlignment ma = msaObj->getMAlignment();
+        ma.sortRowsBySimilarity(unitedRows);
+        if(unitedRows.size() < 2)
+            groupStatisticsCheck->setEnabled(false);
+    }
+
     connect(fileButton, SIGNAL(clicked()), SLOT(sl_selectFile()));
     connect(htmlRB, SIGNAL(toggled(bool)), SLOT(sl_formatChanged(bool)));
     connect(csvRB, SIGNAL(toggled(bool)), SLOT(sl_formatChanged(bool)));
+
 }
 
 void DistanceMatrixMSAProfileDialog::sl_selectFile() {
@@ -59,7 +81,7 @@ void DistanceMatrixMSAProfileDialog::sl_selectFile() {
     } else {
         filter = tr("HTML files") + " (*.html)";
     }
-    h.url = QFileDialog::getSaveFileName(this, tr("Select file to save report to.."), h.dir, filter);
+    h.url = U2FileDialog::getSaveFileName(this, tr("Select file to save report to.."), h.dir, filter);
     if (h.url.isEmpty()) {
         return;
     }
@@ -97,6 +119,10 @@ void DistanceMatrixMSAProfileDialog::accept() {
     s.usePercents = percentsRB->isChecked();
     s.algoName = algoCombo->currentText();
     s.ma = msaObj->getMAlignment();
+    s.excludeGaps = checkBox->isChecked();
+    s.showGroupStatistic = groupStatisticsCheck->isChecked();
+    s.ctx = ctx;
+
     if (saveBox->isChecked()) {
         s.outURL = fileEdit->text();
         if (s.outURL.isEmpty()) {
@@ -112,30 +138,39 @@ void DistanceMatrixMSAProfileDialog::accept() {
 
 //////////////////////////////////////////////////////////////////////////
 // task
-DistanceMatrixMSAProfileTask::DistanceMatrixMSAProfileTask(const DistanceMatrixMSAProfileTaskSettings& _s) 
-: Task(tr("Generate distance matrix"), TaskFlag_NoRun), s(_s)
+DistanceMatrixMSAProfileTask::DistanceMatrixMSAProfileTask(const DistanceMatrixMSAProfileTaskSettings& _s)
+: Task(tr("Generate distance matrix"), TaskFlags_NR_FOSE_COSC), s(_s)
 {
     setVerboseLogMode(true);
 }
 
 void DistanceMatrixMSAProfileTask::prepare() {
-    MSADistanceAlgorithm* algo = AppContext::getMSADistanceAlgorithmRegistry()->getAlgorithmFactory(s.algoName)->createAlgorithm(s.ma);
+    MSADistanceAlgorithmFactory* factory = AppContext::getMSADistanceAlgorithmRegistry()->getAlgorithmFactory(s.algoName);
+    if(s.excludeGaps){
+        factory->setFlag(DistanceAlgorithmFlag_ExcludeGaps);
+    }else{
+        factory->resetFlag(DistanceAlgorithmFlag_ExcludeGaps);
+    }
+    MSADistanceAlgorithm* algo = factory->createAlgorithm(s.ma);
     if (algo == NULL) {
         return;
     }
     addSubTask(algo);
 }
 
-QList<Task*> DistanceMatrixMSAProfileTask::onSubTaskFinished(Task* subTask){ 
+QList<Task*> DistanceMatrixMSAProfileTask::onSubTaskFinished(Task* subTask){
     MSADistanceAlgorithm* algo = qobject_cast<MSADistanceAlgorithm*>(subTask);
     QList<Task*> res;
     if (algo != NULL) {
+        if(algo->hasError() || algo->isCanceled()) {
+            setError(algo->getError());
+            return res;
+        }
         if (s.outFormat != DistanceMatrixMSAProfileOutputFormat_Show && s.outURL.isEmpty()) {
             setError(tr("No output file name specified"));
             return res;
         }
         if (s.outFormat == DistanceMatrixMSAProfileOutputFormat_Show || s.outFormat == DistanceMatrixMSAProfileOutputFormat_HTML) {
-            int maxVal = s.usePercents ? 100 : s.ma.getLength();
             QString colors[] = {"#ff5555", "#ff9c00", "#60ff00", "#a1d1e5", "#dddddd"};
 
             //setup style
@@ -150,54 +185,57 @@ QList<Task*> DistanceMatrixMSAProfileTask::onSubTaskFinished(Task* subTask){
 
             resultText+="<table>\n";
             resultText+= "<tr><td><b>"+tr("Alignment file:") + "</b></td><td>" + s.profileURL + "@" + s.profileName+ "</td></tr>\n";
-            resultText+= "<tr><td><b>"+tr("Table content:") + "</b></td><td>" +(s.usePercents ? tr("similarity percents") : tr("similarity distance")) + "</td></tr>\n";
+            resultText+= "<tr><td><b>"+tr("Table content:") + "</b></td><td>" +(s.usePercents ? (algo->getName()+" in percent") : algo->getName()) + "</td></tr>\n";
             resultText+= "</table>\n";
             resultText+="<br><br>\n";
 
-            resultText+="<table class=tbl>\n";
-            resultText+="<tr><td></td>";
-            for (int i=0; i < s.ma.getNumRows(); i++) {
-                QString name = s.ma.getRow(i).getName();
-                resultText+="<td> " + name + "</td>";
-            }
-            resultText+="</tr>\n";
+            bool isSimilarity = algo->isSimilarityMeasure();
 
-            //out char freqs
-            for (int i=0; i < s.ma.getNumRows(); i++) {
-                QString name = s.ma.getRow(i).getName();
-                resultText+="<tr>";
-                resultText+="<td> " + name + "</td>";
-                for (int j=0; j < s.ma.getNumRows(); j++) {
-                    int val = qRound(algo->getSimilarity(i, j) * (s.usePercents ? (100.0 / s.ma.getLength()) : 1.0));
-                    QString colorStr = "";
-                    if (i != j) {
-                        int hotness = qRound(100 * double(val) / maxVal);
-                        if (hotness  >= 90)  {
-                            colorStr = " bgcolor=" + colors[0];
-                        } else if (hotness >= 70) {
-                            colorStr = " bgcolor=" + colors[1];
-                        } else if (hotness > 50) {
-                            colorStr = " bgcolor=" + colors[2];
-                        } else if (hotness > 25) {
-                            colorStr = " bgcolor=" + colors[3];
-                        } else if (hotness > 10) {
-                            colorStr = " bgcolor=" + colors[4];
+            createDistanceTable(algo, s.ma.getRows());
+
+            resultText+="<br><br>\n";
+
+            if(true == s.showGroupStatistic) {
+                resultText+= "<tr><td><b>"+tr("Group statistics of multiple alignment") + "</td></tr>\n";
+                resultText+="<table>\n";
+                QVector<U2Region> unitedRows;
+                s.ma.sortRowsBySimilarity(unitedRows);
+                QList<MAlignmentRow> rows;
+                int i = 1;
+                srand(QDateTime::currentDateTime().toTime_t());
+                foreach(const U2Region &reg, unitedRows) {
+                    MAlignmentRow row = s.ma.getRow(reg.startPos + qrand() % reg.length);
+                    row.setName(QString("Group %1: ").arg(i) + "(" + row.getName() + ")");
+                    rows.append(s.ma.getRow(reg.startPos + qrand() % reg.length));
+
+                    resultText+="<tr><td><b>" + QString("Group %1: ").arg(i) + "</b></td><td>";
+                    for(int x = reg.startPos; x < reg.endPos(); x++)
+                        resultText+= s.ma.getRow(x).getName() + ", ";
+                    resultText += "\n";
+                    i++;
+                    }
+                resultText+= "</table>\n";
+                resultText+="<br><br>\n";
+                createDistanceTable(algo, rows);
                         }
-                    }         
-                    resultText+="<td"+colorStr+">" + QString::number(val) + (s.usePercents ? "%" : "") + "</td>";
-                }
-                resultText+="</tr>\n";
-            }
-            resultText+="</table>\n";
+
 
             //legend:
             resultText+="<br><br>\n";
             resultText+= "<table><tr><td><b>" + tr("Legend:")+"&nbsp;&nbsp;</b>\n";
-            resultText+="<td bgcolor="+colors[4]+">10%</td>\n";
-            resultText+="<td bgcolor="+colors[3]+">25%</td>\n";
-            resultText+="<td bgcolor="+colors[2]+">50%</td>\n";
-            resultText+="<td bgcolor="+colors[1]+">70%</td>\n";
-            resultText+="<td bgcolor="+colors[0]+">90%</td>\n";
+            if(isSimilarity){
+                resultText+="<td bgcolor="+colors[4]+">10%</td>\n";
+                resultText+="<td bgcolor="+colors[3]+">25%</td>\n";
+                resultText+="<td bgcolor="+colors[2]+">50%</td>\n";
+                resultText+="<td bgcolor="+colors[1]+">70%</td>\n";
+                resultText+="<td bgcolor="+colors[0]+">90%</td>\n";
+            }else{
+                resultText+="<td bgcolor="+colors[0]+">10%</td>\n";
+                resultText+="<td bgcolor="+colors[1]+">25%</td>\n";
+                resultText+="<td bgcolor="+colors[2]+">50%</td>\n";
+                resultText+="<td bgcolor="+colors[3]+">70%</td>\n";
+                resultText+="<td bgcolor="+colors[4]+">90%</td>\n";
+            }
             resultText+="</tr></table><br>\n";
         } else {
             resultText+= " ";
@@ -207,13 +245,13 @@ QList<Task*> DistanceMatrixMSAProfileTask::onSubTaskFinished(Task* subTask){
                 resultText+= "," + name;
             }
             resultText+="\n";
-            
+
             for (int i=0; i < s.ma.getNumRows(); i++) {
                 QString name = s.ma.getRow(i).getName();
                 TextUtils::wrapForCSV(name);
                 resultText+=name;
                 for (int j=0; j < s.ma.getNumRows(); j++) {
-                    int val = qRound(algo->getSimilarity(i, j) * (s.usePercents ? (100.0 / s.ma.getLength()) : 1.0));                    
+                    int val = qRound(algo->getSimilarity(i, j) * (s.usePercents ? (100.0 / s.ma.getLength()) : 1.0));
                     resultText+= "," + QString::number(val) + (s.usePercents ? "%" : "");
                 }
                 resultText+="\n";
@@ -233,6 +271,61 @@ QList<Task*> DistanceMatrixMSAProfileTask::onSubTaskFinished(Task* subTask){
     return res;
 }
 
+void DistanceMatrixMSAProfileTask::createDistanceTable(MSADistanceAlgorithm* algo, const QList<MAlignmentRow> &rows)
+{
+    int maxVal = s.usePercents ? 100 : s.ma.getLength();
+    QString colors[] = {"#ff5555", "#ff9c00", "#60ff00", "#a1d1e5", "#dddddd"};
+    bool isSimilarity = algo->isSimilarityMeasure();
+    int minLen = s.ma.getLength();
+
+    if(rows.size() < 2) {
+        resultText+= "<tr><td><b>"+tr("There is not enough groups to create distance matrix!") + "</td></tr>\n";
+        return;
+    }
+
+    resultText+="<table class=tbl>\n";
+    resultText+="<tr><td></td>";
+    for (int i=0; i < rows.size(); i++) {
+        QString name = rows.at(i).getName();
+        resultText+="<td> " + name + "</td>";
+    }
+    resultText+="</tr>\n";
+
+    //out char freqs
+    for (int i=0; i < rows.size(); i++) {
+        QString name = rows.at(i).getName();
+        resultText+="<tr>";
+        resultText+="<td> " + name + "</td>";
+        for (int j=0; j < rows.size(); j++) {
+            if(s.usePercents && s.excludeGaps){
+                int len1 = rows.at(i).getUngappedLength();
+                int len2 = rows.at(j).getUngappedLength();
+                minLen = qMin(len1, len2);
+            }
+            int val = qRound(algo->getSimilarity(i, j) * (s.usePercents ? (100.0 / minLen) : 1.0));
+
+            QString colorStr = "";
+            if (i != j) {
+                int hotness = qRound(100 * double(val) / maxVal);
+                if ((hotness  >= 90 && isSimilarity) || (hotness <= 10 && !isSimilarity))  {
+                    colorStr = " bgcolor=" + colors[0];
+                } else if ((hotness  > 70 && isSimilarity) || (hotness <= 25 && !isSimilarity)) {
+                    colorStr = " bgcolor=" + colors[1];
+                } else if ((hotness  > 50 && isSimilarity) || (hotness <= 50 && !isSimilarity)) {
+                    colorStr = " bgcolor=" + colors[2];
+                } else if ((hotness  > 25 && isSimilarity) || (hotness <= 70 && !isSimilarity)) {
+                    colorStr = " bgcolor=" + colors[3];
+                } else if ((hotness  > 10 && isSimilarity) || (hotness < 90 && !isSimilarity)) {
+                    colorStr = " bgcolor=" + colors[4];
+                }
+            }
+            resultText+="<td"+colorStr+">" + QString::number(val) + (s.usePercents ? "%" : "") + "</td>";
+        }
+        resultText+="</tr>\n";
+    }
+    resultText+="</table>\n";
+}
+
 
 Task::ReportResult DistanceMatrixMSAProfileTask::report() {
     if (s.outFormat != DistanceMatrixMSAProfileOutputFormat_Show || hasError() || isCanceled()) {
@@ -246,5 +339,14 @@ Task::ReportResult DistanceMatrixMSAProfileTask::report() {
     return Task::ReportResult_Finished;
 }
 
-}//namespace
+DistanceMatrixMSAProfileTaskSettings::DistanceMatrixMSAProfileTaskSettings() :
+    usePercents(false),
+    excludeGaps(false),
+    showGroupStatistic(false),
+    outFormat(DistanceMatrixMSAProfileOutputFormat_Show),
+    ctx(NULL)
+{
 
+}
+
+}//namespace

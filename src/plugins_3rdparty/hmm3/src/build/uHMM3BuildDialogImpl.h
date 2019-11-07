@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,14 @@
 #ifndef _GB2_UHMM3_BUILD_DLG_IMPL_H_
 #define _GB2_UHMM3_BUILD_DLG_IMPL_H_
 
-#include <QtGui/QDialog>
-
 #include "uHMM3BuildTask.h"
 #include <ui/ui_UHMM3BuildDialog.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 

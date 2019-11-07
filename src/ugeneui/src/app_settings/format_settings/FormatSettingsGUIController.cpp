@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,10 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/ProjectModel.h>
+
+#include "project_view/ProjectViewImpl.h"
 
 namespace U2 {
 
@@ -43,7 +47,22 @@ AppSettingsGUIPageState *FormatSettingsGUIPageController::getSavedState() {
 void FormatSettingsGUIPageController::saveState(AppSettingsGUIPageState* _state) {
     FormatSettingsGUIPageState* state = qobject_cast<FormatSettingsGUIPageState*>(_state);
     FormatAppsSettings *s = AppContext::getAppSettings()->getFormatAppsSettings();
+    CaseAnnotationsMode prevMode = s->getCaseAnnotationsMode();
     s->setCaseAnnotationsMode(state->caseMode);
+    Project *p = AppContext::getProject();
+    if (state->caseMode != prevMode && p != NULL) {
+        QList<Document*> docs = p->getDocuments(), toReload;
+        foreach(Document *d, docs){
+            if(d->isLoaded()){
+                QList <GObject*> gobjList = d->findGObjectByType(GObjectTypes::SEQUENCE);
+                if(!gobjList.isEmpty()){
+                    toReload.append(d);
+                }
+            }
+        }
+        DocumentUpdater du;
+        du.reloadDocuments(toReload);
+    }
 }
 
 AppSettingsGUIPageWidget* FormatSettingsGUIPageController::createWidget(AppSettingsGUIPageState* state) {
@@ -51,6 +70,8 @@ AppSettingsGUIPageWidget* FormatSettingsGUIPageController::createWidget(AppSetti
     r->setState(state);
     return r;
 }
+
+const QString FormatSettingsGUIPageController::helpPageId = QString("4227268");
 
 FormatSettingsGUIPageWidget::FormatSettingsGUIPageWidget(FormatSettingsGUIPageController*) {
     setupUi(this);

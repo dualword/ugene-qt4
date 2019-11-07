@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -44,7 +44,7 @@ public:
     QList<ColumnConfig> columns;
     QString             parsingScript;
     bool                removeQuotes;
-    
+
     static QBitArray    QUOTES;
 };
 
@@ -74,9 +74,9 @@ public:
     QList<Task*> onSubTaskFinished(Task* subTask);
 
 private:
-    QList<Annotation*> prepareAnnotations() const;
+    QMap<QString, QList<SharedAnnotationData> > prepareAnnotations() const;
 
-    Document* prepareNewDocument(const QList<Annotation*>& annotations) const;
+    Document * prepareNewDocument(const QMap<QString, QList<SharedAnnotationData> > &annotations);
 
     ImportAnnotationsFromCSVTaskConfig  config;
     ReadCSVAsAnnotationsTask*           readTask;
@@ -92,10 +92,10 @@ public:
 
     void run();
 
-    QList<SharedAnnotationData> getResult() const {return result;}
+    QMap<QString, QList<SharedAnnotationData> > getResult() const { return result; }
 
     static QList<QStringList> parseLinesIntoTokens(const QString& text, const CSVParsingConfig& config, int& maxColumns, TaskStateInfo& ti);
-    
+
     static QStringList parseLineIntoTokens(const QString& line, const CSVParsingConfig& config, TaskStateInfo& ti, int lineNum = 1);
 
     static QString guessSeparatorString(const QString& text, const CSVParsingConfig& config);
@@ -108,9 +108,10 @@ public:
 private:
     QString                         file;
     CSVParsingConfig                config;
-    QList<SharedAnnotationData>     result;
+    // Group name <-> annotations
+    QMap<QString, QList<SharedAnnotationData> > result;
 };
 
 } // namespace U2
 
-#endif 
+#endif

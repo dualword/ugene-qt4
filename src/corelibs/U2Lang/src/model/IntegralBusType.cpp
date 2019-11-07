@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,10 +19,15 @@
  * MA 02110-1301, USA.
  */
 
+#include "IntegralBus.h"
 #include "IntegralBusType.h"
 #include "IntegralBusModel.h"
 
+#include <U2Lang/CoreLibConstants.h>
+#include <U2Lang/GrouperOutSlot.h>
 #include <U2Core/Log.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
 namespace U2 {
 namespace Workflow {
@@ -38,18 +43,29 @@ Descriptor IntegralBusType::assignSlotDesc(const Descriptor& d, const Port* p) {
 }
 
 ActorId IntegralBusType::parseSlotDesc(const QString& id) {
-    QStringList lst = id.split(":");
-    QString sid = lst.first();
-    ActorId aid = str2aid(sid);
-    return aid;
+    U2OpStatus2Log os;
+    IntegralBusSlot slot = IntegralBusSlot::fromString(id, os);
+    return slot.actorId();
 }
 
 QString IntegralBusType::parseAttributeIdFromSlotDesc(const QString & str) {
-    QStringList lst = str.split(":");
-    if( lst.size() == 2 ) {
-        return lst.at(1);
-    } else {
-        return QString();
+    U2OpStatus2Log os;
+    IntegralBusSlot slot = IntegralBusSlot::fromString(str, os);
+    return slot.getId();
+}
+
+void IntegralBusType::remapSlotString(QString &slotStr, const QMap<ActorId, ActorId> &actorIdsMap) {
+    U2OpStatus2Log os;
+    IntegralBusSlot slot = IntegralBusSlot::fromString(slotStr, os);
+    SAFE_POINT_OP(os, );
+
+    ActorId oldId = slot.actorId();
+    if (actorIdsMap.contains(oldId)) {
+        ActorId newId = actorIdsMap[oldId];
+        slot.replaceActorId(oldId, newId);
+        QString newSlotStr = slot.toString();
+        coreLog.trace("remapping old="+slotStr+" to new="+newSlotStr);
+        slotStr = newSlotStr;
     }
 }
 
@@ -57,30 +73,82 @@ void IntegralBusType::remap(QStrStrMap& busMap, const QMap<ActorId, ActorId>& m)
     foreach(QString key, busMap.uniqueKeys()) {
         QStringList newValList;
         foreach(QString val, busMap.value(key).split(";")) {
-            QStringList lst = val.split(":");
-            QString sid = lst.first();
-            ActorId id = str2aid(sid);
-            coreLog.trace("trying remap key="+key+" sid="+sid);
-            if (m.contains(id)) {
-                QString newSid = QString("%1").arg(m.value(id));
-                lst.replace(0, newSid);
-                QString newVal = lst.join(":");
-                coreLog.trace("remapping old="+val+" to new="+newVal);        
-                val = newVal;
-            }
+            remapSlotString(val, m);
             newValList.append(val);
         }
         busMap.insert(key, newValList.join(";"));
     }
 }
 
-void IntegralBusType::addInputs(const Port* p) {
+void IntegralBusType::remapPaths(SlotPathMap &pathsMap, const QMap<ActorId, ActorId> &actorIdsMap) {
+    SlotPathMap newPathsMap;
+    foreach (const SlotPair &slotsPair, pathsMap.keys()) {
+        QStringList oldPath = pathsMap.value(slotsPair, QStringList());
+        QStringList newPath;
+        foreach (const QString &idStr, oldPath) {
+            ActorId oldId = str2aid(idStr);
+            if (actorIdsMap.contains(oldId)) {
+                const ActorId &newId = actorIdsMap[oldId];
+                newPath << aid2str(newId);
+            } else {
+                newPath << aid2str(oldId);
+            }
+        }
+
+        SlotPair newSlotPair(slotsPair);
+        remapSlotString(newSlotPair.second, actorIdsMap);
+
+        newPathsMap[newSlotPair] = newPath;
+    }
+    pathsMap = newPathsMap;
+}
+
+inline static QString getNewDisplayName(const QString &oldName, const QString &procName, const QString &slotStr) {
+    QString slotId;
+    QStringList path;
+    QString result = oldName;
+    BusMap::parseSource(slotStr, slotId, path);
+    if (path.isEmpty()) {
+        result += " through " + procName;
+    } else {
+        result += ", " + procName;
+    }
+
+    return result;
+}
+
+void IntegralBusType::addInputs(const Port* p, bool addPaths) {
     if (p->isInput()) {
+        Actor *proc = p->owner();
+        ActorPrototype *proto = proc->getProto();
+        QString grouperSlot;
+        if (proto->getId() == CoreLibConstants::GROUPER_ID) {
+            QString slotStr = proc->getParameter(CoreLibConstants::GROUPER_SLOT_ATTR)->getAttributePureValue().toString();
+            grouperSlot = GrouperOutSlot::readable2busMap(slotStr);
+        }
+
         foreach(Port* peer, p->getLinks().uniqueKeys()) {
             DataTypePtr pt = peer->getType();
             if (qobject_cast<IntegralBusPort*>(peer)) {
                 assert(pt->isMap());
-                map.unite(pt->getDatatypesMap());
+                QMap<Descriptor, DataTypePtr> types = pt->getDatatypesMap();
+                foreach (Descriptor d, types.keys()) {
+                    DataTypePtr typePtr = types.value(d);
+                    if (addPaths) {
+                        QString newName = getNewDisplayName(d.getDisplayName(), proc->getLabel(), d.getId());
+                        QString newId = BusMap::getNewSourceId(d.getId(), proc->getId());
+                        d.setId(newId);
+                        d.setDisplayName(newName);
+                    }
+                    if (proto->getId() == CoreLibConstants::GROUPER_ID) {
+                        if (grouperSlot == d.getId()) {
+                            map[d] = typePtr;
+                        } else {
+                            continue;
+                        }
+                    }
+                    map[d] = typePtr;
+                }
             } else {
                 addOutput(pt, peer);
             }

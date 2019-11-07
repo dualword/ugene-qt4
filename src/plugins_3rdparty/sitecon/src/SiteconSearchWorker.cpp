@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,8 +43,9 @@
 #include <U2Core/MultiTask.h>
 #include <U2Core/FailTask.h>
 #include <U2Core/TaskSignalMapper.h>
+#include <U2Core/U2OpStatusUtils.h>
 
-#include <QtGui/QApplication>
+//#include <QtGui/QApplication>
 /* TRANSLATOR U2::LocalWorkflow::SiteconSearchWorker */
 
 namespace U2 {
@@ -64,9 +65,9 @@ void SiteconSearchWorker::registerProto() {
     {
         Descriptor md(MODEL_PORT, SiteconSearchWorker::tr("Sitecon Model"), SiteconSearchWorker::tr("Profile data to search with."));
         Descriptor sd(BasePorts::IN_SEQ_PORT_ID(), SiteconSearchWorker::tr("Sequence"), SiteconSearchWorker::tr("Input nucleotide sequence to search in."));
-        Descriptor od(BasePorts::OUT_ANNOTATIONS_PORT_ID(), SiteconSearchWorker::tr("SITECON annotations"), 
+        Descriptor od(BasePorts::OUT_ANNOTATIONS_PORT_ID(), SiteconSearchWorker::tr("SITECON annotations"),
             SiteconSearchWorker::tr("Annotations marking found TFBS sites."));
-        
+
         QMap<Descriptor, DataTypePtr> modelM;
         modelM[SiteconWorkerFactory::SITECON_SLOT] = SiteconWorkerFactory::SITECON_MODEL_TYPE();
         p << new PortDescriptor(md, DataTypePtr(new MapDataType("sitecon.search.model", modelM)), true /*input*/, false, IntegralBusPort::BLIND_INPUT);
@@ -78,16 +79,19 @@ void SiteconSearchWorker::registerProto() {
         p << new PortDescriptor(od, DataTypePtr(new MapDataType("sitecon.search.out", outM)), false /*input*/, true /*multi*/);
     }
     {
-        Descriptor nd(NAME_ATTR, SiteconSearchWorker::tr("Result annotation"), 
-            SiteconSearchWorker::tr("Annotation name for marking found regions"));
-        Descriptor scd(SCORE_ATTR, SiteconSearchWorker::tr("Min score"), 
-            QApplication::translate("SiteconSearchDialog", "min_err_tip", 0, QApplication::UnicodeUTF8));
-        Descriptor e1d(E1_ATTR, SiteconSearchWorker::tr("Min Err1"), 
+        Descriptor nd(NAME_ATTR, SiteconSearchWorker::tr("Result annotation"),
+            SiteconSearchWorker::tr("Annotation name for marking found regions."));
+        Descriptor scd(SCORE_ATTR, SiteconSearchWorker::tr("Min score"),
+            SiteconSearchWorker::tr("Recognition quality percentage threshold."
+            "<p><i>If you need to switch off this filter choose <b>the lowest</b> value</i></p>."));
+        Descriptor e1d(E1_ATTR, SiteconSearchWorker::tr("Min Err1"),
             SiteconSearchWorker::tr("Alternative setting for filtering results, minimal value of Error type I."
-            "<br>Note that all thresholds (by score, by err1 and by err2) are applied when filtering results."));
-        Descriptor e2d(E2_ATTR, SiteconSearchWorker::tr("Max Err2"), 
+            "<br>Note that all thresholds (by score, by err1 and by err2) are applied when filtering results."
+            "<p><i>If you need to switch off this filter choose <b>\"0\"</b> value</i></p>."));
+        Descriptor e2d(E2_ATTR, SiteconSearchWorker::tr("Max Err2"),
             SiteconSearchWorker::tr("Alternative setting for filtering results, max value of Error type II."
-            "<br>Note that all thresholds (by score, by err1 and by err2) are applied when filtering results."));
+            "<br>Note that all thresholds (by score, by err1 and by err2) are applied when filtering results."
+            "<p><i>If you need to switch off this filter choose <b>\"1\"</b> value</i></p>."));
         a << new Attribute(nd, BaseTypes::STRING_TYPE(), true, "misc_feature");
         a << new Attribute(BaseAttributes::STRAND_ATTRIBUTE(), BaseTypes::STRING_TYPE(), false, BaseAttributes::STRAND_BOTH());
         a << new Attribute(scd, BaseTypes::NUM_TYPE(), false, 85);
@@ -95,15 +99,15 @@ void SiteconSearchWorker::registerProto() {
         a << new Attribute(e2d, BaseTypes::NUM_TYPE(), false, 0.001);
     }
 
-    Descriptor desc(ACTOR_ID, tr("Search for TFBS with SITECON"), 
+    Descriptor desc(ACTOR_ID, tr("Search for TFBS with SITECON"),
         tr("Searches each input sequence for transcription factor binding sites significantly similar to specified SITECON profiles."
         " In case several profiles were supplied, searches with all profiles one by one and outputs merged set of annotations for each sequence.")
-        );
+       );
     ActorPrototype* proto = new IntegralBusActorPrototype(desc, p, a);
     QMap<QString, PropertyDelegate*> delegates;
 
     {
-        QVariantMap m; m["minimum"] = 60; m["maximum"] = 100; m["suffix"] = "%";
+        QVariantMap m; m["minimum"] = 10; m["maximum"] = 100; m["suffix"] = "%";
         delegates[SCORE_ATTR] = new SpinBoxDelegate(m);
     }
     {
@@ -185,8 +189,15 @@ void SiteconSearchWorker::init() {
     resultName = actor->getParameter(NAME_ATTR)->getAttributeValue<QString>(context);
 }
 
-bool SiteconSearchWorker::isReady() {
-    return ((!models.isEmpty() && modelPort->isEnded()) && dataPort->hasMessage()) || modelPort->hasMessage();
+bool SiteconSearchWorker::isReady() const {
+    if (isDone()) {
+        return false;
+    }
+    bool dataEnded = dataPort->isEnded();
+    bool modelEnded = modelPort->isEnded();
+    int dataHasMes = dataPort->hasMessage();
+    int modelHasMes = modelPort->hasMessage();
+    return modelHasMes || (modelEnded && (dataHasMes || dataEnded));
 }
 
 Task* SiteconSearchWorker::tick() {
@@ -205,64 +216,70 @@ Task* SiteconSearchWorker::tick() {
     while (modelPort->hasMessage()) {
         models << modelPort->get().getData().toMap().value(SiteconWorkerFactory::SITECON_SLOT.getId()).value<SiteconModel>();
     }
-    if (models.isEmpty() || !modelPort->isEnded() || !dataPort->hasMessage()) {
+    if (!modelPort->isEnded()) {
         return NULL;
     }
 
-    U2DataId seqId = dataPort->get().getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return NULL;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
-    
-    if (!seq.isNull() && seq.alphabet->getType() == DNAAlphabet_NUCL) {
-        SiteconSearchCfg config(cfg);
-        config.complOnly = (strand < 0);
-        if (strand <= 0) {
-            QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-                lookupTranslation(seq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-            if (!compTTs.isEmpty()) {
-                config.complTT = compTTs.first();
+    if (dataPort->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(dataPort);
+        if (inputMessage.isEmpty() || models.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+
+        SharedDbiDataHandler seqId = inputMessage.getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        if (seqObj.isNull()) {
+            return NULL;
+        }
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        CHECK_OP(os, new FailTask(os.getError()));
+
+        if (!seq.isNull() && seq.alphabet->getType() == DNAAlphabet_NUCL) {
+            SiteconSearchCfg config(cfg);
+            config.complOnly = (strand < 0);
+            if (strand <= 0) {
+                DNATranslation* compTT = AppContext::getDNATranslationRegistry()->
+                    lookupComplementTranslation(seq.alphabet);
+                if (compTT != NULL) {
+                    config.complTT = compTT;
+                }
             }
+            QList<Task*> subtasks;
+            foreach(const SiteconModel& model, models) {
+                SiteconSearchTask *sst = new SiteconSearchTask(model, seq.seq, config, 0);
+                subtasks << sst;
+            }
+            Task* t = new MultiTask(tr("Search TFBS in %1").arg(seq.getName()), subtasks);
+            connect(new TaskSignalMapper(t), SIGNAL(si_taskFinished(Task*)), SLOT(sl_taskFinished(Task*)));
+            return t;
         }
-        QList<Task*> subtasks;
-        foreach(const SiteconModel& model, models) {
-            subtasks << new SiteconSearchTask(model, seq.seq, config, 0);
-        }
-        Task* t = new MultiTask(tr("Search TFBS in %1").arg(seq.getName()), subtasks);
-        connect(new TaskSignalMapper(t), SIGNAL(si_taskFinished(Task*)), SLOT(sl_taskFinished(Task*)));
-        return t;
-    }
-    QString err = tr("Bad sequence supplied to SiteconSearch: %1").arg(seq.getName());
-    //if (failFast) {
+        QString err = tr("Bad sequence supplied to SiteconSearch: %1").arg(seq.getName());
         return new FailTask(err);
-    /*} else {
-        algoLog.error(err);
-        output->put(Message(BioDataTypes::ANNOTATION_TABLE_TYPE(), QVariant()));
-        if (dataPort->isEnded()) {
-            output->setEnded();
-        }
-        return NULL;
-    }*/
-}
-
-void SiteconSearchWorker::sl_taskFinished(Task* t) {
-    QList<SharedAnnotationData> res;
-    foreach(Task* sub, t->getSubtasks()) {
-        SiteconSearchTask* sst = qobject_cast<SiteconSearchTask*>(sub);
-        res += SiteconSearchResult::toTable(sst->takeResults(), resultName);
-    }
-    QVariant v = qVariantFromValue<QList<SharedAnnotationData> >(res);
-    output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v));
-    if (dataPort->isEnded()) {
+    } if (dataPort->isEnded()) {
+        setDone();
         output->setEnded();
     }
-    algoLog.info(tr("Found %1 TFBS").arg(res.size())); //TODO set task description for report
+    return NULL;
 }
 
-bool SiteconSearchWorker::isDone() {
-    return dataPort->isEnded();
+void SiteconSearchWorker::sl_taskFinished(Task *t) {
+    QList<SharedAnnotationData> res;
+    SAFE_POINT(NULL != t, "Invalid task is encountered",);
+    if (t->isCanceled()) {
+        return;
+    }
+    foreach (Task* sub, t->getSubtasks()) {
+        SiteconSearchTask *sst = qobject_cast<SiteconSearchTask *>(sub);
+        res += SiteconSearchResult::toTable(sst->takeResults(), resultName);
+        sst->cleanup();
+    }
+
+    const SharedDbiDataHandler tableId = context->getDataStorage()->putAnnotationTable(res);
+    output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), qVariantFromValue<SharedDbiDataHandler>(tableId)));
+
+    algoLog.info(tr("Found %1 TFBS").arg(res.size())); //TODO set task description for report
 }
 
 } //namespace LocalWorkflow

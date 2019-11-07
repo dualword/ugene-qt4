@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 #include <U2Core/MAlignment.h>
 #include <U2Core/MAlignmentInfo.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMainWindow>
 #include <QtGui/QGraphicsItem>
+#else
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QGraphicsItem>
+#endif
 
 namespace U2 {
 
@@ -83,7 +88,7 @@ public:
         }
         startPos = 0;
         len = ma.getLength();
-        
+
         /*colorScheme.insert('S', Qt::green);
         colorScheme.insert('G', Qt::green);
         colorScheme.insert('H', Qt::green);

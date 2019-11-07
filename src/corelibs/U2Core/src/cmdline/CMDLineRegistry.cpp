@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -61,8 +61,8 @@ static bool tryParseSingleDashParameter(const QString& argument, const QString& 
     }
     paramName = argument.mid(1);
     if (!isDoubleDashParameter(nextArgument) && !isSingleDashParameter(nextArgument)) {
-        paramValue = nextArgument;    
-    }    
+        paramValue = nextArgument;
+    }
     return true;
 }
 
@@ -139,7 +139,7 @@ static bool providerNameComparator(const CMDLineHelpProvider* p1, const CMDLineH
 
 void CMDLineRegistry::registerCMDLineHelpProvider(CMDLineHelpProvider* provider) {
     helpProviders.append(provider);
-    qStableSort(helpProviders.begin(), helpProviders.end(), providerNameComparator); 
+    qStableSort(helpProviders.begin(), helpProviders.end(), providerNameComparator);
 }
 
 void CMDLineRegistry::unregisterCMDLineHelpProvider(CMDLineHelpProvider* provider) {

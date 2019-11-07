@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -62,13 +62,13 @@ void GTest_ImportPhredQualityScoresTask::init(XMLTestFormat *tf, const QDomEleme
     if (fileName.isEmpty()) {
         failMissingValue(URL_ATTR);
     }
-    
+
     fileName = env->getVar("COMMON_DATA_DIR") + "/" + fileName;
 
 }
 
 void GTest_ImportPhredQualityScoresTask::prepare() {
-    
+
     foreach(const QString& seqName, seqNameList) {
         GObject *obj = getContext<GObject>(this, seqName);
         if(obj==NULL){
@@ -80,11 +80,11 @@ void GTest_ImportPhredQualityScoresTask::prepare() {
         if(mySequence == NULL){
             stateInfo.setError(QString("Can't cast to sequence from: %1").arg(obj->getGObjectName()));
             return;
-        }    
+        }
 
         seqList.append(mySequence);
     }
-    
+
     ImportQualityScoresConfig cfg;
     cfg.createNewDocument = false;
     cfg.fileName = fileName;
@@ -106,8 +106,8 @@ void GTest_ExportNucleicToAminoAlignmentTask::init(XMLTestFormat *tf, const QDom
         failMissingValue(NUCL_ALIGN_URL_ATTR);
         return;
     }
-    inputFile = buf;    
-    
+    inputFile = buf;
+
     QTemporaryFile qtf(env->getVar("TEMP_DATA_DIR") + "/XXXXXX.aln");
     if (qtf.open()) {
         outputFileName = qtf.fileName();
@@ -143,7 +143,7 @@ void GTest_ExportNucleicToAminoAlignmentTask::init(XMLTestFormat *tf, const QDom
             assert(0);
             return;
         }
-        
+
         ok = false;
         int base = sl[0].toInt(&ok);
         if (!ok || base < 0) {
@@ -157,7 +157,7 @@ void GTest_ExportNucleicToAminoAlignmentTask::init(XMLTestFormat *tf, const QDom
             return;
         }
         selectedRows = U2Region(base, len);
-    }    
+    }
 }
 
 void GTest_ExportNucleicToAminoAlignmentTask::prepare() {
@@ -166,13 +166,13 @@ void GTest_ExportNucleicToAminoAlignmentTask::prepare() {
     }
     Document* doc = getContext<Document>(this, inputFile);
     if (doc == NULL) {
-        stateInfo.setError(GTest::tr("context not found %1").arg(inputFile));
+        stateInfo.setError(GTest::tr(" context not found %1").arg(inputFile));
         return;
     }
 
     QList<GObject*> list = doc->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
     if (list.size() == 0) {
-        stateInfo.setError(GTest::tr("container of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
+        stateInfo.setError(GTest::tr(" container of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
         return;
     }
     MAlignmentObject* alObj = qobject_cast<MAlignmentObject*>(list.first());
@@ -183,7 +183,7 @@ void GTest_ExportNucleicToAminoAlignmentTask::prepare() {
     trid.replace("0", QString("%1").arg(transTable));
     trans << AppContext::getDNATranslationRegistry()->lookupTranslation(trid);
 
-    exportTask = new ExportMSA2MSATask(srcAl, selectedRows.length ? selectedRows.startPos : 0, selectedRows.length ? selectedRows.length : srcAl.getNumRows(), outputFileName, 
+    exportTask = new ExportMSA2MSATask(srcAl, selectedRows.length ? selectedRows.startPos : 0, selectedRows.length ? selectedRows.length : srcAl.getNumRows(), outputFileName,
          trans, BaseDocumentFormats::CLUSTAL_ALN);
     addSubTask(exportTask);
 }
@@ -195,21 +195,21 @@ QList<Task*> GTest_ExportNucleicToAminoAlignmentTask::onSubTaskFinished(Task* su
         return res;
     }
 
-    if (subTask == exportTask) {       
+    if (subTask == exportTask) {
         IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(outputFileName));
         resultLoadTask = new LoadDocumentTask(BaseDocumentFormats::CLUSTAL_ALN, outputFileName, iof);
         res << resultLoadTask;
     } else if (subTask == resultLoadTask) {
         Document* resdoc = resultLoadTask->getDocument();
-        
+
         if (resdoc == NULL) {
-            stateInfo.setError(GTest::tr("context not found %1").arg(outputFileName));
+            stateInfo.setError(GTest::tr("context  not found %1").arg(outputFileName));
             return res;
         }
 
         QList<GObject*> reslist = resdoc->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
         if (reslist.size() == 0) {
-            stateInfo.setError(GTest::tr("container of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
+            stateInfo.setError(GTest::tr("container  of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
             return res;
         }
         MAlignmentObject * resAlign = qobject_cast<MAlignmentObject*>(reslist.first());
@@ -226,17 +226,17 @@ Task::ReportResult GTest_ExportNucleicToAminoAlignmentTask::report() {
 
     Document* expdoc = getContext<Document>(this, expectedOutputFile);
     if (expdoc == NULL) {
-        stateInfo.setError(GTest::tr("context not found %1").arg(expectedOutputFile));
+        stateInfo.setError(GTest::tr("context not  found %1").arg(expectedOutputFile));
         return ReportResult_Finished;
     }
 
     QList<GObject*> explist = expdoc->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
     if (explist.size() == 0) {
-        stateInfo.setError(GTest::tr("container of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
+        stateInfo.setError(GTest::tr("container of  object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT));
         return ReportResult_Finished;
     }
     MAlignmentObject * expAlign = qobject_cast<MAlignmentObject*>(explist.first());
-    MAlignment expAl = expAlign->getMAlignment();
+    const MAlignment &expAl = expAlign->getMAlignment();
 
     if (resAl.getLength() != expAl.getLength()) {
         stateInfo.setError(GTest::tr("Unexpected alignment length %1, expected %2").arg(resAl.getLength()).arg(expAl.getLength()));

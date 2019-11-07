@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,10 +40,10 @@ AlignmentLogoRenderArea::AlignmentLogoRenderArea(const AlignmentLogoSettings& _s
     layout->addWidget(this);
     p->setLayout(layout);
 
-    
+
 
     bases<<'A'<<'G'<<'C'<<'T'<<'U';
-    
+
 /*aminoacids<<'A'<<'C'<<'D'<<'E'<<'F'<<'G'<<'H'
         <<'I'<<'K'<<'L'<<'M'<<'N'<<'P'<<'Q'<<'R'
         <<'S'<<'T'<<'V'<<'W'<<'Y';*/
@@ -114,12 +114,12 @@ void AlignmentLogoRenderArea::paintEvent(QPaintEvent* e) {
         int yLevel = height();
         foreach(char ch, charsAt) {
             QPointF baseline(pos * (bitWidth + SPACER), yLevel);
-            int charHeight = heights[(int)uchar(ch)][pos] * bitHeight;            
-            QColor charColor = settings.colorScheme[(int)uchar(ch)];            
+            int charHeight = heights[(int)uchar(ch)][pos] * bitHeight;
+            QColor charColor = settings.colorScheme[(int)uchar(ch)];
             AlignmentLogoItem* logoItem = new AlignmentLogoItem(ch, baseline, bitWidth, charHeight, charFont, charColor);
             logoItem->paint(&p, NULL, this);
             yLevel -= charHeight + SPACER;
-        }        
+        }
     }
 
     QWidget::paintEvent(e);
@@ -149,7 +149,7 @@ void AlignmentLogoRenderArea::evaluateHeights() {
         for (int idx = 0; idx < numRows; idx++) {
             const MAlignmentRow& row = ma.getRow(idx);
             assert(pos < ma.getLength());
-            char ch = row.chatAt(pos);
+            char ch = row.charAt(pos);
             if(acceptableChars->contains(ch)) {
                 int arrIdx = pos - settings.startPos;
                 assert(arrIdx >= 0);
@@ -232,7 +232,7 @@ void AlignmentLogoItem::paint(QPainter *painter, const QStyleOptionGraphicsItem 
 
     qreal sx = qMax(charWidth / bound.width(), eps);
     qreal sy = qMax(charHeight / bound.height(), eps);
-        
+
     painter->scale(sx, sy);
 
     //map baseline position to scaled coordinates

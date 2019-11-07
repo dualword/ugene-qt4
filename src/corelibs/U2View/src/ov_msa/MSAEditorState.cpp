@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,6 @@
 #include "MSAEditorFactory.h"
 
 #include <U2Core/DocumentModel.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/DNASequenceSelection.h>
 
@@ -102,5 +101,4 @@ QVariantMap MSAEditorState::saveState(MSAEditor* v) {
     return ss.stateData;
 }
 
-
-} // namespace
+} // namespace U2

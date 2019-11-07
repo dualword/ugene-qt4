@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Core/TLSTask.h>
 #include <U2Algorithm/MAlignmentUtilTasks.h>
+#include <U2Core/U2Mod.h>
 
 
 #define KALIGN_CONTEXT_ID "kalign"
@@ -39,7 +40,6 @@ namespace U2 {
 class StateLock;
 class MAlignmentObject;
 class LoadDocumentTask;
-class SimpleMSAWorkflowTask;
 
 class KalignContext : public TLSContext {
 public:
@@ -57,6 +57,7 @@ public:
     float   termGapPenalty;
     float   secret;
     QString inputFilePath;
+    QString outputFilePath;
 };
 
 class KalignTask : public TLSTask {
@@ -89,12 +90,13 @@ public:
     virtual void prepare();
     ReportResult report();
 
-    StateLock*                  lock;
+    QPointer<StateLock>         lock;
     KalignTask*                 kalignTask;
     KalignTaskSettings          config;
+    LoadDocumentTask*   loadDocumentTask;
+
 };
 
-#ifndef RUN_WORKFLOW_IN_THREADS
 /**
 * runs kalign from cmdline schema in separate process
 * using data/cmdline/align-kalign.uwl schema
@@ -111,17 +113,19 @@ class KalignGObjectRunFromSchemaTask : public AlignGObjectTask {
     Q_OBJECT
 public:
     KalignGObjectRunFromSchemaTask(MAlignmentObject * obj, const KalignTaskSettings & config);
+
+    void prepare();
+    void setMAObject(MAlignmentObject* maobj);
 private:
     KalignTaskSettings      config;
 };
 
-#endif // RUN_WORKFLOW_IN_THREADS
 
 
-class KAlignAndSaveTask : public Task {
+class KalignWithExtFileSpecifySupportTask : public Task {
 public:
-    KAlignAndSaveTask(Document* doc, const KalignTaskSettings& config);
-    ~KAlignAndSaveTask();
+    KalignWithExtFileSpecifySupportTask(const KalignTaskSettings& config);
+    ~KalignWithExtFileSpecifySupportTask();
 
     void prepare();
     QList<Task*> onSubTaskFinished(Task* subTask);
@@ -132,6 +136,7 @@ private:
     SaveDocumentTask*   saveDocumentTask;
     Task*               kalignGObjectTask;
     KalignTaskSettings  config;
+    LoadDocumentTask*   loadDocumentTask;
 };
 
 

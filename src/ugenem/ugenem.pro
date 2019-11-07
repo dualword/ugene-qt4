@@ -2,9 +2,12 @@ include(../ugene_globals.pri)
 UGENE_RELATIVE_DESTDIR = ''
 
 QT += xml network webkit
+equals(QT_MAJOR_VERSION, 5): QT -= webkit
+equals(QT_MAJOR_VERSION, 5): QT += widgets webkitwidgets
 TEMPLATE = app
 CONFIG +=qt thread debug_and_release
 DEFINES+= QT_DLL QT_FATAL_ASSERT
+INCLUDEPATH += src _tmp
 
 !debug_and_release|build_pass {
 
@@ -46,12 +49,14 @@ unix {
 
 unix_not_mac() : LIBS += -lX11
 
-HEADERS += src/SendReportDialog.h
+HEADERS += src/SendReportDialog.h \
+           src/Utils.h
 
 FORMS += src/ui/SendReportDialog.ui
 
 SOURCES += src/main.cpp \
-            src/SendReportDialog.cpp
+           src/SendReportDialog.cpp \
+           src/Utils.cpp
 
 RESOURCES += ugenem.qrc
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,7 +41,11 @@
 #include <U2Core/DNASequenceObject.h>
 #include <U2Algorithm/ORFAlgorithmTask.h>
 #include <U2Core/FailTask.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
+#else
+#include <QtWidgets/QApplication>
+#endif
 
 /* TRANSLATOR U2::LocalWorkflow::ORFWorker */
 
@@ -67,11 +71,11 @@ void ORFWorkerFactory::init() {
     QList<PortDescriptor*> p; QList<Attribute*> a;
 
     {
-        Descriptor id(BasePorts::IN_SEQ_PORT_ID(), ORFWorker::tr("Input sequences"), 
+        Descriptor id(BasePorts::IN_SEQ_PORT_ID(), ORFWorker::tr("Input sequences"),
             ORFWorker::tr("A nucleotide sequence to search ORFs in. Protein sequences are skipped."));
-        Descriptor od(BasePorts::OUT_ANNOTATIONS_PORT_ID(), ORFWorker::tr("ORF annotations"), 
+        Descriptor od(BasePorts::OUT_ANNOTATIONS_PORT_ID(), ORFWorker::tr("ORF annotations"),
             ORFWorker::tr("A set of annotations marking ORFs found in the sequence."));
-        
+
         QMap<Descriptor, DataTypePtr> inM;
         inM[BaseSlots::DNA_SEQUENCE_SLOT()] = BaseTypes::DNA_SEQUENCE_TYPE();
         p << new PortDescriptor(id, DataTypePtr(new MapDataType("orf.sequence", inM)), true /*input*/);
@@ -80,18 +84,18 @@ void ORFWorkerFactory::init() {
         p << new PortDescriptor(od, DataTypePtr(new MapDataType("orf.annotations", outM)), false /*input*/, true /*multi*/);
     }
     {
-        Descriptor nd(NAME_ATTR, ORFWorker::tr("Annotate as"), ORFWorker::tr("Name of the result annotations marking found ORFs"));
+        Descriptor nd(NAME_ATTR, ORFWorker::tr("Annotate as"), ORFWorker::tr("Name of the result annotations marking found ORFs."));
         Descriptor ttd(ID_ATTR, ORFWorker::tr("Genetic code"), ORFWorker::tr("Which genetic code should be used for translating the input nucleotide sequence."));
-        Descriptor ld(LEN_ATTR, ORFWorker::tr("Min length, bp:"), QApplication::translate("ORFDialogBase", "Ignore ORFs shorter than the specified length", 0, QApplication::UnicodeUTF8));
-        Descriptor fd(FIT_ATTR, ORFWorker::tr("Require stop codon"), QApplication::translate("ORFDialogBase", "Require stop codon", 0, QApplication::UnicodeUTF8));
-        Descriptor ind(INIT_ATTR, ORFWorker::tr("Require init codon"), QApplication::translate("ORFDialogBase", "\n""Ignore boundary ORFs which last beyond the search region\n""(i.e. have no stop codon within the range).\n", 0, QApplication::UnicodeUTF8));
+        Descriptor ld(LEN_ATTR, ORFWorker::tr("Min length, bp:"), QApplication::translate("ORFDialogBase", "Ignore ORFs shorter than the specified length.", 0));
+        Descriptor fd(FIT_ATTR, ORFWorker::tr("Require stop codon"), QApplication::translate("ORFDialogBase", "Require stop codon", 0));
+        Descriptor ind(INIT_ATTR, ORFWorker::tr("Require init codon"), QApplication::translate("ORFDialogBase", "\n""Ignore boundary ORFs which last beyond the search region\n""(i.e. have no stop codon within the range).\n", 0));
         Descriptor ad(ALT_ATTR, ORFWorker::tr("Allow alternative codons"), QApplication::translate("ORFDialogBase", "\n"
             "               Allow ORFs starting with alternative initiation codons,\n"
-            "               accordingly to the current translation table.\n", 0, QApplication::UnicodeUTF8));
-        Descriptor isc(ISC_ATTR, ORFWorker::tr("Include stop codon"), ORFWorker::tr("The result annotation will includes stop codon if this option is set"));
-		Descriptor mr(RES_ATTR,ORFWorker::tr("Max result"),ORFWorker::tr("Find results not achieved by specified count"));
-		Descriptor lr(LIMIT_ATTR,ORFWorker::tr("Limit results"),ORFWorker::tr("The amount of results will be limited id that option is setted"));
-        
+            "               accordingly to the current translation table.\n", 0));
+        Descriptor isc(ISC_ATTR, ORFWorker::tr("Include stop codon"), ORFWorker::tr("The result annotation will includes stop codon if this option is set."));
+        Descriptor mr(RES_ATTR,ORFWorker::tr("Max result"),ORFWorker::tr("Find results not achieved by specified count."));
+        Descriptor lr(LIMIT_ATTR,ORFWorker::tr("Limit results"),ORFWorker::tr("The amount of results will be limited id that option is setted."));
+
         a << new Attribute(nd, BaseTypes::STRING_TYPE(), true, QVariant("ORF"));
         a << new Attribute(ttd, BaseTypes::STRING_TYPE(), false, QVariant(DNATranslationID(1)));
         a << new Attribute(ld, BaseTypes::NUM_TYPE(), false, QVariant(100));
@@ -100,35 +104,35 @@ void ORFWorkerFactory::init() {
         a << new Attribute(ind, BaseTypes::BOOL_TYPE(), false, QVariant(true));
         a << new Attribute(ad, BaseTypes::BOOL_TYPE(), false, QVariant(false));
         a << new Attribute(isc, BaseTypes::BOOL_TYPE(), false, QVariant(false));
-		a << new Attribute(mr,BaseTypes::NUM_TYPE(),false,100000);
-		a << new Attribute(lr,BaseTypes::BOOL_TYPE(),false,QVariant(true));
+        a << new Attribute(mr,BaseTypes::NUM_TYPE(),false,100000);
+        a << new Attribute(lr,BaseTypes::BOOL_TYPE(),false,QVariant(true));
     }
 
-    Descriptor desc(ACTOR_ID, ORFWorker::tr("ORF Marker"), 
-        ORFWorker::tr("Finds Open Reading Frames (ORFs) in each supplied nucleotide sequence, stores found regions as annotations." 
+    Descriptor desc(ACTOR_ID, ORFWorker::tr("ORF Marker"),
+        ORFWorker::tr("Finds Open Reading Frames (ORFs) in each supplied nucleotide sequence, stores found regions as annotations."
         "<p>Protein sequences are skipped if any supplied to input."
         "<p><dfn>ORFs are DNA sequence regions that could potentially encode a protein,"
         " and usually give a good indication of the presence of a gene in the surrounding sequence.</dfn></p>"
         "<p>In the sequence, ORFs are located between a start-code sequence (initiation codon) and a stop-code sequence (termination codon),"
         " defined by the selected genetic code.</p>")
-        );
+       );
     ActorPrototype* proto = new IntegralBusActorPrototype(desc, p, a);
-    QMap<QString, PropertyDelegate*> delegates;    
-    
-    QVariantMap lenMap; lenMap["minimum"] = QVariant(0); lenMap["maximum"] = QVariant(INT_MAX); 
+    QMap<QString, PropertyDelegate*> delegates;
+
+    QVariantMap lenMap; lenMap["minimum"] = QVariant(0); lenMap["maximum"] = QVariant(INT_MAX);
     lenMap["suffix"] = L10N::suffixBp();
     delegates[LEN_ATTR] = new SpinBoxDelegate(lenMap);
     delegates[BaseAttributes::STRAND_ATTRIBUTE().getId()] = new ComboBoxDelegate(BaseAttributes::STRAND_ATTRIBUTE_VALUES_MAP());
 
     QVariantMap idMap;
     QList<DNATranslation*> TTs = AppContext::getDNATranslationRegistry()->
-        lookupTranslation(AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT()), 
+        lookupTranslation(AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT()),
         DNATranslationType_NUCL_2_AMINO);
     foreach(DNATranslation* tt, TTs) {
         idMap[tt->getTranslationName()] = tt->getTranslationId();
     }
     delegates[ID_ATTR] = new ComboBoxDelegate(idMap);
-    
+
     proto->setPrompter(new ORFPrompter());
     proto->setEditor(new DelegateEditor(delegates));
     proto->setIconPath(":orf_marker/images/orf_marker.png");
@@ -212,7 +216,7 @@ QString ORFPrompter::composeRichDoc() {
         .arg(getHyperlink(LEN_ATTR, cfg.minLen)) //100
         .arg(extra) //  take into account alternative start codons.
         .arg(resultName);
-    
+
     return doc;
 }
 
@@ -227,90 +231,85 @@ void ORFWorker::init() {
     output = ports.value(BasePorts::OUT_ANNOTATIONS_PORT_ID());
 }
 
-bool ORFWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* ORFWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.strand = getStrand(actor->getParameter(BaseAttributes::STRAND_ATTRIBUTE().getId())->getAttributeValue<QString>(context));
-    cfg.minLen = actor->getParameter(LEN_ATTR)->getAttributeValue<int>(context);
-    cfg.mustFit = actor->getParameter(FIT_ATTR)->getAttributeValue<bool>(context);
-    cfg.mustInit = actor->getParameter(INIT_ATTR)->getAttributeValue<bool>(context);
-    cfg.allowAltStart = actor->getParameter(ALT_ATTR)->getAttributeValue<bool>(context);
-    cfg.includeStopCodon = actor->getParameter(ISC_ATTR)->getAttributeValue<bool>(context);
-	cfg.maxResult2Search = actor->getParameter(RES_ATTR)->getAttributeValue<int>(context); 
-    resultName = actor->getParameter(NAME_ATTR)->getAttributeValue<QString>(context);
-    if(resultName.isEmpty()){
-        algoLog.error(tr("ORF: result name is empty, default name used"));
-        resultName = "misc_feature";
-    }
-    transId = actor->getParameter(ID_ATTR)->getAttributeValue<QString>(context);
-    if (cfg.minLen < 0){
-        algoLog.error(tr("ORF: Incorrect value: min-length must be greater then zero"));
-        return new FailTask(tr("Incorrect value: min-length must be greater then zero"));
-    }
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->put(Message::getEmptyMapMessage());
+        }
+        cfg.strand = getStrand(actor->getParameter(BaseAttributes::STRAND_ATTRIBUTE().getId())->getAttributeValue<QString>(context));
+        cfg.minLen = actor->getParameter(LEN_ATTR)->getAttributeValue<int>(context);
+        cfg.mustFit = actor->getParameter(FIT_ATTR)->getAttributeValue<bool>(context);
+        cfg.mustInit = actor->getParameter(INIT_ATTR)->getAttributeValue<bool>(context);
+        cfg.allowAltStart = actor->getParameter(ALT_ATTR)->getAttributeValue<bool>(context);
+        cfg.includeStopCodon = actor->getParameter(ISC_ATTR)->getAttributeValue<bool>(context);
+        cfg.maxResult2Search = actor->getParameter(RES_ATTR)->getAttributeValue<int>(context);
+        resultName = actor->getParameter(NAME_ATTR)->getAttributeValue<QString>(context);
+        if(resultName.isEmpty()){
+            algoLog.error(tr("ORF: result name is empty, default name used"));
+            resultName = "misc_feature";
+        }
+        transId = actor->getParameter(ID_ATTR)->getAttributeValue<QString>(context);
+        if (cfg.minLen < 0){
+            algoLog.error(tr("ORF: Incorrect value: min-length must be greater then zero"));
+            return new FailTask(tr("Incorrect value: min-length must be greater then zero"));
+        }
 
-    U2DataId seqId = inputMessage.getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        SharedDbiDataHandler seqId = inputMessage.getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
 
-    if (NULL == seqObj.get()) {
-        return NULL;
-    }
-    
-	DNAAlphabet* alphabet = seqObj->getAlphabet(); 
-    if (alphabet && alphabet->getType() == DNAAlphabet_NUCL) {
-        ORFAlgorithmSettings config(cfg);
-        config.searchRegion.length = seqObj->getSequenceLength();
-        if (config.strand != ORFAlgorithmStrand_Direct) {
-            QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-                lookupTranslation(alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-            if (!compTTs.isEmpty()) {
-                config.complementTT = compTTs.first();
-            } else {
-                config.strand = ORFAlgorithmStrand_Direct;
+        if (seqObj.isNull()) {
+            return NULL;
+        }
+
+        const DNAAlphabet* alphabet = seqObj->getAlphabet();
+        if (alphabet && alphabet->getType() == DNAAlphabet_NUCL) {
+            ORFAlgorithmSettings config(cfg);
+            config.searchRegion.length = seqObj->getSequenceLength();
+            if (config.strand != ORFAlgorithmStrand_Direct) {
+                DNATranslation* compTT = AppContext::getDNATranslationRegistry()->
+                    lookupComplementTranslation(alphabet);
+                if (compTT != NULL) {
+                    config.complementTT = compTT;
+                } else {
+                    config.strand = ORFAlgorithmStrand_Direct;
+                }
+            }
+            config.proteinTT = AppContext::getDNATranslationRegistry()->
+                lookupTranslation(alphabet, DNATranslationType_NUCL_2_AMINO, transId);
+            if (config.proteinTT) {
+                Task* t = new ORFFindTask(config,seqObj->getEntityRef());
+                connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+                return t;
             }
         }
-        config.proteinTT = AppContext::getDNATranslationRegistry()->
-            lookupTranslation(alphabet, DNATranslationType_NUCL_2_AMINO, transId);
-        if (config.proteinTT) {
-            Task* t = new ORFFindTask(config,seqObj->getEntityRef());
-            connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-            return t;
-        }
-    }
-    QString err = tr("Bad sequence supplied to ORFWorker: %1").arg(seqObj->getSequenceName());
-    //if (failFast) {
+        QString err = tr("Bad sequence supplied to ORFWorker: %1").arg(seqObj->getSequenceName());
+
         return new FailTask(err);
-    /*} else {
-        algoLog.error(err);
-        output->put(Message(BioDataTypes::ANNOTATION_TABLE_TYPE(), QVariant()));
-        if (input->isEnded()) {
-            output->setEnded();
-        }
-        return NULL;
-    }*/
+    } else if (input->isEnded()) {
+        output->setEnded();
+        setDone();
+    }
+    return NULL;
 }
 
 void ORFWorker::sl_taskFinished() {
-    ORFFindTask* t = qobject_cast<ORFFindTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
+    ORFFindTask *t = qobject_cast<ORFFindTask *>(sender());
+    if (t->getState() != Task::State_Finished || t->isCanceled() || t->hasError()) {
+        return;
+    }
     QList<ORFFindResult> res = t->popResults();
-    if (output) {
-        QVariant v = qVariantFromValue<QList<SharedAnnotationData> >(ORFFindResult::toTable(res, resultName));
-        output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v));
-        if ( (!input->hasMessage()) && input->isEnded() ) {
-            output->setEnded();
-        }
+    if (NULL != output) {
+        const QList<SharedAnnotationData> annsList = ORFFindResult::toTable(res, resultName);
+
+        const SharedDbiDataHandler tableId = context->getDataStorage()->putAnnotationTable(annsList);
+        output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), qVariantFromValue<SharedDbiDataHandler>(tableId)));
         algoLog.info(tr("Found %1 ORFs").arg(res.size()));
     }
 }
 
-bool ORFWorker::isDone() {
-    return !input || input->isEnded();
-}
-
 void ORFWorker::cleanup() {
+
 }
 
 } //namespace LocalWorkflow

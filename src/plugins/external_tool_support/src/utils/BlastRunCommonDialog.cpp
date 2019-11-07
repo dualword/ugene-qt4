@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,35 +19,73 @@
  * MA 02110-1301, USA.
  */
 
-#include "BlastRunCommonDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QToolButton>
+#endif
 
 #include <U2Core/AppContext.h>
-#include <U2Core/AppSettings.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/AppSettings.h>
 #include <U2Core/DNAAlphabet.h>
-#include <U2Core/GObjectReference.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/GObjectReference.h>
+#include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/IOAdapter.h>
 #include <U2Core/MultiTask.h>
+#include <U2Core/ProjectModel.h>
 
-#include <U2Gui/LastUsedDirHelper.h>
 #include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QToolButton>
-#include <QtGui/QMessageBox>
+#include "blast/BlastAllWorker.h"
+#include "blast_plus/BlastPlusWorker.h"
+
+#include "BlastRunCommonDialog.h"
 
 namespace U2 {
 
+using namespace LocalWorkflow;
+
+
 ////////////////////////////////////////
 //BlastAllSupportRunCommonDialog
-BlastRunCommonDialog::BlastRunCommonDialog(QWidget* _parent) :
-            QDialog(_parent)
+BlastRunCommonDialog::BlastRunCommonDialog(QWidget *parent, BlastType blastType, bool useCompValues, QStringList compValues)
+: QDialog(parent), ca_c(NULL), useCompValues(useCompValues), compValues(compValues)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122396");
+    buttonBox->button(QDialogButtonBox::Yes)->setText(tr("Restore to default"));
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Search"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    QString hitsToolTip;
+    switch (blastType) {
+        case BlastAll:
+            hitsLabel->setText(BlastAllWorkerFactory::getHitsName() + ":");
+            hitsToolTip = BlastAllWorkerFactory::getHitsDescription();
+            numberOfHitsSpinBox->setValue(100); // recommended -K value
+            break;
+        case BlastPlus:
+            hitsLabel->setText(BlastPlusWorkerFactory::getHitsName() + ":");
+            hitsToolTip = BlastPlusWorkerFactory::getHitsDescription();
+            break;
+        default:
+            FAIL("Unknown BLAST type", );
+    }
+    hitsLabel->setToolTip(hitsToolTip);
+    numberOfHitsSpinBox->setToolTip(hitsToolTip);
+
+    optionsTab->setCurrentIndex(0);
+
     //I don`t know what this in local BLAST
     phiPatternEdit->hide();
     phiPatternLabel->hide();
@@ -66,11 +104,25 @@ BlastRunCommonDialog::BlastRunCommonDialog(QWidget* _parent) :
     sl_onMatchScoresChanged(0);
     connect(megablastCheckBox,SIGNAL(toggled(bool)),SLOT(sl_megablastChecked()));
 
+    okButton = buttonBox->button(QDialogButtonBox::Ok);
+    restoreButton = buttonBox->button(QDialogButtonBox::Yes);
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(okButton,SIGNAL(clicked()),SLOT(sl_runQuery()));
     connect(restoreButton,SIGNAL(clicked()),SLOT(sl_restoreDefault()));
     sl_onProgNameChange(0);
     okButton->setEnabled(false);
+
+    connect(compStatsComboBox, SIGNAL(currentIndexChanged(int)), SLOT(sl_onCompStatsChanged()));
+    setupCompositionBasedStatistics();
+    sl_onCompStatsChanged();
 }
+
+void BlastRunCommonDialog::setupCompositionBasedStatistics() {
+    bool visible = useCompValues && compValues.contains(programName->currentText());
+    compStatsLabel->setVisible(visible);
+    compStatsComboBox->setVisible(visible);
+}
+
 const BlastTaskSettings &BlastRunCommonDialog::getSettings() const {
     return settings;
 }
@@ -210,6 +262,7 @@ void BlastRunCommonDialog::sl_restoreDefault(){
     sl_onMatrixChanged(0);
     evalueSpinBox->setValue(10);
     needRestoreDefault=false;
+    bothStrandsButton->setChecked(true);
 }
 void BlastRunCommonDialog::sl_megablastChecked(){
     if(megablastCheckBox->isChecked()){
@@ -233,23 +286,34 @@ void BlastRunCommonDialog::sl_megablastChecked(){
 void BlastRunCommonDialog::sl_onBrowseDatabasePath(){
     LastUsedDirHelper lod("Database Directory");
 
+    QFileDialog::Options options = 0;
+#ifdef Q_OS_MAC
+    if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+        options |= QFileDialog::DontUseNativeDialog;
+    }
+#endif
+
     QString name;
-    lod.url = name = QFileDialog::getOpenFileName(NULL, tr("Select a database file"), lod.dir);
+    lod.url = name = U2FileDialog::getOpenFileName(NULL, tr("Select a database file"), lod.dir, "", NULL, options);
     if (!name.isEmpty()) {
         QFileInfo fileInfo(name);
-        baseNameLineEdit->setText(fileInfo.fileName().replace(QRegExp("(\\.\\d+)?(\\.(phr|pin|psq|nhr|nin|nsq))?$", Qt::CaseInsensitive), QString()));
+        baseNameLineEdit->setText(fileInfo.fileName().replace(QRegExp("(\\.\\d+)?(((formatDB|makeBlastDB)\\.log)|(\\.(phr|pin|psq|phd|pnd|pog|ppi|psi|phi|pni|ppd|psd|psq|pal|nhr|nin|nsq)))?$", Qt::CaseInsensitive), QString()));
         databasePathLineEdit->setText(fileInfo.dir().path());
     }
 }
 void BlastRunCommonDialog::sl_onProgNameChange(int index){
     Q_UNUSED(index);
+    setupCompositionBasedStatistics();
     settings.programName=programName->currentText();
     if(programName->currentText() == "blastn"){//nucl
         programName->setToolTip(tr("Direct nucleotide alignment"));
-        gappedAlignmentCheckBox->setEnabled(true);
-        thresholdSpinBox->setValue(0);
+        gappedAlignmentCheckBox->setEnabled(true);thresholdSpinBox->setValue(0);
     }else if(programName->currentText() == "blastp"){//amino
         programName->setToolTip(tr("Direct protein alignment"));
+        gappedAlignmentCheckBox->setEnabled(true);
+        thresholdSpinBox->setValue(11);
+    }else if(programName->currentText() == "gpu-blastp"){//amino
+        programName->setToolTip(tr("Direct protein alignment (on GPU)"));
         gappedAlignmentCheckBox->setEnabled(true);
         thresholdSpinBox->setValue(11);
     }else if(programName->currentText() == "blastx"){//nucl
@@ -267,7 +331,15 @@ void BlastRunCommonDialog::sl_onProgNameChange(int index){
     }else{
         assert(0);
     }
+    enableStrandBox( (programName->currentText() == "blastn") || ( programName->currentText().contains("blastx") ) );
 
+    if (programName->currentText() == "tblastx") {
+        costsLabel->hide();
+        costsComboBox->hide();
+    } else {
+        costsLabel->show();
+        costsComboBox->show();
+    }
     if(programName->currentText() == "blastn"){
         megablastCheckBox->setEnabled(true);
         if(megablastCheckBox->isChecked()){
@@ -334,6 +406,12 @@ void BlastRunCommonDialog::sl_onProgNameChange(int index){
         xDropoffFGASpinBox->setEnabled(true);
     }
 }
+
+void BlastRunCommonDialog::sl_onCompStatsChanged() {
+    QString value = compStatsComboBox->currentText();
+    settings.compStats = value.left(1);
+}
+
 void BlastRunCommonDialog::getSettings(BlastTaskSettings &localSettings){
     localSettings.programName=programName->currentText();
     localSettings.databaseNameAndPath=databasePathLineEdit->text()+"/"+baseNameLineEdit->text();
@@ -342,6 +420,14 @@ void BlastRunCommonDialog::getSettings(BlastTaskSettings &localSettings){
     localSettings.megablast=megablastCheckBox->isChecked();
     localSettings.numberOfHits=numberOfHitsSpinBox->value();
     localSettings.numberOfProcessors=numberOfCPUSpinBox->value();
+
+    if (directStrandButton->isChecked()) {
+        settings.directStrand = TriState_Yes;
+    } else if (complStrandButton->isChecked()) {
+        settings.directStrand = TriState_No;
+    } else {
+        settings.directStrand = TriState_Unknown;
+    }
 
     localSettings.gapOpenCost=costsComboBox->currentText().split(" ").at(0).toInt();
     localSettings.gapExtendCost=costsComboBox->currentText().split(" ").at(1).toInt();
@@ -393,10 +479,22 @@ void BlastRunCommonDialog::getSettings(BlastTaskSettings &localSettings){
     localSettings.xDropoffFGA=xDropoffFGASpinBox->value();
     if((localSettings.programName == "blastn" && localSettings.threshold != 0) ||
             (localSettings.programName == "blastp" && localSettings.threshold != 11) ||
+            (localSettings.programName == "gpu-blastp" && localSettings.threshold != 11) ||
             (localSettings.programName == "blastx" && localSettings.threshold != 12) ||
             (localSettings.programName == "tblastn" && localSettings.threshold != 13) ||
             (localSettings.programName == "tblastx" && localSettings.threshold != 13)){
         localSettings.isDefaultThreshold=false;
     }
+    if (useCompValues && compValues.contains(settings.programName)) {
+        localSettings.compStats = settings.compStats;
+    }
 }
+
+void BlastRunCommonDialog::enableStrandBox( bool enable )
+{
+    bothStrandsButton->setEnabled(enable);
+    directStrandButton->setEnabled(enable);
+    complStrandButton->setEnabled(enable);
+}
+
 }//namespace

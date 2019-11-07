@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,12 +37,12 @@ public:
     SScore(char _c1, char _c2, float _score) : c1(_c1), c2(_c2), score(_score){}
 };
 
-// Substitution, Scoring or Weight matrix model. 
+// Substitution, Scoring or Weight matrix model.
 // Example: Blosum70, PAM200, VTML200
-class U2CORE_EXPORT SMatrix {	
+class U2CORE_EXPORT SMatrix {
 public:
-    SMatrix(const QString& name, DNAAlphabet* alphabet, 
-                const QList<SScore>& rawMatrix, 
+    SMatrix(const QString& name, const DNAAlphabet* alphabet,
+                const QList<SScore>& rawMatrix,
                 const QString& description = QString());
 
     //constructs empty anonymous matrix
@@ -51,14 +51,14 @@ public:
     bool isEmpty() const {return scores.size() == 0;}
 
     float getScore(char c1, char c2) const;
-    
+
     void setScore(char c1, char c2, float score);
 
     const QString& getName()  const {return name;}
 
     const QString& getDescription()  const {return description;}
 
-    DNAAlphabet* getAlphabet() const {return alphabet;}
+    const DNAAlphabet* getAlphabet() const {return alphabet;}
 
     float getMinScore() const {return minScore;}
 
@@ -76,7 +76,7 @@ private:
     QString                 name;
     QString                 description;
 
-    DNAAlphabet*            alphabet;
+    const DNAAlphabet*            alphabet;
     QVarLengthArray<float>  scores;          //TODO: make scores integer ?
     char                    minChar;   // used for optimization of scores size. Minimal character in the alphabet.
     char                    maxChar;   // used for optimization of scores size. Maximum character in the alphabet.

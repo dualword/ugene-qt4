@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ namespace U2 {
 class FormatDBSupportRunDialog : public QDialog, public Ui_FormatDBSupportRunDialog {
     Q_OBJECT
 public:
-    FormatDBSupportRunDialog(FormatDBSupportTaskSettings& settings, QWidget* parent);
+    FormatDBSupportRunDialog(const QString& name, FormatDBSupportTaskSettings& settings, QWidget* parent);
 private slots:
     void sl_formatDB();
     void sl_lineEditChanged();
@@ -41,7 +41,10 @@ private slots:
     void sl_onBrowseInputDir();
     void sl_onBrowseDatabasePath();
 private:
+    QString                         name;//name of tool that used for formating database
     FormatDBSupportTaskSettings&    settings;
+    QPushButton*                    formatButton;
+    QPushButton*                    cancelButton;
 };
 
 }//namespace

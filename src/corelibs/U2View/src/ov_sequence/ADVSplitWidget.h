@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,10 +23,14 @@
 #define _U2_ADV_SPLIT_WIDGET_H_
 
 #include <U2Core/global.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QSplitter>
+#else
+#include <QtWidgets/QSplitter>
+#endif
 
 namespace U2 {
-    
+
 
 class AnnotatedDNAView;
 class GObject;
@@ -39,6 +43,8 @@ public:
     virtual bool acceptsGObject(GObject* objects)  = 0;
     virtual void updateState(const QVariantMap& m) = 0;
     virtual void saveState(QVariantMap& m) = 0;
+
+    virtual bool onCloseEvent() { return true; }
 protected:
     AnnotatedDNAView* dnaView;
 };

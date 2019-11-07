@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -52,11 +52,12 @@ QList<WeightMatrixSearchResult> WeightMatrixSearchTask::takeResults() {
 }
 
 //Weight matrix single search
-WeightMatrixSingleSearchTask::WeightMatrixSingleSearchTask(const PWMatrix& m, const QByteArray& _seq, const WeightMatrixSearchCfg& cfg, int ro) 
+WeightMatrixSingleSearchTask::WeightMatrixSingleSearchTask(const PWMatrix& m, const QByteArray& _seq, const WeightMatrixSearchCfg& cfg, int ro)
 : Task(tr("Weight matrix search"), TaskFlags_NR_FOSCOE), model(m), cfg(cfg), resultsOffset(ro), seq(_seq)
 {
     GCOUNTER( cvar, tvar, "WeightMatrixSingleSearchTask" );
     SequenceWalkerConfig c;
+    c.walkCircular = false;
     c.seq = seq.constData();
     c.seqSize = seq.length();
     c.complTrans  = cfg.complTT;
@@ -77,7 +78,7 @@ void WeightMatrixSingleSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateI
     }
     U2Region globalRegion = t->getGlobalRegion();
     int seqLen = globalRegion.length;
-    const char* seq = t->getGlobalConfig().seq + globalRegion.startPos;;
+    const char* seq = t->getGlobalConfig().seq + globalRegion.startPos;
     int modelSize = model.getLength();
     ti.progress =0;
     int lenPerPercent = seqLen / 100;
@@ -92,8 +93,13 @@ void WeightMatrixSingleSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateI
         WeightMatrixSearchResult r;
         r.score = 100*psum;
         if (r.score >= cfg.minPSUM) {//report result
-            r.strand = t->isDNAComplemented() ? U2Strand::Complementary : U2Strand::Direct;
             r.region.startPos = globalRegion.startPos +  i + resultsOffset;
+            if(t->isDNAComplemented()){
+                r.strand = U2Strand::Complementary;
+                r.region.startPos += 1;
+            }else{
+                r.strand = U2Strand::Direct;
+            }
             r.region.length = modelSize;
             r.qual = model.getProperties();
             r.modelInfo = cfg.modelName.split("/").last();

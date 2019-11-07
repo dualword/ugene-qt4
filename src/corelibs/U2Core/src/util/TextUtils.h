@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 #include <QtCore/QBitArray>
 #include <QtCore/QSet>
 #include <QtCore/QVector>
+#include <QtCore/QStringList>
 #include <assert.h>
 
 namespace U2 {
@@ -48,15 +49,15 @@ public:
     static const QByteArray SPACE_LINE;
 
     static const QBitArray QUALIFIER_NAME_CHARS;
-    
+
     inline static const char* getLineOfSpaces(int nspaces);
 
     inline static bool fits(const QBitArray& map, const char* str, int len);
 
     inline static bool contains(const QBitArray& map, const char* str, int len);
-    
+
     static QBitArray createBitMap(char c1);
-    
+
     static QBitArray createBitMap(const QByteArray& chars, bool val = true);
 
     static QByteArray createMap(const QBitArray& bits, char defaultChar);
@@ -104,6 +105,8 @@ public:
 
     // Wraps input string for valid output to CSV following RFC 4180
     inline static void wrapForCSV(QString& str);
+
+    inline static QStringList transposeCSVRows(const QStringList& rows, const QString& delimiter="\t");
 };
 
 template <typename T>
@@ -199,7 +202,7 @@ inline void TextUtils::reverse(const char* srcSeq, char* dstSeq, int len) {
     if (srcSeq == dstSeq) {
         reverse(dstSeq, len);
         return;
-    } 
+    }
     assert(qAbs(srcSeq-dstSeq) > len);
 
     for (int i = 0, j = len-1; i < len; i++, j--) {
@@ -310,6 +313,30 @@ inline void TextUtils::wrapForCSV(QString& str) {
     str.replace("\"", "\"\"");
     str.prepend("\"");
     str.append("\"");
+}
+
+inline QStringList TextUtils::transposeCSVRows(const QStringList& rows, const QString& delimiter){
+    QStringList transposedRows;
+    if(rows.length() == 0){
+        return transposedRows;
+    }
+    int columnNumber = rows.at(0).split(delimiter).length();
+    for (int i = 0; i < columnNumber; i++){
+        transposedRows.append("");
+    }
+
+    foreach (const QString& originalRow, rows){
+        QStringList originalColumns = originalRow.split(delimiter);
+        for (int i = 0; i < originalColumns.length() && i < columnNumber; i++){
+            transposedRows[i].append(originalColumns.at(i));
+            transposedRows[i].append(delimiter);
+        }
+    }
+
+    for (int i = 0; i < columnNumber; i++){
+        transposedRows[i].remove(transposedRows[i].length()-1,1);
+    }
+    return transposedRows;
 }
 
 } //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,47 +22,75 @@
 #ifndef _U2_MSA_H_
 #define _U2_MSA_H_
 
-#include <U2Core/U2Sequence.h>
+#include <U2Core/U2Alphabet.h>
+#include <U2Core/U2Type.h>
 
 namespace U2 {
-/** 
+
+/**
     Gap model for Msa: for every sequence it keeps gaps map
 */
+
+class U2MsaGap;
+
+typedef QList<U2MsaGap> U2MsaRowGapModel;
+typedef QList<U2MsaRowGapModel> U2MsaGapModel;
+
 class U2CORE_EXPORT U2MsaGap  {
 public:
     U2MsaGap() : offset(0), gap(0){}
     U2MsaGap(qint64 off, qint64 g) : offset(off), gap(g){}
-    
+
+    bool isValid() const { return ((offset >= 0) && (gap > 0)); }
+
+    bool operator==(const U2MsaGap& g) const { return ((offset == g.offset) && (gap == g.gap)); }
+
     /** Offset of the gap in sequence*/
     qint64 offset;
-    
+
     /** number of gaps */
     qint64 gap;
 };
 
-/** 
-    Row of multiple alignment: gaps map and sequence id 
+/**
+    Row of multiple alignment: gaps map and sequence id
 */
 class U2CORE_EXPORT U2MsaRow {
 public:
-    U2DataId        rowId;
+    /** Id of the row in the database */
+    qint64          rowId;
+
+    /** Id of the sequence of the row in the database */
     U2DataId        sequenceId;
+
+    /** Start of the row in the sequence */
+    qint64          gstart;
+
+    /** End of the row in the sequence */
+    qint64          gend;
+
+    /** A gap model for the row */
     QList<U2MsaGap> gaps;
+
+    /** Length of the sequence characters and gaps of the row (without trailing) */
+    qint64          length;
 };
 
-/**                                           
+/**
     Multiple sequence alignment representation
 */
 class U2CORE_EXPORT U2Msa : public U2Object {
 public:
     U2Msa(){}
     U2Msa(U2DataId id, QString dbId, qint64 version) : U2Object(id, dbId, version) {}
-    
+
     /** Alignment alphabet. All sequence in alignment must have alphabet that fits into alignment alphabet */
     U2AlphabetId    alphabet;
 
-    // implement U2Object
-    virtual U2DataType getType() { return U2Type::Msa; }
+    /** Length of the alignment */
+    qint64          length;
+
+    U2DataType getType() const { return U2Type::Msa; }
 };
 
 

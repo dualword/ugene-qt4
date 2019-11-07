@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,31 +19,31 @@
  * MA 02110-1301, USA.
  */
 
-#include "QueryDesignerPlugin.h"
-#include "QueryViewController.h"
-#include "QDSamples.h"
-#include "QDRunDialog.h"
-#include "QDDocumentFormat.h"
-#include "QDSceneIOTasks.h"
-#include "QDTests.h"
-#include "QDWorker.h"
-
-#include <library/QDFindActor.h>
-#include <library/QDFindPolyRegionsActor.h>
-
 #include <U2Core/AppContext.h>
-#include <U2Gui/ObjectViewModel.h>
-
-#include <U2View/ADVUtils.h>
-#include <U2View/ADVConstants.h>
-#include <U2View/AnnotatedDNAView.h>
+#include <U2Core/GAutoDeleteList.h>
 
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/ObjectViewModel.h>
+#include <U2Gui/ToolsMenu.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2Test/GTestFrameworkComponents.h>
 
-#include <U2Core/GAutoDeleteList.h>
+#include <U2View/ADVConstants.h>
+#include <U2View/ADVUtils.h>
+#include <U2View/AnnotatedDNAView.h>
 
+#include "QDDocumentFormat.h"
+#include "QDRunDialog.h"
+#include "QDSamples.h"
+#include "QDSceneIOTasks.h"
+#include "QDTests.h"
+#include "QDWorker.h"
+#include "QueryDesignerPlugin.h"
+#include "QueryViewController.h"
+#include "library/QDFindActor.h"
+#include "library/QDFindPolyRegionsActor.h"
+#include "library/QDGcContentActor.h"
 
 namespace U2 {
 
@@ -52,7 +52,7 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
     return plug;
 }
 
-QueryDesignerPlugin::QueryDesignerPlugin() 
+QueryDesignerPlugin::QueryDesignerPlugin()
     : Plugin(tr("Query Designer"),
              tr("Analyzes a nucleotide sequence using different algorithms (Repeat finder,"
                 " ORF finder, etc.) imposing constraints on the positional relationship"
@@ -81,7 +81,7 @@ QueryDesignerPlugin::QueryDesignerPlugin()
     GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
     l->qlist = QDTests::createTestFactories();
 
-    foreach(XMLTestFactory* f, l->qlist) { 
+    foreach(XMLTestFactory* f, l->qlist) {
         bool res = xmlTestFormat->registerTestFactory(f);
         assert(res); Q_UNUSED(res);
     }
@@ -92,6 +92,7 @@ QueryDesignerPlugin::QueryDesignerPlugin()
 void QueryDesignerPlugin::registerLibFactories() {
     AppContext::getQDActorProtoRegistry()->registerProto(new QDFindActorPrototype());
     AppContext::getQDActorProtoRegistry()->registerProto(new QDFindPolyActorPrototype());
+    AppContext::getQDActorProtoRegistry()->registerProto(new QDFindGcActorPrototype());
 }
 
 QueryDesignerViewContext::QueryDesignerViewContext(QObject *p)
@@ -110,13 +111,13 @@ void QueryDesignerViewContext::sl_showDialog() {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(viewAction->getObjectView());
     assert(av);
     ADVSequenceObjectContext* seqCtx = av->getSequenceInFocus();
-    QDDialog d(seqCtx);
-    d.exec();
+    QObjectScopedPointer<QDDialog> d = new QDDialog(seqCtx);
+    d->exec();
 }
 
 class CloseDesignerTask : public Task {
 public:
-    CloseDesignerTask(QueryDesignerService* s) : 
+    CloseDesignerTask(QueryDesignerService* s) :
       Task(U2::QueryDesignerPlugin::tr("Close Designer"), TaskFlag_NoRun),
           service(s) {}
       virtual void prepare();
@@ -145,11 +146,12 @@ bool QueryDesignerService::closeViews() {
 }
 
 void QueryDesignerService::sl_startQDPlugin() {
-    QAction* action = new QAction(QIcon(":query_designer/images/query_designer.png"), tr("Query Designer..."), this);
+    QAction* action = new QAction(QIcon(":query_designer/images/query_designer.png"), tr("Query Designer"), this);
+    //action->setObjectName("Query Designer");
     connect(action, SIGNAL(triggered()), SLOT(sl_showDesignerWindow()));
 
-    QMenu* toolsMenu = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS);
-    toolsMenu->addAction(action);
+    action->setObjectName(ToolsMenu::QUERY_DESIGNER);
+    ToolsMenu::addAction(ToolsMenu::TOOLS, action);
 }
 
 void QueryDesignerService::sl_showDesignerWindow() {
@@ -175,7 +177,7 @@ void QueryDesignerService::serviceStateChangedCallback(ServiceState , bool enabl
     }
     if (isEnabled()) {
         if(!AppContext::getPluginSupport()->isAllPluginsLoaded()) {
-            connect(AppContext::getPluginSupport(),SIGNAL(si_allStartUpPluginsLoaded()),SLOT(sl_startQDPlugin())); 
+            connect(AppContext::getPluginSupport(),SIGNAL(si_allStartUpPluginsLoaded()),SLOT(sl_startQDPlugin()));
         } else {
             sl_startQDPlugin();
         }

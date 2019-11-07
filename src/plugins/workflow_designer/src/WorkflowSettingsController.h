@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,6 +40,11 @@ public:
     virtual void saveState(AppSettingsGUIPageState* s);
 
     virtual AppSettingsGUIPageWidget* createWidget(AppSettingsGUIPageState* data);
+
+    const QString& getHelpPageId() const {return helpPageId;};
+
+private:
+    static const QString helpPageId;
 };
 
 
@@ -49,14 +54,15 @@ public:
     bool showGrid;
     bool snap2grid;
     bool lockRun;
-    //bool failFast;
+    bool enableDebugger;
     QString style;
     QFont font;
     QString path;
     QString externalToolCfgDir;
+    QString includedElementsDir;
+    QString workflowOutputDir;
     QColor color;
     bool showEmptyPorts;
-    bool runSchemaInSeparateProcess;
 };
 
 
@@ -69,11 +75,13 @@ public:
 
     virtual AppSettingsGUIPageState* getState(QString& err) const;
 
-    virtual bool eventFilter( QObject * watched, QEvent * event ); 
+    virtual bool eventFilter( QObject * watched, QEvent * event );
 
 private slots:
     void sl_getDirectory();
     void sl_getExternalToolCfgDir();
+    void sl_getIncludedElementsDir();
+    void sl_getWorkflowOutputDir();
     void sl_getColor();
 };
 

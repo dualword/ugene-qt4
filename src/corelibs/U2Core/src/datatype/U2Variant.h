@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,19 +26,44 @@
 
 namespace U2 {
 
-/** 
-    Representation for set of genomic variations. 
+/**return SNP region in case endPos == 0, else return variation region*/
+#define VARIATION_REGION(var)  \
+    U2Region((var).startPos, (var).endPos == 0 ? 1 : (var).endPos - (var).startPos)
+
+/**
+    Representation for set of genomic variations.
 */
-class U2VariantTrack : public U2Object {
+
+enum VariantTrackType{
+    TrackType_All           = 1,
+    TrackType_Perspective   = 2,
+    TrackType_Discarded     = 3,
+    TrackType_UnknownEffect = 4,
+
+    // To check that int can be casted to the enum
+    TrackType_FIRST         = TrackType_All,
+    TrackType_LAST          = TrackType_UnknownEffect
+};
+
+class U2CORE_EXPORT U2VariantTrack : public U2Object {
 public:
-    U2VariantTrack() {}
-    U2VariantTrack(const U2DataId& id, const QString& dbId, qint64 version) : U2Object(id, dbId, version){}
-    
+    U2VariantTrack():
+    trackType(TrackType_All){}
+    U2VariantTrack(const U2DataId& id, const QString& dbId, VariantTrackType _trackType, qint64 version) : U2Object(id, dbId, version), trackType(_trackType){}
+
     /** Sequence id */
     U2DataId      sequence;
 
-    // implement U2Object
-    virtual U2DataType getType() { return U2Type::VariantTrack; }
+    /** Sequence name */
+    QString     sequenceName;
+
+    /** Track Type*/
+    VariantTrackType trackType;
+
+    /** File header */
+    QString     fileHeader;
+
+    U2DataType getType() const { return U2Type::VariantTrack; }
 };
 
 /** Database representation of genomic variations such as snps, indels, etc.  */
@@ -50,7 +75,8 @@ public:
     qint64      endPos;
     QByteArray  refData;
     QByteArray  obsData;
-    QString     publicId; 
+    QString     publicId;
+    QString     additionalInfo;
 
 };
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,9 +35,9 @@ class U2ALGORITHM_EXPORT PWMConversionAlgorithmFactory : public QObject {
     Q_OBJECT
 public:
     PWMConversionAlgorithmFactory(const QString& algoId, QObject* p = NULL);
-    
+
     virtual PWMConversionAlgorithm* createAlgorithm(QObject* parent = NULL) = 0;
-    
+
     QString getId() const {return algorithmId;}
 
     virtual QString getDescription() const = 0;

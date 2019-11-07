@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ namespace LocalWorkflow {
 class SequenceSplitPromter : public PrompterBase<SequenceSplitPromter> {
     Q_OBJECT
 public:
-    SequenceSplitPromter( Actor * p = 0 ) : PrompterBase<SequenceSplitPromter>(p) {};
+    SequenceSplitPromter(Actor *p = 0) : PrompterBase<SequenceSplitPromter>(p) {};
 protected:
     QString composeRichDoc();
 };
@@ -44,13 +44,14 @@ protected:
 class SequenceSplitWorker : public BaseWorker {
     Q_OBJECT
 public:
-    SequenceSplitWorker( Actor * p ) : BaseWorker(p, /*auto transit*/false), 
-        seqPort(NULL), outPort(NULL), useAcceptedOrFiltered(false) {};
+    SequenceSplitWorker(Actor *p)
+        : BaseWorker(p), seqPort(NULL), outPort(NULL), useAcceptedOrFiltered(false)
+    {
+    
+    }
 
     virtual void init();
-    virtual bool isReady();
     virtual Task * tick();
-    virtual bool isDone();
     virtual void cleanup();
 
 protected:
@@ -66,15 +67,15 @@ private:
     bool useAcceptedOrFiltered;
     ExtractAnnotatedRegionTaskSettings cfg;
 private slots:
-    void sl_onTaskFinished( Task * t );
+    void sl_onTaskFinished(Task *t);
 };
 
 class SequenceSplitWorkerFactory : public DomainFactory {
 public:
     const static QString ACTOR;
-    SequenceSplitWorkerFactory() : DomainFactory( ACTOR ) {};
+    SequenceSplitWorkerFactory() : DomainFactory(ACTOR) {};
     static void init();
-    virtual Worker * createWorker( Actor * a );
+    virtual Worker * createWorker(Actor *a);
 };
 
 } //ns LocalWorkflow

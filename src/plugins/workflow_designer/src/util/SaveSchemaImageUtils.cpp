@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,27 +23,29 @@
 
 #include <U2Core/Log.h>
 #include <U2Core/L10n.h>
+#include <U2Lang/HRSchemaSerializer.h>
 #include <U2Lang/WorkflowUtils.h>
 #include <U2Lang/WorkflowIOTasks.h>
+#include <U2Lang/WorkflowSettings.h>
+#include "WorkflowViewItems.h"
 #include "WorkflowViewController.h"
 #include "SaveSchemaImageUtils.h"
-#include "HRSceneSerializer.h"
 
 #include <QtCore/QFile>
 
 namespace U2 {
 
-Logger log("Save schema image task");
+Logger log("Save workflow image task");
 
 /********************************
  * ProduceSchemaImageLinkTask
  ********************************/
-ProduceSchemaImageLinkTask::ProduceSchemaImageLinkTask(const QString & schemaName) 
-: Task(tr("Save workflow schema image"), TaskFlags_NR_FOSCOE), schema(NULL) {
-    
+ProduceSchemaImageLinkTask::ProduceSchemaImageLinkTask(const QString & schemaName)
+: Task(tr("Save workflow image"), TaskFlags_NR_FOSCOE), schema(NULL) {
+
     schemaPath = WorkflowUtils::findPathToSchemaFile( schemaName );
     if( schemaPath.isEmpty() ) {
-        setError( tr( "Cannot find schema: %1" ).arg( schemaName ) );
+        setError( tr( "Cannot find workflow: %1" ).arg( schemaName ) );
         return;
     }
 }
@@ -56,7 +58,7 @@ void ProduceSchemaImageLinkTask::prepare() {
     if(hasError() || isCanceled()) {
         return;
     }
-    
+
     schema = new Schema();
     schema->setDeepCopyFlag(true);
     addSubTask(new LoadWorkflowTask( schema, &meta, schemaPath ));
@@ -65,15 +67,15 @@ void ProduceSchemaImageLinkTask::prepare() {
 QList<Task*> ProduceSchemaImageLinkTask::onSubTaskFinished(Task* subTask) {
     LoadWorkflowTask * loadTask = qobject_cast<LoadWorkflowTask*>(subTask);
     assert(loadTask != NULL);
-    
+
     QList<Task*> res;
     if( loadTask->hasError() || loadTask->isCanceled() ) {
         return res;
     }
-    
+
     GoogleChartImage googleImg(schema, meta);
     imageLink = googleImg.getImageUrl();
-    
+
     return res;
 }
 
@@ -126,13 +128,13 @@ static QString makeArgumentPair( const QString & argName, const QString & value 
 static QString getSchemaGraphInExtendedDotNotation(Schema * schema, const Metadata & meta) {
     assert(schema != NULL);
     QString graph = "digraph{";
-    graph += QString("label=\"Schema %1\";").arg(meta.name);
+    graph += QString("label=\"Workflow %1\";").arg(meta.name);
     graph += QString("compound=true;");
     graph += QString("rankdir=LR;");
     graph += QString("bgcolor=white;");
     graph += QString("edge [arrowsize=1, color=black];");
     graph += QString("node [shape=box,style=\"filled, rounded\",fillcolor=lightblue];");
-    
+
     // Nodes definition
     foreach(Actor * actor, schema->getProcesses()) {
         graph += QString("%1 [label=\"%2\"];").arg(QString("node_%1").arg(actor->getId())).arg(actor->getLabel());
@@ -143,7 +145,7 @@ static QString getSchemaGraphInExtendedDotNotation(Schema * schema, const Metada
         Actor * destination = link->destination()->owner();
         graph += QString("node_%1->node_%2;").arg(source->getId()).arg(destination->getId());
     }
-    
+
     graph = graph.mid(0, graph.size() - 1);
     return graph + "}";
 }
@@ -164,20 +166,24 @@ QString GoogleChartImage::getUrlArguments() const {
  * SaveSchemaImageUtils
  ********************************/
 QPixmap SaveSchemaImageUtils::generateSchemaSnapshot(const QString & data) {
-    WorkflowScene* scene = new WorkflowScene();
-    QString msg = HRSceneSerializer::string2Scene(data, scene, NULL, true);
+    Schema schema;
+    Metadata meta;
+    QString msg = HRSchemaSerializer::string2Schema(data, &schema, &meta);
     if (!msg.isEmpty()) {
         log.trace(QString("Snapshot issues: cannot read scene: '%1'").arg(msg));
         return QPixmap();
     }
-    
+    SceneCreator sc(&schema, meta);
+    QScopedPointer<WorkflowScene> scene(sc.createScene(NULL));
+
     QRectF bounds = scene->itemsBoundingRect();
+    CHECK(!bounds.isEmpty(), QPixmap());
+
     QPixmap pixmap(bounds.size().toSize());
     pixmap.fill();
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
     scene->render(&painter, QRectF(), bounds);
-    delete scene;
     return pixmap;
 }
 
@@ -188,7 +194,7 @@ QString SaveSchemaImageUtils::saveSchemaImageToFile(const QString & schemaPath, 
     if(!file.open(QIODevice::ReadOnly)) {
         return L10N::errorOpeningFileRead(schemaPath);
     }
-    
+
     QByteArray rawData = file.readAll();
     QPixmap image = generateSchemaSnapshot(rawData);
     image.save(imagePath, "png");

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,14 @@
 #ifndef _GB2_QD_TESTS_H_
 #define _GB2_QD_TESTS_H_
 
+
 #include <U2Test/XMLTestUtils.h>
 
 #include <QtXml/QDomElement>
 
-
 namespace U2 {
 
+class AnnotationGroup;
 class AnnotationTableObject;
 class U2SequenceObject;
 class QDScheduler;
@@ -59,20 +60,20 @@ public:
     static QList<XMLTestFactory*> createTestFactories();
 };
 
-class AnnotationGroup;
-
 class CompareAnnotationGroupsTask : public Task {
     Q_OBJECT
 public:
-    CompareAnnotationGroupsTask(const QList<AnnotationGroup*>& _grp1,
-        const QList<AnnotationGroup*>& _grp2)
-        : Task(tr("Compare annotation tables task"), TaskFlag_None),
-        grps1(_grp1), grps2(_grp2), equal(false) {}
+    CompareAnnotationGroupsTask(const QList<AnnotationGroup *> &_grp1, const QList<AnnotationGroup *> &_grp2)
+        : Task(tr("Compare annotation tables task"), TaskFlag_None), grps1(_grp1), grps2(_grp2), equal(false)
+    {
+    
+    }
 
     virtual void run();
     bool areEqual() const { assert(isFinished()); return equal; }
+
 private:
-    QList<AnnotationGroup*> grps1, grps2;
+    QList<AnnotationGroup *> grps1, grps2;
     bool equal;
 };
 

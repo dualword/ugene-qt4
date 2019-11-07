@@ -9,28 +9,40 @@ HEADERS += src/misc/BinaryFindOpenCL.h \
            src/misc/EnzymeModel.h \
            src/misc/FindAlgorithm.h \
            src/misc/FindAlgorithmTask.h \
+           src/misc/GenomeAssemblyMultiTask.h \
            src/misc/RepeatFinderSettings.h \
            src/misc/RepeatFinderTaskFactory.h \
            src/misc/RollingArray.h \
            src/misc/RollingMatrix.h \
+           src/misc/SequenceContentFilterTask.h \
+           src/misc/SyncSort.h \
            src/molecular_geometry/GeomUtils.h \
            src/molecular_geometry/MolecularSurface.h \
            src/molecular_geometry/MolecularSurfaceFactoryRegistry.h \
            src/molecular_geometry/VanDerWaalsSurface.h \
+           src/msa_alignment/AbstractAlignmentTask.h \ 
+           src/msa_alignment/AlignSequencesToAlignmentTaskSettings.h \   
+           src/msa_alignment/BaseAlignmentAlgorithmIds.h \       
+           src/msa_alignment/SimpleAddingToAlignment.h \
+           src/pairwise_alignment/NWAligner.h \
+           src/pairwise_alignment/PairwiseAligner.h \
+           src/pairwise_alignment/PairwiseAlignmentTask.h \
            src/phyltree/CreatePhyTreeSettings.h \
            src/phyltree/PhyTreeGenerator.h \
            src/phyltree/PhyTreeGeneratorRegistry.h \
            src/phyltree/PhyTreeGeneratorTask.h \
+           src/registry/AlignmentAlgorithmsRegistry.h \
            src/registry/CDSearchTaskFactoryRegistry.h \
            src/registry/CudaGpuRegistry.h \
            src/registry/DnaAssemblyAlgRegistry.h \
            src/registry/DnaAssemblyTask.h \
-           src/registry/MSAAlignAlgRegistry.h \
-           src/registry/MSAAlignTask.h \
+           src/registry/GenomeAssemblyRegistry.h \
            src/registry/OpenCLGpuRegistry.h \
            src/registry/RepeatFinderTaskFactoryRegistry.h \
            src/registry/SecStructPredictAlgRegistry.h \
            src/registry/SecStructPredictTask.h \
+           src/registry/SplicedAlignmentTask.h \
+           src/registry/SplicedAlignmentTaskRegistry.h \
            src/registry/SubstMatrixRegistry.h \
            src/smith_waterman/SmithWatermanReportCallback.h \
            src/smith_waterman/SmithWatermanResult.h \
@@ -40,9 +52,20 @@ HEADERS += src/misc/BinaryFindOpenCL.h \
            src/smith_waterman/SmithWatermanTaskFactoryRegistry.h \
            src/smith_waterman/SmithWatermanUtil.h \
            src/smith_waterman/SWResultFilterRegistry.h \
+           src/smith_waterman/SWMulAlignExternalPropTag.h \
+           src/smith_waterman/SWMulAlignResultNamesTag.h \
+           src/smith_waterman/SWMulAlignResultNamesTagsRegistry.h \
+           src/smith_waterman/SWMulAlignSeqPrefixTag.h \
+           src/smith_waterman/SWMulAlignSubseqPropTag.h \
            src/structural_alignment/StructuralAlignmentAlgorithm.h \
            src/structural_alignment/StructuralAlignmentAlgorithmFactory.h \
            src/structural_alignment/StructuralAlignmentAlgorithmRegistry.h \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithm.h \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmDefault.h \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmRegistry.h \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.h \
+           src/util_assembly_consensus/AssemblyConsensusUtils.h \
+           src/util_assembly_consensus/BuiltInAssemblyConsensusAlgorithms.h \
            src/util_msa_consensus/BuiltInConsensusAlgorithms.h \
            src/util_msa_consensus/MSAConsensusAlgorithm.h \
            src/util_msa_consensus/MSAConsensusAlgorithmClustal.h \
@@ -54,6 +77,7 @@ HEADERS += src/misc/BinaryFindOpenCL.h \
            src/util_msa_distance/BuiltInDistanceAlgorithms.h \
            src/util_msa_distance/MSADistanceAlgorithm.h \
            src/util_msa_distance/MSADistanceAlgorithmHamming.h \
+           src/util_msa_distance/MSADistanceAlgorithmSimilarity.h \
            src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.h \
            src/util_msa_distance/MSADistanceAlgorithmRegistry.h \
            src/util_msaedit/CreateSubalignmentTask.h \
@@ -71,29 +95,40 @@ HEADERS += src/misc/BinaryFindOpenCL.h \
            src/util_weight_matrix/PWMConversionAlgorithmNLG.h \
            src/util_weight_matrix/PWMConversionAlgorithmRegistry.h \
            src/util_gpu/opencl/OpenCLHelper.h \
-           src/util_gpu/opencl/OpenCLUtils.h
+           src/util_gpu/opencl/OpenCLUtils.h 
 SOURCES += src/misc/BinaryFindOpenCL.cpp \
            src/misc/BitsTable.cpp \
            src/misc/DnaAssemblyMultiTask.cpp \
            src/misc/EnzymeModel.cpp \
            src/misc/FindAlgorithm.cpp \
            src/misc/FindAlgorithmTask.cpp \
+           src/misc/GenomeAssemblyMultiTask.cpp \
+           src/misc/SequenceContentFilterTask.cpp \
            src/molecular_geometry/GeomUtils.cpp \
            src/molecular_geometry/MolecularSurface.cpp \
            src/molecular_geometry/MolecularSurfaceFactoryRegistry.cpp \
            src/molecular_geometry/VanDerWaalsSurface.cpp \
+           src/msa_alignment/AbstractAlignmentTask.cpp \           
+           src/msa_alignment/AlignSequencesToAlignmentTaskSettings.cpp \
+           src/msa_alignment/BaseAlignmentAlgorithmIds.cpp \
+           src/msa_alignment/SimpleAddingToAlignment.cpp \
+           src/pairwise_alignment/NWAligner.cpp \
+           src/pairwise_alignment/PairwiseAligner.cpp \
+           src/pairwise_alignment/PairwiseAlignmentTask.cpp \
            src/phyltree/CreatePhyTreeSettings.cpp \
            src/phyltree/PhyTreeGeneratorRegistry.cpp \
            src/phyltree/PhyTreeGeneratorTask.cpp \
+           src/registry/AlignmentAlgorithmsRegistry.cpp \
            src/registry/CudaGpuRegistry.cpp \
            src/registry/DnaAssemblyAlgRegistry.cpp \
            src/registry/DnaAssemblyTask.cpp \
-           src/registry/MSAAlignAlgRegistry.cpp \
-           src/registry/MSAAlignTask.cpp \
-           src/registry/OpenCLGpuRegistry.cpp \
+           src/registry/GenomeAssemblyRegistry.cpp \
+           src/registry/OpenCLGpuRegistry.cpp \       
            src/registry/RepeatFinderTaskFactoryRegistry.cpp \
            src/registry/SecStructPredictAlgRegistry.cpp \
            src/registry/SecStructPredictTask.cpp \
+           src/registry/SplicedAlignmentTask.cpp \
+           src/registry/SplicedAlignmentTaskRegistry.cpp \
            src/registry/SubstMatrixRegistry.cpp \
            src/smith_waterman/SmithWatermanReportCallback.cpp \
            src/smith_waterman/SmithWatermanResult.cpp \
@@ -101,9 +136,19 @@ SOURCES += src/misc/BinaryFindOpenCL.cpp \
            src/smith_waterman/SmithWatermanTaskFactoryRegistry.cpp \
            src/smith_waterman/SmithWatermanUtil.cpp \
            src/smith_waterman/SWResultFilterRegistry.cpp \
+           src/smith_waterman/SWMulAlignExternalPropTag.cpp \
+           src/smith_waterman/SWMulAlignResultNamesTagsRegistry.cpp \
+           src/smith_waterman/SWMulAlignSeqPrefixTag.cpp \
+           src/smith_waterman/SWMulAlignSubseqPropTag.cpp \
            src/structural_alignment/StructuralAlignmentAlgorithm.cpp \
            src/structural_alignment/StructuralAlignmentAlgorithmFactory.cpp \
            src/structural_alignment/StructuralAlignmentAlgorithmRegistry.cpp \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithm.cpp \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmDefault.cpp \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmRegistry.cpp \
+           src/util_assembly_consensus/AssemblyConsensusAlgorithmSamtools.cpp \
+           src/util_assembly_consensus/AssemblyConsensusUtils.cpp \
+           src/util_assembly_consensus/BuiltInAssemblyConsensusAlgorithms.cpp \
            src/util_msa_consensus/BuiltInConsensusAlgorithms.cpp \
            src/util_msa_consensus/MSAConsensusAlgorithm.cpp \
            src/util_msa_consensus/MSAConsensusAlgorithmClustal.cpp \
@@ -115,6 +160,7 @@ SOURCES += src/misc/BinaryFindOpenCL.cpp \
            src/util_msa_distance/BuiltInDistanceAlgorithms.cpp \
            src/util_msa_distance/MSADistanceAlgorithm.cpp \
            src/util_msa_distance/MSADistanceAlgorithmHamming.cpp \
+           src/util_msa_distance/MSADistanceAlgorithmSimilarity.cpp \
            src/util_msa_distance/MSADistanceAlgorithmHammingRevCompl.cpp \
            src/util_msa_distance/MSADistanceAlgorithmRegistry.cpp \
            src/util_msaedit/CreateSubalignmentTask.cpp \
@@ -132,6 +178,14 @@ SOURCES += src/misc/BinaryFindOpenCL.cpp \
            src/util_weight_matrix/PWMConversionAlgorithmNLG.cpp \
            src/util_weight_matrix/PWMConversionAlgorithmRegistry.cpp \
            src/util_gpu/opencl/OpenCLHelper.cpp \
-           src/util_gpu/opencl/OpenCLUtils.cpp
+           src/util_gpu/opencl/OpenCLUtils.cpp 
 RESOURCES += U2Algorithm.qrc
 TRANSLATIONS += transl/czech.ts transl/english.ts transl/russian.ts
+
+
+
+
+
+
+
+

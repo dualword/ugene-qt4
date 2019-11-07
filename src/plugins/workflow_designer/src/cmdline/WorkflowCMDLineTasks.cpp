@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 #include <U2Core/CMDLineCoreOptions.h>
 #include <U2Remote/SerializeUtils.h>
 
+#include <U2Lang/URLAttribute.h>
 #include <U2Lang/WorkflowEnv.h>
 #include <U2Lang/WorkflowUtils.h>
 #include <U2Lang/WorkflowManager.h>
@@ -45,10 +46,10 @@ namespace U2 {
 /*******************************************
 * WorkflowRunFromCMDLineBase
 *******************************************/
-WorkflowRunFromCMDLineBase::WorkflowRunFromCMDLineBase() 
+WorkflowRunFromCMDLineBase::WorkflowRunFromCMDLineBase()
 : Task( tr( "Workflow run from cmdline" ), TaskFlag_NoRun ), schema(NULL), optionsStartAt(-1), loadTask(NULL) {
     GCOUNTER(cvar,tvar,"workflow_run_from_cmdline");
-    
+
     CMDLineRegistry * cmdLineRegistry = AppContext::getCMDLineRegistry();
 
     // try to process schema without 'task' option (it can only be the first one)
@@ -85,7 +86,7 @@ void WorkflowRunFromCMDLineBase::processLoadSchemaTask( const QString & schemaNa
 LoadWorkflowTask * WorkflowRunFromCMDLineBase::prepareLoadSchemaTask( const QString & schemaName ) {
     QString pathToSchema = WorkflowUtils::findPathToSchemaFile( schemaName );
     if( pathToSchema.isEmpty() ) {
-        coreLog.error( tr( "Cannot find schema: %1" ).arg( schemaName ) );
+        coreLog.error( tr( "Cannot find workflow: %1" ).arg( schemaName ) );
         return NULL;
     }
 
@@ -114,7 +115,7 @@ static void setSchemaCMDLineOptions( Schema * schema, int optionsStartAtIdx ) {
         Actor * actor = WorkflowUtils::findActorByParamAlias( schema->getProcesses(), paramAlias, paramName );
         if( actor == NULL ) {
             assert( paramName.isEmpty() );
-            coreLog.details( WorkflowRunFromCMDLineBase::tr( "alias '%1' not set in schema" ).arg( paramAlias ) );
+            coreLog.details( WorkflowRunFromCMDLineBase::tr( "alias '%1' not set in workflow" ).arg( paramAlias ) );
             continue;
         }
 
@@ -135,16 +136,11 @@ static void setSchemaCMDLineOptions( Schema * schema, int optionsStartAtIdx ) {
         bool isOk;
         QVariant value = valueFactory->getValueFromString( param.second, &isOk );
         if(!isOk){
-            coreLog.error( WorkflowRunFromCMDLineBase::tr( "Incorrect value for '%1', null or default value passed to schema" ).
+            coreLog.error( WorkflowRunFromCMDLineBase::tr( "Incorrect value for '%1', null or default value passed to workflow" ).
                 arg( param.first ));
             continue;
         }
-        QList<Iteration> & iterations = schema->getIterations();
-        QList<Iteration>::iterator it = iterations.begin();
-        while( it != iterations.end() ) { // TODO: make different values for different iterations
-            it->cfg[id].insert( paramName, value );
-            ++it;
-        }
+        attr->setAttributeValue(value);
     }
 }
 
@@ -162,14 +158,14 @@ QList<Task*> WorkflowRunFromCMDLineBase::onSubTaskFinished( Task* subTask ) {
         Schema * schema = loadTask->getSchema();
         assert( schema != NULL );
         remapping = loadTask->getRemapping();
-        
+
         setSchemaCMDLineOptions( schema, optionsStartAt );
         if( schema->getDomain().isEmpty() ) {
             QList<QString> domainsId = WorkflowEnv::getDomainRegistry()->getAllIds();
             assert(!domainsId.isEmpty());
             if(!domainsId.isEmpty()) { schema->setDomain(domainsId.first()); }
         }
-        
+
         QStringList l;
         bool good = WorkflowUtils::validate(*schema, l);
         if(!good) {
@@ -177,7 +173,7 @@ QList<Task*> WorkflowRunFromCMDLineBase::onSubTaskFinished( Task* subTask ) {
             setError("\n\n" + l.join("\n\n") + schemaHelpStr);
             return res;
         }
-        
+
         res << getWorkflowRunTask();
     }
     return res;
@@ -187,7 +183,7 @@ QList<Task*> WorkflowRunFromCMDLineBase::onSubTaskFinished( Task* subTask ) {
 * WorkflowRunFromCMDLineTask
 *******************************************/
 Task * WorkflowRunFromCMDLineTask::getWorkflowRunTask() const {
-    return new WorkflowRunTask(*schema, schema->getIterations(), remapping);
+    return new WorkflowRunTask(*schema, remapping);
 }
 
 /*******************************************
@@ -198,7 +194,7 @@ WorkflowRemoteRunFromCMDLineTask::WorkflowRemoteRunFromCMDLineTask() {
 
 Task * WorkflowRemoteRunFromCMDLineTask::getWorkflowRunTask() const {
     assert(settings != NULL);
-    return new RemoteWorkflowRunTask( settings, *schema, schema->getIterations());
+    return new RemoteWorkflowRunTask( settings, *schema );
 }
 
 void WorkflowRemoteRunFromCMDLineTask::prepare()
@@ -210,7 +206,7 @@ void WorkflowRemoteRunFromCMDLineTask::prepare()
         stateInfo.setError(tr("%1 parameter expected, but not set").arg(WorkflowDesignerPlugin::REMOTE_MACHINE));
         return;
     }
-    
+
     settings = SerializeUtils::deserializeRemoteMachineSettingsFromFile(filePath);
     if( settings == NULL ) {
         stateInfo.setError(tr("Cannot read remote machine settings from %2").arg(filePath));

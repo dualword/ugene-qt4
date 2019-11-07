@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ void ResourceTracker::registerResourceUser(const QString& resourceName, Task* t)
     coreLog.details(tr("resource '%1' is used by '%2'").arg(resourceName).arg(t->getTaskName()));
     emit si_resourceUserRegistered(resourceName, t);
 }
-    
+
 
 
 void ResourceTracker::unregisterResourceUser(const QString& resourceName, Task* t) {

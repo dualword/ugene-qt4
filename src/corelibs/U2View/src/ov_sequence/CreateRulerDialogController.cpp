@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,26 +23,43 @@
 
 #include <U2Core/TextUtils.h>
 
-#include <QtGui/QSpinBox>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
-#include <QtGui/QPalette>
+#include <QtGui/QPushButton>
 #include <QtGui/QLineEdit>
+#include <QtGui/QSpinBox>
 #include <QtGui/QMessageBox>
 #include <QtGui/QColorDialog>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QColorDialog>
+#endif
+#include <QtGui/QPalette>
+#include <U2Gui/HelpButton.h>
+
 
 namespace U2 {
 
-CreateRulerDialogController::CreateRulerDialogController(const QSet<QString>& namesToFilter, 
-                                                         const U2Region& seqRange, int defaultOffset, QWidget* p) 
+CreateRulerDialogController::CreateRulerDialogController(const QSet<QString>& namesToFilter,
+                                                         const U2Region& seqRange, int defaultOffset, QWidget* p)
 : QDialog(p)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122150");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Create"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     setMaximumHeight(layout()->minimumSize().height());
-    
+
     filter = namesToFilter;
 
     sampleLabel->setAutoFillBackground(true);
-   
+
     nameEdit->setText(TextUtils::variate(tr("New ruler"), "_", filter));
 
     spinBox->setMinimum(INT_MIN + seqRange.length);
@@ -50,11 +67,12 @@ CreateRulerDialogController::CreateRulerDialogController(const QSet<QString>& na
     spinBox->setValue(seqRange.contains(defaultOffset+1) ? defaultOffset + 1 : spinBox->minimum());
 
     color = Qt::darkBlue;
-    
+
     updateColorSample();
 
     connect(colorButton, SIGNAL(clicked()), SLOT(sl_colorButtonClicked()));
     setWindowIcon(QIcon(":/ugene/images/ugene_16.png"));
+
 }
 
 void CreateRulerDialogController::updateColorSample() {

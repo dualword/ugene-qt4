@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,26 +24,34 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/BaseDocumentFormats.h>
-#include <U2Core/ProjectModel.h>
 #include <U2Core/DocumentModel.h>
-#include <U2Core/TextObject.h>
 #include <U2Core/L10n.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/TextObject.h>
+#include <U2Core/U2SafePoints.h>
 
 namespace U2 {
-
 
 //////////////////////////////////////////////////////////////////////////
 //open view task
 
-OpenSimpleTextObjectViewTask::OpenSimpleTextObjectViewTask(Document* _doc) 
-: ObjectViewTask(SimpleTextObjectViewFactory::ID), doc(_doc)
+OpenSimpleTextObjectViewTask::OpenSimpleTextObjectViewTask(const QList<GObject *> &_objects)
+    : ObjectViewTask(SimpleTextObjectViewFactory::ID), objects(_objects)
 {
-    if (!doc->isLoaded()) {
-        documentsToLoad.append(doc);
+    foreach (GObject *obj, objects) {
+        CHECK_EXT(NULL != obj, stateInfo.setError(tr("Invalid object detected!")), );
+        CHECK_EXT(GObjectTypes::TEXT == obj->getGObjectType(),
+            stateInfo.setError(tr("Invalid object type detected!")), );
+
+        Document *doc = obj->getDocument();
+        CHECK_EXT(NULL != doc, stateInfo.setError(tr("Invalid document detected!")), );
+        if (!documentsToLoad.contains(doc) && !doc->isLoaded()) {
+            documentsToLoad.append(doc);
+        }
     }
 }
 
-OpenSavedTextObjectViewTask::OpenSavedTextObjectViewTask(const QString& vname, const QVariantMap& stateData) 
+OpenSavedTextObjectViewTask::OpenSavedTextObjectViewTask(const QString& vname, const QVariantMap& stateData)
 : ObjectViewTask(SimpleTextObjectViewFactory::ID, vname, stateData), doc(NULL)
 {
     QString documentUrl = SimpleTextObjectView::getDocumentUrl(stateData);
@@ -82,16 +90,25 @@ void OpenSavedTextObjectViewTask::open() {
 }
 
 void OpenSimpleTextObjectViewTask::open() {
-    if (stateInfo.hasError() || doc.isNull()) {
+    if (stateInfo.hasError()) {
         return;
     }
-    assert(doc->isLoaded());
-    foreach(GObject* obj, doc->findGObjectByType(GObjectTypes::TEXT)) {
-        TextObject* to = qobject_cast<TextObject*>(obj);
-        assert(to);
-        QString viewName = GObjectViewUtils::genUniqueViewName(doc, to);
+    foreach (GObject *obj, objects) {
+        Document *doc = obj->getDocument();
+        CHECK_EXT(doc->isLoaded(), stateInfo.setError(tr("Document is not loaded!")), );
+
+        TextObject *to = qobject_cast<TextObject*>(obj);
+        CHECK_EXT(NULL != obj, stateInfo.setError(tr("Invalid object detected!")), );
+
+        const QString viewName = GObjectViewUtils::genUniqueViewName(doc, to);
         SimpleTextObjectView* v = new SimpleTextObjectView(viewName, to, stateData);
         GObjectViewWindow* w = new GObjectViewWindow(v, viewName, !stateData.isEmpty());
+        if (NULL == v->parent()) {
+            stateInfo.setError("Could not open view");
+            delete v;
+            delete w;
+            continue;
+        }
         MWMDIManager* mdiManager =  AppContext::getMainWindow()->getMDIManager();
         mdiManager->addMDIWindow(w);
     }
@@ -101,7 +118,7 @@ void OpenSimpleTextObjectViewTask::open() {
 //////////////////////////////////////////////////////////////////////////
 // update view task
 
-UpdateSimpleTextObjectViewTask::UpdateSimpleTextObjectViewTask(GObjectView* v, const QString& stateName, const QVariantMap& stateData) 
+UpdateSimpleTextObjectViewTask::UpdateSimpleTextObjectViewTask(GObjectView* v, const QString& stateName, const QVariantMap& stateData)
 : ObjectViewTask(v, stateName, stateData)
 {
 }
@@ -115,7 +132,7 @@ void UpdateSimpleTextObjectViewTask::update() {
         return;
     }
     tv->updateView(stateData);
-    
+
 }
 
 

@@ -6,27 +6,27 @@
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Form</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="20"/>
         <source>Structure</source>
-        <translation type="unfinished"></translation>
+        <translation>Structure</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="37"/>
         <source>Chain</source>
-        <translation type="unfinished"></translation>
+        <translation>Chain</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="54"/>
         <source>Region</source>
-        <translation type="unfinished"></translation>
+        <translation>Region</translation>
     </message>
     <message>
         <location filename="../src/ui/BioStruct3DSubsetEditor.ui" line="64"/>
         <source>Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Model</translation>
     </message>
 </context>
 <context>
@@ -34,52 +34,52 @@
     <message>
         <location filename="../src/TubeGLRenderer.cpp" line="32"/>
         <source>Tubes</source>
-        <translation></translation>
+        <translation>Model</translation>
     </message>
     <message>
-        <location filename="../src/WormsGLRenderer.cpp" line="33"/>
+        <location filename="../src/WormsGLRenderer.cpp" line="34"/>
         <source>Worms</source>
-        <translation></translation>
+        <translation>Worms</translation>
     </message>
     <message>
         <location filename="../src/VanDerWaalsGLRenderer.cpp" line="37"/>
         <source>Space Fill</source>
-        <translation></translation>
+        <translation>Space Fill</translation>
     </message>
     <message>
         <location filename="../src/MolecularSurfaceRenderer.cpp" line="68"/>
         <source>Dots</source>
-        <translation></translation>
+        <translation>Dots</translation>
     </message>
     <message>
         <location filename="../src/MolecularSurfaceRenderer.cpp" line="69"/>
         <source>Convex Map</source>
-        <translation></translation>
+        <translation>Convex Map</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DColorScheme.cpp" line="80"/>
         <source>Molecular Chains</source>
-        <translation></translation>
+        <translation>Molecular Chains</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DColorScheme.cpp" line="81"/>
         <source>Chemical Elements</source>
-        <translation></translation>
+        <translation>Chemical Elements</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DColorScheme.cpp" line="82"/>
         <source>Secondary Structure</source>
-        <translation></translation>
+        <translation>Secondary Structure</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DColorScheme.cpp" line="83"/>
         <source>Simple colors</source>
-        <translation type="unfinished"></translation>
+        <translation>Simple colors</translation>
     </message>
     <message>
-        <location filename="../src/BallAndStickGLRenderer.cpp" line="37"/>
+        <location filename="../src/BallAndStickGLRenderer.cpp" line="38"/>
         <source>Ball-and-Stick</source>
-        <translation type="unfinished"></translation>
+        <translation>Ball-and-Stick</translation>
     </message>
 </context>
 <context>
@@ -87,85 +87,65 @@
     <message>
         <location filename="../src/ui/SelectModelsDialog.ui" line="14"/>
         <source>Select Models</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SelectModelsDialog.ui" line="25"/>
-        <source>All</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SelectModelsDialog.ui" line="32"/>
-        <source>Invert</source>
-        <translation type="unfinished"></translation>
+        <translation>Select Models</translation>
     </message>
 </context>
 <context>
     <name>SettingsDialog</name>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="145"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="35"/>
         <source>Anaglyph view</source>
-        <translation></translation>
+        <translation>Anaglyph view</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="159"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="49"/>
         <source>Eyes shift</source>
-        <translation></translation>
+        <translation>Eyes shift</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="14"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="20"/>
         <source>Settings</source>
-        <translation></translation>
+        <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="31"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="279"/>
         <source>Set background color...</source>
-        <translation></translation>
+        <translation>Set background color...</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="44"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="292"/>
         <source>Set selection color...</source>
-        <translation></translation>
+        <translation>Set selection color...</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="53"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="301"/>
         <source>Detail level</source>
-        <translation></translation>
+        <translation>Detail level</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="77"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="325"/>
         <source>Unselected regions shading</source>
-        <translation></translation>
+        <translation>Unselected regions shading</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="123"/>
-        <source>OK</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="130"/>
-        <source>Cancel</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="206"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="96"/>
         <source>Glasses colors</source>
-        <translation></translation>
+        <translation>Glasses colors</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="235"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="125"/>
         <source>Left</source>
-        <translation></translation>
+        <translation>Left</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="245"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="135"/>
         <source>Right</source>
-        <translation></translation>
+        <translation>Right</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.ui" line="338"/>
+        <location filename="../src/ui/SettingsDialog.ui" line="254"/>
         <source>Swap colors</source>
-        <translation></translation>
+        <translation>Swap colors</translation>
     </message>
 </context>
 <context>
@@ -173,248 +153,274 @@
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="14"/>
         <source>Structural Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Structural Alignment</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="20"/>
         <source>Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Algorithm</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="45"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Reference</translation>
     </message>
     <message>
         <location filename="../src/ui/StructuralAlignmentDialog.ui" line="61"/>
         <source>Mobile</source>
-        <translation type="unfinished"></translation>
+        <translation>Mobile</translation>
     </message>
 </context>
 <context>
     <name>U2::AddModelToSplitterTask</name>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="785"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="807"/>
         <source>Add 3d model &apos;%1&apos; to BioStruct3DSplitter</source>
-        <translation></translation>
+        <translation>Add 3d model &apos;%1&apos; to BioStruct3DSplitter</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="813"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="835"/>
         <source>Model %1 wasn&apos;t added</source>
-        <translation></translation>
+        <translation>Model %1 wasn&apos;t added</translation>
     </message>
 </context>
 <context>
     <name>U2::BioStruct3DGLWidget</name>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="761"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="776"/>
         <source>Spin</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="750"/>
-        <source>Off</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="757"/>
-        <source>Models..</source>
-        <translation type="unfinished"></translation>
+        <translation>Spin</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DGLWidget.cpp" line="765"/>
-        <source>Settings...</source>
-        <translation></translation>
+        <source>Off</source>
+        <translation>Off</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="768"/>
-        <source>Close</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="771"/>
-        <source>Export Image...</source>
-        <translation></translation>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="772"/>
+        <source>Models..</source>
+        <translation>Models..</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DGLWidget.cpp" line="780"/>
-        <source>Align With...</source>
-        <translation></translation>
+        <source>Settings...</source>
+        <translation>Settings...</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DGLWidget.cpp" line="783"/>
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="786"/>
+        <source>Export Image...</source>
+        <translation>Export Image...</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="795"/>
+        <source>Align With...</source>
+        <translation>Align With...</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="799"/>
         <source>Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="790"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="806"/>
         <source>Render Style</source>
-        <translation></translation>
+        <translation>Render Style</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="794"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="811"/>
         <source>Coloring Scheme</source>
-        <translation></translation>
+        <translation>Coloring Scheme</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="798"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="816"/>
         <source>Molecular Surface Render Style</source>
-        <translation></translation>
+        <translation>Molecular Surface Render Style</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="801"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="820"/>
         <source>Molecular Surface</source>
-        <translation></translation>
+        <translation>Molecular Surface</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="825"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="845"/>
         <source>Structural Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Structural Alignment</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="581"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="593"/>
         <source>Error</source>
-        <translation></translation>
+        <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DGLWidget.cpp" line="581"/>
+        <location filename="../src/BioStruct3DGLWidget.cpp" line="593"/>
         <source>Unable to open file %1 for writing</source>
-        <translation></translation>
+        <translation>Unable to open file %1 for writing</translation>
     </message>
 </context>
 <context>
     <name>U2::BioStruct3DSettingsDialog</name>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="47"/>
-        <source>Custom</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/SettingsDialog.cpp" line="49"/>
-        <source>Red - Blue</source>
-        <translation></translation>
-    </message>
-    <message>
         <location filename="../src/SettingsDialog.cpp" line="50"/>
-        <source>Cyan - Red</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/SettingsDialog.cpp" line="51"/>
-        <source>Red - Dark Cyan</source>
-        <translation></translation>
+        <source>Custom</source>
+        <translation>Custom</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="52"/>
-        <source>Red - Green</source>
-        <translation></translation>
+        <source>Red - Blue</source>
+        <translation>Red - Blue</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="53"/>
-        <source>Magenta - Green</source>
-        <translation></translation>
+        <source>Cyan - Red</source>
+        <translation>Cyan - Red</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="239"/>
+        <location filename="../src/SettingsDialog.cpp" line="54"/>
+        <source>Red - Dark Cyan</source>
+        <translation>Red - Dark Cyan</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="55"/>
+        <source>Red - Green</source>
+        <translation>Red - Green</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="56"/>
+        <source>Magenta - Green</source>
+        <translation>Magenta - Green</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="242"/>
         <source>(not supported by your videocard)</source>
-        <translation></translation>
+        <translation>(not supported by your videocard)</translation>
     </message>
 </context>
 <context>
     <name>U2::BioStruct3DViewContext</name>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="175"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="183"/>
         <source>Close 3D Structure Viewer</source>
-        <translation></translation>
+        <translation>Close 3D Structure Viewer</translation>
     </message>
 </context>
 <context>
     <name>U2::BioStruct3DViewPlugin</name>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="79"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="87"/>
         <source>3D Structure Viewer</source>
-        <translation></translation>
+        <translation>3D Structure Viewer</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DViewPlugin.cpp" line="79"/>
+        <location filename="../src/BioStruct3DViewPlugin.cpp" line="87"/>
         <source>Visualizes 3D structures of biological molecules.</source>
-        <translation></translation>
+        <translation>Visualizes 3D structures of biological molecules.</translation>
     </message>
 </context>
 <context>
     <name>U2::SelectModelsDialog</name>
     <message>
-        <location filename="../src/SelectModelsDialog.cpp" line="78"/>
-        <source>Error</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/SelectModelsDialog.cpp" line="40"/>
+        <source>All</source>
+        <translation>All</translation>
     </message>
     <message>
-        <location filename="../src/SelectModelsDialog.cpp" line="78"/>
+        <location filename="../src/SelectModelsDialog.cpp" line="41"/>
+        <source>Invert</source>
+        <translation>Invert</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="42"/>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="43"/>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="94"/>
+        <source>Error</source>
+        <translation>Error</translation>
+    </message>
+    <message>
+        <location filename="../src/SelectModelsDialog.cpp" line="94"/>
         <source>At least one model shoud be selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>At least one model shoud be selected.</translation>
     </message>
 </context>
 <context>
     <name>U2::SplitterHeaderWidget</name>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="388"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="398"/>
         <source>3D Structure Viewer</source>
-        <translation></translation>
+        <translation>3D Structure Viewer</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="396"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="406"/>
         <source>Active view:</source>
-        <translation type="unfinished"></translation>
+        <translation>Active view:</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="403"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="413"/>
         <source>Restore Default View</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="410"/>
-        <source>Zoom In</source>
-        <translation type="unfinished"></translation>
+        <translation>Restore Default View</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DSplitter.cpp" line="419"/>
-        <source>Zoom Out</source>
-        <translation type="unfinished"></translation>
+        <source>Zoom In</source>
+        <translation>Zoom In</translation>
     </message>
     <message>
         <location filename="../src/BioStruct3DSplitter.cpp" line="426"/>
+        <source>Zoom Out</source>
+        <translation>Zoom Out</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="432"/>
         <source>Synchronize 3D Structure Views</source>
-        <translation type="unfinished"></translation>
+        <translation>Synchronize 3D Structure Views</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="433"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="438"/>
         <source>Display</source>
-        <translation type="unfinished"></translation>
+        <translation>Display</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="545"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="462"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="463"/>
+        <source>Toggle view</source>
+        <translation>Toggle view</translation>
+    </message>
+    <message>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="552"/>
         <source>Show %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Show %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="754"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="776"/>
         <source>File not found: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>File not found: %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="766"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="788"/>
         <source>Illegal entry: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Illegal entry: %1</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="439"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="444"/>
         <source>Links</source>
-        <translation></translation>
+        <translation>Links</translation>
     </message>
     <message>
-        <location filename="../src/BioStruct3DSplitter.cpp" line="445"/>
+        <location filename="../src/BioStruct3DSplitter.cpp" line="450"/>
         <source>Add</source>
-        <translation></translation>
+        <translation>Add</translation>
     </message>
 </context>
 </TS>

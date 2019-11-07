@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,14 +22,19 @@
 #ifndef _U2_BAM_DBI_PLUGIN_H_
 #define _U2_BAM_DBI_PLUGIN_H_
 
-#include <U2Core/PluginModel.h>
-#include <U2Core/U2Dbi.h>
-#include <U2Core/Log.h>
+#include <time.h>
+
 #include <U2Core/DocumentImport.h>
 #include <U2Core/DocumentProviderTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/PluginModel.h>
+#include <U2Core/U2Dbi.h>
+
+#include "PrepareToImportTask.h"
 
 namespace U2 {
 
+class CloneObjectTask;
 class LoadDocumentTask;
 
 namespace BAM {
@@ -38,11 +43,7 @@ class BAMDbiPlugin : public Plugin {
     Q_OBJECT
 public:
     BAMDbiPlugin();
-private slots:
-    void sl_converter();
-    void sl_infoLoaded(Task*);
-    void sl_addDbFileToProject(Task*);
-    
+
 };
 
 class BAMImporter : public DocumentImporter {
@@ -52,24 +53,44 @@ public:
 
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& url);
 
-    virtual DocumentProviderTask* createImportTask(const FormatDetectionResult& res, bool showWizard);
-
+    virtual DocumentProviderTask* createImportTask(const FormatDetectionResult& res, bool showWizard, const QVariantMap &hints);
 };
 
 class LoadInfoTask;
 class ConvertToSQLiteTask;
 
 class BAMImporterTask : public DocumentProviderTask {
-	Q_OBJECT
+    Q_OBJECT
 public:
-    BAMImporterTask(const GUrl& url, bool useGui, bool sam);
+    BAMImporterTask(const GUrl& url, bool useGui, const QVariantMap &hints);
+
+    void prepare();
     QList<Task*> onSubTaskFinished(Task* subTask);
+    ReportResult report();
+
 private:
-    LoadInfoTask*           loadInfoTask;
-    ConvertToSQLiteTask*    convertTask;
-    LoadDocumentTask*       loadDocTask;
-    bool                    useGui;
-    bool                    sam;
+    void initPrepareToImportTask();
+    void initLoadBamInfoTask();
+    void initConvertToSqliteTask();
+    void initCloneObjectTasks();
+    void initLoadDocumentTask();
+
+    LoadInfoTask *           loadInfoTask;
+    LoadInfoTask *           loadBamInfoTask;
+    PrepareToImportTask *    prepareToImportTask;
+    ConvertToSQLiteTask *    convertTask;
+    QList<Task *>            cloneTasks;
+    LoadDocumentTask *       loadDocTask;
+
+    bool                     isSqliteDbTransit;
+    bool                     useGui;
+    bool                     sam;
+
+    QVariantMap              hints;
+    U2DbiRef                 hintedDbiRef;
+    U2DbiRef                 localDbiRef;
+    GUrl                     destUrl;
+    time_t                   startTime;
 };
 
 } // namespace BAM

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,14 +39,21 @@ const QString CMDLineCoreOptions::TEST_THREADS  = "test-threads";
 const QString CMDLineCoreOptions::TEAMCITY_OUTPUT = "log-teamcity-out";
 const QString CMDLineCoreOptions::LOG_FORMAT    = "log-format";
 const QString CMDLineCoreOptions::LOG_LEVEL     = "log-level";
+const QString CMDLineCoreOptions::CREATE_GUI_TEST   = "create-gui-test";
 const QString CMDLineCoreOptions::LAUNCH_GUI_TEST   = "gui-test";
+const QString CMDLineCoreOptions::LAUNCH_GUI_TEST_NO_IGNORED   = "gui-test-no-ignored";
+const QString CMDLineCoreOptions::LAUNCH_GUI_TEST_BATCH = "gui-test-batch";
+const QString CMDLineCoreOptions::LAUNCH_GUI_TEST_SUITE = "gui-test-suite";
+const QString CMDLineCoreOptions::LAUNCH_GUI_TEST_CRAZY_USER = "gui-test-crazy-user";
 const QString CMDLineCoreOptions::USAGE         = "usage";
+const QString CMDLineCoreOptions::TMP_DIR       = "tmp-dir";
+const QString CMDLineCoreOptions::SESSION_DB    = "session-db";
 
 
 void CMDLineCoreOptions::initHelp() {
     CMDLineRegistry * cmdLineRegistry = AppContext::getCMDLineRegistry();
     assert( NULL != cmdLineRegistry );
-    
+
     CMDLineHelpProvider * helpSection = new CMDLineHelpProvider(
         HELP,
         tr( "Shows help information." ),
@@ -63,12 +70,29 @@ void CMDLineCoreOptions::initHelp() {
     CMDLineHelpProvider * translSection = new CMDLineHelpProvider(
         TRANSLATION,
         tr( "Specifies the language to use." ),
-        tr( "Specifies the language to use. The following values are available: CS, EN, RU." ),
+        tr( "Specifies the language to use. The following values are available: CS, EN, RU, ZH." ),
         tr( "<language_code>" ));
-    
+
+    CMDLineHelpProvider * tmpDirSection = new CMDLineHelpProvider(
+        TMP_DIR,
+        "Path to temporary folder",
+        "",
+        tr( "<path_to_file>" ));
+
+    CMDLineHelpProvider * sessionDatabaseSection = new CMDLineHelpProvider(
+        SESSION_DB,
+        tr("Path to the session database file"),
+        tr("Session database is stored in the temporary file that is created for every UGENE run.\n"
+        "But it can be supplied with the command line argument.\n"
+        "If the supplied file does not exist it will be created.\n"
+        "The session database file is removed after closing of UGENE."),
+        tr( "<path_to_file>" ));
+
     cmdLineRegistry->registerCMDLineHelpProvider( helpSection );
     cmdLineRegistry->registerCMDLineHelpProvider( loadSettingsFileSection );
     cmdLineRegistry->registerCMDLineHelpProvider( translSection );
+    cmdLineRegistry->registerCMDLineHelpProvider( tmpDirSection );
+    cmdLineRegistry->registerCMDLineHelpProvider( sessionDatabaseSection);
 }
 
 } // U2

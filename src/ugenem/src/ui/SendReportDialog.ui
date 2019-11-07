@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>556</width>
+    <width>557</width>
     <height>511</height>
    </rect>
   </property>
@@ -34,19 +34,9 @@ Would you like to send the following crash report to UGENE team?</string>
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="additionalInfoLabel">
-     <property name="text">
-      <string>Additional information (optional)</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPlainTextEdit" name="additionalInfoTextEdit"/>
-   </item>
-   <item>
     <widget class="QLabel" name="emailLabel">
      <property name="text">
-      <string>Enter your e-mail to stay in touch (optional)</string>
+      <string>Please, enter your e-mail to stay in touch and help us improve UGENE (optional)</string>
      </property>
     </widget>
    </item>
@@ -58,7 +48,27 @@ Would you like to send the following crash report to UGENE team?</string>
     </widget>
    </item>
    <item>
+    <widget class="QLabel" name="additionalInfoLabel">
+     <property name="text">
+      <string>Additional information (optional)</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="additionalInfoTextEdit"/>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QCheckBox" name="checkBox">
+       <property name="text">
+        <string>Restart UGENE</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
      <item>
       <spacer name="horizontalSpacer">
        <property name="orientation">
@@ -76,6 +86,12 @@ Would you like to send the following crash report to UGENE team?</string>
       <widget class="QPushButton" name="sendButton">
        <property name="text">
         <string>Send</string>
+       </property>
+       <property name="checkable">
+        <bool>false</bool>
+       </property>
+       <property name="checked">
+        <bool>false</bool>
        </property>
       </widget>
      </item>

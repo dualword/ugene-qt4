@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,23 +34,23 @@ class Shtirlitz;
 class Shtirlitz {
 public:
     //Sends all of the reports, if needed. 
-    static void wakeup();
+    static QList<Task*> wakeup();
     //Sends custom reports, created by somebody other than Shtirlitz.
-    static void sendCustomReport( const QString & customReport );
+    static Task * sendCustomReport( const QString & customReport );
     //Saves to settings gathered during the current launch info
     static void saveGatheredInfo();
 private:
     //Creates and sends counters info (statistics about UGENE main tasks usage)
-    static void sendCountersReport();
+    static Task * sendCountersReport();
     //Creates and sends system info: OS, hardware platform, etc.
-    static void sendSystemReport();
+    static Task * sendSystemReport();
 
     static QString formCountersReport();
     static QString formSystemReport(); 
 
     static void getOsNameAndVersion( QString & name, QString & version );
 
-    static void getFirstLaunchInfo(bool& thisVersion, bool& allVersions);
+    static void getFirstLaunchInfo(bool& allVersions, bool& majorVersions);
     static bool enabled();
 
     //ugly stub for convenience - calls ShtirlitzPlugin::tr
@@ -60,6 +60,8 @@ private:
     //loads uuid from settings if necessary
     //creates the new one if nothing was found
     static QUuid getUniqueUgeneId();
+
+    static const QString SEPARATOR;
 };
 
 //Task which performs sending of data
@@ -70,6 +72,13 @@ public:
     void run();
 private:
     QString report;
+};
+
+class ShtirlitzStartupTask : public Task {
+    Q_OBJECT
+public:
+    ShtirlitzStartupTask();
+    void prepare();
 };
 
 } // U2

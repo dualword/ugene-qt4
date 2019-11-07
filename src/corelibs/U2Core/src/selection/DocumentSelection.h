@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@ class Document;
 class U2CORE_EXPORT DocumentSelection : public GSelection {
     Q_OBJECT
 public:
-    DocumentSelection(QObject* p = NULL) : GSelection(GSelectionTypes::DOCUMENTS, p) {}
+    DocumentSelection(QObject* p = NULL);
 
     const QList<Document*>& getSelectedDocuments() const {return selectedDocs;}
 

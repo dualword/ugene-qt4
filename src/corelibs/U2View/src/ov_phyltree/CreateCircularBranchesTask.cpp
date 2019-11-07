@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ const qreal CreateCircularBranchesTask::SCALE = 6.0;
 CreateCircularBranchesTask::CreateCircularBranchesTask(GraphicsRectangularBranchItem *r, bool _degeneratedCase): root1(r), degeneratedCase(_degeneratedCase) {}
 
 GraphicsCircularBranchItem* CreateCircularBranchesTask::getBranch(GraphicsRectangularBranchItem *from, GraphicsCircularBranchItem* parent) {
-    GraphicsCircularBranchItem* res = new GraphicsCircularBranchItem(parent, coef * from->getHeight(), from);
+    GraphicsCircularBranchItem* res = new GraphicsCircularBranchItem(parent, coef * from->getHeight(), from, from->getNodeLabel());
     foreach (QGraphicsItem* item, from->childItems()) {
         GraphicsRectangularBranchItem* ri = dynamic_cast<GraphicsRectangularBranchItem*>(item);
         if (ri != NULL) {
@@ -54,7 +54,7 @@ void CreateCircularBranchesTask::run() {
     }else{
         root1->setWidthW(WIDTH_RADIUS);
     }
-    
+
     GraphicsCircularBranchItem* r = getBranch(root1, NULL);
     r->setVisibleW(false);
     root = r;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,48 +20,81 @@
  */
 
 #include "AttributeRelation.h"
+#include <U2Core/FormatUtils.h>
 #include <U2Core/GUrl.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/AppContext.h>
 
+#include <U2Lang/ConfigurationEditor.h>
+
 namespace U2 {
 
-QVariant VisibilityRelation::getAffectResult(const QVariant &influencingValue, const QVariant &) const {
-    return influencingValue == visibilityValue;
+void AttributeRelation::updateDelegateTags(const QVariant & /*influencingValue*/, DelegateTags * /*dependentTags*/) const {
+
 }
 
-QVariant FileExtensionRelation::getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue) const {
+VisibilityRelation::VisibilityRelation(const QString &relatedAttrId, const QVariantList &_visibilityValues)
+: AttributeRelation(relatedAttrId), visibilityValues(_visibilityValues)
+{
+
+}
+
+VisibilityRelation::VisibilityRelation(const QString &relatedAttrId, const QVariant &visibilityValue)
+: AttributeRelation(relatedAttrId)
+{
+    visibilityValues << visibilityValue;
+}
+
+QVariant VisibilityRelation::getAffectResult(const QVariant &influencingValue, const QVariant &,
+    DelegateTags *, DelegateTags *) const {
+    foreach (const QVariant &v, visibilityValues) {
+        if (v == influencingValue) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QVariant FileExtensionRelation::getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+    DelegateTags * /*infTags*/, DelegateTags *depTags) const {
+
+    QString newFormatId = influencingValue.toString();
+    DocumentFormat *newFormat = AppContext::getDocumentFormatRegistry()->getFormatById(newFormatId);
+    updateDelegateTags(influencingValue, depTags);
+
     QString urlStr = dependentValue.toString();
     if (urlStr.isEmpty()) {
         return "";
     }
-    QString newFormatId = influencingValue.toString();
-    GUrl url(urlStr);
 
-    DocumentFormat *currentFormat = AppContext::getDocumentFormatRegistry()->getFormatById(currentFormatId);
-    DocumentFormat *newFormat = AppContext::getDocumentFormatRegistry()->getFormatById(newFormatId);
     QString extension;
     if (NULL == newFormat) {
         extension = newFormatId;
     } else {
         extension = newFormat->getSupportedDocumentFileExtensions().first();
     }
-    QString urlString = url.getURLString();
-    QString lastSuffix = url.lastFileSuffix();
-    bool withGz = false;
 
+    QString lastSuffix = GUrl(urlStr).lastFileSuffix();
+    bool withGz = false;
     if ("gz" == lastSuffix) {
-        int dotPos = urlString.length() - lastSuffix.length() - 1;
-        if ((dotPos >= 0) && (QChar('.') == urlString[dotPos])) {
+        int dotPos = urlStr.length() - lastSuffix.length() - 1;
+        if ((dotPos >= 0) && (QChar('.') == urlStr[dotPos])) {
             withGz = true;
-            urlString = url.getURLString().left(dotPos);
-            GUrl tmp(urlString);
-            lastSuffix = tmp.lastFileSuffix(); 
+            urlStr = urlStr.left(dotPos);
+            lastSuffix = GUrl(urlStr).lastFileSuffix();
         }
     }
 
+    DocumentFormat *currentFormat = AppContext::getDocumentFormatRegistry()->selectFormatByFileExtension(lastSuffix);
+    QString currentFormatId("");
+    if(currentFormat){
+       currentFormatId = currentFormat->getFormatId();
+    }
+
     bool foundExt = false;
-    if (NULL == currentFormat) {
+    if (0 == QString::compare(lastSuffix, "csv", Qt::CaseInsensitive)) {
+        foundExt = true;
+    }else if (NULL == currentFormat) {
         foundExt = (lastSuffix == currentFormatId);
     } else {
         QStringList extensions(currentFormat->getSupportedDocumentFileExtensions());
@@ -77,21 +110,49 @@ QVariant FileExtensionRelation::getAffectResult(const QVariant &influencingValue
             }
         }
     }
-    
+
     if (foundExt) {
-        int dotPos = urlString.length() - lastSuffix.length() - 1;
-        if ((dotPos >= 0) && (QChar('.') == urlString[dotPos])) { //yes, lastSuffix is a correct extension with .
-            urlString = url.getURLString().left(dotPos);
+        int dotPos = urlStr.length() - lastSuffix.length() - 1;
+        if ((dotPos >= 0) && (QChar('.') == urlStr[dotPos])) { //yes, lastSuffix is a correct extension with .
+            urlStr = urlStr.left(dotPos);
         }
     }
 
-    const_cast<QString&>(currentFormatId).clear();
-    const_cast<QString&>(currentFormatId).append(newFormatId);
-    urlString += "." + extension;
+    urlStr += "." + extension;
     if (withGz) {
-        urlString += ".gz";
+        urlStr += ".gz";
     }
-    return urlString;
+    return urlStr;
+}
+
+void FileExtensionRelation::updateDelegateTags(const QVariant &influencingValue, DelegateTags *dependentTags) const {
+    QString newFormatId = influencingValue.toString();
+    DocumentFormat *newFormat = AppContext::getDocumentFormatRegistry()->getFormatById(newFormatId);
+    if (NULL != dependentTags) {
+        dependentTags->set("format", newFormatId);
+        QString filter = newFormatId + " files (*." + newFormatId + ")";
+        if (NULL != newFormat) {
+            filter = FormatUtils::prepareDocumentsFileFilter(newFormatId, true);
+        }
+        dependentTags->set("filter", filter);
+    }
+}
+
+QVariant ValuesRelation::getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+                                         DelegateTags * /*infTags*/, DelegateTags *depTags) const {
+    updateDelegateTags(influencingValue, depTags);
+    QVariantMap items = dependencies.value(influencingValue.toString()).toMap();
+    if (items != QVariant()) {
+        return items.value(items.keys().first());
+    }
+    return dependentValue;
+}
+
+void ValuesRelation::updateDelegateTags(const QVariant &influencingValue, DelegateTags *dependentTags) const {
+    QVariantMap items = dependencies.value(influencingValue.toString()).toMap();
+    if (items != QVariant()) {
+        dependentTags->set("AvailableValues", items);
+    }
 }
 
 } // U2

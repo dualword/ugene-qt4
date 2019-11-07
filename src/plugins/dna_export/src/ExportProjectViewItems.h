@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,12 +22,15 @@
 #ifndef _U2_EXPORT_PROJECT_VIEW_ITEMS_H_
 #define _U2_EXPORT_PROJECT_VIEW_ITEMS_H_
 
-#include <U2Core/global.h>
+#include <QObject>
 
-#include <QtGui/QAction>
-#include <QtGui/QMenu>
+class QAction;
+class QMenu;
 
 namespace U2 {
+
+class GObject;
+class GUrl;
 
 class ExportProjectViewItemsContoller : public QObject {
     Q_OBJECT
@@ -38,27 +41,32 @@ private slots:
     void sl_addToProjectViewMenu(QMenu&);
 
     void sl_saveSequencesToSequenceFormat();
+    void sl_saveCorrespondingSequence();
     void sl_saveSequencesAsAlignment();
     void sl_saveAlignmentAsSequences();
     void sl_exportNucleicAlignmentToAmino();
     void sl_importAnnotationsFromCSV();
     void sl_exportChromatogramToSCF();
     void sl_exportAnnotations();
+    void sl_exportSequenceQuality();
+    void sl_exportObject();
 
 private:
-    void addExportMenu(QMenu& m);
-    void addImportMenu(QMenu& m);
+    void addExportImportMenu(QMenu& m);
+    void exportSequences(const QList<GObject *> &seqs);
 
     QAction* exportSequencesToSequenceFormatAction;
+    QAction* exportCorrespondingSeqsAction;
     QAction* exportSequencesAsAlignmentAction;
     QAction* exportAlignmentAsSequencesAction;
     QAction* exportNucleicAlignmentToAminoAction;
     QAction* importAnnotationsFromCSVAction;
     QAction* exportDNAChromatogramAction;
     QAction* exportAnnotations2CSV;
-
+    QAction* exportSequenceQuality;
+    QAction* exportObjectAction;
 };
 
-}//namespace
+} // namespace U2
 
 #endif

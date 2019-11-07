@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,7 @@
 #ifndef _U2_MSA_DISTANCE_ALGORITHM_H_
 #define _U2_MSA_DISTANCE_ALGORITHM_H_
 
-#include <U2Core/global.h>
-#include <U2Core/U2Region.h>
+#include <U2Core/AppResources.h>
 #include <U2Core/Task.h>
 #include <U2Core/MAlignment.h>
 #include <QtCore/QVarLengthArray>
@@ -34,11 +33,13 @@ namespace U2 {
 class MAlignment;
 class MSADistanceAlgorithm;
 class DNAAlphabet;
+class MSADistanceMatrix;
 
 enum DistanceAlgorithmFlag {
     DistanceAlgorithmFlag_Nucleic = 1 << 0,
     DistanceAlgorithmFlag_Amino = 1 << 1,
     DistanceAlgorithmFlag_Raw = 1 << 2,
+    DistanceAlgorithmFlag_ExcludeGaps = 1 << 3
 };
 
 typedef QFlags<DistanceAlgorithmFlag> DistanceAlgorithmFlags;
@@ -49,12 +50,15 @@ class U2ALGORITHM_EXPORT MSADistanceAlgorithmFactory : public QObject {
     Q_OBJECT
 public:
     MSADistanceAlgorithmFactory(const QString& algoId, DistanceAlgorithmFlags flags, QObject* p = NULL);
-    
+
     virtual MSADistanceAlgorithm* createAlgorithm(const MAlignment& ma, QObject* parent = NULL) = 0;
-    
+
     QString getId() const {return algorithmId;}
 
     DistanceAlgorithmFlags getFlags() const {return flags;}
+
+    void setFlag(DistanceAlgorithmFlag flag);
+    void resetFlag(DistanceAlgorithmFlag flag);
 
     virtual QString getDescription() const = 0;
 
@@ -63,35 +67,70 @@ public:
     // utility method
     static DistanceAlgorithmFlags getAphabetFlags(const DNAAlphabet* al);
 
-private:
+protected:
     QString                 algorithmId;
     DistanceAlgorithmFlags  flags;
 
 };
 
+typedef QVarLengthArray<QVarLengthArray<int> > varLengthMatrix;
+
 class U2ALGORITHM_EXPORT MSADistanceAlgorithm : public Task {
     Q_OBJECT
+
+    friend class MSADistanceMatrix;
 public:
     MSADistanceAlgorithm(MSADistanceAlgorithmFactory* factory, const MAlignment& ma);
 
     int getSimilarity(int row1, int row2);
-    
+
     virtual QString getDescription() const {return factory->getDescription();}
 
     virtual QString getName() const {return factory->getName();}
 
     QString getId() const {return factory->getId();}
 
+    bool isSimilarityMeasure() const {return isSimilarity;}
+
+    void setExcludeGaps(bool _excludeGaps) {excludeGaps = _excludeGaps;}
+
     MSADistanceAlgorithmFactory* getFactory() const {return factory;}
 
+    bool getExcludeGapsFlag() const {return excludeGaps;}
+
+    void setDistanceValue(int row1, int row2, int distance);
+
 private:
-    MSADistanceAlgorithmFactory*    factory;
+    varLengthMatrix              distanceTable;
+    MSADistanceAlgorithmFactory* factory;
+    MemoryLocker                 memoryLocker;
 
 protected:
+    virtual void fillTable();
+    virtual int calculateSimilarity(int , int ){return 0;}
     MAlignment                                  ma;
-    QVarLengthArray<QVarLengthArray<int> >      distanceTable;
     QMutex                                      lock;
+    bool                                        excludeGaps;
+    bool                                        isSimilarity;
 };
+class U2ALGORITHM_EXPORT MSADistanceMatrix : public QObject{
+    Q_OBJECT
+public:
+    MSADistanceMatrix(const MSADistanceAlgorithm *algo, bool _usePercents);
+    ~MSADistanceMatrix() {}
+    bool isEmpty(){ return distanceTable.isEmpty();}
+    int getSimilarity(int row1, int row2);
+    void showSimilarityInPercents(bool _usePercents) {usePercents = _usePercents;}
+    bool areUsePercents() {return usePercents;}
+
+protected:
+    varLengthMatrix                             distanceTable;
+    bool                                        usePercents;
+    bool                                        excludeGaps;
+    QVector<int>                                seqsUngappedLenghts;
+    int                                         alignmentLength;
+};
+
 
 }//namespace
 

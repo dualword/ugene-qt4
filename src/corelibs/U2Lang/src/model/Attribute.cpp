@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,24 +24,27 @@
 #include <QtCore/QStringList>
 
 #include <U2Lang/HRSchemaSerializer.h>
+#include <U2Lang/WorkflowUtils.h>
 #include "Attribute.h"
 
 namespace U2 {
+using namespace WorkflowSerialize;
 
 /*************************************
  *  Attribute
  *************************************/
 Attribute::Attribute(const Descriptor& d, const DataTypePtr t, bool req, const QVariant & defaultValue )
-: Descriptor(d), type(t), required(req), value(defaultValue) {
+: Descriptor(d), type(t), required(req), defaultValue(defaultValue) {
+    value = defaultValue;
     debugCheckAttributeId();
 }
 
 void Attribute::debugCheckAttributeId() const {
     QString id = getId(); Q_UNUSED(id);
-    assert(id != HRSchemaSerializer::TYPE_ATTR);
-    assert(id != HRSchemaSerializer::NAME_ATTR);
-    assert(id != HRSchemaSerializer::SCRIPT_ATTR);
-    assert(id != HRSchemaSerializer::ELEM_ID_ATTR);
+    assert(id != Constants::TYPE_ATTR);
+    assert(id != Constants::NAME_ATTR);
+    assert(id != Constants::SCRIPT_ATTR);
+    assert(id != Constants::ELEM_ID_ATTR);
 }
 
 const DataTypePtr Attribute::getAttributeType()const {
@@ -53,11 +56,23 @@ bool Attribute::isRequiredAttribute() const {
 }
 
 void Attribute::setAttributeValue(const QVariant & newVal) {
-    value = newVal;
+    if (QVariant() == newVal) {
+        value = defaultValue;
+    } else {
+        value = newVal;
+    }
 }
 
-const QVariant & Attribute::getAttributePureValue() const {
+const QVariant &Attribute::getAttributePureValue() const {
     return value;
+}
+
+const QVariant &Attribute::getDefaultPureValue() const {
+    return defaultValue;
+}
+
+bool Attribute::isDefaultValue() const {
+    return (value == defaultValue);
 }
 
 const AttributeScript & Attribute::getAttributeScript() const {
@@ -95,7 +110,7 @@ bool Attribute::fromVariant(const QVariant& variant) {
         scriptText = scriptTextVal.toString();
     }
     scriptData.setScriptText(scriptText);
-    
+
     QVariant descs = args.at(2);
     if( descs.canConvert(QVariant::List) ) {
         QVariantList descList = descs.toList();
@@ -122,12 +137,36 @@ QVector<const AttributeRelation*> &Attribute::getRelations() {
     return relations;
 }
 
+void Attribute::addPortRelation(const PortRelationDescriptor& relationDesc) {
+    portRelations << relationDesc;
+}
+
+const QList<PortRelationDescriptor>& Attribute::getPortRelations() const {
+    return portRelations;
+}
+
+
 Attribute *Attribute::clone() {
     return new Attribute(*this);
 }
 
 AttributeGroup Attribute::getGroup() {
     return COMMON_GROUP;
+}
+
+void Attribute::updateActorIds(const QMap<ActorId, ActorId> &actorIdsMap) {
+    Q_UNUSED(actorIdsMap);
+}
+
+bool Attribute::validate(ProblemList &problemList) {
+    if(!isRequiredAttribute()) {
+        return true;
+    }
+    if( (isEmpty() || isEmptyString()) && getAttributeScript().isEmpty()) {
+        problemList.append(Problem(U2::WorkflowUtils::tr("Required parameter is not set: %1").arg(getDisplayName())));
+        return false;
+    }
+    return true;
 }
 
 /*************************************
@@ -181,6 +220,7 @@ void AttributeScript::setVarValueWithId(const QString & varName, const QVariant 
     foreach(const Descriptor & varDesc, vars.keys()) {
         if( varDesc.getId() == varName ) {
             vars[varDesc] = value;
+            break;
         }
     }
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,13 +26,14 @@
 #include "RFDiagonal.h"
 
 #include <U2Core/Log.h>
+#include <U2Core/U2SafePoints.h>
 
 namespace U2 {
 
 //factory method
-RFAlgorithmBase* RFAlgorithmBase::createTask(RFResultsListener* l, const char *seqX, int sizeX, 
-                                              const char *seqY, int sizeY, 
-                                              DNAAlphabet *al, int w, int mismatches,  
+RFAlgorithmBase* RFAlgorithmBase::createTask(RFResultsListener* l, const char *seqX, int sizeX,
+                                              const char *seqY, int sizeY,
+                                              const DNAAlphabet *al, int w, int mismatches,
                                               RFAlgorithm alg, int nThreads)
 {
     assert(l!=NULL);
@@ -42,7 +43,7 @@ RFAlgorithmBase* RFAlgorithmBase::createTask(RFResultsListener* l, const char *s
 
     RFAlgorithmBase* res = NULL;
     if (alg == RFAlgorithm_Auto) {
-        //alg = RFAlgorithm_Diagonal; //the slowest but tested better 
+        //alg = RFAlgorithm_Diagonal; //the slowest but tested better
         alg = RFAlgorithm_Suffix;
     }
     if (mismatches == 0) {
@@ -58,7 +59,7 @@ RFAlgorithmBase* RFAlgorithmBase::createTask(RFResultsListener* l, const char *s
             int q = w / (mismatches +1);
             if (q >= 4 || (q == 3 && (al->getType() ==DNAAlphabet_AMINO || al->getType() ==DNAAlphabet_RAW))) {
                 suffix = true;
-            } 
+            }
         }
         algoLog.trace(QString("using %1 algorithm").arg(suffix ? "suffix" : "diagonal"));
         if (suffix) {
@@ -78,10 +79,10 @@ char RFAlgorithmBase::getUnknownChar(const DNAAlphabetType &type) {
     return type == DNAAlphabet_AMINO ? 'X' : type==DNAAlphabet_NUCL ? 'N' : '\0';
 }
 
-RFAlgorithmBase::RFAlgorithmBase(RFResultsListener* l, const char* seqx, int sizex, const char* seqy, int sizey, 
-                                 DNAAlphabetType seqType, int w, int k, TaskFlags flags) 
-: Task(tr("Find repeats"), flags), 
-seqX(seqx),  seqY(seqy), SIZE_X(sizex), SIZE_Y(sizey), 
+RFAlgorithmBase::RFAlgorithmBase(RFResultsListener* l, const char* seqx, int sizex, const char* seqy, int sizey,
+                                 DNAAlphabetType seqType, int w, int k, TaskFlags flags)
+: Task(tr("Find Repeats"), flags),
+seqX(seqx),  seqY(seqy), SIZE_X(sizex), SIZE_Y(sizey),
 SEQ_TYPE(seqType), WINDOW_SIZE(w), K(k), C(w-k),
 resultsListener(l), reportReflected(true)
 {
@@ -94,35 +95,35 @@ void RFAlgorithmBase::setRFResultsListener(RFResultsListener* newListener) {
     resultsListener = newListener;
 }
 
-// adds single result to global results 
+// adds single result to global results
 void RFAlgorithmBase::addToResults(const RFResult& r){
 #ifdef _DEBUG
     checkResult(r);
 #endif
-    if (!resultsListener) {
-        cancel();
-        return;
-    }
+    CHECK_EXT(NULL != resultsListener, cancel(), );
     resultsListener->onResult(r);
     if (reflective && reportReflected) {
         assert(r.x!=r.y);
+        CHECK_EXT(NULL != resultsListener, cancel(), );
         resultsListener->onResult(RFResult(r.y, r.x, r.l, r.c));
     }
 }
 
-// adds single result to global results 
+// adds single result to global results
 void RFAlgorithmBase::addToResults(const QVector<RFResult>& results) {
 #ifdef _DEBUG
     checkResults(results);
 #endif
-    if (!resultsListener) {
-        cancel();
-        return;
-    }
+    CHECK_EXT(NULL != resultsListener, cancel(), );
     resultsListener->onResults(results);
     if (reflective && reportReflected) {
         QVector<RFResult> complResults;
-        complResults.reserve(results.size());
+        try {
+            complResults.reserve(results.size());
+        } catch(...) {
+            setError("Not enough memory");
+            return;
+        }
         foreach(const RFResult& r, results) {
             if (r.x == r.y) {
                 assert(r.l == qMin(SIZE_X, SIZE_Y));
@@ -130,6 +131,7 @@ void RFAlgorithmBase::addToResults(const QVector<RFResult>& results) {
             }
             complResults.append(RFResult(r.y, r.x, r.l, r.c));
         }
+        CHECK_EXT(NULL != resultsListener, cancel(), );
         resultsListener->onResults(complResults);
     }
 }
@@ -141,6 +143,7 @@ void RFAlgorithmBase::prepare() {
     }
     if (reflective && reportReflected) {
         assert(SIZE_X == SIZE_Y);
+        CHECK_EXT(NULL != resultsListener, cancel(), );
         resultsListener->onResult(RFResult(0, 0, SIZE_X));
     }
 }
@@ -170,7 +173,7 @@ bool RFAlgorithmBase::checkResult(const RFResult& r) {
 
     //check that result starts and ends with match if len > W
     if (r.l > int(WINDOW_SIZE)) {
-        char cx = seqX[r.x]; 
+        char cx = seqX[r.x];
         char cy = seqY[r.y];
         assert(CHAR_MATCHES(cx, cy));Q_UNUSED(cx);Q_UNUSED(cy);
 
@@ -187,7 +190,7 @@ bool RFAlgorithmBase::checkResult(const RFResult& r) {
         char cy = seqY[r.y + i];
         c+=CHAR_MATCHES(cx, cy) ? 0 : 1;
         allMatches+=CHAR_MATCHES(cx, cy) ? 1 : 0;
-            
+
         if (i >= int(WINDOW_SIZE)) {
             char cxp = seqX[r.x + i - WINDOW_SIZE];
             char cyp = seqY[r.y + i - WINDOW_SIZE];
@@ -209,11 +212,6 @@ bool Tandem::extend (const Tandem& t){
 
 bool Tandem::operator < (const Tandem& t) const{
     return repeatLen<t.repeatLen || (repeatLen==t.repeatLen && rightSide<t.offset);
-//  return rightSide < t.offset || repeatLen < t.repeatLen;
-/*  const qint32 left = (qint32)offset-(qint32)t.offset+(qint32)size;
-    const qint32 right = (qint32)qMax(repeatLen, t.repeatLen);
-    return (left < right) || repeatLen < t.repeatLen;
-*/
 }
 
 } //namespace

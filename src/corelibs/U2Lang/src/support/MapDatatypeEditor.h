@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,21 +33,22 @@ namespace U2 {
 /**
  * base class for controllers of map datatype attribute editors of configuration
  * this is base class for port data editors
- * 
+ *
  * from - type came from integral bus
  * to type of port
  * prop - busmap property name
  */
-class U2LANG_EXPORT MapDatatypeEditor : public QObject, public ConfigurationEditor {
+class U2LANG_EXPORT MapDatatypeEditor : public ConfigurationEditor {
     Q_OBJECT
 public:
     MapDatatypeEditor(Configuration* cfg, const QString& prop, DataTypePtr from, DataTypePtr to);
     virtual ~MapDatatypeEditor() {}
     virtual QWidget* getWidget();
     virtual void commit();
+    virtual QMap<QString,QString> getBindingsMap();
     int getOptimalHeight();
 
-private slots:
+protected slots:
     void sl_showDoc();
 signals:
     void si_showDoc(const QString&);
@@ -60,7 +61,7 @@ protected:
     DataTypePtr from, to;
     QTableWidget* table;
     QTextEdit* doc;
-    
+
 }; // MapDatatypeEditor
 
 
@@ -74,12 +75,16 @@ class U2LANG_EXPORT BusPortEditor : public MapDatatypeEditor {
 public:
     BusPortEditor(Workflow::IntegralBusPort* p);
     virtual ~BusPortEditor() {}
+    virtual void commit();
+    virtual QMap<QString,QString> getBindingsMap();
+    virtual bool isEmpty() const;
+
 protected:
     virtual QWidget* createGUI(DataTypePtr from, DataTypePtr to);
     Workflow::IntegralBusPort* port;
 private slots:
     void handleDataChanged(const QModelIndex & topLeft, const QModelIndex & bottomRight);
-    
+
 }; // BusPortEditor
 
 
@@ -93,11 +98,17 @@ public:
     virtual QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     virtual void setEditorData(QWidget *editor, const QModelIndex &index) const;
     virtual void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const;
-    
+
     //void updateEditorGeometry(QWidget *editor,
     //  const QStyleOptionViewItem &option, const QModelIndex &index) const;
-    
+
 }; // DescriptorListEditorDelegate
+
+class ItemDelegateForHeaders : public QItemDelegate {
+public:
+    ItemDelegateForHeaders(QObject *parent = 0);
+    virtual void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
+};
 
 }//namespace U2
 

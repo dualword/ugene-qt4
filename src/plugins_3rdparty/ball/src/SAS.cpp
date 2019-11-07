@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ SolventAccessibleSurface::SolventAccessibleSurface()
     GCOUNTER( cvar, tvar, "SolventAccessibleSurface" );
 }
 
-void SolventAccessibleSurface::calculate(const QList<SharedAtom>& atoms, int& progress)
+void SolventAccessibleSurface::calculate(const QList<SharedAtom>& atoms, int& /*progress*/)
 {
     BALL::Surface surface;
     {
@@ -51,9 +51,9 @@ void SolventAccessibleSurface::calculate(const QList<SharedAtom>& atoms, int& pr
         reducedSurface.compute();
         BALL::SolventAccessibleSurface solventAccessibleSurface(&reducedSurface);
         solventAccessibleSurface.compute();
-        double density = 1000/atoms.size(); 
+        double density = 1000/atoms.size();
         BALL::TriangulatedSAS triangulatedSAS(&solventAccessibleSurface, density);
-        triangulatedSAS.compute(progress);
+        triangulatedSAS.compute();
         triangulatedSAS.exportSurface(surface);
     }
     for(unsigned int faceIndex=0;faceIndex < surface.getNumberOfTriangles();faceIndex++)

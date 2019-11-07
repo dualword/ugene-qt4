@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,6 +41,9 @@ public:
     static void updateTitle(AnnotatedDNAView* v);
 
 private:
+    void populateSeqObjectRefs( GObject *object, QList<Document *> &docsToLoad,
+        QSet<GObject *> &refsAdded );
+
     QList<GObjectReference> sequenceObjectRefs;
 };
 

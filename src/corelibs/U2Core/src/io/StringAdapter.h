@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,6 +55,9 @@ public:
     StringAdapter(StringAdapterFactory* f, QObject* o = NULL);
     ~StringAdapter() {if (isOpen()) close();}
 
+    /** Creates opened adapter */
+    StringAdapter(const QByteArray &data);
+
     virtual bool open(const GUrl& url, IOAdapterMode m);
 
     virtual bool isOpen() const {return opened;}
@@ -75,11 +78,14 @@ public:
 
     virtual GUrl getURL() const {return GUrl();}
 
-    const QString &getBuffer() {return buffer;}
+    const QByteArray & getBuffer() {return buffer;}
+
+    virtual QString errorString() const;
 
 private:
     bool opened;
-    QString buffer;
+    QByteArray buffer;
+    int pos;
 };
 
 

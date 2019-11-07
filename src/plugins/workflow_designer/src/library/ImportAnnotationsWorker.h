@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,31 +32,31 @@ class ImportAnnotationsWorker : public BaseWorker {
     Q_OBJECT
 public:
     ImportAnnotationsWorker(Actor * p) : BaseWorker(p), inPort(NULL), outPort(NULL) {}
-    
+
     virtual void init();
-    virtual bool isReady();
     virtual Task * tick();
-    virtual bool isDone();
     virtual void cleanup();
-    
+
 private slots:
     void sl_docsLoaded(Task *);
-    
+
 private:
     IntegralBus * inPort;
     IntegralBus * outPort;
-    QMap<Task*, QList<SharedAnnotationData> > annsMap;
-    
+    QMap<Task *, QList<SharedAnnotationData> > annsMap;
+
+private:
+    void addTaskAnnotations(const QVariant &data, Task *t);
 }; // ImportAnnotationsWorker
 
 class ImportAnnotationsWorkerFactory : public DomainFactory {
 public:
     static const QString ACTOR_ID;
-    
+
     ImportAnnotationsWorkerFactory() : DomainFactory(ACTOR_ID) {}
     static void init();
     virtual Worker * createWorker(Actor* a);
-    
+
 }; // ImportAnnotationsWorkerFactory
 
 } // LocalWorkflow

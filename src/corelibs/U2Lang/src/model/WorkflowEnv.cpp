@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,27 +19,34 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Lang/SchemaSerializer.h>
 #include "WorkflowEnv.h"
 
 namespace U2 {
 namespace Workflow {
 
-WorkflowEnv* WorkflowEnv::instance;
+WorkflowEnv* WorkflowEnv::instance = NULL;
 
 bool WorkflowEnv::init(WorkflowEnv* env) {
     if (instance) {
         assert(0);// Duplicate initialization;
         return false;
     }
-    
+
     env->data = env->initDataRegistry();
     env->proto = env->initProtoRegistry();
     env->domain = env->initDomainRegistry();
     instance = env;
     env->dvfReg = env->initDataTypeValueFactoryRegistry();
     env->ecfgReg = env->initExternalToolCfgRegistry();
+    env->schemaActorsReg = env->initSchemaActorsRegistry();
+    env->workflowTasksRegistry = env->initWorkflowTasksRegistry();
+    env->actorValidatorRegistry = env->initActorValidatorRegistry();
     return true;
+}
+
+WorkflowEnv* WorkflowEnv::getInstance() {
+    SAFE_POINT(NULL != instance, "WorkflowEnv instance is NULL", NULL);
+    return instance;
 }
 
 }// namespace Workflow

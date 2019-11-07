@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,19 +20,49 @@
  */
 
 #include "DeleteGapsDialog.h"
+#include <U2Gui/HelpButton.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QPushButton>
+#endif
 
 
 namespace U2 {
 
 DeleteGapsDialog::DeleteGapsDialog(QWidget* parent, int rowNum): QDialog(parent) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122241");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Remove"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     allRadioButton->setChecked(true);
     absoluteSpinBox->setMinimum(1);
     absoluteSpinBox->setMaximum(rowNum);
 
+    QPushButton *deleteButton = buttonBox->button(QDialogButtonBox::Ok);
+    QPushButton *cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
+
+    connect(absoluteRadioButton, SIGNAL(clicked()), SLOT(sl_onRadioButtonClicked()));
+    connect(relativeRadioButton, SIGNAL(clicked()), SLOT(sl_onRadioButtonClicked()));
+    connect(allRadioButton, SIGNAL(clicked()), SLOT(sl_onRadioButtonClicked()));
     connect(deleteButton, SIGNAL(clicked()), SLOT(sl_onOkClicked()));
     connect(cancelButton, SIGNAL(clicked()), SLOT(sl_onCancelClicked()));
+
+    sl_onRadioButtonClicked();
+
+}
+
+void DeleteGapsDialog::sl_onRadioButtonClicked() {
+    absoluteSpinBox->setEnabled(absoluteRadioButton->isChecked());
+    relativeSpinBox->setEnabled(relativeRadioButton->isChecked());
+
+    if (absoluteRadioButton->isChecked()) {
+        absoluteSpinBox->setFocus();
+    }
+    if (relativeRadioButton->isChecked()) {
+        relativeSpinBox->setFocus();
+    }
 }
 
 void DeleteGapsDialog::sl_onOkClicked() {

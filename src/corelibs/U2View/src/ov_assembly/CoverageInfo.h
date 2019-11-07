@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,8 @@
 
 #include "AssemblyModel.h"
 
+#include <U2Core/BackgroundTaskRunner.h>
 #include <U2Core/U2Region.h>
-#include "BackgroundTaskRunner.h"
 
 #include <QtCore/QVector>
 #include <QtCore/QSharedPointer>
@@ -38,6 +38,10 @@ struct CoverageInfo {
     inline bool isEmpty() {
         return coverageInfo.empty();
     }
+    // calculates min, max and average
+    void updateStats();
+
+    U2Region region;
     QVector<qint64> coverageInfo;
     double averageCoverage;
     qint64 maxCoverage;

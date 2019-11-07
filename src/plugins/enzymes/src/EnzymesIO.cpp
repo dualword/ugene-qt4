@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,9 +34,6 @@
 #include <U2Core/Settings.h>
 
 #include <QtCore/QDir>
-#include <QtCore/QFile>
-
-#include <memory>
 
 namespace U2 {
 
@@ -53,7 +50,7 @@ QList<SEnzymeData> EnzymesIO::readEnzymes(const QString& url, TaskStateInfo& ti)
         ti.setError(  tr("Unsupported URI type") );
         return res;
     }
-    
+
     EnzymeFileFormat f = detectFileFormat(url);
     if (ti.hasError()) {
         return res;
@@ -62,22 +59,37 @@ QList<SEnzymeData> EnzymesIO::readEnzymes(const QString& url, TaskStateInfo& ti)
         case EnzymeFileFormat_Bairoch:
             res = readBairochFile(url, iof, ti);
             break;
-        default: 
+        default:
             ti.setError(  tr("Unsupported enzymes file format") );
             break;
     }
-    
+
+    QList<SEnzymeData> resToDelete;
     //assign alphabet if needed.
     for (int i=0, n = res.count(); i<n; i++) {
         SEnzymeData& d = res[i];
-        if (d->alphabet == NULL) {
-            d->alphabet = U2AlphabetUtils::findBestAlphabet(d->seq);
-            if (!d->alphabet->isNucleic()) {
-                algoLog.error(tr("Non-nucleic enzyme alphabet: '%1', alphabet: %2, sequence '%3'")
-                    .arg(d->id).arg(d->alphabet->getId()).arg(QString(d->seq)));
+        if (d->seq == QByteArray("?")){
+            algoLog.trace(tr("The enzyme '%1' has unknown sequence").arg(d->id));
+            resToDelete.append(d);
+        }else{
+            if (d->alphabet == NULL) {
+                d->alphabet = U2AlphabetUtils::findBestAlphabet(d->seq);
+                if(!d->alphabet){
+                    algoLog.error(tr("No enzyme alphabet: '%1', sequence '%2'")
+                        .arg(d->id).arg(QString(d->seq)));
+                }
+                if (!d->alphabet->isNucleic()) {
+                    algoLog.error(tr("Non-nucleic enzyme alphabet: '%1', alphabet: %2, sequence '%3'")
+                        .arg(d->id).arg(d->alphabet->getId()).arg(QString(d->seq)));
+                }
             }
         }
     }
+    //Remove not needed elements
+    foreach(SEnzymeData d, resToDelete){
+        res.removeAll(d);
+    }
+
     return res;
 }
 
@@ -95,7 +107,7 @@ void EnzymesIO::writeEnzymes(const QString& url, const QString& source, const QS
         ti.setError(  tr("Unsupported URI type") );
         return;
     }
-    
+
     EnzymeFileFormat f = detectFileFormat(source);
     if (ti.hasError()) {
         return;
@@ -104,7 +116,7 @@ void EnzymesIO::writeEnzymes(const QString& url, const QString& source, const QS
         case EnzymeFileFormat_Bairoch:
             writeBairochFile(url, iof, source, srciof, enzymes, ti);
             break;
-        default: 
+        default:
             ti.setError(  tr("Unsupported enzymes file format") );
             break;
     }
@@ -122,13 +134,13 @@ EnzymeFileFormat EnzymesIO::detectFileFormat(const QString& url) {
 #define READ_BUFF_SIZE 4096
 QList<SEnzymeData> EnzymesIO::readBairochFile(const QString& url, IOAdapterFactory* iof, TaskStateInfo& ti) {
     QList<SEnzymeData> res;
-    
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Read)) {
         ti.setError(L10N::errorOpeningFileRead(url));
         return res;
     }
-    
+
     SEnzymeData currentData(new EnzymeData());
     QByteArray buffArr(READ_BUFF_SIZE, 0);
     char* buff = buffArr.data();
@@ -211,19 +223,19 @@ QList<SEnzymeData> EnzymesIO::readBairochFile(const QString& url, IOAdapterFacto
 }
 
 void EnzymesIO::writeBairochFile(const QString& url, IOAdapterFactory* iof, const QString& source, IOAdapterFactory* srciof, const QSet<QString>& enzymes, TaskStateInfo& ti) {
-    
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Write)) {
         ti.setError(L10N::errorOpeningFileWrite(url));
         return;
     }
 
-    std::auto_ptr<IOAdapter> srcio(srciof->createIOAdapter());
+    QScopedPointer<IOAdapter> srcio(srciof->createIOAdapter());
     if (!srcio->open(source, IOAdapterMode_Read)) {
         ti.setError(L10N::errorOpeningFileRead(source));
         return;
     }
-    
+
     QByteArray buffArr(READ_BUFF_SIZE, 0);
     char* buff = buffArr.data();
     const QBitArray& LINE_BREAKS = TextUtils::LINE_BREAKS;
@@ -240,7 +252,7 @@ void EnzymesIO::writeBairochFile(const QString& url, IOAdapterFactory* iof, cons
             if (writeString) io->writeBlock(buff, len);
             continue;
         }
-        
+
         if (buff[0] == 'I' && buff[1] == 'D') {
             QString currID(QByteArray(buff + 3, len - 3).trimmed());
             writeString = enzymes.contains(currID);
@@ -261,12 +273,12 @@ SEnzymeData EnzymesIO::findEnzymeById(const QString& id, const QList<SEnzymeData
     return SEnzymeData();
 }
 
-static QList<SEnzymeData> loadEnzymesData() {   
+static QList<SEnzymeData> loadEnzymesData() {
     QList<SEnzymeData> res;
     TaskStateInfo ti;
 
     QString url = AppContext::getSettings()->getValue(EnzymeSettings::DATA_FILE_KEY).toString();
-    
+
     if (url.isEmpty()) {
         QString dataDir = QDir::searchPaths( PATH_PREFIX_DATA ).first() + "/enzymes/";
         url = dataDir + DEFAULT_ENZYMES_FILE;
@@ -289,7 +301,7 @@ QList<SEnzymeData> EnzymesIO::getDefaultEnzymesList()
 //////////////////////////////////////////////////////////////////////////
 // load task
 
-LoadEnzymeFileTask::LoadEnzymeFileTask(const QString& _url) 
+LoadEnzymeFileTask::LoadEnzymeFileTask(const QString& _url)
 : Task(tr("Load enzymes from %1").arg(_url), TaskFlag_None), url(_url)
 {
 }
@@ -301,7 +313,7 @@ void LoadEnzymeFileTask::run() {
 //////////////////////////////////////////////////////////////////////////
 // save task
 
-SaveEnzymeFileTask::SaveEnzymeFileTask(const QString& _url, const QString& _source, const QSet<QString>& _enzymes) 
+SaveEnzymeFileTask::SaveEnzymeFileTask(const QString& _url, const QString& _source, const QSet<QString>& _enzymes)
 : Task(tr("Save enzymes to %1").arg(_url), TaskFlag_None), url(_url), source(_source), enzymes(_enzymes)
 {
 }

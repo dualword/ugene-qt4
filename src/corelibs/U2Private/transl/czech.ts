@@ -367,26 +367,18 @@
         <translation>Zapisuje se nový úkol: %1</translation>
     </message>
     <message>
-        <source>Uregistering task: %1</source>
-        <translation type="obsolete">Ruší se zápis úkolu: %1</translation>
-    </message>
-    <message>
         <location filename="../src/TaskSchedulerImpl.cpp" line="584"/>
         <source>Invalid name</source>
         <translation>Neplatný název</translation>
     </message>
     <message>
-        <location filename="../src/TaskSchedulerImpl.cpp" line="790"/>
+        <location filename="../src/TaskSchedulerImpl.cpp" line="799"/>
         <source>Deleting task: %1</source>
         <translation>Maže se úkol: %1</translation>
     </message>
     <message>
-        <source>registering new task %1</source>
-        <translation type="obsolete">Zapisuje se nový úkol: %1</translation>
-    </message>
-    <message>
-        <source>unregistering task %1</source>
-        <translation type="obsolete">Ruší se zápis nového úkolu: %1</translation>
+        <source>Unregistering task: %1</source>
+        <translation>Ruší se zápis nového úkolu: %1</translation>
     </message>
     <message>
         <source>invalid state name</source>
@@ -398,18 +390,13 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/TaskSchedulerImpl.cpp" line="501"/>
-        <source>Unregistering task: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../src/TaskSchedulerImpl.cpp" line="645"/>
-        <source>promoting task {%1} to &apos;%2&apos;</source>
+        <source>Promoting task {%1} to &apos;%2&apos;</source>
         <translation>Postupuje se úkol {%1} do &apos;%2&apos;</translation>
     </message>
     <message>
         <location filename="../src/TaskSchedulerImpl.cpp" line="647"/>
-        <source>promoting task {%1} to &apos;%2&apos;, error &apos;%3&apos;</source>
+        <source>Promoting task {%1} to &apos;%2&apos;, error &apos;%3&apos;</source>
         <translation>Postupuje se úkol {%1} do &apos;%2&apos;. Chyba &apos;%3&apos;</translation>
     </message>
     <message>
@@ -431,10 +418,6 @@
         <location filename="../src/TaskSchedulerImpl.cpp" line="687"/>
         <source>Task {%1} finished</source>
         <translation>Úkol {%1} dokončen</translation>
-    </message>
-    <message>
-        <source>deleting task %1</source>
-        <translation type="obsolete">Maže se úkol: %1</translation>
     </message>
 </context>
 <context>

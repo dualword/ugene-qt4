@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,8 @@
 #include "DNASequence.h"
 
 namespace U2 {
-    
-DNASequence::DNASequence(const QString& name, const QByteArray& s, DNAAlphabet* a) : seq(s), alphabet(a), circular(false) {
+
+DNASequence::DNASequence(const QString& name, const QByteArray& s, const DNAAlphabet* a) : seq(s), alphabet(a), circular(false) {
     if (!name.isEmpty()) {
         info.insert(DNAInfo::ID, name);
     }

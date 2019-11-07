@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,8 @@
 
 #include "GraphMenu.h"
 
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/L10n.h>
 #include <U2Core/U2SafePoints.h>
 
 #include <U2Gui/GUIUtils.h>
@@ -28,6 +30,9 @@
 #include <U2View/ADVConstants.h>
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/AnnotatedDNAView.h>
+
+#include <QApplication>
+#include <QMessageBox>
 
 
 namespace U2 {
@@ -40,8 +45,10 @@ namespace U2 {
 GraphAction::GraphAction(GSequenceGraphFactory* _factory)
     : QAction(_factory->getGraphName(), NULL),
       factory(_factory),
-      view(NULL)
+      view(NULL),
+      isBookmarkUpdate(false)
 {
+    setObjectName(_factory->getGraphName());
     connect(this, SIGNAL(triggered()), SLOT(sl_handleGraphAction()));
 }
 
@@ -49,11 +56,9 @@ GraphAction::GraphAction(GSequenceGraphFactory* _factory)
 /**
  * Shows/hides a graph depending on its state: checked/unchecked
  */
-void GraphAction::sl_handleGraphAction()
-{
+void GraphAction::sl_handleGraphAction() {
     GraphAction* graphAction = qobject_cast<GraphAction*>(sender());
-    if (graphAction->isChecked())
-    {
+    if (graphAction->isChecked()) {
         SAFE_POINT(graphAction->view == NULL, "Graph view is checked, but not available!",);
 
         // Getting the menu action
@@ -63,20 +68,47 @@ void GraphAction::sl_handleGraphAction()
         // Creating graphs
         ADVSingleSequenceWidget* sequenceWidget =
             qobject_cast<ADVSingleSequenceWidget*>(menuAction->seqWidget);
+
+#ifdef UGENE_X86
+        if (sequenceWidget->getSequenceLength() > U2SequenceObject::getMaxSeqLengthForX86Os()) {
+            //do not allow to draw a graph
+            QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), U2SequenceObject::MAX_SEQ_32_ERROR_MESSAGE);
+            graphAction->setChecked(false);
+            return;
+        }
+#endif
+
         graphAction->view =
             new GSequenceGraphViewWithFactory(sequenceWidget, graphAction->factory);
         graphAction->view->setGraphDrawer(graphAction->factory->getDrawer(graphAction->view));
-        QList<GSequenceGraphData*> graphs = graphAction->factory->createGraphs(graphAction->view);
-        foreach(GSequenceGraphData* graph, graphs) {
+        QList<QSharedPointer<GSequenceGraphData> > graphs = graphAction->factory->createGraphs(graphAction->view);
+        foreach(const QSharedPointer<GSequenceGraphData>& graph, graphs) {
             graphAction->view->addGraphData(graph);
         }
         sequenceWidget->addSequenceView(graphAction->view);
+        if(true == isBookmarkUpdate) {
+            graphAction->view->createLabelsOnPositions(positions);
+            isBookmarkUpdate = false;
+        }
     }
     else
     {
         SAFE_POINT(graphAction->view != NULL, "Graph view is not checked, but is present!",);
         delete graphAction->view;
         graphAction->view = NULL;
+    }
+}
+void GraphAction::sl_updateGraphView(const QStringList &graphName, const QVariantMap &map) {
+    foreach(const QString &name, graphName) {
+        if(name == text()) {
+            CHECK(view != NULL, );
+            isBookmarkUpdate = true;
+            positions = map[name].toList();
+            activate(QAction::Trigger);
+        }
+    }
+    if(view != NULL) {
+        activate(QAction::Trigger);
     }
 }
 
@@ -88,8 +120,7 @@ const QString GraphMenuAction::ACTION_NAME("GraphMenuAction");
 /**
  * Creates a new graphs menu and adds it to toolbar
  */
-GraphMenuAction::GraphMenuAction() : ADVSequenceWidgetAction(ACTION_NAME, tr("Graphs"))
-{
+GraphMenuAction::GraphMenuAction() : ADVSequenceWidgetAction(ACTION_NAME, tr("Graphs")) {
     menu = new QMenu();
     this->setIcon(QIcon(":core/images/graphs.png"));
     this->setMenu(menu);
@@ -103,10 +134,8 @@ GraphMenuAction::GraphMenuAction() : ADVSequenceWidgetAction(ACTION_NAME, tr("Gr
  * @param ctx Sequence context.
  * @return The menu action with graphs.
  */
-GraphMenuAction* GraphMenuAction::findGraphMenuAction(ADVSequenceObjectContext* ctx)
-{
-    foreach(ADVSequenceWidget* sequenceWidget, ctx->getSequenceWidgets())
-    {
+GraphMenuAction* GraphMenuAction::findGraphMenuAction(ADVSequenceObjectContext* ctx) {
+    foreach(ADVSequenceWidget* sequenceWidget, ctx->getSequenceWidgets())     {
         ADVSequenceWidgetAction* advAction = sequenceWidget->getADVSequenceWidgetAction(
             GraphMenuAction::ACTION_NAME);
         if (advAction == NULL) {
@@ -118,7 +147,6 @@ GraphMenuAction* GraphMenuAction::findGraphMenuAction(ADVSequenceObjectContext* 
 
     return NULL;
 }
-
 
 /**
  * Adds a graph action to a graphs menu.

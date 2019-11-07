@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,29 +19,27 @@
  * MA 02110-1301, USA.
  */
 
-#include "AnnotatedDNAViewState.h"
+#include "ADVSequenceObjectContext.h"
 #include "AnnotatedDNAView.h"
 #include "AnnotatedDNAViewFactory.h"
-#include "ADVSequenceObjectContext.h"
-
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectTypes.h>
+#include "AnnotatedDNAViewState.h"
 
 #include <U2Core/DNASequenceSelection.h>
-#include <U2Core/DocumentModel.h>
+#include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNATranslation.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/AnnotationTableObject.h>
 
 namespace U2 {
-
 
 #define VIEW_ID                 QString("view_id")
 #define SEQUENCE_OBJECTS        QString("dna_obj_ref")
 #define ANNOTATION_OBJECTS      QString("ann_obj_ref")
 #define SEQUENCE_SELECTION      QString("dna_obj_sel")
 
-
 AnnotatedDNAViewState::AnnotatedDNAViewState() {
+
 }
 
 bool AnnotatedDNAViewState::isValid() const {
@@ -85,7 +83,7 @@ QVariantMap AnnotatedDNAViewState::saveState(AnnotatedDNAView* v) {
         DNASequenceSelection* sel = ctx->getSequenceSelection();
         seqSels.append(sel->isEmpty()? U2Region() : sel->getSelectedRegions().first());
     }
-    
+
     QList<GObjectReference> anRefs;
     foreach(GObject* ao, v->getAnnotationObjects()) {
         anRefs.append(ao);

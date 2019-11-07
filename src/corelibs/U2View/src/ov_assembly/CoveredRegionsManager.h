@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 namespace U2 {
 
 /**
- * Wrapper for region and its coverage. Here coverage is number of reads 
+ * Wrapper for region and its coverage. Here coverage is number of reads
  * intersecting the region.
  */
 struct CoveredRegion {
@@ -61,6 +61,8 @@ public:
      * Returns topSize most covered regions with topSize >= coverageLevel.
      */
     QList<CoveredRegion> getTopCoveredRegions(int topSize, qint64 coverageLevel=0) const;
+
+    static const int DESIRED_REGION_LENGTH;
 
 private:
     U2Region visibleRegion;

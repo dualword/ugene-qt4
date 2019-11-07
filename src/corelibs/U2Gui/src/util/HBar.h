@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,13 @@
 #define _U2_HBAR_H_
 
 #include <U2Core/global.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QAction>
 #include <QtGui/QToolBar>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QToolBar>
+#endif
 
 namespace U2 {
 
@@ -32,11 +38,21 @@ namespace U2 {
 
 class U2GUI_EXPORT HBar : public QToolBar {
 public:
-    HBar(QWidget* w) : QToolBar(w){}
+    HBar(QWidget* w) : QToolBar(w), tabOrdered(false), buttonTabOrderList(NULL) {}
+
+    void setButtonTabOrderList(QList<QString> * buttonNamesInNeededOrder);
+
 protected:
     void paintEvent(QPaintEvent* ) {
         //do not draw any special toolbar control -> make is merged with parent widget
     }
+    virtual void setVisible(bool visible);
+
+private:
+    void setButtonsTabOrder() const;
+
+    bool tabOrdered;
+    QList<QString> * buttonTabOrderList;
 };
 
 } //namespace

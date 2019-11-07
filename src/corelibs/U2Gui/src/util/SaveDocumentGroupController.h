@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,9 +24,15 @@
 
 #include <U2Core/DocumentModel.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLineEdit>
 #include <QtGui/QComboBox>
 #include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QToolButton>
+#endif
 
 namespace U2{
 
@@ -35,18 +41,19 @@ class DocumentFormatComboboxController;
 
 class SaveDocumentGroupControllerConfig {
 public:
-	DocumentFormatConstraints	dfc;                // format constraints applied for formats combo
-	QToolButton*				fileDialogButton;   // a button to open save file dialog
-	QString						saveTitle;          // a title for save file dialog
-	QString                     defaultFileName;    // filename set by default
-    QComboBox*					formatCombo;        // combo widget to list formats
-	QLineEdit*					fileNameEdit;       // edit for file name
-	DocumentFormatId			defaultFormatId;    // format selected by default
-	QWidget*					parentWidget;       // parent widget for file dialog
+    DocumentFormatConstraints   dfc;                // format constraints applied for formats combo
+    QToolButton*                fileDialogButton;   // a button to open save file dialog
+    QString                     saveTitle;          // a title for save file dialog
+    QString                     defaultFileName;    // filename set by default
+    QComboBox*                  formatCombo;        // combo widget to list formats
+    QLineEdit*                  fileNameEdit;       // edit for file name
+    DocumentFormatId            defaultFormatId;    // format selected by default
+    QWidget*                    parentWidget;       // parent widget for file dialog
+    QString                     objectName;         // custom object name
 };
 
 /* Controls 'save document' fields :
-	- combo with document format selection
+    - combo with document format selection
     - edit field with document name
 */
 class U2GUI_EXPORT SaveDocumentGroupController : public QObject {
@@ -54,22 +61,24 @@ class U2GUI_EXPORT SaveDocumentGroupController : public QObject {
 public:
     SaveDocumentGroupController(const SaveDocumentGroupControllerConfig& conf, QObject* parent);
     
-	QString getSaveFileName() const {return conf.fileNameEdit->text();}
-	
-	DocumentFormatId getFormatIdToSave() const;
-	
-	DocumentFormat* getFormatToSave() const;
+    QString getSaveFileName() const {return conf.fileNameEdit->text();}
+    
+    void setSelectedFormatId(DocumentFormatId id);
+
+    DocumentFormatId getFormatIdToSave() const;
+    
+    DocumentFormat* getFormatToSave() const;
     
     QString getDefaultFileName() const {return conf.defaultFileName;}
     
 private slots:
     void sl_fileNameChanged(const QString& v);
-	void sl_saveButtonClicked();
+    void sl_saveButtonClicked();
     void sl_formatChanged(const QString& newFormat);
 
 private:
-	DocumentFormatComboboxController* comboController;
-	SaveDocumentGroupControllerConfig conf;
+    DocumentFormatComboboxController* comboController;
+    SaveDocumentGroupControllerConfig conf;
 };
 
 }//namespace

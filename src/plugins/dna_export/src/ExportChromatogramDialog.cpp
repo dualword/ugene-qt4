@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,44 +19,54 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportChromatogramDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
 #include <U2Core/AppContext.h>
-#include <U2Core/Settings.h>
 #include <U2Core/BaseDocumentFormats.h>
-#include <U2Core/GUrlUtils.h>
 #include <U2Core/DocumentUtils.h>
+#include <U2Core/GUrlUtils.h>
 #include <U2Core/L10n.h>
+#include <U2Core/Settings.h>
 
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
 #include <U2Gui/SaveDocumentGroupController.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#include "ExportChromatogramDialog.h"
+#include "ExportUtils.h"
 
 #define SETTINGS_ROOT QString("dna_export/")
 
 namespace U2 {
 
 ExportChromatogramDialog::ExportChromatogramDialog(QWidget* p, const GUrl& fileUrl): QDialog(p) {
-    setupUi(this);    
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122204");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Export"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     addToProjectFlag = true;
 
-    //SaveDocumentGroupControllerConfig conf;
-    GUrl newUrl = GUrlUtils::rollFileName(fileUrl.dirPath() + "/" + fileUrl.baseFileName() + "_copy.scf", DocumentUtils::getNewDocFileNameExcludesHint());
-    fileNameEdit->setText( newUrl.getURLString() );
-    formatCombo->addItem( BaseDocumentFormats::SCF.toUpper() );
-    connect(fileButton, SIGNAL(clicked()),SLOT(sl_onBrowseClicked()) );
-    
-    
+    QString newUrl = GUrlUtils::getNewLocalUrlByExtention(fileUrl, "chromatogram", ".scf", "_copy");
+    fileNameEdit->setText(newUrl);
+    formatCombo->addItem(BaseDocumentFormats::SCF.toUpper());
+    connect(fileButton, SIGNAL(clicked()), SLOT(sl_onBrowseClicked()));
 }
 
 void ExportChromatogramDialog::sl_onBrowseClicked() {
     LastUsedDirHelper lod;
     QString filter;
 
-    lod.url = QFileDialog::getSaveFileName(this, tr("Select a file"), lod.dir, "*.scf");
-    if (lod.url.isEmpty()) {    
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Select a file"), lod.dir, "*.scf");
+    if (lod.url.isEmpty()) {
         return;
     }
     fileNameEdit->setText( lod.url );
@@ -69,7 +79,7 @@ void ExportChromatogramDialog::accept() {
         QMessageBox::critical(this, L10N::errorTitle(), tr("File name is empty!"));
         return;
     }
-    
+
     url = fileNameEdit->text();
     addToProjectFlag = addToProjectBox->isChecked();
     reversed = reverseBox->isChecked();

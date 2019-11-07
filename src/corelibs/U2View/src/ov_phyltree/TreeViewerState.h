@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,8 +43,12 @@ public:
     GObjectReference getPhyObject() const;
     void setPhyObject(const GObjectReference& ref);
 
-    qreal getZoom() const;
-    void setZoom(qreal s);
+    qreal getVerticalZoom() const;
+    void setVerticalZoom(qreal s);
+
+    qreal getHorizontalZoom() const;
+    void setHorizontalZoom(qreal s);
+
 
     QTransform getTransform() const;
     void setTransform(const QTransform& m);

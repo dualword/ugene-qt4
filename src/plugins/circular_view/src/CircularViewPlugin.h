@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,49 +27,96 @@
 #include <U2Gui/ObjectViewModel.h>
 
 #include <QtCore/QMap>
+#include <QtCore/QSet>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 #include <U2View/ADVSequenceWidget.h>
 
 namespace U2 {
 
-class CircularViewSplitter;
 class CircularView;
+struct CircularViewSettings;
+class CircularViewSplitter;
 class RestrctionMapWidget;
 
 class CircularViewPlugin : public Plugin {
     Q_OBJECT
 public:
     CircularViewPlugin();
-    ~CircularViewPlugin();
-private:
-    GObjectViewWindowContext* viewCtx;
-};
 
-class CircularViewContext: public GObjectViewWindowContext {
-    Q_OBJECT
-public:
-    CircularViewContext(QObject* p);
-protected slots:
-    void sl_showCircular();
-    void sl_sequenceWidgetAdded(ADVSequenceWidget*);
-    
-protected:
-    virtual void initViewContext(GObjectView* view);
-    void buildMenu(GObjectView* v, QMenu* m);
-    CircularViewSplitter* getView(GObjectView* view, bool create);
-    void removeCircularView(GObjectView* view);
 private:
-    GObjectViewAction* exportAction;
-};    
+    GObjectViewWindowContext *viewCtx;
+};
 
 class CircularViewAction : public ADVSequenceWidgetAction {
     Q_OBJECT
 public:
     CircularViewAction();
-    ~CircularViewAction();
-    CircularView* view;
-    RestrctionMapWidget* rmapWidget;
+
+    CircularView *view;
+    RestrctionMapWidget *rmapWidget;
+
+public slots:
+    void sl_circularStateChanged();
+};
+
+struct CircularViewSettings {
+    enum LabelMode {
+        Inside,
+        Outside,
+        Mixed,
+        None
+    };
+
+    CircularViewSettings();
+
+    bool        showTitle;
+    bool        showLength;
+    int         titleFontSize;
+    QString     titleFont;
+    bool        titleBold;
+
+    bool        showRulerLine;
+    bool        showRulerCoordinates;
+    int         rulerFontSize;
+
+    LabelMode   labelMode;
+    int         labelFontSize;
+};
+
+class CircularViewContext: public GObjectViewWindowContext {
+    friend class CircularViewSettingsWidgetFactory;
+    Q_OBJECT
+public:
+    CircularViewContext(QObject *p);
+
+    CircularViewSettings * getSettings(AnnotatedDNAView *view);
+
+signals:
+    void si_cvSplitterWasCreatedOrRemoved(CircularViewSplitter *, CircularViewSettings *);
+
+protected slots:
+    void sl_showCircular();
+    void sl_sequenceWidgetAdded(ADVSequenceWidget *);
+    void sl_sequenceWidgetRemoved(ADVSequenceWidget *w);
+    void sl_toggleViews();
+    void sl_toggleBySettings(CircularViewSettings *s);
+    void sl_setSequenceOrigin();
+    void sl_onDNAViewClosed(AnnotatedDNAView *v);
+
+protected:
+    virtual void initViewContext(GObjectView *view);
+    void buildMenu(GObjectView *v, QMenu *m);
+    CircularViewSplitter * getView(GObjectView *view, bool create);
+    void removeCircularView(GObjectView *view);
+    void toggleViews(AnnotatedDNAView *view);
+
+private:
+    QMap<AnnotatedDNAView *, CircularViewSettings *> viewSettings;
 };
 
 } //namespace

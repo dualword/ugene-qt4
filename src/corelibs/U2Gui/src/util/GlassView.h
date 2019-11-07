@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,11 @@
 #define _U2_GLASS_VIEW_H_
 
 #include <U2Core/global.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsView>
+#else
+#include <QtWidgets/QGraphicsView>
+#endif
 
 class QTextDocument;
 

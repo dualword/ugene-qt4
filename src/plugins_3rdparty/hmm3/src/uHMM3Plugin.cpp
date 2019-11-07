@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,37 +19,40 @@
  * MA 02110-1301, USA.
  */
 
-#include <QtGui/QMenu>
-#include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QAction>
+#include <QMenu>
+#include <QMessageBox>
 
-#include <U2Gui/MainWindow.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/GAutoDeleteList.h>
+#include <U2Core/GObjectSelection.h>
+#include <U2Core/MAlignmentObject.h>
+
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/MainWindow.h>
 #include <U2Gui/ObjectViewModel.h>
 #include <U2Gui/ProjectView.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/GAutoDeleteList.h>
-#include <U2View/AnnotatedDNAView.h>
-#include <U2View/ADVSequenceObjectContext.h>
+#include <U2Gui/ToolsMenu.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2View/ADVConstants.h>
+#include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/ADVUtils.h>
-#include <U2View/MSAEditorFactory.h>
+#include <U2View/AnnotatedDNAView.h>
 #include <U2View/MSAEditor.h>
-#include <U2Gui/GUIUtils.h>
-#include <U2Core/GObjectSelection.h>
+#include <U2View/MSAEditorFactory.h>
 
 #include <U2Test/GTestFrameworkComponents.h>
 #include <U2Test/XMLTestFormat.h>
 
-#include <tests/uhmmer3Tests.h>
-#include <format/uHMMFormat.h>
-
-#include <build/uHMM3BuildDialogImpl.h>
-#include <search/uhmm3QDActor.h>
-#include <search/uHMM3SearchDialogImpl.h>
-#include <phmmer/uHMM3PhmmerDialogImpl.h>
-
 #include "uHMM3Plugin.h"
+#include "build/uHMM3BuildDialogImpl.h"
+#include "format/uHMMFormat.h"
+#include "phmmer/uHMM3PhmmerDialogImpl.h"
+#include "search/uHMM3SearchDialogImpl.h"
+#include "search/uhmm3QDActor.h"
+#include "tests/uhmmer3Tests.h"
+#include "workers/HMM3IOWorker.h"
 
 Q_DECLARE_METATYPE(QMenu*);
 
@@ -64,12 +67,14 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
     return plug;
 }
 
-UHMM3Plugin::UHMM3Plugin() : Plugin( tr( "hmm3_plugin_name" ), tr( "hmm3_plugin_desc" ) ) {
+UHMM3Plugin::UHMM3Plugin() : Plugin( tr( "HMM3" ), tr( "HMM profile tools. Plugin is based on HMMER 3.0b3 package: freely distributable implementation of profile HMM software for protein sequence analysis. Home page of project: http://hmmer.janelia.org/" ) ) {
     // UHMMFormat
     DocumentFormatRegistry* dfRegistry = AppContext::getDocumentFormatRegistry();
     assert( NULL != dfRegistry );
     bool ok = dfRegistry->registerFormat( new UHMMFormat( dfRegistry ) );
     assert( ok ); Q_UNUSED( ok );
+
+    LocalWorkflow::HMM3Lib::init();
 
     QDActorPrototypeRegistry* qdpr = AppContext::getQDActorProtoRegistry();
     qdpr->registerProto(new UHMM3QDActorPrototype());
@@ -91,27 +96,21 @@ UHMM3Plugin::UHMM3Plugin() : Plugin( tr( "hmm3_plugin_name" ), tr( "hmm3_plugin_
     
     // HMMER3 menu
     MainWindow * mainWnd = AppContext::getMainWindow();
-    if( mainWnd ) {
-        QMenu * toolsMenu = mainWnd->getTopLevelMenu(MWMENU_TOOLS);
-        assert( NULL != toolsMenu );
-        QMenu * hmmMenu = toolsMenu->property("hmm_menu").value<QMenu*>();
-        if(hmmMenu == NULL) {
-            hmmMenu = toolsMenu->addMenu(QIcon( ":/hmm3/images/hmmer_16.png" ), tr("HMMER tools"));
-            toolsMenu->setProperty("hmm_menu", qVariantFromValue<QMenu*>(hmmMenu));
-        }
-        
-        QMenu * hmm3ToolsSub = hmmMenu->addMenu(QIcon( ":/hmm3/images/hmmer_16.png" ), tr("HMMER3 tools"));
-        QAction * buildAction = new QAction( tr( "Build HMM3 profile" ), this );
+    if( mainWnd ) {  
+        QAction * buildAction = new QAction( tr( "Build HMM3 profile..." ), this );
+        buildAction->setObjectName(ToolsMenu::HMMER_BUILD3);
         connect( buildAction, SIGNAL( triggered() ), SLOT( sl_buildProfile() ) );
-        hmm3ToolsSub->addAction( buildAction );
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, buildAction);
         
-        QAction * searchAction = new QAction( tr( "Search with HMM3" ), this );
+        QAction * searchAction = new QAction( tr( "Search with HMM3..." ), this );
+        searchAction->setObjectName(ToolsMenu::HMMER_SEARCH3);
         connect( searchAction, SIGNAL( triggered() ), SLOT( sl_searchHMMSignals() ) );
-        hmm3ToolsSub->addAction( searchAction );
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, searchAction);
         
-        QAction * phmmerAction = new QAction( tr( "Search with HMM3 phmmer" ), this );
+        QAction * phmmerAction = new QAction( tr( "Search with HMM3 phmmer..." ), this );
+        phmmerAction->setObjectName(ToolsMenu::HMMER_SEARCH3P);
         connect( phmmerAction, SIGNAL( triggered() ), SLOT( sl_phmmerSearch() ) );
-        hmm3ToolsSub->addAction( phmmerAction );
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, phmmerAction);
         
         // contexts
         msaEditorCtx = new UHMM3MSAEditorContext( this );
@@ -119,8 +118,7 @@ UHMM3Plugin::UHMM3Plugin() : Plugin( tr( "hmm3_plugin_name" ), tr( "hmm3_plugin_
         
         advCtx = new UHMM3ADVContext( this );
         advCtx->init();
-    }
-    
+    }    
 }
 
 void UHMM3Plugin::sl_buildProfile() {
@@ -140,8 +138,8 @@ void UHMM3Plugin::sl_buildProfile() {
     }
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
     
-    UHMM3BuildDialogImpl buildDlg( ma, p );
-    buildDlg.exec();
+    QObjectScopedPointer<UHMM3BuildDialogImpl> buildDlg = new UHMM3BuildDialogImpl( ma, p );
+    buildDlg->exec();
 }
 
 /* TODO: same as in function sl_search in uHMMPlugin.cpp */
@@ -170,8 +168,8 @@ void UHMM3Plugin::sl_searchHMMSignals() {
         return;
     }
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
-    UHMM3SearchDialogImpl searchDlg( seqObj, p );
-    searchDlg.exec();
+    QObjectScopedPointer<UHMM3SearchDialogImpl> searchDlg = new UHMM3SearchDialogImpl( seqObj, p );
+    searchDlg->exec();
 }
 
 void UHMM3Plugin::sl_phmmerSearch() {
@@ -181,8 +179,8 @@ void UHMM3Plugin::sl_phmmerSearch() {
         return;
     }
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
-    UHMM3PhmmerDialogImpl phmmerDlg( seqObj, p );
-    phmmerDlg.exec();
+    QObjectScopedPointer<UHMM3PhmmerDialogImpl> phmmerDlg = new UHMM3PhmmerDialogImpl( seqObj, p );
+    phmmerDlg->exec();
 }
 
 UHMM3Plugin::~UHMM3Plugin() {
@@ -202,6 +200,7 @@ void UHMM3MSAEditorContext::initViewContext( GObjectView * view ) {
         return;
 
     GObjectViewAction * action = new GObjectViewAction( this, view, tr("Build HMMER3 profile") );
+    action->setObjectName("Build HMMER3 profile");
     action->setIcon( QIcon( ":/hmm3/images/hmmer_16.png" ) );
     connect( action, SIGNAL( triggered() ), SLOT( sl_build() ) );
     addViewAction( action );
@@ -216,7 +215,7 @@ void UHMM3MSAEditorContext::buildMenu( GObjectView * v, QMenu * m ) {
     QList< GObjectViewAction* > list = getViewActions( v );
     assert( 1 == list.size() );
     QMenu* aMenu = GUIUtils::findSubMenu( m, MSAE_MENU_ADVANCED );
-    assert( NULL != aMenu );
+    SAFE_POINT(aMenu != NULL, "aMenu", );
     aMenu->addAction( list.first() );
 }
 
@@ -227,8 +226,9 @@ void UHMM3MSAEditorContext::sl_build() {
     assert( NULL != ed );
     MAlignmentObject * obj = ed->getMSAObject(); 
     if (obj != NULL) {
-        UHMM3BuildDialogImpl buildDlg( obj->getMAlignment() );
-        buildDlg.exec();
+        QObjectScopedPointer<UHMM3BuildDialogImpl> buildDlg = new UHMM3BuildDialogImpl( obj->getMAlignment() );
+        buildDlg->exec();
+        CHECK(!buildDlg.isNull(), );
     }
 }
 
@@ -245,6 +245,7 @@ void UHMM3ADVContext::initViewContext( GObjectView * view ) {
     
     ADVGlobalAction * searchAction = new ADVGlobalAction( av, QIcon( ":/hmm3/images/hmmer_16.png" ), 
                                                           tr( "Search HMM signals with HMMER3..." ), 70 );
+    searchAction->setObjectName("Search HMM signals with HMMER3");
     connect( searchAction, SIGNAL( triggered() ), SLOT( sl_search() ) );
 }
 
@@ -257,8 +258,8 @@ void UHMM3ADVContext::sl_search() {
         return;
     }
     
-    UHMM3SearchDialogImpl searchDlg( seqObj, parent );
-    searchDlg.exec();
+    QObjectScopedPointer<UHMM3SearchDialogImpl> searchDlg = new UHMM3SearchDialogImpl( seqObj, parent );
+    searchDlg->exec();
 }
 
 QWidget * UHMM3ADVContext::getParentWidget( QObject * sender ) {

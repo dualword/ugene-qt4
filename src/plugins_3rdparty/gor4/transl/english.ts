@@ -2,6 +2,14 @@
 <!DOCTYPE TS>
 <TS version="2.0" language="en_US">
 <context>
+    <name>QObject</name>
+    <message>
+        <location filename="../src/GorIVAlgTask.cpp" line="32"/>
+        <source>GORIV</source>
+        <translation>GORIV</translation>
+    </message>
+</context>
+<context>
     <name>SecStructPredictTask</name>
     <message>
         <location filename="../src/GorIVAlgTask.cpp" line="48"/>
@@ -11,7 +19,7 @@
     <message>
         <location filename="../src/GorIVAlgTask.cpp" line="54"/>
         <source>observed structures database not found</source>
-        <translation></translation>
+        <translation>observed structures database not found</translation>
     </message>
     <message>
         <location filename="../src/GorIVAlgTask.cpp" line="61"/>
@@ -20,24 +28,16 @@
     </message>
 </context>
 <context>
-    <name>U2</name>
-    <message>
-        <location filename="../src/GorIVAlgTask.cpp" line="32"/>
-        <source>GORIV</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>U2::SecStructPredictPlugin</name>
     <message>
-        <location filename="../src/GorIVPlugin.cpp" line="51"/>
+        <location filename="../src/GorIVPlugin.cpp" line="58"/>
         <source>GORIV</source>
-        <translation></translation>
+        <translation>GORIV</translation>
     </message>
     <message>
-        <location filename="../src/GorIVPlugin.cpp" line="51"/>
+        <location filename="../src/GorIVPlugin.cpp" line="58"/>
         <source>GORIV protein secondary structure prediction</source>
-        <translation></translation>
+        <translation>GORIV protein secondary structure prediction</translation>
     </message>
 </context>
 </TS>

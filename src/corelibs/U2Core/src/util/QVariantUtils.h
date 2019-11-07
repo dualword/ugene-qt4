@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,27 +26,26 @@
 #include <QtCore/QMap>
 #include <QtCore/QString>
 #include <QtCore/QVariant>
-#include <assert.h>
-#include <U2Core/global.h>
-#include <U2Core/AnnotationData.h>
+
+#include <U2Core/U2SafePoints.h>
 
 namespace U2 {
 
 class U2CORE_EXPORT QVariantUtils {
 public:
     static QVariant String2Var(const QString& string) {
-        QDataStream s(QByteArray::fromBase64(string.toAscii()));
+        QDataStream s(QByteArray::fromBase64(string.toLatin1()));
         return QVariant(s);
     }
 
     static QVariantMap string2Map(const QString& string, bool emptyMapIfError) {
-        QDataStream s(QByteArray::fromBase64(string.toAscii()));
+        QDataStream s(QByteArray::fromBase64(string.toLatin1()));
         QVariant res(QVariant::Map);
         s >> res;
         if (res.type() == QVariant::Map) {
             return res.toMap();
         }
-        assert(emptyMapIfError); Q_UNUSED(emptyMapIfError);
+        SAFE_POINT(emptyMapIfError, "Empty variant map detected!", QVariantMap());
         return QVariantMap();
     }
 
@@ -62,20 +61,12 @@ public:
         return var2String(QVariant(map));
     }
 
-    static QList<SharedAnnotationData> var2ftl(const QVariantList& lst) {
-        QList<SharedAnnotationData> atl;
-        foreach(QVariant v, lst) {
-            atl += qVariantValue<QList<SharedAnnotationData> >(v);
-        }
-        return atl;
-    }
-
     static QVariant addStr2List(const QVariant& v, const QString& s) {
         if (v.canConvert(QVariant::StringList)) {
             QStringList l = v.toStringList();
             return (l << s);
         } else {
-            assert(v.type() == QVariant::Invalid);
+            SAFE_POINT(v.type() == QVariant::Invalid, "Unexpected variant type!", QVariant(s));
         }
         return QVariant(s);
     }
@@ -85,7 +76,7 @@ public:
             QStringList l = v.toStringList();
             return QVariant(l += sl);
         } else {
-            assert(v.type() == QVariant::Invalid);
+            SAFE_POINT(v.type() == QVariant::Invalid, "Unexpected variant type!", QVariant(sl));
         }
         return QVariant(sl);
     }

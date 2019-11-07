@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,20 +27,29 @@
 #include <U2Core/L10n.h>
 
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/SaveDocumentGroupController.h>
-
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
 #include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
 
 #define SETTINGS_ROOT QString("dna_export/")
 
 namespace U2 {
 
 ExportMSA2SequencesDialog::ExportMSA2SequencesDialog(QWidget* p): QDialog(p) {
-    setupUi(this);    
+    setupUi(this);
+    new HelpButton(this, buttonBox, "16122114");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Export"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     trimGapsFlag = false;
     addToProjectFlag = true;
-    
+
     SaveDocumentGroupControllerConfig conf;
     conf.dfc.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
     conf.dfc.addFlagToSupport(DocumentFormatFlag_SupportWriting);
@@ -51,6 +60,7 @@ ExportMSA2SequencesDialog::ExportMSA2SequencesDialog(QWidget* p): QDialog(p) {
     conf.parentWidget = this;
     conf.defaultFormatId = BaseDocumentFormats::FASTA;
     saveContoller = new SaveDocumentGroupController(conf, this);
+
 }
 
 void ExportMSA2SequencesDialog::accept() {
@@ -58,7 +68,7 @@ void ExportMSA2SequencesDialog::accept() {
         QMessageBox::critical(this, L10N::errorTitle(), tr("File name is empty!"));
         return;
     }
-    
+
     url = saveContoller->getSaveFileName();
     format = saveContoller->getFormatIdToSave();
     trimGapsFlag = trimGapsRB->isChecked();

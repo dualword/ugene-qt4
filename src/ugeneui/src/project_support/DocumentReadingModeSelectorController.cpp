@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,24 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Algorithm/DnaAssemblyAlgRegistry.h>
+
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Formats/DocumentFormatUtils.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include "DocumentReadingModeSelectorController.h"
 #include "ui/ui_SequenceReadingModeSelectorDialog.h"
-
-#include <U2Core/DocumentUtils.h>
-#include <U2Core/BaseDocumentFormats.h>
-#include <U2Formats/DocumentFormatUtils.h>
-#include <U2Algorithm/DnaAssemblyAlgRegistry.h>
 
 namespace U2{
 
 
-bool DocumentReadingModeSelectorController::adjustReadingMode(FormatDetectionResult& dr, bool forceOptions) {
+bool DocumentReadingModeSelectorController::adjustReadingMode(FormatDetectionResult& dr, bool forceOptions, bool optionsAlreadyChoosed) {
     // only sequence reading mode options are supported today
 
     // sequence reading: 
@@ -40,6 +46,9 @@ bool DocumentReadingModeSelectorController::adjustReadingMode(FormatDetectionRes
         // 4. as reads to be aligned to reference
 
     QVariantMap& props = dr.rawDataCheckResult.properties;
+    if(optionsAlreadyChoosed){
+        return true;
+    }
     bool sequenceFound = props.value(RawDataCheckResult_Sequence).toBool();
     if (!sequenceFound && forceOptions) {
         DocumentFormatConstraints dfc;
@@ -67,9 +76,11 @@ bool DocumentReadingModeSelectorController::adjustReadingMode(FormatDetectionRes
         }
     }
     Ui_SequenceReadingModeSelectorDialog ui;
-    QDialog d(QApplication::activeWindow());
-    d.setModal(true);
-    ui.setupUi(&d);
+    QObjectScopedPointer<QDialog> d = new QDialog(QApplication::activeWindow());
+    d->setModal(true);
+    ui.setupUi(d.data());
+
+    new HelpButton(d.data(), ui.buttonBox, "16122077");
 
     bool canBeShortReads = minSequenceSize > 0 && maxSequenceSize < 2000;
     bool haveReadAligners = !AppContext::getDnaAssemblyAlgRegistry()->getRegisteredAlgorithmIds().isEmpty();
@@ -84,7 +95,8 @@ bool DocumentReadingModeSelectorController::adjustReadingMode(FormatDetectionRes
 
     ui.previewEdit->setPlainText(dr.rawData);
     
-    int rc = d.exec();
+    const int rc = d->exec();
+    CHECK(!d.isNull(), false);
     
     if (rc == QDialog::Rejected) {
         return false;

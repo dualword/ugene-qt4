@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,6 +55,8 @@ QList<GObject*> SelectionUtils::findObjects(GObjectType t, const MultiGSelection
         QList<GObject*> tmp = findObjects(t, s, f);
         res+=tmp;
     }
+
+    removeDuplicatesPointersFromList(res);
     return res;
 }
 
@@ -64,7 +66,7 @@ QList<GObject*> SelectionUtils::findObjectsKeepOrder(GObjectType t, const MultiG
         QList<GObject*> tmp = findObjectsKeepOrder(t, s, f);
         res+=tmp;
     }
-    
+
     //now remove duplicates from list
     removeDuplicatesPointersFromList<GObject>(res);
 

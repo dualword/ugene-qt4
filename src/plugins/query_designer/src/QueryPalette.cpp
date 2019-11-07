@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,19 +19,17 @@
  * MA 02110-1301, USA.
  */
 
-#include "QueryPalette.h"
-
-#include <U2Lang/QueryDesignerRegistry.h>
+#include <QAction>
+#include <QApplication>
+#include <QDrag>
+#include <QHeaderView>
+#include <QItemDelegate>
+#include <QMouseEvent>
 
 #include <U2Core/AppContext.h>
+#include <U2Lang/QueryDesignerRegistry.h>
 
-#include <QtGui/QHeaderView>
-#include <QtGui/QMouseEvent>
-#include <QtGui/QApplication>
-
-#include <QtGui/QItemDelegate>
-#include <QtGui/QAction>
-
+#include "QueryPalette.h"
 
 namespace U2 {
 
@@ -64,7 +62,7 @@ public:
             buttonOption.features = QStyleOptionButton::None;
             m_view->style()->drawControl(QStyle::CE_PushButton, &buttonOption, painter, m_view);
 
-            QStyleOption branchOption;
+            QStyleOptionViewItemV2 branchOption;
             static const int i = 9; // ### hardcoded in qcommonstyle.cpp
             QRect r = option.rect;
             branchOption.rect = QRect(r.left() + i/2, r.top() + (r.height() - i)/2, i, i);
@@ -78,7 +76,7 @@ public:
 
             // draw text
             QRect textrect = QRect(r.left() + i*2, r.top(), r.width() - ((5*i)/2), r.height());
-            QString text = elidedText(option.fontMetrics, textrect.width(), Qt::ElideMiddle, 
+            QString text = elidedText(option.fontMetrics, textrect.width(), Qt::ElideMiddle,
                 model->data(index, Qt::DisplayRole).toString());
             m_view->style()->drawItemText(painter, textrect, Qt::AlignCenter,
                 option.palette, m_view->isEnabled(), text);
@@ -95,7 +93,7 @@ public:
             buttonOption.subControls = QStyle::SC_ToolButton;
             buttonOption.features = QStyleOptionToolButton::None;
 
-            QAction* action = qVariantValue<QAction*>(index.data(Qt::UserRole));
+            QAction* action = index.data(Qt::UserRole).value<QAction *>();
             buttonOption.text = action->text();
             buttonOption.icon = action->icon();
             if (!buttonOption.icon.isNull()) {
@@ -137,7 +135,7 @@ private:
 };
 
 const QString QueryPalette::MIME_TYPE("application/x-ugene-query-id");
-    
+
 QueryPalette::QueryPalette(QWidget* parent/* =NULL */)
 : QTreeWidget(parent), overItem(NULL), currentAction(NULL) {
     setFocusPolicy(Qt::NoFocus);
@@ -146,7 +144,11 @@ QueryPalette::QueryPalette(QWidget* parent/* =NULL */)
     setRootIsDecorated(false);
     setColumnCount(1);
     header()->hide();
+#if (QT_VERSION < 0x050000)
     header()->setResizeMode(QHeaderView::Stretch);
+#else
+    header()->setSectionResizeMode(QHeaderView::Stretch);
+#endif
     setMouseTracking(true);
     setContent();
     setSizePolicy(QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored));
@@ -173,7 +175,7 @@ void QueryPalette::setContent() {
     constraintCategory->setText(0, tr("Constraints"));
     addTopLevelItem(constraintCategory);
     constraintCategory->setExpanded(true);
-    
+
     QList<QAction*> constraintItemActions;
     constraintItemActions << createItemAction(QDDistanceIds::E2S)
         << createItemAction(QDDistanceIds::S2E)
@@ -230,7 +232,7 @@ void QueryPalette::sl_selectProcess(bool checked) {
     }
 
     if (checked && currentAction && currentAction->data().type() != QVariant::String) {
-        emit processSelected(qVariantValue<QDActorPrototype*>(currentAction->data()));
+        emit processSelected(currentAction->data().value<QDActorPrototype *>());
     } else {
         emit processSelected(NULL);
     }
@@ -245,7 +247,7 @@ void QueryPalette::mousePressEvent(QMouseEvent *event) {
             setItemExpanded(item, !isItemExpanded(item));
             return;
         }
-        QAction* action = qVariantValue<QAction*>(item->data(0, Qt::UserRole));
+        QAction* action = item->data(0, Qt::UserRole).value<QAction *>();
         if (action) {
             action->toggle();
             dragStartPosition = event->pos();
@@ -253,7 +255,6 @@ void QueryPalette::mousePressEvent(QMouseEvent *event) {
         }
         return;
     }
-    //QTreeWidget::mousePressEvent(event);
 }
 
 void QueryPalette::mouseMoveEvent(QMouseEvent *event) {
@@ -266,7 +267,7 @@ void QueryPalette::mouseMoveEvent(QMouseEvent *event) {
         if(!item) {
             return;
         }
-        QAction* action = qVariantValue<QAction*>(item->data(0,Qt::UserRole));
+        QAction* action = item->data(0, Qt::UserRole).value<QAction *>();
         if (!action) {
             return;
         }
@@ -277,12 +278,12 @@ void QueryPalette::mouseMoveEvent(QMouseEvent *event) {
             QString str = action->data().toString();
             mimeData->setText(str);
         } else {
-            QDActorPrototype* proto = qVariantValue<QDActorPrototype*>(action->data());
+            QDActorPrototype* proto = action->data().value<QDActorPrototype *>();
             mimeData->setText(proto->getId());
         }
-        
+
         drag->setMimeData(mimeData);
-        /*Qt::DropAction dropAction = */drag->exec(Qt::CopyAction | Qt::CopyAction);
+        drag->exec(Qt::CopyAction | Qt::CopyAction);
         return;
     }
 

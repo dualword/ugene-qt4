@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,13 +36,13 @@ class CreateFragmentDialog : public QDialog, public Ui_CreateFragmentDialog {
     Q_OBJECT
 public:
     CreateFragmentDialog(ADVSequenceObjectContext* seqCtx, QWidget* p);
-    CreateFragmentDialog(U2SequenceObject* seqObj, QWidget* p);
+    CreateFragmentDialog(U2SequenceObject* seqObj, const U2Region& region, QWidget* p);
     virtual void accept();
     const DNAFragment& getFragment() { return dnaFragment; }
 private:
     CreateAnnotationWidgetController* ac;
     U2SequenceObject*  seqObj;
-    QList<AnnotationTableObject*> relatedAnnotations;
+    QList<AnnotationTableObject *> relatedAnnotations;
     QSet<QString>  enzymesSelection;
     void setupAnnotationsWidget();
     DNAFragment dnaFragment;

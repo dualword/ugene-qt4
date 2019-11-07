@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_GENOME_ALIGNER_TASK_H_
 
 #include <QtCore/QSharedPointer>
+#include <QtCore/QTemporaryFile>
 
 #include <U2Algorithm/DnaAssemblyTask.h>
 #include <U2Formats/StreamSequenceReader.h>
@@ -53,11 +54,8 @@ public:
     virtual ReportResult report();
     virtual QList<Task*> onSubTaskFinished(Task* subTask);
     QString getIndexPath();
-    static const QString OPTION_READS_READER;
-    static const QString OPTION_READS_WRITER;
     static const QString OPTION_ALIGN_REVERSED;
     static const QString OPTION_OPENCL;
-    static const QString OPTION_USE_CUDA;
     static const QString OPTION_IF_ABS_MISMATCHES;
     static const QString OPTION_MISMATCHES;
     static const QString OPTION_PERCENTAGE_MISMATCHES;
@@ -78,20 +76,24 @@ private:
     GenomeAlignerFindTask *findTask;
     WriteAlignedReadsSubTask *writeTask;
     GenomeAlignerWriteTask *pWriteTask;
+    Task* unzipTask;
+
     GenomeAlignerReader *seqReader;
     GenomeAlignerWriter *seqWriter;
     AlignContext alignContext;
 
+    QTemporaryFile temp;
+
     bool justBuildIndex;
     uint bunchSize;
-    
+
     bool alignReversed;
     bool dbiIO;
     QString indexFileName;
     bool prebuiltIndex;
     GenomeAlignerIndex *index;
     int qualityThreshold;
-    int readMemSize;
+    quint64 readMemSize;
     int seqPartSize;
     SearchQuery *lastQuery;
     bool noDataToAlign;
@@ -107,45 +109,7 @@ private:
     float currentProgress;
 
     void setupCreateIndexTask();
-};
-
-class ReadShortReadsSubTask : public Task {
-    Q_OBJECT
-public:
-    ReadShortReadsSubTask(SearchQuery **lastQuery,
-                          GenomeAlignerReader *seqReader,
-                          const DnaAssemblyToRefTaskSettings& settings,
-                          AlignContext &alignContext,
-                          quint64 freeMemorySize);
-    virtual void run();
-
-    uint bunchSize;
-    int minReadLength;
-    int maxReadLength;
-
-private:
-    SearchQuery **lastQuery;
-    GenomeAlignerReader *seqReader;
-    const DnaAssemblyToRefTaskSettings &settings;
-    AlignContext &alignContext;
-    quint64 freeMemorySize;
-
-    inline bool add(int &CMAX, int &W, int &q, int &readNum, SearchQuery *query, GenomeAlignerTask *parent);
-
-    static const int ONE_SEARCH_QUERY_SIZE = 38; //~38 bytes for one search query?
-};
-
-class WriteAlignedReadsSubTask : public Task {
-    Q_OBJECT
-public:
-    WriteAlignedReadsSubTask(GenomeAlignerWriter *seqWriter, QVector<SearchQuery*> &queries, quint64 &readsAligned);
-    virtual void run();
-private:
-    GenomeAlignerWriter *seqWriter;
-    QVector<SearchQuery*> &queries;
-    quint64 &readsAligned;
-
-    inline void setReadWritten(SearchQuery *read, SearchQuery *revCompl);
+    void createGenomeAlignerWriteTask();
 };
 
 } //namespace

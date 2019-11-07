@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,7 +42,7 @@ enum FormatDetectionScore {
 class FormatCheckResult {
 
 public:
-    FormatCheckResult() : score(FormatDetection_NotMatched){};
+    FormatCheckResult() : score(FormatDetection_NotMatched){}
     FormatCheckResult(FormatDetectionScore _score) : score(_score){}
 
     /** Score of the detection */

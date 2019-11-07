@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ public:
     static IOAdapterId url2io(const GUrl& url);
 
     static QByteArray readFileHeader(const GUrl& url, int size = 65536);
-    
+
     // io - opened IO adapter. before and after the call pos in file the same
     static QByteArray readFileHeader( IOAdapter* io, int size = 65536 );
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,6 @@
 #include <QtCore/QFile>
 
 #include <cassert>
-#include <memory>
 
 namespace U2 {
 
@@ -57,12 +56,12 @@ bool VirtualFileSystem::createFile( const QString & filename, const QByteArray &
 bool VirtualFileSystem::mapFile( const QString & filename, const QString & filePath ) {
     IOAdapterFactory * iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById( IOAdapterUtils::url2io( filePath ) );
     SAFE_POINT(iof != NULL, QString("Failed to find IO adapter factory: %1").arg(filePath), false);
-    
-    std::auto_ptr<IOAdapter> io( iof->createIOAdapter() );
+
+    QScopedPointer<IOAdapter> io( iof->createIOAdapter() );
     if( !io->open( filePath, IOAdapterMode_Read ) ) {
         return false;
     }
-    
+
     QByteArray bytes;
     while( !io->isEof() ) {
         QByteArray bytesBlock( READ_BLOCK_SZ, '\0' );
@@ -75,7 +74,7 @@ bool VirtualFileSystem::mapFile( const QString & filename, const QString & fileP
         }
         bytes.append( QByteArray( bytesBlock.data(), howMany ) );
     }
-    
+
     modifyFile( filename, bytes );
     return true;
 }
@@ -84,15 +83,15 @@ bool VirtualFileSystem::mapBack( const QString & filename, const QString & fileP
     if( !files.contains( filename ) ) {
         return false;
     }
-    
+
     IOAdapterFactory * iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById( IOAdapterUtils::url2io( filePath ) );
     SAFE_POINT(iof != NULL, QString("Failed to find IO adapter factory: %1").arg(filePath), false);
 
-    std::auto_ptr<IOAdapter> io( iof->createIOAdapter() );
+    QScopedPointer<IOAdapter> io( iof->createIOAdapter() );
     if( !io->open( filePath, IOAdapterMode_Write ) ) {
         return false;
     }
-    
+
     io->writeBlock( files[filename] );
     return true;
 }
@@ -149,7 +148,7 @@ VirtualFileSystemRegistry::~VirtualFileSystemRegistry() {
 
 bool VirtualFileSystemRegistry::registerFileSystem( VirtualFileSystem * entry ) {
     SAFE_POINT(entry != NULL, "FS is NULL!", false);
-    
+
     QString id = entry->getId();
     if( registry.contains( id ) ) {
         return false;

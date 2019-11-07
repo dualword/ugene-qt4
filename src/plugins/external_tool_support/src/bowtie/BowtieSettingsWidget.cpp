@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,21 @@
  * MA 02110-1301, USA.
  */
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
+
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/AppResources.h>
-
+#include <U2Core/ExternalToolRegistry.h>
+#include <U2Gui/AppSettingsGUI.h>
 #include "BowtieSettingsWidget.h"
 #include "BowtieTask.h"
+#include "BowtieSupport.h"
 
 namespace U2 {
 
@@ -38,11 +47,21 @@ BowtieSettingsWidget::BowtieSettingsWidget(QWidget *parent):
 
     threadsSpinBox->setMaximum(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
     threadsSpinBox->setValue(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
+#ifdef Q_OS_WIN
+    threadsSpinBox->setValue(1);
+    threadsLabel->setVisible(false);
+    threadsSpinBox->setVisible(false);
+#endif
+
+    indexSuffixes << BowtieTask::indexSuffixes;
+    indexSuffixes << BowtieTask::largeIndexSuffixes;
+
+    requiredExtToolNames << ET_BOWTIE << ET_BOWTIE_BUILD;
 }
 
-QMap<QString,QVariant> BowtieSettingsWidget::getDnaAssemblyCustomSettings() {
+QMap<QString,QVariant> BowtieSettingsWidget::getDnaAssemblyCustomSettings() const {
     QMap<QString, QVariant> settings;
-	
+
     switch(mismatchesComboBox->currentIndex()) {
     case 0:
         settings.insert(BowtieTask::OPTION_N_MISMATCHES, mismatchesSpinBox->value());
@@ -65,7 +84,7 @@ QMap<QString,QVariant> BowtieSettingsWidget::getDnaAssemblyCustomSettings() {
         settings.insert(BowtieTask::OPTION_CHUNKMBS, chunkmbsSpinBox->value());
     }
     if(seedCheckBox->isChecked()) {
-        settings.insert(BowtieTask::OPTION_SEED, seedlenSpinBox->value());
+        settings.insert(BowtieTask::OPTION_SEED, seedSpinBox->value());
     }
 
     settings.insert(BowtieTask::OPTION_THREADS, threadsSpinBox->value());
@@ -81,14 +100,16 @@ QMap<QString,QVariant> BowtieSettingsWidget::getDnaAssemblyCustomSettings() {
     return settings;
 }
 
-void BowtieSettingsWidget::buildIndexUrl(const GUrl &) {
-    // do nothing
-}
+bool BowtieSettingsWidget::isValidIndex(const QString &oneIndexFileUrl) const {
+    QStringList suffixes;
+    suffixes << BowtieTask::indexSuffixes;
+    suffixes << BowtieTask::largeIndexSuffixes;
 
-bool BowtieSettingsWidget::isParametersOk(QString &) {
-    return true;
+    QString baseUrl = DnaAssemblyToReferenceTask::getBaseUrl(oneIndexFileUrl, suffixes);
+    bool index = DnaAssemblyToReferenceTask::isPrebuiltIndex(baseUrl, BowtieTask::indexSuffixes);
+    bool largeIndex = DnaAssemblyToReferenceTask::isPrebuiltIndex(baseUrl, BowtieTask::largeIndexSuffixes);
+    return index || largeIndex;
 }
-
 
 // BowtieBuildSettingsWidget
 
@@ -109,8 +130,8 @@ QString BowtieBuildSettingsWidget::getIndexFileExtension() {
     return QString();
 }
 
-void BowtieBuildSettingsWidget::buildIndexUrl(const GUrl& ) {
-    // do nothing
+GUrl BowtieBuildSettingsWidget::buildIndexUrl(const GUrl& ) {
+    return GUrl();
 }
 
 // BowtieGUIExtensionsFactory

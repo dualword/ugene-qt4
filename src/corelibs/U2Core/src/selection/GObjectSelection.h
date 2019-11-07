@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ class GObject;
 class  U2CORE_EXPORT GObjectSelection : public GSelection {
     Q_OBJECT
 public:
-    GObjectSelection(QObject* p = NULL) : GSelection(GSelectionTypes::GOBJECTS, p) {}
+    GObjectSelection(QObject* p = NULL);
 
     const QList<GObject*>& getSelectedObjects() const {return selectedObjects;}
 

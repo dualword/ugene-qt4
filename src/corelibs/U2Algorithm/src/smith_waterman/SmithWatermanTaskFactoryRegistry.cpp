@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ SmithWatermanTaskFactoryRegistry::~SmithWatermanTaskFactoryRegistry()
 }
 
 bool SmithWatermanTaskFactoryRegistry::registerFactory(
-                                                SmithWatermanTaskFactory* factory, 
+                                                SmithWatermanTaskFactory* factory,
                                                 const QString& factoryId)
 {
     QMutexLocker locker(&mutex);
@@ -54,6 +54,7 @@ bool SmithWatermanTaskFactoryRegistry::registerFactory(
 SmithWatermanTaskFactory* SmithWatermanTaskFactoryRegistry::getFactory(const QString& factoryId) {
     return factories.value(factoryId, 0);
 }
+
 
 QStringList SmithWatermanTaskFactoryRegistry::getListFactoryNames() {
     return factories.keys();

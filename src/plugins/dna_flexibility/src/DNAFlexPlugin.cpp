@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,7 @@
  * MA 02110-1301, USA.
  */
 
-#include "DNAFlexDialog.h"
-#include "DNAFlexGraph.h"
-#include "DNAFlexPlugin.h"
+#include <QMessageBox>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/L10n.h>
@@ -31,11 +29,13 @@
 #include <U2View/ADVUtils.h>
 #include <U2View/AnnotatedDNAView.h>
 
-#include <QMessageBox>
+#include <U2Core/QObjectScopedPointer.h>
 
+#include "DNAFlexDialog.h"
+#include "DNAFlexGraph.h"
+#include "DNAFlexPlugin.h"
 
 namespace U2 {
-
 
 extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC()
 {
@@ -75,13 +75,14 @@ void DNAFlexViewContext::sl_showDNAFlexDialog()
     ADVSequenceObjectContext* seqCtx = annotView->getSequenceInFocus();
     SAFE_POINT(seqCtx != NULL, "no sequence to perform flex search",);
 
-    DNAAlphabet *alphabet = seqCtx->getAlphabet();
+    const DNAAlphabet *alphabet = seqCtx->getAlphabet();
     SAFE_POINT(alphabet->isNucleic(), "alphabet is not nucleic, dialog should not have been invoked",);
 
     if (alphabet->getId() == BaseDNAAlphabetIds::NUCL_DNA_DEFAULT())
     {
-        DNAFlexDialog dialog(seqCtx);
-        dialog.exec();
+        QObjectScopedPointer<DNAFlexDialog> dialog = new DNAFlexDialog(seqCtx);
+        dialog->exec();
+        CHECK(!dialog.isNull(), );
     }
     else
     {
@@ -133,6 +134,7 @@ void DNAFlexViewContext::sl_sequenceWidgetAdded(ADVSequenceWidget* _sequenceWidg
 
     // Otherwise add the "DNA Flexibility" action to the graphs menu
     GraphAction* graphAction = new GraphAction(graphFactory);
+    connect(sequenceWidget, SIGNAL(si_updateGraphView(const QStringList &, const QVariantMap&)), graphAction, SLOT(sl_updateGraphView(const QStringList &, const QVariantMap&)));
     GraphMenuAction::addGraphAction(sequenceWidget->getActiveSequenceContext(), graphAction);
 }
 

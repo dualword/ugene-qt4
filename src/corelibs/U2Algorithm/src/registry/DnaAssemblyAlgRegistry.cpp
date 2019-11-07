@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,21 @@
 
 namespace U2 {
 
-DnaAssemblyAlgorithmEnv::DnaAssemblyAlgorithmEnv(const QString& _id, DnaAssemblyToRefTaskFactory* _tf, 
-                                                 DnaAssemblyGUIExtensionsFactory* _g, bool indexSupported, bool _sd)
-: id(_id), taskFactory(_tf), guiExtFactory(_g), supportsIndexFiles(indexSupported), supportsDbi(_sd)
+DnaAssemblyAlgorithmEnv::DnaAssemblyAlgorithmEnv(
+    const QString &id,
+    DnaAssemblyToRefTaskFactory *taskFactory,
+    DnaAssemblyGUIExtensionsFactory *guiExtFactory,
+    bool supportsIndexFiles,
+    bool supportsDbi,
+    bool supportsPEReads,
+    const QStringList &refrerenceFormats,
+    const QStringList &readsFormats)
+: id(id), taskFactory(taskFactory), guiExtFactory(guiExtFactory),
+supportsIndexFiles(supportsIndexFiles), supportsDbi(supportsDbi),
+supportsPEReads(supportsPEReads), refrerenceFormats(refrerenceFormats),
+readsFormats(readsFormats)
 {
+
 }
 
 DnaAssemblyAlgorithmEnv::~DnaAssemblyAlgorithmEnv() {
@@ -37,7 +48,7 @@ DnaAssemblyAlgorithmEnv::~DnaAssemblyAlgorithmEnv() {
     delete guiExtFactory;
 }
 
-DnaAssemblyAlgRegistry::DnaAssemblyAlgRegistry( QObject* pOwn /*= 0*/ ) : QObject(pOwn) {
+DnaAssemblyAlgRegistry::DnaAssemblyAlgRegistry( QObject* pOwn /* = 0*/ ) : QObject(pOwn) {
 }
 
 DnaAssemblyAlgRegistry::~DnaAssemblyAlgRegistry() {
@@ -59,7 +70,7 @@ bool DnaAssemblyAlgRegistry::registerAlgorithm(DnaAssemblyAlgorithmEnv* algo) {
 
 DnaAssemblyAlgorithmEnv* DnaAssemblyAlgRegistry::unregisterAlgorithm(const QString& id) {
     QMutexLocker locker(&mutex);
-    
+
     if (!algorithms.contains(id)) {
         return NULL;
     }

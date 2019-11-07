@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,36 +22,37 @@
 #ifndef _U2_CREATE_ANNOTATION_TASK_H_
 #define _U2_CREATE_ANNOTATION_TASK_H_
 
+#include <U2Core/AnnotationData.h>
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/Task.h>
 
-#include <U2Core/AnnotationTableObject.h>
-
 namespace U2 {
-
-class AnnotationTableObject;
-class AnnotationData;
 
 class U2CORE_EXPORT CreateAnnotationsTask : public Task {
     Q_OBJECT
 public:
     // Adds annotations to the object. Waits object to be unlocked if needed
     // Works only in a context of active project
-    CreateAnnotationsTask(AnnotationTableObject* o, const QString& group, SharedAnnotationData data);
-    CreateAnnotationsTask(AnnotationTableObject* o, const QString& group, QList<SharedAnnotationData> data);
-    CreateAnnotationsTask(const GObjectReference& ref, const QString& group, QList<SharedAnnotationData> data);
+                                    CreateAnnotationsTask(AnnotationTableObject *o, const QList<SharedAnnotationData> &data,
+                                        const QString &group = QString());
+                                    CreateAnnotationsTask(const GObjectReference &ref, const QList<SharedAnnotationData> &data,
+                                        const QString &group = QString());
 
-    ReportResult report();
-    const QList<Annotation*>& getAnnotations() const {return annotations;}
+    void                            run();
+    ReportResult                    report();
+    AnnotationTableObject *         getGObject() const;
+    int                             getAnnotationCount() const;
+    QList<Annotation *>             getResultAnnotations() const;
 
 private:
-    GObjectReference            aRef;
-    QPointer<AnnotationTableObject>  aobj;
-    QString                     groupName;
-    QList<SharedAnnotationData> aData;
-    QList<Annotation*>          annotations;
-    int                         pos;
+    GObjectReference                                aRef;
+    QPointer<AnnotationTableObject>                 aobj;
+    QMap<AnnotationGroup *, QList<Annotation *> >   group2Annotations;
+    QString                                         groupName;
+    QList<SharedAnnotationData>                     aData;
+    QList<Annotation *>                             resultAnnotations;
 };
 
-}//namespace
+} //namespace U2
 
 #endif

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,33 +26,48 @@
 
 namespace U2 {
 
+#define SEQUENCE_TAG " sequence"    //common tag for sequence object
+#define FEATURES_TAG " features"    //common tag for annotation table
+
 class DocumentFormat;
 
 class U2CORE_EXPORT BaseDocumentFormats {
 public:
-    static const DocumentFormatId PLAIN_TEXT;
-    static const DocumentFormatId FASTA;
-    static const DocumentFormatId PLAIN_GENBANK;
-    static const DocumentFormatId PLAIN_EMBL;
-    static const DocumentFormatId PLAIN_SWISS_PROT;
     static const DocumentFormatId ABIF;
-    static const DocumentFormatId SCF;
-    static const DocumentFormatId RAW_DNA_SEQUENCE;
-    static const DocumentFormatId CLUSTAL_ALN;
-    static const DocumentFormatId STOCKHOLM;
-    static const DocumentFormatId NEWICK;
-    static const DocumentFormatId PLAIN_PDB;
-    static const DocumentFormatId INDEX;
-    static const DocumentFormatId FASTQ;
-    static const DocumentFormatId PLAIN_ASN;
-    static const DocumentFormatId MSF;
     static const DocumentFormatId ACE;
+    static const DocumentFormatId BAM;
+    static const DocumentFormatId BED;
+    static const DocumentFormatId CLUSTAL_ALN;
+    static const DocumentFormatId DATABASE_CONNECTION;
+    static const DocumentFormatId DIFF;
+    static const DocumentFormatId FASTA;
+    static const DocumentFormatId FASTQ;
+    static const DocumentFormatId FPKM_TRACKING_FORMAT;
     static const DocumentFormatId GFF;
-    static const DocumentFormatId SRF;
-    static const DocumentFormatId SAM;
-    static const DocumentFormatId NEXUS;
+    static const DocumentFormatId GTF;
+    static const DocumentFormatId INDEX;
     static const DocumentFormatId MEGA;
+    static const DocumentFormatId MSF;
+    static const DocumentFormatId NEWICK;
+    static const DocumentFormatId NEXUS;
     static const DocumentFormatId PDW;
+    static const DocumentFormatId PHYLIP_INTERLEAVED;
+    static const DocumentFormatId PHYLIP_SEQUENTIAL;
+    static const DocumentFormatId PLAIN_ASN;
+    static const DocumentFormatId PLAIN_EMBL;
+    static const DocumentFormatId PLAIN_GENBANK;
+    static const DocumentFormatId PLAIN_PDB;
+    static const DocumentFormatId PLAIN_SWISS_PROT;
+    static const DocumentFormatId PLAIN_TEXT;
+    static const DocumentFormatId RAW_DNA_SEQUENCE;
+    static const DocumentFormatId SAM;
+    static const DocumentFormatId SCF;
+    static const DocumentFormatId SNP;
+    static const DocumentFormatId SRF;
+    static const DocumentFormatId STOCKHOLM;
+    static const DocumentFormatId UGENEDB;
+    static const DocumentFormatId VCF4;
+    static const DocumentFormatId VECTOR_NTI_SEQUENCE;
 
     static DocumentFormat* get(const DocumentFormatId& formatId);
 };

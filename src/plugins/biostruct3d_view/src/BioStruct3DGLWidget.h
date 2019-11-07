@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,20 +29,23 @@
 #include <U2Core/Vector3D.h>
 #include <U2Core/BioStruct3DObject.h>
 
-
 #include <QtCore/QTimer>
 #include <QtCore/QSharedPointer>
 
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QAction>
 #include <QtGui/QMenu>
 #include <QtGui/QActionGroup>
-#include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QActionGroup>
+#endif
 #include <QtGui/QColor>
 
 #include <QtOpenGL/QGLWidget>
 
-#include <memory>
-
-namespace U2 { 
+namespace U2 {
 
 class Document;
 class BioStruct3D;
@@ -90,7 +93,7 @@ public:
 * rendering of the 3d objects.
 *
 * Also it includes actions for visualization control.
-*/ 
+*/
 class BioStruct3DGLWidget : public QGLWidget
 {
     Q_OBJECT
@@ -103,7 +106,7 @@ public:
     * @param view DnaView context for connecting structure 3D representation and sequence view
     * @param manager GlFrameManager is required for OpenGL frame manipulation
     * @param parent Parent widget
-    */ 
+    */
     BioStruct3DGLWidget(BioStruct3DObject* bsObj, const AnnotatedDNAView* view, GLFrameManager* manager, QWidget *parent);
 
     //! Destructor.
@@ -149,7 +152,7 @@ public:
     void setBackgroundColor(QColor backgroundColor);
 
     /** @returns This widget GLFrame */
-    GLFrame *getGLFrame() { return glFrame.get(); }
+    GLFrame *getGLFrame() { return glFrame.data(); }
 
     /** Draws scene without setting camera */
     void draw();
@@ -160,9 +163,11 @@ public:
     /** @returns scene bounding sphere radius */
     float getSceneRadius() const;
 
+    void setImageRenderingMode(bool status) { imageRenderingMode = status; }
+
 protected:
     /*!
-    * QGlWidget virtual function, initializes OpenGL params. See, Qt docs "QGLWidget" for details. 
+    * QGlWidget virtual function, initializes OpenGL params. See, Qt docs "QGLWidget" for details.
     */
     void initializeGL();
     /*!
@@ -172,7 +177,7 @@ protected:
     */
     void resizeGL(int width, int height);
     /*!
-    * QGlWidget virtual function, draw GL scene.  
+    * QGlWidget virtual function, draw GL scene.
     */
     void paintGL();
     /*!
@@ -191,7 +196,7 @@ protected:
     * QWidget virtual function, executes context menu.
     */
     void contextMenuEvent(QContextMenuEvent *_event);
-    
+
 private:
     //! Sets unselected regions shading level
     void setUnselectedShadingLevel(int shading);
@@ -265,15 +270,15 @@ private:
     BioStruct3DRendererSettings rendererSettings;
 
     GLFrameManager* frameManager;
-    std::auto_ptr<GLFrame> glFrame;
+    QScopedPointer<GLFrame> glFrame;
 
-    std::auto_ptr<MolecularSurface> molSurface;
-    std::auto_ptr<MolecularSurfaceRenderer> surfaceRenderer;
+    QScopedPointer<MolecularSurface> molSurface;
+    QScopedPointer<MolecularSurfaceRenderer> surfaceRenderer;
 
     MolecularSurfaceCalcTask* surfaceCalcTask;
 
     AnaglyphStatus anaglyphStatus;
-    std::auto_ptr<AnaglyphRenderer> anaglyph;
+    QScopedPointer<AnaglyphRenderer> anaglyph;
 
     QVariantMap defaultsSettings;
 
@@ -293,6 +298,8 @@ private:
     QTimer* animationTimer;
 
     int unselectedShadingLevel;
+    // Should be true when painting an image
+    bool imageRenderingMode;
 
     // controller logic
     QAction *spinAction;

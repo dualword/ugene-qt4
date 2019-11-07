@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,12 +23,18 @@
 #define _U2_PROJECT_SUPPORT_H_
 
 #include "ui/ui_CreateNewProjectWidget.h"
+#include "ui/ui_SaveProjectDialog.h"
 
 #include <U2Core/ProjectModel.h>
 #include <U2Core/ProjectService.h>
+#include <U2Gui/WelcomePageAction.h>
 #include <assert.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QtGui>
+#else
+#include <QtWidgets/QtWidgets>
+#endif
 
 namespace U2 {
 
@@ -51,13 +57,21 @@ public:
     virtual Task* createProjectLoadingTask(const GUrl& url, const QVariantMap& hints = QVariantMap());
     
     virtual Project* createProject(const QString& name, const QString& url, QList<Document*>& documents, QList<GObjectViewState*>& states);
+
+    virtual QAction* getAddExistingDocumentAction() { return addExistingDocumentAction; }
     
     static QString getLastProjectURL();
 
-private:
+signals:
+    void si_recentListChanged();
 
+public slots:
+    void sl_newDocumentFromText();
+    void sl_openProject();
+
+private:
     void updateState();
-	void updateRecentProjectsMenu();
+    void updateRecentProjectsMenu();
     void prependToRecentProjects(const QString& pFile);
     void updateRecentItemsMenu();
     void prependToRecentItems(const QString& url);
@@ -66,32 +80,56 @@ private:
 
 private slots:
     void sl_newProject();
-    void sl_newDocumentFromText();
-    void sl_openProject();
-	void sl_openRecentFile();
+    void sl_openRecentFile();
     void sl_openRecentProject();
     void sl_serviceStateChanged(Service* s, ServiceState prevState);
     void sl_documentAdded(Document* doc);
     void sl_documentStateChanged();
     void sl_projectURLChanged(const QString& oldURL);
-    
-	void sl_downloadRemoteFile();
+    void sl_onAddExistingDocument();
+
+    void sl_downloadRemoteFile();
+    void sl_accessSharedDatabase();
+    void sl_searchGenbankEntry();
 
 
 // QT 4.5.0 bug workaround
     void sl_updateRecentItemsMenu();
     
 private:
-    
-	QAction* newProjectAction;
-	QAction* openProjectAction;
+    QAction* addExistingDocumentAction;
+    QAction* newProjectAction;
+    QAction* openProjectAction;
     QAction* downloadRemoteFileAction;
+    QAction* accessSharedDatabaseAction;
+    QAction* searchGenbankEntryAction;
     QAction* newDocumentFromtext;
     QAction* separatorAction1;
-	QAction* separatorAction2;
+    QAction* separatorAction2;
 
-	QMenu* recentProjectsMenu;
+    QMenu* recentProjectsMenu;
     QMenu* recentItemsMenu;
+};
+
+//////////////////////////////////////////////////////////////////////////
+/// WelcomePageActions
+
+class LoadDataWelcomePageAction : public WelcomePageAction {
+public:
+    LoadDataWelcomePageAction(ProjectLoaderImpl *loader);
+    void perform();
+
+private:
+    QPointer<ProjectLoaderImpl> loader;
+};
+
+class CreateSequenceWelcomePageAction : public WelcomePageAction {
+public:
+    CreateSequenceWelcomePageAction(ProjectLoaderImpl *loader);
+    void perform();
+
+private:
+    QPointer<ProjectLoaderImpl> loader;
 };
 
 
@@ -99,6 +137,14 @@ private:
 /// Dialogs
 
 //TODO: merge project dir & project name fields
+
+class SaveProjectDialogController : public QDialog, public Ui::SaveProjectDialog {
+    Q_OBJECT
+public:
+    SaveProjectDialogController(QWidget *p);
+public slots:
+    void sl_clicked(QAbstractButton *button);
+};
 
 class ProjectDialogController : public QDialog, public Ui::CreateNewProjectDialog {
     Q_OBJECT
@@ -119,6 +165,7 @@ private slots:
 private:
     void setupDefaults();
     bool fileEditIsEmpty;
+    QPushButton* createButton;
 };
 
 
@@ -147,6 +194,7 @@ public:
     ~AddDocumentsToProjectTask();
 
     virtual QList<Task*> onSubTaskFinished(Task* subTask);
+    virtual QString generateReport() const;
 private:
     QList<Task*> prepareLoadTasks();
 

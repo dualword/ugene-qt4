@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,19 +23,29 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Algorithm/PWMConversionAlgorithmRegistry.h>
+#include <U2Gui/HelpButton.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QPushButton>
+#endif
+
 
 namespace U2 {
 
-SetParametersDialogController::SetParametersDialogController(QWidget *w) 
+SetParametersDialogController::SetParametersDialogController(QWidget *w)
     : QDialog(w) {
 
     setupUi(this);
-    
+    new HelpButton(this, buttonBox, "16122386");
+
     QStringList algo = AppContext::getPWMConversionAlgorithmRegistry()->getAlgorithmIds();
     algorithmComboBox->addItems(algo);
 
+    QPushButton* okButton = buttonBox->button(QDialogButtonBox::Ok);
     connect(okButton, SIGNAL(clicked()), SLOT(sl_onOkButton()));
     connect(scoreSlider, SIGNAL(valueChanged(int)), SLOT(sl_onSliderMoved(int)));
+
 }
 
 void SetParametersDialogController::sl_onSliderMoved(int value) {

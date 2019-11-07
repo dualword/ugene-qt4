@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,24 +29,44 @@
 #include <U2Core/QVariantUtils.h>
 
 #include <QtGui/QPainter>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsScene>
 #include <QtGui/QGraphicsSceneMouseEvent>
 #include <QtGui/QStyleOptionGraphicsItem>
 #include <QtGui/QGraphicsView>
-#include <QtGui/QTextDocument>
 #include <QtGui/QInputDialog>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QGraphicsScene>
+#include <QtWidgets/QGraphicsSceneMouseEvent>
+#include <QtWidgets/QStyleOptionGraphicsItem>
+#include <QtWidgets/QGraphicsView>
+#include <QtWidgets/QInputDialog>
+#include <QtWidgets/QMenu>
+#endif
+#include <QtGui/QTextDocument>
+
+#define ANNOTATION_MIN_SIZE GRID_STEP
+#define ANNOTATION_MAX_SIZE 4 * GRID_STEP
+#define MARGIN 4
+#define ARR_W 15
 
 namespace U2 {
-    
+
 /************************************************************************/
 /* Annotation Item                                                      */
 /************************************************************************/
 
-#define ANNOTATION_MIN_SIZE GRID_STEP
-#define ANNOTATION_MAX_SIZE 4*GRID_STEP
-#define MARGIN 4
-#define ARR_W 15
+inline qreal round(qreal val, int step) {
+    if (0 > val) {
+        step *= -1;
+    }
+    int tmp = int(val) + step /2;
+    tmp -= tmp % step;
+    return qreal(tmp);
+}
+
 QDElement::QDElement(QDSchemeUnit* _unit)
 : highlighted(false), unit(_unit), font(QFont()), bound(0,0,3*ANNOTATION_MIN_SIZE,ANNOTATION_MIN_SIZE),
 dragging(false), extendedHeight(ANNOTATION_MIN_SIZE), itemResizeFlags(0) {
@@ -317,13 +337,13 @@ void QDElement::mouseMoveEvent(QGraphicsSceneMouseEvent *event) {
             dragPoint = event->pos();
             dragging = true;
         }
-        
+
         QPointF newPos = scenePos();
         const QPointF& mousePos = event->pos();
         const QPointF& p = mousePos - dragPoint;
-        newPos.rx()+=p.x();
-        if (qAbs(p.y())>=GRID_STEP/2) {
-            newPos.ry()+=p.y();
+        newPos.rx() += p.x();
+        if (qAbs(p.y()) >= GRID_STEP/2) {
+            newPos.ry() += p.y();
         }
         setPos(newPos);
     } else {
@@ -489,20 +509,20 @@ bool QDElement::sceneEvent(QEvent *event) {
             if(itemResizeFlags) {
                 QueryScene* qs = qobject_cast<QueryScene*>(scene());
                 QGraphicsSceneMouseEvent* me = static_cast<QGraphicsSceneMouseEvent *>(event);
-                if(me->buttons()&Qt::LeftButton) {
+                if(me->buttons() & Qt::LeftButton) {
                     QPointF p = me->pos();
                     p.setY(round(p.y(), GRID_STEP));
 
                     QRectF newBound(bound);
 
-                    if(itemResizeFlags&ResizeRight) {
+                    if(itemResizeFlags & ResizeRight) {
                         newBound.setRight(p.x());
-                    } else if (itemResizeFlags&ResizeLeft && me->scenePos().x()>0) {
+                    } else if (itemResizeFlags & ResizeLeft && me->scenePos().x() > 0) {
                         newBound.setWidth(newBound.width() - p.x());
                     }
-                    if(itemResizeFlags&ResizeTop) {
+                    if(itemResizeFlags & ResizeTop && (0 <= (scenePos().y() - GRID_STEP) || 0 <= p.y())) {
                         newBound.setHeight(newBound.height() - p.y() + newBound.top());
-                    } else if(itemResizeFlags&ResizeBottom) {
+                    } else if(itemResizeFlags & ResizeBottom) {
                         newBound.setBottom(p.y());
                     }
 
@@ -586,7 +606,7 @@ bool QDElement::sceneEvent(QEvent *event) {
                     }
 
                     bound.setRect(newBound.x(),newBound.y(),newBound.width(),newBound.height());
-                    
+
                     if (itemResizeFlags & (ResizeTop|ResizeLeft)) {
                         if (newPos!=scenePos()) {
                             setPos(newPos);
@@ -615,7 +635,7 @@ bool QDElement::sceneEvent(QEvent *event) {
 QVariant QDElement::itemChange( GraphicsItemChange change, const QVariant & value ) {
     switch(change) {
         case ItemPositionChange:
-            {   
+            {
                 //value is the new position
                 QPointF newPos = value.toPointF();
                 QueryScene* qs = qobject_cast<QueryScene*>(scene());
@@ -640,7 +660,7 @@ QVariant QDElement::itemChange( GraphicsItemChange change, const QVariant & valu
                     newPos.setX(qBound(rect.left(), newPos.x(), rect.left() + QueryScene::MAX_SCENE_SIZE.width()));
                     newPos.setY(qMax(newPos.y(), rect.top()));
                 }
-                
+
                 //prevent collision
                 QRectF itemRect = boundingRect();
                 const QPointF& topLeft = mapToScene(itemRect.topLeft());
@@ -688,7 +708,7 @@ QVariant QDElement::itemChange( GraphicsItemChange change, const QVariant & valu
                     return QGraphicsItem::itemChange(change, value);
                 }
                 qs->sl_adaptRowsNumber();
-                
+
                 QRectF rect = qs->sceneRect();
                 qreal rightEdge = mapRectToScene(boundingRect()).right();
                 qreal min = rect.left() + QueryScene::DEFAULT_SCENE_SIZE.width();
@@ -698,13 +718,13 @@ QVariant QDElement::itemChange( GraphicsItemChange change, const QVariant & valu
                     rect.setRight(rightEdge);
                     qs->setSceneRect(rect);
                 }
-                
+
                 updateFootnotes();
                 qs->setModified(true);
             }
             break;
         case ItemSceneChange:
-            if(qVariantValue<QGraphicsScene*>(value)==NULL) {
+            if((value.value<QGraphicsScene*>())==NULL) {
                 foreach(Footnote* fn, links) {
                     scene()->removeItem(fn);
                     delete fn;
@@ -712,7 +732,7 @@ QVariant QDElement::itemChange( GraphicsItemChange change, const QVariant & valu
             }
             break;
         case ItemSceneHasChanged:
-            if(qVariantValue<QGraphicsScene*>(value)!=NULL) {
+            if((value.value<QGraphicsScene*>())!=NULL) {
                 sl_refresh();
                 adaptSize();
                 QueryScene* qs = qobject_cast<QueryScene*>(scene());
@@ -890,7 +910,7 @@ QVariant Footnote::itemChange(GraphicsItemChange change, const QVariant &value) 
             scene()->addItem(rightRef);
         }
     } else if(change==ItemSceneChange) {
-        if(qVariantValue<QGraphicsScene*>(value)==NULL) {
+        if((value.value<QGraphicsScene*>())==NULL) {
             scene()->removeItem(leftRef);
             scene()->removeItem(rightRef);
             delete leftRef;
@@ -923,7 +943,7 @@ QRectF Footnote::boundingRect() const {
 void Footnote::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) {
     Q_UNUSED(option);
     Q_UNUSED(widget);
-    painter->fillRect(boundingRect(),Qt::white);    
+    painter->fillRect(boundingRect(),Qt::white);
     qreal arrW = getDstPoint().x() - getSrcPoint().x();
     QPen pen(Qt::black);
     if(isSelected()) {

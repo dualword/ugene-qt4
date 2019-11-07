@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,11 @@
 #include <U2Core/DNASequence.h>
 #include <U2Core/PFMatrix.h>
 #include <U2Core/PWMatrix.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 #include <U2Algorithm/PWMConversionAlgorithm.h>
 #include <U2View/AlignmentLogo.h>
 
@@ -61,9 +65,13 @@ private slots:
     void sl_onProgressChanged();
 
 private:
+    void reportError(const QString &message);
+
+private:
     Task* task;
     AlignmentLogoRenderArea* logoArea;
-
+    QPushButton* okButton;
+    QPushButton* cancelButton;
     void replaceLogo(const MAlignment& ma);
 };
 

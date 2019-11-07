@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,50 +19,56 @@
  * MA 02110-1301, USA.
  */
 
-#include "ClustalWAlnFormat.h"
+#include <math.h>
+
+#include <QtCore/QTextStream>
+
+#include <U2Algorithm/BuiltInConsensusAlgorithms.h>
+#include <U2Algorithm/MSAConsensusAlgorithmRegistry.h>
+#include <U2Algorithm/MSAConsensusUtils.h>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/MAlignmentImporter.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/MAlignmentWalker.h>
+#include <U2Core/MSAUtils.h>
+#include <U2Core/TextUtils.h>
+#include <U2Core/U2AlphabetUtils.h>
+#include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
 #include <U2Formats/DocumentFormatUtils.h>
 
-#include <U2Core/AppContext.h>
-#include <U2Core/U2OpStatus.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/L10n.h>
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/TextUtils.h>
-#include <U2Core/MSAUtils.h>
-#include <U2Core/U2SafePoints.h>
-#include <U2Core/U2AlphabetUtils.h>
-#include <U2Core/U2DbiUtils.h>
-
-#include <U2Algorithm/MSAConsensusUtils.h>
-#include <U2Algorithm/MSAConsensusAlgorithmRegistry.h>
-#include <U2Algorithm/BuiltInConsensusAlgorithms.h>
-
-#include <memory>
+#include "ClustalWAlnFormat.h"
 
 namespace U2 {
 
-/* TRANSLATOR U2::ClustalWAlnFormat */    
-/* TRANSLATOR U2::IOAdapter */    
+/* TRANSLATOR U2::ClustalWAlnFormat */
+/* TRANSLATOR U2::IOAdapter */
 
 const QByteArray ClustalWAlnFormat::CLUSTAL_HEADER = "CLUSTAL";
 
-ClustalWAlnFormat::ClustalWAlnFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags_SW, QStringList("aln")) 
+ClustalWAlnFormat::ClustalWAlnFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags(DocumentFormatFlag_SupportWriting) | DocumentFormatFlag_OnlyOneObject, QStringList("aln"))
 {
     formatName = tr("CLUSTALW");
-	formatDescription = tr("Clustalw is a format for storing multiple sequence alignments");
+    formatDescription = tr("Clustalw is a format for storing multiple sequence alignments");
     supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
 }
 
-void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVariantMap&, U2OpStatus& os) {
+void ClustalWAlnFormat::load(IOAdapter* io, const U2DbiRef& dbiRef, QList<GObject*>& objects, const QVariantMap& fs, U2OpStatus& os) {
     static int READ_BUFF_SIZE = 1024;
     QByteArray readBuffer(READ_BUFF_SIZE, '\0');
     char* buff  = readBuffer.data();
 
     const QBitArray& LINE_BREAKS = TextUtils::LINE_BREAKS;
     const QBitArray& WHITES = TextUtils::WHITES;
-    
+
     QString objName = io->getURL().baseFileName();
     MAlignment al(objName);
     bool lineOk = false;
@@ -70,6 +76,7 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
     int sequenceIdx = 0;
     int valStartPos = 0;
     int valEndPos = 0;
+    int currentLen = 0;
 
     //1 skip first line
     int len = io->readUntil(buff, READ_BUFF_SIZE, LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
@@ -97,7 +104,7 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
             os.setError( ClustalWAlnFormat::tr("Error parsing file"));
             break;
         }
-        
+
         QByteArray line = QByteArray::fromRawData( buff, len );
         if (valStartPos == 0) {
             int spaceIdx = line.indexOf(' ');
@@ -125,9 +132,9 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
 
         QByteArray name = line.left(valStartPos).trimmed();
         QByteArray value = line.mid(valStartPos, valEndPos - valStartPos);
-                
+
         int seqsInModel = al.getNumRows();
-        bool lastBlockLine = (!firstBlock && sequenceIdx == seqsInModel) 
+        bool lastBlockLine = (!firstBlock && sequenceIdx == seqsInModel)
             || numNs >=2
             || name.isEmpty()
             || value.contains(' ') || value.contains(':') || value.contains('.');
@@ -137,11 +144,11 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
                 // this is consensus line - skip it
             } else {
                 assert(al.getNumRows() == sequenceIdx);
-                al.addRow(MAlignmentRow(name, value));
+                al.addRow(name, value, os);
             }
         } else {
             int rowIdx = -1;
-            if (sequenceIdx < seqsInModel) { 
+            if (sequenceIdx < seqsInModel) {
                 rowIdx = sequenceIdx;
             } else if (sequenceIdx == seqsInModel) {
                 assert(lastBlockLine);
@@ -149,14 +156,14 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
             } else {
                 os.setError( ClustalWAlnFormat::tr("Incorrect number of sequences in block"));
                 break;
-            } 
+            }
             if (rowIdx != -1) {
                 const MAlignmentRow& row = al.getRow(rowIdx);
                 if (row.getName() != name) {
                     os.setError( ClustalWAlnFormat::tr("Sequence names are not matched"));
                     break;
                 }
-                al.appendChars(rowIdx, value.constData(), value.size());
+                al.appendChars(rowIdx, currentLen, value.constData(), value.size());
             }
         }
         if (lastBlockLine) {
@@ -165,6 +172,7 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
                 break;
             }
             sequenceIdx = 0;
+            currentLen = al.getLength();
         } else {
             sequenceIdx++;
         }
@@ -177,15 +185,17 @@ void ClustalWAlnFormat::load(IOAdapter* io, QList<GObject*>& objects, const QVar
     }
     U2AlphabetUtils::assignAlphabet(al);
     CHECK_EXT(al.getAlphabet()!=NULL, os.setError( ClustalWAlnFormat::tr("Alphabet is unknown")), );
-    
-    MAlignmentObject* obj = new MAlignmentObject(al);
+
+    const QString folder = fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
+    MAlignmentObject* obj = MAlignmentImporter::createAlignment(dbiRef, folder, al, os);
+    CHECK_OP(os, );
     objects.append(obj);
 }
 
 Document* ClustalWAlnFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os) {
     QList<GObject*> objects;
-    load(io, objects, fs, os);
-    CHECK_OP_EXT(os, qDeleteAll(objects), NULL);    
+    load(io, dbiRef, objects, fs, os);
+    CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
     assert(objects.size() == 1);
     return new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs);
 }
@@ -194,20 +204,21 @@ Document* ClustalWAlnFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef,
 #define MAX_NAME_LEN    39
 #define SEQ_ALIGNMENT    5
 
-void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
-    const MAlignmentObject* obj = NULL;
-    if( (d->getObjects().size() != 1)
-        || ((obj = qobject_cast<const MAlignmentObject*>(d->getObjects().first())) == NULL)) {
-            ti.setError("No data to write;");
-            return;
-    }
+void ClustalWAlnFormat::storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &ti) {
+    SAFE_POINT(objectsMap.contains(GObjectTypes::MULTIPLE_ALIGNMENT), "Clustal entry storing: no alignment", );
+    const QList<GObject*> &als = objectsMap[GObjectTypes::MULTIPLE_ALIGNMENT];
+    SAFE_POINT(1 == als.size(), "Clustal entry storing: alignment objects count error", );
+
+    const MAlignmentObject* obj = dynamic_cast<MAlignmentObject*>(als.first());
+    SAFE_POINT(NULL != obj, "Clustal entry storing: NULL alignment object", );
+
     const MAlignment& ma = obj->getMAlignment();
-    
+
     //write header
     QByteArray header("CLUSTAL W 2.0 multiple sequence alignment\n\n");
     int len = io->writeBlock(header);
     if (len != header.length()) {
-        ti.setError(L10N::errorWritingFile(d->getURL()));
+        ti.setError(L10N::errorTitle());
         return;
     }
 
@@ -222,9 +233,9 @@ void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
     QByteArray consensus(aliLen, MAlignment_GapChar);
 
     MSAConsensusAlgorithmFactory* algoFactory = AppContext::getMSAConsensusAlgorithmRegistry()->getAlgorithmFactory(BuiltInConsensusAlgorithms::CLUSTAL_ALGO);
-    std::auto_ptr<MSAConsensusAlgorithm> algo(algoFactory->createAlgorithm(ma));
-    MSAConsensusUtils::updateConsensus(ma, consensus, algo.get());
-    
+    QScopedPointer<MSAConsensusAlgorithm> algo(algoFactory->createAlgorithm(ma));
+    MSAConsensusUtils::updateConsensus(ma, consensus, algo.data());
+
     int maxNumLength  = 1 + (aliLen < 10 ? 1 : (int)log10((double)aliLen));
 
     int seqStart = maxNameLength + 2; //+1 for space separator
@@ -241,16 +252,23 @@ void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
     const char* spaces = TextUtils::SPACE_LINE.constData();
 
     //write sequence
+    U2OpStatus2Log os;
+    MAlignmentWalker walker(ma);
     for(int i = 0; i < aliLen; i+=seqPerPage) {
         int partLen = i + seqPerPage > aliLen ? aliLen - i : seqPerPage;
-        foreach(const MAlignmentRow& row, ma.getRows()) {
-            QByteArray line = row.getName().toAscii();
+        QList<QByteArray> seqs = walker.nextData(partLen, os);
+        CHECK_OP(os, );
+        QList<QByteArray>::ConstIterator si = seqs.constBegin();
+        QList<MAlignmentRow>::ConstIterator ri = ma.getRows().constBegin();
+        for (; si != seqs.constEnd(); si++, ri++) {
+            const MAlignmentRow &row = *ri;
+            QByteArray line = row.getName().toLatin1();
             if (line.length() > MAX_NAME_LEN) {
                 line = line.left(MAX_NAME_LEN);
             }
             TextUtils::replace(line.data(), line.length(), TextUtils::WHITES, '_');
             line.append(QByteArray::fromRawData(spaces, seqStart - line.length()));
-            line.append(row.mid(i, partLen).toByteArray(partLen));
+            line.append(*si);
             line.append(' ');
             line.append(QString::number(qMin(i+seqPerPage, aliLen)));
             assert(line.length() <= MAX_LINE_LEN);
@@ -258,7 +276,7 @@ void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
 
             len = io->writeBlock(line);
             if (len != line.length()) {
-                ti.setError(L10N::errorWritingFile(d->getURL()));
+                ti.setError(L10N::errorTitle());
                 return;
             }
         }
@@ -268,7 +286,7 @@ void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
         line.append("\n\n");
         len = io->writeBlock(line);
         if (len != line.length()) {
-            ti.setError(L10N::errorWritingFile(d->getURL()));
+            ti.setError(L10N::errorTitle());
             return;
         }
     }
@@ -277,7 +295,19 @@ void ClustalWAlnFormat::save(IOAdapter* io, Document* d, U2OpStatus& ti) {
 void ClustalWAlnFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
     CHECK_EXT(d!=NULL, os.setError(L10N::badArgument("doc")), );
     CHECK_EXT(io != NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), );
-    save(io, d, os);
+
+    MAlignmentObject *obj = NULL;
+    if( (d->getObjects().size() != 1)
+        || ((obj = qobject_cast<MAlignmentObject*>(d->getObjects().first())) == NULL)) {
+            os.setError("No data to write;");
+            return;
+    }
+
+    QList<GObject*> als; als << obj;
+    QMap< GObjectType, QList<GObject*> > objectsMap;
+    objectsMap[GObjectTypes::MULTIPLE_ALIGNMENT] = als;
+    storeEntry(io, objectsMap, os);
+    CHECK_EXT(!os.isCoR(), os.setError(L10N::errorWritingFile(d->getURL())), );
 }
 
 FormatCheckResult ClustalWAlnFormat::checkRawData(const QByteArray& data, const GUrl&) const {

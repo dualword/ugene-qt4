@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,14 @@
 
 #ifndef _U2_PROJECT_MODEL_H_
 #define _U2_PROJECT_MODEL_H_
+
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
+
 
 #include "DocumentModel.h"
 #include "StateLockableDataModel.h"
@@ -43,25 +51,37 @@ class U2OpStatus;
 #define ProjectLoaderHint_ForceFormatOptions "force-format-options"
 #define ProjectLoaderHint_LoadWithoutView "load-without-view"
 #define ProjectLoaderHint_LoadUnloadedDocument "load-unloaded-document"
+#define ProjectLoaderHint_UseImporters "use-importers"
+#define ProjectLoaderHint_MultipleFilesMode_URLDocument "multiple-files-mode-url-document"
+#define ProjectLoaderHint_MultipleFilesMode_URLsDocumentConsistOf "multiple-files-mode-urls-document-consist-of"
+#define ProjectLoaderHint_MultipleFilesMode_SaveDocumentFlag "multiple-files-mode-save-document-flag"
+#define ProjectLoaderHint_MultipleFilesMode_Flag "multiple-files-mode-flag"
+#define ProjectLoaderHint_MultipleFilesMode_RealDocumentFormat  "multiple-files-mode-real-document-format"
+#define ProjectLoaderHint_MergeMode_DifferentAlphabets "merge-sequences-different-alphabets"
+#define ProjectLoaderHint_DontCheckForExistence "dont-check-for-existence"
+#define ProjectLoaderHint_OpenBySystemIfFormatDetectionFailed "open-by-system-if-format-detection-failed"
 
 /// Service responsible for project loading / unloading
 class U2CORE_EXPORT ProjectLoader  : public QObject {
 public:
-    /** 
-        Opens files and adds them to the current project. If project does not exists - creates anonymous one 
-        If the file is project file - loads it. 
+    /**
+        Opens files and adds them to the current project. If project does not exists - creates anonymous one
+        If the file is project file - loads it.
     */
     virtual Task* openWithProjectTask(const QList<GUrl>& urls, const QVariantMap& hints = QVariantMap()) = 0;
-    
+
     /** Creates new project. If URL is empty the project created is anonymous */
     virtual Task* createNewProjectTask(const GUrl& url = GUrl()) = 0;
-    
+
     /** Loads project from the specified location */
     virtual Task* createProjectLoadingTask(const GUrl& url, const QVariantMap& hints = QVariantMap()) = 0;
 
     /** Creates new project instance */
     virtual Project* createProject(const QString& name, const QString& url, QList<Document*>& documents, QList<GObjectViewState*>& states) = 0;
 
+    virtual QAction* getAddExistingDocumentAction() = 0;
+
+    // This function can return NULL, don't forget to check the result.
     Task* openWithProjectTask(const GUrl& url, const QVariantMap& hints = QVariantMap()) {
         QList<GUrl> urls; urls << url;
         return openWithProjectTask(urls, hints);
@@ -78,6 +98,8 @@ class U2CORE_EXPORT Project : public StateLockableTreeItem {
     Q_PROPERTY( QList<Document*> docs READ getDocuments )
 
 public:
+    virtual ~Project();
+
     virtual const QString& getProjectName() const = 0;
 
     virtual void setProjectName(const QString& name) = 0;
@@ -107,10 +129,14 @@ public:
     virtual void makeClean() = 0;
 
     virtual quint64 getObjectIdCounter() const = 0;
-    
+
     virtual void setObjectIdCounter(quint64 c) = 0;
 
     static void setupToEngine(QScriptEngine *engine);
+
+    virtual void removeRelations(const QString& docUrl) = 0;
+
+    virtual void updateDocInRelations(const QString& oldDocUrl, const QString& newDocUrl) = 0;
 private:
     static QScriptValue toScriptValue(QScriptEngine *engine, Project* const &in);
     static void fromScriptValue(const QScriptValue &object, Project* &out);

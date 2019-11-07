@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,14 +31,16 @@ namespace U2 {
 class U2CORE_EXPORT GObjectTypeInfo {
 public:
     GObjectTypeInfo(){}
-    GObjectTypeInfo(const GObjectType& _type, const QString& _name, const QString& _pluralName, const QString& treeSign, const QString iconURL);
+    GObjectTypeInfo(const GObjectType& _type, const QString& _name, const QString& _pluralName, const QString& treeSign, const QString iconURL, const QString& lockedIconUrl);
 
     GObjectType type;
     QString     name;
     QString     pluralName;
     QString     treeSign;
     QString     iconURL;
+    QString     lockedIconUrl;
     QIcon       icon;
+    QIcon       lockedIcon;
 };
 
 class U2CORE_EXPORT GObjectTypes {
@@ -48,19 +50,20 @@ public:
     static const GObjectType TEXT;
     static const GObjectType SEQUENCE;
     static const GObjectType ANNOTATION_TABLE;
+    static const GObjectType VARIANT_TRACK;
     static const GObjectType CHROMATOGRAM;
     static const GObjectType MULTIPLE_ALIGNMENT;
     static const GObjectType PHYLOGENETIC_TREE;
     static const GObjectType BIOSTRUCTURE_3D;
     static const GObjectType UINDEX;
     static const GObjectType ASSEMBLY;
-    
+
     static GObjectType registerTypeInfo(const GObjectTypeInfo& ti);
 
-    //Returns reference to the type by type. 
+    //Returns reference to the type by type.
     //WARN: Caching return value by reference is not safe -> it can be relocated if new type is registered
     static const GObjectTypeInfo& getTypeInfo(const GObjectType& type);
-    
+
     static void initTypeTranslations(); //must be called only once after all translations are loaded
     static void initTypeIcons();
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,13 +24,23 @@
 #include <U2Gui/GUIUtils.h>
 
 #include <QtCore/QDir>
+#include <U2Gui/HelpButton.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
 
 namespace U2 {
 
-PWMJASPARDialogController::PWMJASPARDialogController(QWidget *w) 
+PWMJASPARDialogController::PWMJASPARDialogController(QWidget *w)
 : QDialog(w) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122387");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Select"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     QString jasparDir = QDir::searchPaths( PATH_PREFIX_DATA ).first() + "/position_weight_matrix/JASPAR";
     QDir dir(jasparDir);
@@ -56,11 +66,14 @@ PWMJASPARDialogController::PWMJASPARDialogController(QWidget *w)
     }
     fileName = "";
 
+    QPushButton* okButton = buttonBox->button(QDialogButtonBox::Ok);
+    QPushButton* cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(okButton, SIGNAL(clicked()), SLOT(sl_onOK()));
     connect(cancelButton, SIGNAL(clicked()), SLOT(sl_onCancel()));
     connect(jasparTree, SIGNAL(itemSelectionChanged()), SLOT(sl_onSelectionChanged()));
     connect(jasparTree, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)), SLOT(sl_onDoubleClicked(QTreeWidgetItem*, int)));
     connect(propertiesTable, SIGNAL(itemClicked(QTableWidgetItem*)), SLOT(sl_onTableItemClicked(QTableWidgetItem*)));
+
 }
 
 void PWMJASPARDialogController::sl_onOK() {
@@ -91,7 +104,7 @@ void PWMJASPARDialogController::sl_onSelectionChanged() {
     propertiesTable->setColumnCount(2);
     propertiesTable->verticalHeader()->setVisible(false);
     propertiesTable->horizontalHeader()->setVisible(false);
-    
+
     QMapIterator<QString, QString> iter(props);
     int pos = 0;
     while (iter.hasNext()) {
@@ -130,7 +143,7 @@ void PWMJASPARDialogController::sl_onDoubleClicked(QTreeWidgetItem* item, int co
 
 //////////////////////////////////////////////////////////////////////////
 // Tree item
-JasparTreeItem::JasparTreeItem(const JasparInfo& ed) 
+JasparTreeItem::JasparTreeItem(const JasparInfo& ed)
 : matrix(ed)
 {
     this->setText(0, matrix.getProperty(QString("name")));

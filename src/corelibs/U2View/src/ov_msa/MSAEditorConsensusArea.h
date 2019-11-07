@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,25 +22,26 @@
 #ifndef _U2_MSA_EDITOR_CONSENSUS_AREA_H_
 #define _U2_MSA_EDITOR_CONSENSUS_AREA_H_
 
-#include <U2Core/global.h>
+#include <QWidget>
+
 #include <U2Core/U2Region.h>
 
-#include <QtGui/QWidget>
-#include <QtGui/QMenu>
-#include <QtGui/QHelpEvent>
+#include "MSAEditorConsensusCache.h"
+
+class QHelpEvent;
+class QMenu;
+class QPainter;
 
 namespace U2 {
 
 class MSAEditor;
 class MSAEditorUI;
 class GObjectView;
-class MSAEditorConsensusCache;
 class MAlignment;
 class MAlignmentModInfo;
 class MSAEditorSelection;
 class MSAConsensusAlgorithm;
 class MSAConsensusAlgorithmFactory;
-class ConsensusSelectorDialogController;
 
 enum MSAEditorConsElement {
     MSAEditorConsElement_HISTOGRAM,
@@ -50,6 +51,7 @@ enum MSAEditorConsElement {
 
 class U2VIEW_EXPORT MSAEditorConsensusArea : public QWidget {
     Q_OBJECT
+    Q_DISABLE_COPY(MSAEditorConsensusArea)
 public:
     MSAEditorConsensusArea(MSAEditorUI* ui);
     ~MSAEditorConsensusArea();
@@ -61,13 +63,28 @@ public:
 
     MSAConsensusAlgorithm* getConsensusAlgorithm() const;
 
+    QSharedPointer<MSAEditorConsensusCache> getConsensusCache();
+
+    void paintFullConsensus(QPixmap &pixmap);
+    void paintFullConsensus(QPainter& p);
+
+    void paintConsenusPart(QPixmap & pixmap, const U2Region &region, const QList<qint64> &seqIdx);
+    void paintConsenusPart(QPainter& p, const U2Region &region, const QList<qint64> &seqIdx);
+
+    void paintRulerPart(QPixmap &pixmap, const U2Region &region);
+    void paintRulerPart(QPainter &p, const U2Region &region);
+
 protected:
-    virtual bool event(QEvent* e);
+    bool event(QEvent* e);
     void paintEvent(QPaintEvent*);
     void resizeEvent(QResizeEvent*);
     void mousePressEvent(QMouseEvent *e);
     void mouseMoveEvent(QMouseEvent *e);
     void mouseReleaseEvent(QMouseEvent *e);
+
+signals:
+    void si_consensusAlgorithmChanged(const QString& algoId);
+    void si_consensusThresholdChanged(int value);
 
 private slots:
     void sl_startChanged(const QPoint&, const QPoint&);
@@ -77,7 +94,7 @@ private slots:
     void sl_changeConsensusThreshold(int val);
     void sl_onScrollBarActionTriggered( int scrollAction );
     void sl_onConsensusThresholdChanged(int newValue);
-    
+
     void sl_buildStaticMenu(GObjectView* v, QMenu* m);
     void sl_buildContextMenu(GObjectView* v, QMenu* m);
     void sl_copyConsensusSequence();
@@ -85,9 +102,11 @@ private slots:
     void sl_configureConsensusAction();
     void sl_zoomOperationPerformed(bool resizeModeChanged);
 
+public:
+    void drawContent(QPainter& painter);
+
 private:
     QString createToolTip(QHelpEvent* he) const;
-    void updateThresholdInfoInConsensusDialog();
     void restoreLastUsedConsensusThreshold();
     QString getLastUsedAlgoSettingsKey() const;
     QString getThresholdSettingsKey(const QString& factoryId) const;
@@ -97,10 +116,19 @@ private:
     void updateSelection(int newPos);
 
     void drawConsensus(QPainter& p);
-    void drawConsensusChar(QPainter& p, int pos, bool selected);
-    void drawRuler(QPainter& p);
+    void drawConsensus(QPainter& p, int startPos, int lastPos, bool useVirtualCoords = false);
+
+    void drawConsensusChar(QPainter& p, int pos, int firstVisiblePos, bool selected, bool useVirtualCoords = false);
+    void drawConsensusChar(QPainter& p, int pos, int firstVisiblePos, char consChar,
+                           bool selected, bool useVirtualCoords = false);
+
+    void drawRuler(QPainter& p, int start = -1, int end = -1, bool drawFull = false);
+
     void drawHistogram(QPainter& p);
+    void drawHistogram(QPainter& p, int firstBase, int lastBase);
+
     void drawSelection(QPainter& p);
+
 
     U2Region getYRange(MSAEditorConsElement e) const;
 
@@ -112,17 +140,15 @@ private:
     QAction*            copyConsensusWithGapsAction;
     QAction*            configureConsensusAction;
     int                 curPos;
-    bool                scribbling;
+    bool                scribbling, selecting;
 
-    MSAEditorConsensusCache*    consensusCache;
-    
+    QSharedPointer<MSAEditorConsensusCache>    consensusCache;
+
     bool                completeRedraw;
     QPixmap*            cachedView;
-    
-    //works in interactive mode with the view -> so we need to cache it
-    ConsensusSelectorDialogController* consensusDialog;
-};
 
+    QObject *childObject;
+};
 
 }//namespace
 #endif

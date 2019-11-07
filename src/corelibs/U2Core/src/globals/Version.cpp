@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,22 @@
 #error U2_APP_VERSION is not set!
 #endif
 
+#ifndef UGENE_MIN_VERSION_SQLITE
+#error UGENE_MIN_VERSION_SQLITE is not set!
+#else
+#define U2_APP_MIN_VERSION_SQLITE_STRING TOSTRING(UGENE_MIN_VERSION_SQLITE)
+#endif
+
+#ifndef UGENE_MIN_VERSION_MYSQL
+#error UGENE_MIN_VERSION_MYSQL is not set!
+#else
+#define U2_APP_MIN_VERSION_MYSQL_STRING TOSTRING(UGENE_MIN_VERSION_MYSQL)
+#endif
+
+#ifndef U2_DISTRIBUTION_INFO
+#define U2_DISTRIBUTION_INFO "sources"
+#endif
+
 namespace U2 {
 
 #define STRINGIFY(x) #x
@@ -32,6 +48,10 @@ namespace U2 {
 
 #define U2_APP_VERSION_STRING TOSTRING(U2_APP_VERSION)
 #define VERSION_DEV_SUFFIX "dev"
+
+const QString Version::buildDate = __DATE__;
+const int Version::appArchitecture = QT_POINTER_SIZE * 8;
+const QString Version::distributionInfo = QString(TOSTRING(U2_DISTRIBUTION_INFO)).replace("_"," ");
 
 Version::Version() {
     major = minor = patch = 0;
@@ -78,6 +98,7 @@ Version Version::parseVersion(const QString& text) {
             v.patch = val;
         }
     }
+
 #ifdef _DEBUG
     v.debug = true;
 #else
@@ -95,9 +116,17 @@ Version Version::qtVersion() {
     return parseVersion(QT_VERSION_STR);
 }
 
+Version Version::minVersionForSQLite() {
+    return parseVersion(U2_APP_MIN_VERSION_SQLITE_STRING);
+}
+
+Version Version::minVersionForMySQL() {
+    return parseVersion(U2_APP_MIN_VERSION_MYSQL_STRING);
+}
+
 
 bool Version::operator  >  (const Version& v) const {
-    return v < *this;   
+    return v < *this;
 }
 
 bool Version::operator  >= (const Version& v) const {

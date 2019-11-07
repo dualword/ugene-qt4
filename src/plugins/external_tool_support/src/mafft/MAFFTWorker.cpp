@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,10 @@
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseActorCategories.h>
-#include <U2Designer/DelegateEditors.h>
 #include <U2Lang/CoreLibConstants.h>
+#include <U2Lang/NoFailTaskWrapper.h>
+
+#include <U2Designer/DelegateEditors.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/UserApplicationsSettings.h>
@@ -55,27 +57,27 @@ const QString TMP_DIR_PATH("temp-dir");
 
 void MAFFTWorkerFactory::init() {
     QList<PortDescriptor*> p; QList<Attribute*> a;
-    Descriptor ind(BasePorts::IN_MSA_PORT_ID(), MAFFTWorker::tr("Input MSA"), 
+    Descriptor ind(BasePorts::IN_MSA_PORT_ID(), MAFFTWorker::tr("Input MSA"),
         MAFFTWorker::tr("Multiple sequence alignment to be processed."));
     Descriptor oud(BasePorts::OUT_MSA_PORT_ID(), MAFFTWorker::tr("Multiple sequence alignment"), MAFFTWorker::tr("Result of alignment."));
-    
+
     QMap<Descriptor, DataTypePtr> inM;
     inM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(ind, DataTypePtr(new MapDataType("mafft.in.msa", inM)), true /*input*/);
     QMap<Descriptor, DataTypePtr> outM;
     outM[BaseSlots::MULTIPLE_ALIGNMENT_SLOT()] = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
     p << new PortDescriptor(oud, DataTypePtr(new MapDataType("mafft.out.msa", outM)), false /*input*/, true /*multi*/);
-    
+
     Descriptor gop(GAP_OPEN_PENALTY, MAFFTWorker::tr("Gap Open Penalty"),
-                   MAFFTWorker::tr("Gap Open Penalty"));
+                   MAFFTWorker::tr("Gap Open Penalty."));
     Descriptor gep(GAP_EXT_PENALTY, MAFFTWorker::tr("Offset"),
-                   MAFFTWorker::tr("Works like gap extension penalty"));
+                   MAFFTWorker::tr("Works like gap extension penalty."));
     Descriptor tgp(NUM_ITER, MAFFTWorker::tr("Max Iteration"),
-                   MAFFTWorker::tr("Maximum number of iterative refinement"));
+                   MAFFTWorker::tr("Maximum number of iterative refinement."));
     Descriptor etp(EXT_TOOL_PATH, MAFFTWorker::tr("Tool Path"),
-                   MAFFTWorker::tr("External tool path"));
+                   MAFFTWorker::tr("External tool path."));
     Descriptor tdp(TMP_DIR_PATH, MAFFTWorker::tr("Temporary directory"),
-                   MAFFTWorker::tr("Directory for temporary files"));
+                   MAFFTWorker::tr("Directory for temporary files."));
 
     a << new Attribute(gop, BaseTypes::NUM_TYPE(), false, QVariant(1.53));
     a << new Attribute(gep, BaseTypes::NUM_TYPE(), false, QVariant(0.00));
@@ -103,12 +105,13 @@ void MAFFTWorkerFactory::init() {
         QVariantMap m; m["minimum"] = int(0); m["maximum"] = int(1000);
         delegates[NUM_ITER] = new SpinBoxDelegate(m);
     }
-    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false);
+    delegates[EXT_TOOL_PATH] = new URLDelegate("", "executable", false, false, false);
     delegates[TMP_DIR_PATH] = new URLDelegate("", "TmpDir", false, true);
 
     proto->setEditor(new DelegateEditor(delegates));
     proto->setPrompter(new MAFFTPrompter());
     proto->setIconPath(":external_tool_support/images/cmdline.png");
+    proto->addExternalTool(ET_MAFFT, EXT_TOOL_PATH);
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_ALIGNMENT(), proto);
 
     DomainFactory* localDomain = WorkflowEnv::getDomainRegistry()->getById(LocalDomainFactory::ID);
@@ -141,49 +144,73 @@ void MAFFTWorker::init() {
     output = ports.value(BasePorts::OUT_MSA_PORT_ID());
 }
 
-bool MAFFTWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* MAFFTWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
-    cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
-    cfg.maxNumberIterRefinement=actor->getParameter(NUM_ITER)->getAttributeValue<int>(context);
-    QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getExternalToolRegistry()->getByName(MAFFT_TOOL_NAME)->setPath(path);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
+        cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
+        cfg.maxNumberIterRefinement=actor->getParameter(NUM_ITER)->getAttributeValue<int>(context);
+        QString path=actor->getParameter(EXT_TOOL_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getExternalToolRegistry()->getByName(ET_MAFFT)->setPath(path);
+        }
+        path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
+        if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
+            AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
+        }
+
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        if (msa.isEmpty()) {
+            algoLog.error(tr("An empty MSA '%1' has been supplied to MAFFT.").arg(msa.getName()));
+            return NULL;
+        }
+        MAFFTSupportTask* supportTask = new MAFFTSupportTask(msa, GObjectReference(), cfg);
+        supportTask->addListeners(createLogListeners());
+        Task *t = new NoFailTaskWrapper(supportTask);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    path=actor->getParameter(TMP_DIR_PATH)->getAttributeValue<QString>(context);
-    if(QString::compare(path, "default", Qt::CaseInsensitive) != 0){
-        AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(path);
-    }
-    
-    MAlignment msa = inputMessage.getData().toMap().value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    if( msa.isEmpty() ) {
-        return new FailTask(tr("An empty MSA has been supplied to MAFFT."));
-    }
-    Task* t = new MAFFTSupportTask(new MAlignmentObject(msa), cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void MAFFTWorker::sl_taskFinished() {
-    MAFFTSupportTask* t = qobject_cast<MAFFTSupportTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
-    QVariant v = qVariantFromValue<MAlignment>(t->resultMA);
-    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), v));
-    if (input->isEnded()) {
-        output->setEnded();
+    NoFailTaskWrapper *wrapper = qobject_cast<NoFailTaskWrapper*>(sender());
+    CHECK(wrapper->isFinished(), );
+    MAFFTSupportTask* t = qobject_cast<MAFFTSupportTask*>(wrapper->originalTask());
+    if(t->isCanceled()){
+        return;
     }
+    if (t->hasError()) {
+        coreLog.error(t->getError());
+        return;
+    }
+
+    SAFE_POINT(NULL != output, "NULL output!", );
+    send(t->resultMA);
     algoLog.info(tr("Aligned %1 with MAFFT").arg(t->resultMA.getName()));
 }
 
-bool MAFFTWorker::isDone() {
-    return !input || input->isEnded();
+void MAFFTWorker::cleanup() {
 }
 
-void MAFFTWorker::cleanup() {
+void MAFFTWorker::send(const MAlignment &msa) {
+    SAFE_POINT(NULL != output, "NULL output!", );
+    SharedDbiDataHandler msaId = context->getDataStorage()->putAlignment(msa);
+    QVariantMap m;
+    m[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(msaId);
+    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), m));
 }
 
 } //namespace LocalWorkflow

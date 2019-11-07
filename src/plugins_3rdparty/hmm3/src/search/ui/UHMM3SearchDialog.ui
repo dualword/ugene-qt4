@@ -6,20 +6,35 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>545</width>
-    <height>255</height>
+    <width>625</width>
+    <height>371</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>Dialog</string>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout">
+  <property name="windowTitle">
+   <string>HMM3 Search</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_7">
+   <property name="sizeConstraint">
+    <enum>QLayout::SetMinAndMaxSize</enum>
+   </property>
    <item>
     <widget class="QTabWidget" name="tabWidget">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="sizeHint" stdset="0">
       <size>
-       <width>449</width>
-       <height>309</height>
+       <width>601</width>
+       <height>320</height>
       </size>
      </property>
      <property name="tabShape">
@@ -29,10 +44,19 @@
       <number>0</number>
      </property>
      <widget class="QWidget" name="inputAndOutputTab">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <attribute name="title">
        <string>Input and output</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_5">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_12">
          <item>
@@ -56,50 +80,9 @@
        </item>
        <item>
         <layout class="QVBoxLayout" name="verticalLayout_2">
-         <item>
-          <spacer name="verticalSpacer">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>13</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
-           <item>
-            <spacer name="horizontalSpacer">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QPushButton" name="searchButton">
-             <property name="text">
-              <string>Run</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="cancelButton">
-             <property name="text">
-              <string>Cancel</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
+         <property name="sizeConstraint">
+          <enum>QLayout::SetMinAndMaxSize</enum>
+         </property>
         </layout>
        </item>
       </layout>
@@ -109,6 +92,9 @@
        <string>Reporting thresholds</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_3">
          <item>
@@ -191,7 +177,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>score threshold:</string>
+            <string>Score threshold:</string>
            </property>
           </widget>
          </item>
@@ -240,7 +226,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>use profile's GA gathering cutoffs to set score treshold</string>
+            <string>Use profile's GA gathering cutoffs</string>
            </property>
           </widget>
          </item>
@@ -276,7 +262,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>use profile's NC noise cutoffs to set score treshold</string>
+            <string>Use profile's NC noise cutoffs</string>
            </property>
           </widget>
          </item>
@@ -306,7 +292,7 @@
             <bool>false</bool>
            </property>
            <property name="text">
-            <string>use profile's TC trusted cutoffs to set score treshold</string>
+            <string>Use profile's TC trusted cutoffs</string>
            </property>
           </widget>
          </item>
@@ -323,7 +309,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string> set number of significant seqs, for domain E-value calculation:</string>
+            <string>Number of significant sequences for domain E-value calculation</string>
            </property>
           </widget>
          </item>
@@ -346,8 +332,8 @@
          </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>20</width>
-           <height>5</height>
+           <width>1</width>
+           <height>1</height>
           </size>
          </property>
         </spacer>
@@ -359,6 +345,9 @@
        <string>Acceleration heuristics</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <widget class="QCheckBox" name="nobiasCheckBox">
          <property name="sizePolicy">
@@ -498,8 +487,8 @@
          </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>20</width>
-           <height>33</height>
+           <width>1</width>
+           <height>1</height>
           </size>
          </property>
         </spacer>
@@ -511,8 +500,14 @@
        <string>Other</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <layout class="QVBoxLayout" name="verticalLayout_6">
+         <property name="sizeConstraint">
+          <enum>QLayout::SetMinAndMaxSize</enum>
+         </property>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_15">
            <item>
@@ -524,7 +519,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>random generator seed:</string>
+              <string>Random generator seed</string>
              </property>
             </widget>
            </item>
@@ -567,7 +562,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>* if 0: one-time arbitrary seed used</string>
+              <string>* 0 means that one-time arbitrary seed will be used</string>
              </property>
             </widget>
            </item>
@@ -582,14 +577,21 @@
          </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>20</width>
-           <height>208</height>
+           <width>1</width>
+           <height>1</height>
           </size>
          </property>
         </spacer>
        </item>
       </layout>
      </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
     </widget>
    </item>
   </layout>

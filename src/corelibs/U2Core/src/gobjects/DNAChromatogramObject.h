@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,22 +22,44 @@
 #ifndef _U2_DNA_CHROMATOGRAM_OBJECT_H_
 #define _U2_DNA_CHROMATOGRAM_OBJECT_H_
 
+#include <QtCore/QMutex>
+
 #include <U2Core/GObject.h>
 #include <U2Core/DNAChromatogram.h>
+#include <U2Core/U2RawData.h>
 
 namespace U2 {
+
+class U2CORE_EXPORT U2Chromatogram : public U2RawData {
+public:
+                        U2Chromatogram();
+                        U2Chromatogram(const U2DbiRef &dbiRef);
+
+    U2DataType          getType() const;
+};
 
 class  U2CORE_EXPORT DNAChromatogramObject: public GObject {
     Q_OBJECT
 public:
-    DNAChromatogramObject(const DNAChromatogram& chrom, const QString& objectName, const QVariantMap& hints = QVariantMap());
+    static DNAChromatogramObject *  createInstance(const DNAChromatogram &chroma,
+                                        const QString &objectName, const U2DbiRef &dbiRef,
+                                        U2OpStatus &os, const QVariantMap &hintsMap = QVariantMap());
 
-    const DNAChromatogram& getChromatogram() const {return chrom;}
+                                    DNAChromatogramObject(const QString &objectName,
+                                        const U2EntityRef &chromaRef,
+                                        const QVariantMap &hintsMap = QVariantMap());
 
-    virtual GObject* clone(const U2DbiRef&, U2OpStatus&) const;
+    const DNAChromatogram &         getChromatogram() const;
+
+    GObject *                       clone(const U2DbiRef &dstRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap()) const;
 
 protected:
-    DNAChromatogram chrom;
+    void                            loadDataCore(U2OpStatus &os);
+
+private:
+    mutable QMutex                  mutex;
+    mutable bool                    cached;
+    mutable DNAChromatogram         cache;
 };
 
 }//namespace

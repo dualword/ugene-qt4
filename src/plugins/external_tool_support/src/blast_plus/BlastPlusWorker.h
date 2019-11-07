@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,8 @@
 
 namespace U2 {
 
+class ExternalTool;
+
 namespace LocalWorkflow {
 
 class BlastPlusPrompter : public PrompterBase<BlastPlusPrompter> {
@@ -42,29 +44,39 @@ class BlastPlusWorker : public BaseWorker {
     Q_OBJECT
 public:
     BlastPlusWorker(Actor* a);
-    
+
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
-    
+
 private slots:
     void sl_taskFinished();
 
 protected:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     QString resultName,transId;
     BlastTaskSettings   cfg;
-    
-}; 
+
+};
 
 class BlastPlusWorkerFactory : public DomainFactory {
 public:
     static const QString ACTOR_ID;
+
+    static QString getHitsName();
+    static QString getHitsDescription();
+
     static void init();
     BlastPlusWorkerFactory() : DomainFactory(ACTOR_ID) {}
     virtual Worker* createWorker(Actor* a) {return new BlastPlusWorker(a);}
+};
+
+class ToolsValidator : public ActorValidator {
+public:
+    virtual bool validate(const Actor *actor, ProblemList &problemList, const QMap<QString, QString> &options) const;
+
+private:
+    ExternalTool * getTool(const QString &program) const;
 };
 
 } // Workflow namespace

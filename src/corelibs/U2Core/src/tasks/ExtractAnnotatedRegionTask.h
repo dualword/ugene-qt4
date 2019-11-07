@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,39 +31,39 @@
 namespace U2 {
 
 struct U2CORE_EXPORT ExtractAnnotatedRegionTaskSettings {
-    ExtractAnnotatedRegionTaskSettings() : gapSym('-'), gapLength(0), translate(true), complement(true), extLeft(0), extRight(0) {}
+    ExtractAnnotatedRegionTaskSettings() : gapSym('-'), gapLength(0), translate(true), complement(true), extLeft(0), extRight(0), splitJoined(false) {}
     char    gapSym;
     int     gapLength;
     bool    translate;
     bool    complement;
-    int     extLeft; 
+    int     extLeft;
     int     extRight;
+    bool    splitJoined;
 };
 
 class U2CORE_EXPORT ExtractAnnotatedRegionTask : public Task {
     Q_OBJECT
 public:
-    ExtractAnnotatedRegionTask( const DNASequence & sequence, SharedAnnotationData sd, const ExtractAnnotatedRegionTaskSettings & cfg);
+    ExtractAnnotatedRegionTask(const DNASequence &sequence, const SharedAnnotationData &sd, const ExtractAnnotatedRegionTaskSettings & cfg);
     void prepare();
     void run();
-    DNASequence getResultedSequence() const {return resultedSeq;}
-    SharedAnnotationData getResultedAnnotation() {return resultedAnn;}
+    const QList<DNASequence>& getResultedSequences() const;
+    const SharedAnnotationData & getInputAnnotation() const;
 private:
     void prepareTranslations();
     void extractLocations(QList<QByteArray>& resParts, QVector<U2Region>& resLocation, const QVector<U2Region>& origLocation);
-    
+
     DNASequence inputSeq;
-    SharedAnnotationData inputAnn;
+    const SharedAnnotationData inputAnn;
     ExtractAnnotatedRegionTaskSettings cfg;
 
     QVector<U2Region> extendedRegions;
-    DNATranslation * complT;
-    DNATranslation * aminoT;
+    const DNATranslation *complT;
+    const DNATranslation *aminoT;
 
-    SharedAnnotationData resultedAnn;
-    DNASequence resultedSeq;
+    QList<DNASequence> resultedSeqList;
 };
 
 }// ns
 
-#endif 
+#endif

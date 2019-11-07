@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #include "MuscleUtils.h"
 
 #include <U2Core/DNAAlphabet.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include "MuscleAdapter.h"
 
@@ -66,11 +67,11 @@ int ugene_printf(FILE *f, const char *format, ...) {
     Q_UNUSED(n);
 
     FILEStub* s = (FILEStub*)f;
-    s->tsi.setDescription(QString::fromAscii(str));
+    s->tsi.setDescription(QString::fromLatin1(str));
     return 0;
 }
 
-ALPHA convertAlpha(DNAAlphabet* al) {
+ALPHA convertAlpha(const DNAAlphabet* al) {
     if (al->isAmino()) {
         return ALPHA_Amino;
     }
@@ -84,7 +85,7 @@ ALPHA convertAlpha(DNAAlphabet* al) {
     return ALPHA_Undefined;
 }
 
-void setupAlphaAndScore(DNAAlphabet* al, TaskStateInfo& ti) {
+void setupAlphaAndScore(const DNAAlphabet* al, TaskStateInfo& ti) {
     ALPHA Alpha = convertAlpha(al);
     if (Alpha == ALPHA_Undefined) {
         ti.setError(  U2::MuscleAdapter::tr("Unsupported alphabet: %1").arg(al->getName()) );
@@ -102,16 +103,18 @@ void convertMAlignment2MSA(MSA& muscleMSA, const MAlignment& ma, bool fixAlpha) 
     for (int i=0, n = ma.getNumRows(); i<n; i++) {
         const MAlignmentRow& row = ma.getRow(i);
         
-		int coreLen = row.getCoreLength();
-        char* seq  = new char[coreLen + 1];
+        int coreLen = row.getCoreLength();
+        int maLen = ma.getLength();
+        char* seq  = new char[maLen + 1];
         memcpy(seq, row.getCore().constData(), coreLen);
-        seq[row.getCoreLength()] = '\0';
+        memset(seq + coreLen, '-', maLen - coreLen + 1);
+        seq[maLen] = 0;
 
         char* name = new char[row.getName().length() + 1];
         memcpy(name, row.getName().toLocal8Bit().constData(), row.getName().length());
         name[row.getName().length()] = '\0';
         
-        muscleMSA.AppendSeq(seq, coreLen, name);
+        muscleMSA.AppendSeq(seq, maLen, name);
         ctx->tmp_uIds[i] = ctx->input_uIds[i];
     }
     if (fixAlpha) {
@@ -143,7 +146,7 @@ void convertMAlignment2SecVect(SeqVect& sv, const MAlignment& ma, bool fixAlpha)
     }
 }
 
-void convertMSA2MAlignment(MSA& msa, DNAAlphabet* al, MAlignment& res) {
+void convertMSA2MAlignment(MSA& msa, const DNAAlphabet* al, MAlignment& res) {
     assert(res.isEmpty());
     MuscleContext *ctx = getMuscleContext();
     res.setAlphabet(al);
@@ -159,12 +162,12 @@ void convertMSA2MAlignment(MSA& msa, DNAAlphabet* al, MAlignment& res) {
             seq.append(c);
         }
         ctx->output_uIds[i] = ctx->tmp_uIds[msa.GetSeqId(i)];
-        MAlignmentRow row(name, seq);
-        res.addRow(row);      
+        U2OpStatus2Log os;
+        res.addRow(name, seq, os);
     }
 }
 
-void prepareAlignResults(MSA& msa, DNAAlphabet* al, MAlignment& ma, bool mhack) {
+void prepareAlignResults(MSA& msa, const DNAAlphabet* al, MAlignment& ma, bool mhack) {
     if (mhack) {
         MHackEnd(msa);
     }

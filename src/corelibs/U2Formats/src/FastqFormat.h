@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,6 +29,7 @@
 namespace U2 {
 
 class IOAdapter;
+class DNASequence;
 
 class U2FORMATS_EXPORT FastqFormat : public DocumentFormat {
     Q_OBJECT
@@ -40,14 +41,16 @@ public:
     virtual const QString& getFormatName() const {return fn;}
 
     virtual DNASequence *loadSequence( IOAdapter* io, U2OpStatus& os);
-    
+
     virtual void storeDocument( Document* d, IOAdapter* io, U2OpStatus& os );
 
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& = GUrl()) const;
 
     virtual bool isStreamingSupport() {return true;}
 
-    virtual void storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os);
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
+
+    static void writeEntry(const QString &seqName, const DNASequence &seq, IOAdapter *io, const QString &errorMessage, U2OpStatus &os, bool cutLines = true);
 
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);

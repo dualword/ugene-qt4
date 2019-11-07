@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,18 +26,22 @@
 #include <U2Core/ProjectModel.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/DocumentModel.h>
+#include <U2Core/Counter.h>
 
 #include <U2Core/TextObject.h>
 #include <U2Core/SelectionUtils.h>
 
-
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QVBoxLayout>
 #include <QtGui/QScrollBar>
-
+#else
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QScrollBar>
+#endif
 
 namespace U2 {
 
-/* TRANSLATOR U2::SimpleTextObjectViewFactory */    
+/* TRANSLATOR U2::SimpleTextObjectViewFactory */
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -67,19 +71,21 @@ bool SimpleTextObjectViewFactory::isStateInSelection(const MultiGSelection& mult
 }
 
 Task* SimpleTextObjectViewFactory::createViewTask(const MultiGSelection& multiSelection, bool single) {
-    QSet<Document*> documents = SelectionUtils::findDocumentsWithObjects(GObjectTypes::TEXT, &multiSelection, UOF_LoadedAndUnloaded, true);
-    if (documents.size() == 0) {
+    const QList<GObject *> objects = SelectionUtils::findObjects(GObjectTypes::TEXT, &multiSelection, UOF_LoadedAndUnloaded);
+    if (objects.isEmpty()) {
         return NULL;
     }
-    Task* result = (single || documents.size() == 1) ? NULL : new Task(tr("Open multiple views task"), TaskFlag_NoRun);
-    foreach(Document* d, documents) {
-        Task* t = new OpenSimpleTextObjectViewTask(d);
-        if (result == NULL) {
-            return t;
-        }
+
+    Task *result = (single || objects.size() == 1) ? NULL : new Task(tr("Open multiple views task"), TaskFlag_NoRun);
+    Task *t = new OpenSimpleTextObjectViewTask(objects);
+
+    if (result == NULL) {
+        return t;
+    } else {
         //todo: limit number of views?
         result->addSubTask(t);
     }
+
     return result;
 }
 
@@ -92,9 +98,10 @@ Task* SimpleTextObjectViewFactory::createViewTask(const QString& viewName, const
 /// Simple Text View
 
 
-SimpleTextObjectView::SimpleTextObjectView(const QString& name, TextObject* to, const QVariantMap& _state)  
+SimpleTextObjectView::SimpleTextObjectView(const QString& name, TextObject* to, const QVariantMap& _state)
 : GObjectView(SimpleTextObjectViewFactory::ID, name), textObject(to), openState(_state), selection(to)
 {
+    GCOUNTER( cvar, tvar, "SimpleTextView" );
     textEdit = NULL;
     firstShow = true;
     assert(to);
@@ -107,7 +114,12 @@ QWidget* SimpleTextObjectView::createWidget() {
     textEdit = new QPlainTextEdit();
     textEdit->setLineWrapMode(QPlainTextEdit::NoWrap);
     textEdit->setWordWrapMode(QTextOption::NoWrap);
-    textEdit->setPlainText(textObject->getText());
+    try {
+        textEdit->setPlainText(textObject->getText());
+    } catch(std::bad_alloc &) {
+        coreLog.error("Not enough memory for loading text data");
+        return NULL;
+    }
     if (textObject->isStateLocked()) {
         textEdit->setReadOnly(true);
     }

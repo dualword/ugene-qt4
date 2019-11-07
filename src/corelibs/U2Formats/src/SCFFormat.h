@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -49,8 +49,12 @@ public:
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
+    virtual DNASequence* loadSequence(IOAdapter *io, U2OpStatus &ti);
+
 private:
-    Document* parseSCF(const U2DbiRef& dbiRef, SeekableBuf*, IOAdapterFactory* io, const GUrl& url, const QVariantMap& fs, U2OpStatus& os);
+    Document* parseSCF(const U2DbiRef& dbiRef, IOAdapter* io, const QVariantMap& fs, U2OpStatus& os);
+
+    bool loadSCFObjects( IOAdapter* io,  DNASequence& dna, DNAChromatogram& cd, U2OpStatus& os );
 
     QString formatName;
 };

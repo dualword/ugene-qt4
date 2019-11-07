@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,28 +33,28 @@ class DnaAssemblyAlgRegistry;
 class DnaAssemblyAlgorithmBuildIndexWidget;
 
 class BuildIndexDialog : public QDialog, private Ui::BuildIndexFromRefDialog    {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
-	BuildIndexDialog(const DnaAssemblyAlgRegistry* registry, QWidget* p = NULL);
-	const GUrl getRefSeqUrl();
-	const QString getAlgorithmName();
-	const QString getIndexFileName();
-	QMap<QString,QVariant> getCustomSettings();
+    BuildIndexDialog(const DnaAssemblyAlgRegistry* registry, QWidget* p = NULL);
+    const GUrl getRefSeqUrl();
+    const QString getAlgorithmName();
+    const QString getIndexFileName();
+    QMap<QString,QVariant> getCustomSettings();
 
 private:
-	const DnaAssemblyAlgRegistry *assemblyRegistry;
-	DnaAssemblyAlgorithmBuildIndexWidget *customGUI;
-	static QString genomePath;
-	void buildIndexUrl(const GUrl& url);
-	void updateState();
-	void addGuiExtension();
-	void accept();
+    const DnaAssemblyAlgRegistry *assemblyRegistry;
+    DnaAssemblyAlgorithmBuildIndexWidget *customGUI;
+    static QString genomePath;
+    void buildIndexUrl(const GUrl& url);
+    void updateState();
+    void addGuiExtension();
+    void accept();
 
 private slots:
-	void sl_onAddRefButtonClicked();
-	void sl_onSetIndexFileNameButtonClicked();
-	void sl_onAlgorithmChanged(const QString &text);
+    void sl_onAddRefButtonClicked();
+    void sl_onSetIndexFileNameButtonClicked();
+    void sl_onAlgorithmChanged(const QString &text);
 };
 
 } // namespace

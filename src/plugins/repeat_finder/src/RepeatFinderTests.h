@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 #include <U2Core/DNASequence.h>
 #include <U2Core/AppContext.h>
 #include <U2Algorithm/BitsTable.h>
+#include <U2Algorithm/RepeatFinderSettings.h>
 
 
 #include <QtXml/QDomElement>
@@ -50,17 +51,19 @@ public:
 
     void prepare();
     void run();
-    U2Region parseRegion(const QString& n, const QDomElement& el); 
+    U2Region parseRegion(const QString& n, const QDomElement& el);
 
     QString     seq, seq2;
     RFAlgorithm alg;
-    
+
     U2Region     region;
-    
+
     int         w, c, minD, maxD;
     bool        inverted;
     bool        reflect;
     bool        filterNested;
+    bool        filterUnique;
+    RepeatsFilterAlgorithm	filter;
     QStringList excludeList;
 
     QString     resultFile;
@@ -74,16 +77,18 @@ public:
 
     void prepare();
     void run();
-    U2Region parseRegion(const QString& n, const QDomElement& el); 
+    U2Region parseRegion(const QString& n, const QDomElement& el);
 
     U2Region         region;
-    
+
     char*           string;
     int             minD, maxD;
     int             minSize, maxSize, repeatCount;
     bool            inverted;
     bool            reflect;
     bool            filterNested;
+    bool            filterUnique;
+    RepeatsFilterAlgorithm	filter;
     DNASequence*    seqObj;
     QString         sequence;
     QString         results;
@@ -107,6 +112,8 @@ public:
     bool            inverted;
     bool            reflect;
     bool            filterNested;
+    bool            filterUnique;
+    RepeatsFilterAlgorithm	filter;
     DNASequence*    seqObj;
     QString         sequence;
     QString         results;
@@ -124,7 +131,7 @@ public:
     void prepare();
     void run();
     void cleanup();
-        
+
     QString                 seqObjName;
     QString                 query;
     bool                    useBitMask;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,27 +22,57 @@
 #ifndef _U2_GRAPHICS_BUTTON_ITEM_H_
 #define _U2_GRAPHICS_BUTTON_ITEM_H_
 
-#include <QtGui/QAbstractGraphicsShapeItem>
+#include <qglobal.h>
+#include <QGraphicsEllipseItem>
+#include <QtGui/QBrush>
+#include "TreeSettings.h"
 
 namespace U2 {
 
-class GraphicsButtonItem: public QAbstractGraphicsShapeItem {
-    static const qreal radiusMin, radiusMax;
+class PhyTreeObject;
 
+class GraphicsButtonItem: public QGraphicsEllipseItem {
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e);
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e);
-    
+
+    void hoverEnterEvent(QGraphicsSceneHoverEvent *event);
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent *event);
+
 public:
-    GraphicsButtonItem();
-    QRectF boundingRect() const;
-    QPainterPath shape() const;
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget);
+    GraphicsButtonItem(double nodeValue = 0);
 
     bool isSelectedTop();
+    bool getIsSelected() const;
     void collapse();
     void swapSiblings();
     bool isCollapsed();
+
+    void setSelected(bool selected);
+
+    void rerootTree(PhyTreeObject* treeObject);
+
+    void updateSettings(const OptionsMap& settings);
+
+    virtual void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = 0);
+
+    const QGraphicsSimpleTextItem* getLabel() const;
+
+    virtual QRectF boundingRect() const;
+
+    qreal getNodeValue() {return nodeValue;}
+
+private:
+    void setHighlighting(bool enabled);
+
+    static const qreal radiusMin;
+    static const qreal radiusMax;
+    static const QBrush highlightingBrush;
+    static const QBrush ordinaryBrush;
+    bool isSelected;
+    QGraphicsSimpleTextItem* nodeLabel;
+    qreal scaleFactor;
+    qreal nodeValue;
 };
 
 }//namespace;

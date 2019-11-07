@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,10 +27,10 @@
 #include <U2Core/IOAdapterUtils.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/ProjectModel.h>
-#include <U2Core/DocumentFormatConfigurators.h>
 #include <U2Core/U2SafePoints.h>
 #include <U2Core/LoadDocumentTask.h>
 #include <U2Core/AddDocumentTask.h>
+#include <U2Core/AnnotationTableObject.h>
 
 #include <U2Formats/DocumentFormatUtils.h>
 
@@ -67,31 +67,31 @@ void LoadDotPlotTask::run() {
 }
 
 // check if the file opens
-DotPlotDialogs::Errors SaveDotPlotTask::checkFile(const QString &filename) {
+DotPlotErrors SaveDotPlotTask::checkFile(const QString &filename) {
 
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return DotPlotDialogs::ErrorOpen;
+        return ErrorOpen;
     }
 
     file.close();
-    return DotPlotDialogs::NoErrors;
+    return NoErrors;
 }
 
 void SaveDotPlotTask::saveDotPlot(QTextStream &stream){
 
-    Q_ASSERT (sequenceX);
-    Q_ASSERT (sequenceY);
+    SAFE_POINT (sequenceX, "sequenceX is NULL", );
+    SAFE_POINT (sequenceY, "sequenceY is NULL", );
 
     stream << sequenceX->getGObjectName() << endl;
     stream << sequenceY->getGObjectName() << endl;
 
     stream << minLen << " " << identity << endl;
 
-    Q_ASSERT(directList);
+    SAFE_POINT(directList, "directList is NULL", );
 
     int listSizes = directList->size() + inverseList->size();
-    Q_ASSERT (listSizes);
+    SAFE_POINT (listSizes, "listSizes is NULL", );
 
     int i=0;
     foreach(const DotPlotResults &r, *directList) {
@@ -107,7 +107,7 @@ void SaveDotPlotTask::saveDotPlot(QTextStream &stream){
 
     stream << endl << "0 0 0" << endl;
 
-    Q_ASSERT(inverseList);
+    SAFE_POINT(inverseList, "inverseList is NULL", );
 
     foreach(const DotPlotResults &r, *inverseList) {
         if (stateInfo.cancelFlag) {
@@ -122,12 +122,10 @@ void SaveDotPlotTask::saveDotPlot(QTextStream &stream){
 }
 
 // check if the file opens and sequence names are the same
-DotPlotDialogs::Errors LoadDotPlotTask::checkFile(const QString &filename, const QString &seqXName, const QString &seqYName) {
-
+DotPlotErrors LoadDotPlotTask::checkFile(const QString &filename, const QString &seqXName, const QString &seqYName) {
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-
-        return DotPlotDialogs::ErrorOpen;
+        return ErrorOpen;
     }
 
     QTextStream stream(&file);
@@ -138,10 +136,10 @@ DotPlotDialogs::Errors LoadDotPlotTask::checkFile(const QString &filename, const
     readedXName = stream.readLine();
     readedYName = stream.readLine();
 
-    DotPlotDialogs::Errors err = DotPlotDialogs::NoErrors;
+    DotPlotErrors err = NoErrors;
 
     if (seqXName != readedXName || seqYName != readedYName) {
-        err = DotPlotDialogs::ErrorNames;
+        err = ErrorNames;
     }
 
     file.close();
@@ -195,8 +193,8 @@ bool LoadDotPlotTask::loadDotPlot(QTextStream &stream, int fileSize) {
             newDotPlotInverseList.push_back(r);
         }
 
-        Q_ASSERT (stream.device());
-        Q_ASSERT (fileSize);
+        SAFE_POINT (stream.device(), "stream.device() is NULL", false);
+        SAFE_POINT (fileSize, "fileSize is NULL", false);
 
         int streamPos = stream.device()->pos();
         stateInfo.progress = (100*streamPos)/fileSize;
@@ -208,23 +206,22 @@ bool LoadDotPlotTask::loadDotPlot(QTextStream &stream, int fileSize) {
         *inverted = true;
     }
 
-    Q_ASSERT(directList);
+    SAFE_POINT(directList, "directList is NULL", false);
     directList->clear();
     *directList = newDotPlotDirectList;
 
-    Q_ASSERT(inverseList);
+    SAFE_POINT(inverseList, "inverseList is NULL", false);
     inverseList->clear();
     *inverseList = newDotPlotInverseList;
 
-    Q_ASSERT(minLen);
-    Q_ASSERT(identity);
+    SAFE_POINT(minLen, "minLen is NULL", false);
+    SAFE_POINT(identity, "identity is NULL", false);
 
     *minLen = newMinLen;
     *identity = newIdentity;
 
     return true;
 }
-
 
 DotPlotLoadDocumentsTask::DotPlotLoadDocumentsTask(QString firstF, int firstG, QString secondF, int secondG, bool view)
 : Task(tr("DotPlot loading"), TaskFlags(TaskFlag_NoRun | TaskFlag_FailOnSubtaskCancel)), noView(!view)
@@ -262,7 +259,7 @@ Document *DotPlotLoadDocumentsTask::loadFile(QString inFile, int gapSize) {
 
     Project *project = AppContext::getProject();
 
-    Q_ASSERT(project);
+    SAFE_POINT(project, "project is NULL", NULL);
     Document *doc = project->findDocumentByURL(url);
 
     // document already present in the project
@@ -277,7 +274,7 @@ Document *DotPlotLoadDocumentsTask::loadFile(QString inFile, int gapSize) {
     }
 
     DocumentFormat* format = formats.first().format;
-    Q_ASSERT(format);
+    SAFE_POINT(format, "format is NULL", NULL);
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(url));
 
     QVariantMap hints;
@@ -296,7 +293,7 @@ Document *DotPlotLoadDocumentsTask::loadFile(QString inFile, int gapSize) {
     return doc;
 }
 
-DotPlotLoadDocumentsTask::~DotPlotLoadDocumentsTask() { 
+DotPlotLoadDocumentsTask::~DotPlotLoadDocumentsTask() {
     // error while loading documents
     if (hasError()) {
         Project *project = AppContext::getProject();
@@ -310,13 +307,130 @@ DotPlotLoadDocumentsTask::~DotPlotLoadDocumentsTask() {
             }
         }
 
-        // delete loaded but not added to the project documents
-//        qDeleteAll(docs);
         foreach (Document *doc, docs) {
-//            docs.removeAll(doc);
             delete doc;
         }
    }
+}
+
+DotPlotFilterTask::DotPlotFilterTask(ADVSequenceObjectContext* _sequenceX, ADVSequenceObjectContext* _sequenceY,
+                                     const QMultiMap<FilterIntersectionParameter, QString>& _annotationNames, QList<DotPlotResults>* _initialResults, QList<DotPlotResults>* _filteredResults
+                                     ,FilterType _type)
+:Task(tr("Applying filter to dotplot"), TaskFlag_None)
+,sequenceX(_sequenceX)
+,sequenceY(_sequenceY)
+,annotationNames(_annotationNames)
+,initialResults(_initialResults)
+,filteredResults(_filteredResults)
+,fType(_type)
+,progressStep(0.0)
+,progressFloatValue(0.0)
+{
+    tpm = Progress_Manual;
+}
+
+void DotPlotFilterTask::run(){
+    stateInfo.progress = 0;
+    int size = initialResults->size();
+    copyInitialResults();
+    progressStep = 100/(float)size;
+    switch(fType){
+        case All:
+            break;
+        case Features:
+            progressStep /= 2;
+
+            createSuperRegionsList(sequenceX, SequenceX);
+            filterForCurrentSuperRegions(SequenceX);
+
+            createSuperRegionsList(sequenceY, SequenceY);
+            filterForCurrentSuperRegions(SequenceY);
+
+            break;
+    }
+}
+
+Task::ReportResult DotPlotFilterTask::report(){
+    SAFE_POINT(filteredResults, "There are no filtered results", ReportResult_Finished);
+    SAFE_POINT(initialResults, "There are no initial results", ReportResult_Finished);
+
+    switch(fType){
+        case All:
+            {
+               copyInitialResults();
+            }
+            break;
+        case Features:
+            {
+                if (isCanceled()){
+                    copyInitialResults();
+                }
+            }
+            break;
+    }
+
+    return ReportResult_Finished;
+}
+
+void DotPlotFilterTask::createSuperRegionsList(ADVSequenceObjectContext* seq, FilterIntersectionParameter currentIntersParam) {
+    superRegions.clear();
+    if (isCanceled()) {
+        return;
+    }
+
+    QSet<AnnotationTableObject*> aTableSet = seq->getAnnotationObjects(true);
+    QList<Annotation *> selectedAnnotations;
+    QStringList cursequenceAnnotationNames = annotationNames.values(currentIntersParam);
+    if (cursequenceAnnotationNames.isEmpty()) {
+        return;
+    }
+
+    foreach (const QString &aName, cursequenceAnnotationNames) {
+        foreach (AnnotationTableObject* at, aTableSet) {
+            selectedAnnotations << at->getAnnotationsByName(aName);
+        }
+    }
+
+    foreach (Annotation *a, selectedAnnotations) {
+        superRegions += a->getRegions();
+    }
+
+    superRegions = U2Region::join(superRegions);
+}
+
+void DotPlotFilterTask::filterForCurrentSuperRegions(FilterIntersectionParameter currentIntersParam){
+    int vectorI = 0;
+    int vectSize = superRegions.size();
+    if(vectSize == 0){
+        return;
+    }
+
+    QList<DotPlotResults>::iterator it;
+
+    for (it = filteredResults->begin(); it != filteredResults->end() && !isCanceled(); ){
+        progressFloatValue += progressStep;
+        stateInfo.progress = (int)progressFloatValue;
+        bool noIntersect = true;
+        for(vectorI = 0; vectorI < vectSize; vectorI++){
+            if(it->intersectRegion(superRegions[vectorI], currentIntersParam)){
+                noIntersect = false;
+                break;
+            }
+        }
+        if(noIntersect){
+            it = filteredResults->erase(it);
+        }else{
+            ++it;
+        }
+    }
+}
+
+void DotPlotFilterTask::copyInitialResults(){
+
+    filteredResults->clear();
+    foreach(DotPlotResults r, *initialResults){
+        filteredResults->append(r);
+    }
 }
 
 } // namespace

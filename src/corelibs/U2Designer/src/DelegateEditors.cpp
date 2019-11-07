@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,95 +19,153 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/L10n.h>
 #include <U2Core/Log.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Core/GUrlUtils.h>
 
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/ScriptEditorDialog.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2Lang/IntegralBusModel.h>
 #include <U2Lang/WorkflowUtils.h>
 
-#include <U2Gui/ScriptEditorDialog.h>
-#include <U2Gui/LastUsedDirHelper.h>
-#include <U2Gui/DialogUtils.h>
-
 #include "DelegateEditors.h"
+#include "PropertyWidget.h"
 
 namespace U2 {
+
+DelegateEditor::DelegateEditor(const DelegateEditor &other) : ConfigurationEditor(other) {
+    foreach (const QString &id, other.delegates.keys()) {
+        delegates[id] = other.delegates[id]->clone();
+    }
+}
+
+void DelegateEditor::updateDelegates() {
+    foreach (PropertyDelegate* delegate, delegates.values()) {
+        delegate->update();
+    }
+}
+
+void DelegateEditor::updateDelegate( const QString & name ) {
+    if (delegates.contains(name)) {
+        delegates[name]->update();
+    }
+}
 
 /********************************
  * SpinBoxDelegate
  ********************************/
-QWidget *SpinBoxDelegate::createEditor(QWidget *parent,
+PropertyWidget * SpinBoxDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new SpinBoxWidget(getProperties(), parent);
+}
+
+QWidget * SpinBoxDelegate::createEditor(QWidget *parent,
     const QStyleOptionViewItem &/* option */,
     const QModelIndex &/* index */) const
 {
-    currentEditor = new QSpinBox(parent);
-    connect(currentEditor, SIGNAL(valueChanged(int)), SIGNAL(si_valueChanged(int)));
-    WorkflowUtils::setQObjectProperties(*currentEditor, spinProperties);
+    SpinBoxWidget *editor = new SpinBoxWidget(getProperties(), parent);
+    connect(editor, SIGNAL(valueChanged(int)), SIGNAL(si_valueChanged(int)));
+    connect(editor, SIGNAL(valueChanged(int)), SLOT(sl_commit()));
 
-    return currentEditor;
+    currentEditor = editor;
+
+    return editor;
 }
 
 void SpinBoxDelegate::setEditorData(QWidget *editor,
                                     const QModelIndex &index) const
 {
     int value = index.model()->data(index, ConfigurationEditor::ItemValueRole).toInt();
-    QSpinBox *spinBox = static_cast<QSpinBox*>(editor);
+    SpinBoxWidget *spinBox = static_cast<SpinBoxWidget*>(editor);
     spinBox->setValue(value);
 }
 
 void SpinBoxDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
                                    const QModelIndex &index) const
 {
-    QSpinBox *spinBox = static_cast<QSpinBox*>(editor);
-    spinBox->interpretText();
-    int value = spinBox->value();
+    SpinBoxWidget *spinBox = static_cast<SpinBoxWidget*>(editor);
+    int value = spinBox->value().toInt();
     model->setData(index, value, ConfigurationEditor::ItemValueRole);
 }
 
 QVariant SpinBoxDelegate::getDisplayValue( const QVariant& v) const {
     QSpinBox editor;
-    WorkflowUtils::setQObjectProperties(editor, spinProperties);
+    WorkflowUtils::setQObjectProperties(editor, getProperties());
     editor.setValue(v.toInt());
     return editor.text();
 }
 
-void SpinBoxDelegate::setEditorProperty(const char* name, const QVariant& val ) {
+void SpinBoxDelegate::setEditorProperty(const char* name, const QVariant& val) {
     spinProperties[name] = val;
     if (!currentEditor.isNull()) {
         currentEditor->setProperty(name, val);
     }
 }
 
+void SpinBoxDelegate::getItems(QVariantMap &items ) const {
+    items = this->spinProperties;
+}
+
+QVariantMap SpinBoxDelegate::getProperties() const {
+    QVariantMap result = spinProperties;
+    DelegateTags *t = tags();
+    CHECK(t != NULL, result);
+    foreach (const QString &tagName, t->names()) {
+        result[tagName] = t->get(tagName);
+    }
+    return result;
+}
+
+void SpinBoxDelegate::sl_commit() {
+    SpinBoxWidget* editor = static_cast<SpinBoxWidget*>(sender());
+    CHECK(editor != NULL, );
+    emit commitData(editor);
+}
+
 /********************************
 * DoubleSpinBoxDelegate
 ********************************/
-QWidget *DoubleSpinBoxDelegate::createEditor(QWidget *parent,
+const int DoubleSpinBoxDelegate::DEFAULT_DECIMALS_VALUE = 5;
+
+DoubleSpinBoxDelegate::DoubleSpinBoxDelegate(const QVariantMap &props, QObject *parent)
+: PropertyDelegate(parent), spinProperties(props)
+{
+    if (!spinProperties.contains("decimals")) {
+        spinProperties["decimals"] = DEFAULT_DECIMALS_VALUE;
+    }
+}
+
+PropertyWidget * DoubleSpinBoxDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return (PropertyWidget*)createEditor(parent, QStyleOptionViewItem(), QModelIndex());
+}
+
+QWidget * DoubleSpinBoxDelegate::createEditor(QWidget *parent,
                                        const QStyleOptionViewItem &/* option */,
                                        const QModelIndex &/* index */) const
 {
-    QDoubleSpinBox *editor = new QDoubleSpinBox(parent);
-    WorkflowUtils::setQObjectProperties(*editor, spinProperties);
-
+    DoubleSpinBoxWidget* editor = new DoubleSpinBoxWidget(spinProperties, parent);
+    connect(editor, SIGNAL(si_valueChanged(QVariant)), SLOT(sl_commit()));
     return editor;
 }
 
 void DoubleSpinBoxDelegate::setEditorData(QWidget *editor,
                                     const QModelIndex &index) const
 {
-    double value = index.model()->data(index, ConfigurationEditor::ItemValueRole).toDouble();
-    QDoubleSpinBox *spinBox = static_cast<QDoubleSpinBox*>(editor);
+    QVariant value = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    DoubleSpinBoxWidget *spinBox = static_cast<DoubleSpinBoxWidget*>(editor);
     spinBox->setValue(value);
 }
 
 void DoubleSpinBoxDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
                                    const QModelIndex &index) const
 {
-    QDoubleSpinBox *spinBox = static_cast<QDoubleSpinBox*>(editor);
-    spinBox->interpretText();
-    double value = spinBox->value();
+    DoubleSpinBoxWidget *spinBox = static_cast<DoubleSpinBoxWidget*>(editor);
+    double value = spinBox->value().toDouble();
     model->setData(index, value, ConfigurationEditor::ItemValueRole);
 }
 
@@ -118,25 +176,33 @@ QVariant DoubleSpinBoxDelegate::getDisplayValue( const QVariant& v) const {
     return editor.text();
 }
 
+void DoubleSpinBoxDelegate::getItems( QVariantMap &items ) const {
+    items = this->spinProperties;
+}
+
+void DoubleSpinBoxDelegate::sl_commit() {
+    DoubleSpinBoxWidget* editor = static_cast<DoubleSpinBoxWidget*>(sender());
+    CHECK(editor != NULL, );
+    emit commitData(editor);
+}
+
 /********************************
 * ComboBoxDelegate
 ********************************/
+PropertyWidget * ComboBoxDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new ComboBoxWidget(items, parent);
+}
+
 QWidget *ComboBoxDelegate::createEditor(QWidget *parent,
                                        const QStyleOptionViewItem &/* option */,
                                        const QModelIndex &/* index */) const
 {
-    QComboBox *editor = new QComboBox(parent);
-    //editor->setFrame(false);
-    //editor->setSizePolicy(QSizePolicy(QSizePolicy::Preferred,QSizePolicy::Preferred));
+    ComboBoxWidget *editor = new ComboBoxWidget(getItems(), parent);
+    connect(editor, SIGNAL(valueChanged(const QString &)),
+        SLOT(sl_commit()));
+    connect(editor, SIGNAL(valueChanged(const QString &)),
+        SIGNAL(si_valueChanged(const QString &)));
 
-    QMapIterator<QString, QVariant> it(items);
-    while (it.hasNext())
-    {
-        it.next();
-        editor->addItem(it.key(), it.value());
-    }
-    
-    connect( editor, SIGNAL( activated( const QString & ) ), this, SIGNAL( si_valueChanged( const QString & ) ) );
     return editor;
 }
 
@@ -144,195 +210,312 @@ void ComboBoxDelegate::setEditorData(QWidget *editor,
                                     const QModelIndex &index) const
 {
     QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
-    QComboBox *box = static_cast<QComboBox*>(editor);
-    int idx = box->findData(val);
-    box->setCurrentIndex(idx);
+    ComboBoxWidget *box = static_cast<ComboBoxWidget*>(editor);
+    box->setValue(val);
 }
 
 void ComboBoxDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
                                    const QModelIndex &index) const
 {
-    QComboBox *box = static_cast<QComboBox*>(editor);
-    QVariant val = box->itemData(box->currentIndex());
-    model->setData(index, val, ConfigurationEditor::ItemValueRole);
+    ComboBoxWidget *box = static_cast<ComboBoxWidget*>(editor);
+    model->setData(index, box->value(), ConfigurationEditor::ItemValueRole);
 }
 
 QVariant ComboBoxDelegate::getDisplayValue(const QVariant& val) const {
+    QString display = getItems().key(val);
+    emit si_valueChanged( display );
+    return QVariant( display );
+}
+
+void ComboBoxDelegate::getItems( QVariantMap &items ) const {
+    items = getItems();
+}
+
+QVariantMap ComboBoxDelegate::getItems() const {
+    DelegateTags *t = tags();
+    if (t != NULL) {
+        if (t->get("AvailableValues") != QVariant()) {
+            return t->get("AvailableValues").toMap();
+        }
+    }
+    return items;
+}
+
+void ComboBoxDelegate::sl_commit() {
+    ComboBoxWidget *editor = static_cast<ComboBoxWidget*>(sender());
+
+    if (editor) {
+        emit commitData(editor);
+    }
+}
+
+/********************************
+* ComboBoxWithUrlsDelegate
+********************************/
+
+PropertyWidget * ComboBoxWithUrlsDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new ComboBoxWithUrlWidget(items, isPath, parent);
+}
+
+QWidget *ComboBoxWithUrlsDelegate::createEditor(QWidget *parent,
+                                        const QStyleOptionViewItem &/* option */,
+                                        const QModelIndex &/* index */) const
+{
+    ComboBoxWithUrlWidget *editor = new ComboBoxWithUrlWidget(items, isPath, parent);
+    connect(editor, SIGNAL(valueChanged(const QString &)), SLOT(sl_valueChanged(const QString &)));
+    return editor;
+}
+
+void ComboBoxWithUrlsDelegate::sl_valueChanged(const QString &newVal) {
+    emit si_valueChanged(newVal);
+    QWidget *editor = qobject_cast<QWidget *>(sender());
+    SAFE_POINT(NULL != editor, "Invalid editor", );
+    emit commitData(editor);
+}
+
+void ComboBoxWithUrlsDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    ComboBoxWithUrlWidget *box = static_cast<ComboBoxWithUrlWidget*>(editor);
+    box->setValue(val);
+}
+
+void ComboBoxWithUrlsDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const {
+    ComboBoxWithUrlWidget *box = static_cast<ComboBoxWithUrlWidget*>(editor);
+    model->setData(index, box->value(), ConfigurationEditor::ItemValueRole);
+}
+
+QVariant ComboBoxWithUrlsDelegate::getDisplayValue(const QVariant& val) const {
+     QString display = items.key(val);
+     emit si_valueChanged( display );
+     return QVariant( display );
+ }
+
+/********************************
+* ComboBoxEditableDelegate
+********************************/
+
+PropertyWidget * ComboBoxEditableDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+return new ComboBoxEditableWidget(items, parent);
+}
+
+QWidget *ComboBoxEditableDelegate::createEditor(QWidget *parent,
+                                                const QStyleOptionViewItem &/* option */,
+                                                const QModelIndex &/* index */) const
+{
+    ComboBoxEditableWidget *editor = new ComboBoxEditableWidget(items, parent);
+    connect(editor, SIGNAL(valueChanged(const QString &)), SLOT(sl_valueChanged(const QString &)));
+    return editor;
+}
+
+void ComboBoxEditableDelegate::sl_valueChanged(const QString &newVal) {
+    emit si_valueChanged(newVal);
+    QWidget *editor = qobject_cast<QWidget *>(sender());
+    SAFE_POINT(NULL != editor, "Invalid editor", );
+    emit commitData(editor);
+}
+
+void ComboBoxEditableDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    ComboBoxEditableWidget *box = static_cast<ComboBoxEditableWidget*>(editor);
+    box->setValue(val);
+}
+
+void ComboBoxEditableDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const {
+    ComboBoxEditableWidget *box = static_cast<ComboBoxEditableWidget*>(editor);
+    model->setData(index, box->value(), ConfigurationEditor::ItemValueRole);
+}
+
+QVariant ComboBoxEditableDelegate::getDisplayValue(const QVariant& val) const {
     QString display = items.key(val);
     emit si_valueChanged( display );
     return QVariant( display );
 }
 
 /********************************
-* URLLineEdit
+* ComboBoxWithDbUrlsDelegate
 ********************************/
-void URLLineEdit::sl_onBrowse() {
-    this->browse(false);
+ComboBoxWithDbUrlsDelegate::ComboBoxWithDbUrlsDelegate(QObject *parent)
+    : PropertyDelegate(parent)
+{
+
 }
 
-void URLLineEdit::sl_onBrowseWithAdding() {
-    this->browse(true);
+QWidget * ComboBoxWithDbUrlsDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &) const {
+    ComboBoxWithDbUrlWidget *editor = new ComboBoxWithDbUrlWidget(parent);
+    connect(editor, SIGNAL(valueChanged(const QString &)), SLOT(sl_valueChanged(const QString &)));
+    const_cast<ComboBoxWithDbUrlsDelegate *>(this)->items = editor->getItems();
+    return editor;
 }
 
-void URLLineEdit::browse(bool addFiles) {
-    LastUsedDirHelper lod(type);
-    QString lastDir = lod.dir;
-    if(!text().isEmpty()) {
-        QString curPath(text());
-        int slashPos = curPath.lastIndexOf("/");
-        slashPos = qMax(slashPos, curPath.lastIndexOf("\\"));
-        if (slashPos >= 0) {
-            QDir dir(curPath.left(slashPos + 1));
-            if (dir.exists()) {
-                lastDir = dir.absolutePath();
-            }
-        }
-    }
-
-    QString name;
-    if(isPath){
-        lod.url = name = QFileDialog::getExistingDirectory(NULL, tr("Select a directory"), lastDir);
-    } else if (multi) {
-        QStringList lst = QFileDialog::getOpenFileNames(NULL, tr("Select file(s)"), lastDir, FileFilter);
-        if (addFiles) {
-            name = this->text();
-            if (!lst.isEmpty()) {
-                name += ";";
-            }
-        }
-        name += lst.join(";");
-        if (!lst.isEmpty()) {
-            lod.url = lst.first();
-        }
-    } else {
-        if(saveFile) {
-            lod.url = name = QFileDialog::getSaveFileName(NULL, tr("Select a file"), lastDir, FileFilter, 0, QFileDialog::DontConfirmOverwrite);
-            this->checkExtension(name);
-        } else {
-            lod.url = name = QFileDialog::getOpenFileName(NULL, tr("Select a file"), lastDir, FileFilter );
-        }
-    }
-    if (!name.isEmpty()) {
-        if (name.length() > this->maxLength()) {
-            this->setMaxLength(name.length() + this->maxLength());
-        }
-        setText(name);
-    }
-    setFocus();
+void ComboBoxWithDbUrlsDelegate::sl_valueChanged(const QString &newVal) {
+    emit si_valueChanged(newVal);
+    QWidget *editor = qobject_cast<QWidget *>(sender());
+    SAFE_POINT(NULL != editor, "Invalid editor", );
+    emit commitData(editor);
 }
 
-void URLLineEdit::focusOutEvent ( QFocusEvent * event) {
-    // TODO: fix this low level code. It is made for fixing UGENE-577
-    if (Qt::MouseFocusReason == event->reason()) {
-        QLayout *layout = this->parentWidget()->layout();
-        for (int i=1; i<layout->count(); i++) { //for each QToolButton in the layout
-            QWidget *w = layout->itemAt(i)->widget();
-            if (w->underMouse()) {
-                return;
-            }
-        }
-    }
-    emit si_finished();
+PropertyWidget * ComboBoxWithDbUrlsDelegate::createWizardWidget(U2OpStatus &, QWidget *parent) const {
+    return new ComboBoxWithDbUrlWidget(parent);
 }
 
-void URLLineEdit::checkExtension(QString &name) {
-    DocumentFormat *format = AppContext::getDocumentFormatRegistry()->getFormatById(fileFormat);
-    if (NULL != format && !name.isEmpty()) {
-        QString newName(name);
-        GUrl url(newName);
-        QString lastSuffix = url.lastFileSuffix();
-        if ("gz" == lastSuffix) {
-            int dotPos = newName.length() - lastSuffix.length() - 1;
-            if ((dotPos >= 0) && (QChar('.') == newName[dotPos])) {
-                newName = url.getURLString().left(dotPos);
-                GUrl tmp(newName);
-                lastSuffix = tmp.lastFileSuffix(); 
-            }
-        }
-        bool foundExt = false;
-        foreach (QString supExt, format->getSupportedDocumentFileExtensions()) {
-            if (lastSuffix == supExt) {
-                foundExt = true;
-                break;
-            }
-        }
-        if (!foundExt) {
-            name = name + "." + format->getSupportedDocumentFileExtensions().first();
-        } else {
-            int dotPos = newName.length() - lastSuffix.length() - 1;
-            if ((dotPos < 0) || (QChar('.') != newName[dotPos])) {
-                name = name + "." + format->getSupportedDocumentFileExtensions().first();
-            }
-        }
+void ComboBoxWithDbUrlsDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    ComboBoxWithDbUrlWidget *box = qobject_cast<ComboBoxWithDbUrlWidget *>(editor);
+    const QVariantMap items = box->getItems();
+    if (val.isValid() && items.values().contains(val)) {
+        box->setValue(val);
+    } else if (!items.isEmpty()) {
+        box->setValue(items.values().first());
     }
 }
+
+void ComboBoxWithDbUrlsDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const {
+    ComboBoxWithDbUrlWidget *box = qobject_cast<ComboBoxWithDbUrlWidget *>(editor);
+    model->setData(index, box->value(), ConfigurationEditor::ItemValueRole);
+}
+
+QVariant ComboBoxWithDbUrlsDelegate::getDisplayValue(const QVariant &val) const {
+    QString display = items.key(val);
+    emit si_valueChanged(display);
+    return QVariant(display);
+}
+
+PropertyDelegate * ComboBoxWithDbUrlsDelegate::clone() {
+    return new ComboBoxWithDbUrlsDelegate(parent());
+}
+
+PropertyDelegate::Type ComboBoxWithDbUrlsDelegate::type() const {
+    return SHARED_DB_URL;
+}
+
+/********************************
+* ComboBoxWithChecksDelegate
+********************************/
+
+PropertyWidget * ComboBoxWithChecksDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new ComboBoxWithChecksWidget(items, parent);
+}
+
+QWidget *ComboBoxWithChecksDelegate::createEditor(QWidget *parent,
+                                                const QStyleOptionViewItem &/* option */,
+                                                const QModelIndex &/* index */) const
+{
+    ComboBoxWithChecksWidget* editor = new ComboBoxWithChecksWidget(items, parent);
+    connect(editor, SIGNAL(valueChanged(const QString &)),
+        this, SIGNAL(si_valueChanged(const QString &)));
+    return editor;
+}
+
+void ComboBoxWithChecksDelegate::setEditorData(QWidget *editor,
+                                             const QModelIndex &index) const
+{
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    ComboBoxWithChecksWidget *box = static_cast<ComboBoxWithChecksWidget*>(editor);
+    box->setValue(val);
+}
+
+void ComboBoxWithChecksDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
+                                            const QModelIndex &index) const
+{
+    ComboBoxWithChecksWidget *box = static_cast<ComboBoxWithChecksWidget*>(editor);
+    model->setData(index, box->value(), ConfigurationEditor::ItemValueRole);
+}
+
+void ComboBoxWithChecksDelegate::getItems( QVariantMap &items ) const {
+    items = this->items;
+}
+
+QVariant ComboBoxWithChecksDelegate::getDisplayValue(const QVariant& val) const {
+    QString display = val.toString();
+    emit si_valueChanged( display );
+    return QVariant( display );
+}
+
+/********************************
+* ComboBoxWithBoolsDelegate
+********************************/
+
+ComboBoxWithBoolsDelegate::ComboBoxWithBoolsDelegate(QObject *parent)
+    : ComboBoxDelegate(boolMap(), parent) {}
+
+QVariantMap ComboBoxWithBoolsDelegate::boolMap() {
+    QVariantMap map;
+    map["False"] = false;
+    map["True"] = true;
+    return map;
+}
+
 
 /********************************
 * URLDelegate
 ********************************/
-QWidget *URLDelegate::createEditor(QWidget *parent,
+URLDelegate::URLDelegate(const QString& filter, const QString& type, bool multi, bool isPath, bool saveFile, QObject *parent, const QString &format, bool _noFilesMode)
+: PropertyDelegate(parent), lastDirType(type), multi(multi), isPath(isPath), saveFile(saveFile), noFilesMode(_noFilesMode)
+{
+    tags()->set("filter", filter);
+    tags()->set("format", format);
+}
+
+URLDelegate::URLDelegate(const DelegateTags &_tags, const QString &type, bool multi, bool isPath, bool saveFile, QObject *parent, bool noFilesMode) :
+    PropertyDelegate(parent),
+    lastDirType(type),
+    multi(multi),
+    isPath(isPath),
+    saveFile(saveFile),
+    noFilesMode(noFilesMode)
+{
+    *tags() = _tags;
+}
+
+URLWidget * URLDelegate::createWidget(QWidget *parent) const {
+    URLWidget *result;
+    if (noFilesMode) {
+        bool isPath = false; // noFilesMode: choose a file but its dir will be committed
+        result = new NoFileURLWidget(lastDirType, multi, isPath, saveFile, tags(), parent);
+    } else {
+        result = new URLWidget(lastDirType, multi, isPath, saveFile, tags(), parent);
+    }
+    if (saveFile) {
+        result->setSchemaConfig(schemaConfig);
+    }
+    return result;
+}
+
+PropertyWidget * URLDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return createWidget(parent);
+}
+
+QWidget * URLDelegate::createEditor(QWidget *parent,
                                        const QStyleOptionViewItem &/* option */,
                                        const QModelIndex &/* index */) const
 {
-    QWidget * widget = new QWidget(parent);
-    URLLineEdit* documentURLEdit = new URLLineEdit(FileFilter, type, multi, isPath, saveFile, widget, fileFormat);
-    documentURLEdit->setObjectName("URLLineEdit");
-    documentURLEdit->setFrame(false);
-    documentURLEdit->setSizePolicy(QSizePolicy(QSizePolicy::Preferred,QSizePolicy::Preferred));
-    widget->setFocusProxy(documentURLEdit);
-    QToolButton * toolButton = new QToolButton(widget);
-    toolButton->setVisible( showButton );
-    toolButton->setText("...");
-    toolButton->setSizePolicy(QSizePolicy(QSizePolicy::Fixed,QSizePolicy::Preferred));
-    connect(toolButton, SIGNAL(clicked()), documentURLEdit, SLOT(sl_onBrowse()));
-    
-    QHBoxLayout *layout = new QHBoxLayout(widget);
-    layout->setSpacing(0);
-    layout->setMargin(0);
-    layout->addWidget(documentURLEdit);
-    layout->addWidget(toolButton);
-
-    if (multi) {
-        QToolButton *toolButton = new QToolButton(widget);
-        toolButton->setVisible( showButton && !text.isEmpty() );
-        toolButton->setText(tr("add"));
-        toolButton->setSizePolicy(QSizePolicy(QSizePolicy::Fixed,QSizePolicy::Preferred));
-        connect(toolButton, SIGNAL(clicked()), documentURLEdit, SLOT(sl_onBrowseWithAdding()));
-        layout->addWidget(toolButton);
-        connect(documentURLEdit, SIGNAL(textChanged(const QString &)), SLOT(sl_textChanged(const QString &)));
-    }
-
-    currentEditor = widget;
-    connect(documentURLEdit, SIGNAL(si_finished()), SLOT(sl_commit()));
-    return widget;
+    URLWidget *editor = createWidget(parent);
+    connect(editor, SIGNAL(finished()), SLOT(sl_commit()));
+    return editor;
 }
 
 void URLDelegate::sl_commit() {
-    URLLineEdit *edit = static_cast<URLLineEdit*>(sender());
+    URLWidget *editor = static_cast<URLWidget*>(sender());
 
-    if(edit->text() != text) {
-        text = edit->text();
-        if (currentEditor) {
-            emit commitData(currentEditor);
-        }
-    }
+    text = editor->value().toString();
+    emit commitData(editor);
 }
 
 void URLDelegate::setEditorData(QWidget *editor,
                                     const QModelIndex &index) const
 {
-    QString val = index.model()->data(index, ConfigurationEditor::ItemValueRole).toString();
-    QLineEdit* ed = editor->findChild<QLineEdit*>("URLLineEdit");
-    assert(ed);
-    ed->setText(val);
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    URLWidget *lineEdit = dynamic_cast<URLWidget*>(editor);
+    lineEdit->setValue(val);
 }
 
 void URLDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
                                    const QModelIndex &index) const
 {
-    QLineEdit* ed = editor->findChild<QLineEdit*>("URLLineEdit");
-    assert(ed);
-    QString val = ed->text().replace('\\', '/').trimmed();
+    URLWidget *lineEdit = dynamic_cast<URLWidget*>(editor);
+    QString val = lineEdit->value().toString().replace('\\', '/').trimmed();
+    QStringList urls = val.split(";", QString::SkipEmptyParts);
+    val = urls.join(";");
     model->setData(index, val, ConfigurationEditor::ItemValueRole);
     if (multi) {
         QVariantList vl;
@@ -343,41 +526,17 @@ void URLDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
     }
 }
 
-void URLDelegate::sl_showEditorButton( bool show ) {
-    showButton = show;
-}
-
-void URLDelegate::sl_formatChanged(const QString &newFormat) {
-    if (newFormat.isEmpty()) {
-        return;
+PropertyDelegate::Type URLDelegate::type() const {
+    if (isPath) {
+        return saveFile ? OUTPUT_DIR : INPUT_DIR;
     }
-
-    DocumentFormat *format = AppContext::getDocumentFormatRegistry()->getFormatById(newFormat);
-    QString fileFilter;
-    if (NULL != format) {
-        FileFilter = DialogUtils::prepareDocumentsFileFilter(newFormat, true);
-    } else {
-        FileFilter = newFormat + " files (*." + newFormat + ")";
-    }
-    fileFormat = newFormat;
-}
-
-void URLDelegate::sl_textChanged(const QString &text) {
-    if (!multi) {
-        return;
-    }
-    URLLineEdit *documentURLEdit = static_cast<URLLineEdit*>(sender());
-    QLayout *layout = documentURLEdit->parentWidget()->layout();
-
-    if (3 == layout->count()) { // QLineEdit and 2xQToolButton
-        layout->itemAt(2)->widget()->setVisible(showButton && !text.isEmpty());
-    }
+    return saveFile ? OUTPUT_FILE : INPUT_FILE;
 }
 
 /********************************
 * FileModeDelegate
 ********************************/
-FileModeDelegate::FileModeDelegate(bool appendSupported, QObject *parent) 
+FileModeDelegate::FileModeDelegate(bool appendSupported, QObject *parent)
 : ComboBoxDelegate(QVariantMap(), parent) {
     items.insert(U2::WorkflowUtils::tr("Overwrite"), SaveDoc_Overwrite);
     items.insert(U2::WorkflowUtils::tr("Rename"), SaveDoc_Roll);
@@ -396,8 +555,8 @@ SchemaRunModeDelegate::SchemaRunModeDelegate( QObject * parent )
 : ComboBoxDelegate( QVariantMap(), parent ) {
     items.insert( THIS_COMPUTER_STR, true );
     items.insert( REMOTE_COMPUTER_STR, false );
-    
-    connect( this, SIGNAL( si_valueChanged( const QString & ) ), this, 
+
+    connect( this, SIGNAL( si_valueChanged( const QString & ) ), this,
         SLOT( sl_valueChanged( const QString & ) ) );
 }
 
@@ -405,90 +564,99 @@ void SchemaRunModeDelegate::sl_valueChanged( const QString & val ) {
     emit si_showOpenFileButton( THIS_COMPUTER_STR == val );
 }
 
+
 /********************************
-* AttributeScriptDelegate
+* ScriptSelectionWidget
 ********************************/
-
-QString AttributeScriptDelegate::createScriptHeader(const AttributeScript & attrScript) {
-    QString header;
-    foreach( const Descriptor & desc, attrScript.getScriptVars().keys() ) {
-        header += QString("var %1; // %2\n").arg(desc.getId()).arg(desc.getDisplayName());
-    }
-    return header;
-}
-
 const int NO_SCRIPT_ITEM_ID = 0;
 const int USER_SCRIPT_ITEM_ID = 1;
 const QPair<QString, int> NO_SCRIPT_ITEM_STR("no script", NO_SCRIPT_ITEM_ID);
 const QPair<QString, int> USER_SCRIPT_ITEM_STR("user script", USER_SCRIPT_ITEM_ID);
-
 const QString SCRIPT_PROPERTY = "combo_script_property";
 
+ScriptSelectionWidget::ScriptSelectionWidget(QWidget *parent) :
+    PropertyWidget(parent)
+{
+    combobox = new QComboBox;
+    combobox->addItem(NO_SCRIPT_ITEM_STR.first);
+    combobox->addItem(USER_SCRIPT_ITEM_STR.first);
+    connect(combobox, SIGNAL(activated(int)), SLOT(sl_comboActivated(int)));
+    addMainWidget(combobox);
+}
+
+void ScriptSelectionWidget::setValue(const QVariant &value) {
+    AttributeScript attrScript = value.value<AttributeScript>();
+    if (attrScript.isEmpty()) {
+        combobox->setCurrentIndex(NO_SCRIPT_ITEM_STR.second);
+    } else {
+        combobox->setCurrentIndex(USER_SCRIPT_ITEM_STR.second);
+    }
+    combobox->setProperty(SCRIPT_PROPERTY.toLatin1().constData(), qVariantFromValue<AttributeScript>(attrScript));
+}
+
+QVariant ScriptSelectionWidget::value() {
+    return combobox->itemData(USER_SCRIPT_ITEM_ID, ConfigurationEditor::ItemValueRole);
+}
+
+void ScriptSelectionWidget::sl_comboActivated(int itemId) {
+    switch(itemId) {
+    case NO_SCRIPT_ITEM_ID: {
+            combobox->setItemData(USER_SCRIPT_ITEM_ID, "", ConfigurationEditor::ItemValueRole);
+            return;
+        }
+    case USER_SCRIPT_ITEM_ID: {
+        AttributeScript attrScript = combobox->property(SCRIPT_PROPERTY.toLatin1().constData()).value<AttributeScript>();
+        QObjectScopedPointer<ScriptEditorDialog> dlg = new ScriptEditorDialog(combobox, AttributeScriptDelegate::createScriptHeader(attrScript));
+        dlg->setScriptText(attrScript.getScriptText());
+
+        const int rc = dlg->exec();
+        CHECK(!dlg.isNull(), );
+        if(rc != QDialog::Accepted) {
+            combobox->setItemData(USER_SCRIPT_ITEM_ID, qVariantFromValue<AttributeScript>(attrScript), ConfigurationEditor::ItemValueRole);
+        } else {
+            attrScript.setScriptText(dlg->getScriptText());
+            combobox->setItemData(USER_SCRIPT_ITEM_ID, qVariantFromValue<AttributeScript>(attrScript), ConfigurationEditor::ItemValueRole);
+        }
+
+        emit si_finished();
+        return;
+    }
+    default: {
+        FAIL("Unexpected item", );
+    }
+    }
+}
+
+/********************************
+* AttributeScriptDelegate
+********************************/
 AttributeScriptDelegate::AttributeScriptDelegate(QObject *parent) : PropertyDelegate(parent) {
 }
 
 AttributeScriptDelegate::~AttributeScriptDelegate() {
 }
 
-void AttributeScriptDelegate::sl_comboActivated(int itemId ) {
-    QComboBox * editor = qobject_cast<QComboBox*>(sender());
-    assert(editor != NULL);
-    
-    switch(itemId) {
-    case NO_SCRIPT_ITEM_ID:
-        {
-            editor->setItemData( USER_SCRIPT_ITEM_ID, "", ConfigurationEditor::ItemValueRole );
-            return;
-        }
-    case USER_SCRIPT_ITEM_ID:
-        {
-            QComboBox * combo = qobject_cast<QComboBox*>(sender());
-            assert(combo != NULL);
-            AttributeScript attrScript = combo->property(SCRIPT_PROPERTY.toAscii().constData()).value<AttributeScript>();
-            
-            ScriptEditorDialog dlg(editor, createScriptHeader(attrScript));
-            dlg.setScriptText(attrScript.getScriptText());
-            
-            int rc = dlg.exec();
-            if(rc != QDialog::Accepted) {
-                editor->setItemData( USER_SCRIPT_ITEM_ID, 
-                    qVariantFromValue<AttributeScript>(attrScript), ConfigurationEditor::ItemValueRole );
-                return;
-            }
-            attrScript.setScriptText(dlg.getScriptText());
-            editor->setItemData( USER_SCRIPT_ITEM_ID, 
-                qVariantFromValue<AttributeScript>(attrScript), ConfigurationEditor::ItemValueRole );
-            return;
-        }
-    default:
-        assert(false);
-    }
+void AttributeScriptDelegate::sl_commit() {
+    ScriptSelectionWidget *editor = static_cast<ScriptSelectionWidget*>(sender());
+    emit commitData(editor);
 }
 
 QWidget * AttributeScriptDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &) const {
-    QComboBox *editor = new QComboBox(parent);
-    editor->addItem(NO_SCRIPT_ITEM_STR.first);
-    editor->addItem(USER_SCRIPT_ITEM_STR.first);
-    connect(editor, SIGNAL(activated(int)), SLOT(sl_comboActivated(int)));
+    ScriptSelectionWidget *editor = new ScriptSelectionWidget(parent);
+    connect(editor, SIGNAL(si_finished()), SLOT(sl_commit()));
     return editor;
 }
 
 void AttributeScriptDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
-    QComboBox * combo = qobject_cast<QComboBox*>(editor);
+    ScriptSelectionWidget * combo = qobject_cast<ScriptSelectionWidget*>(editor);
     assert(combo != NULL);
-    AttributeScript attrScript = index.model()->data(index, ConfigurationEditor::ItemValueRole).value<AttributeScript>();
-    if( attrScript.isEmpty() ) {
-        combo->setCurrentIndex(NO_SCRIPT_ITEM_STR.second);
-    } else {
-        combo->setCurrentIndex(USER_SCRIPT_ITEM_STR.second);
-    }
-    combo->setProperty(SCRIPT_PROPERTY.toAscii().constData(), qVariantFromValue<AttributeScript>(attrScript));
+    combo->setValue(index.model()->data(index, ConfigurationEditor::ItemValueRole));
 }
 
 void AttributeScriptDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const {
-    QComboBox * combo = qobject_cast<QComboBox*>(editor);
+    ScriptSelectionWidget *combo = qobject_cast<ScriptSelectionWidget *>(editor);
     assert(combo != NULL);
-    model->setData(index, combo->itemData(USER_SCRIPT_ITEM_ID, ConfigurationEditor::ItemValueRole), ConfigurationEditor::ItemValueRole);
+    model->setData(index, combo->value(), ConfigurationEditor::ItemValueRole);
 }
 
 QVariant AttributeScriptDelegate::getDisplayValue(const QVariant& val) const{
@@ -497,47 +665,48 @@ QVariant AttributeScriptDelegate::getDisplayValue(const QVariant& val) const{
     return QVariant(ret);
 }
 
+QString AttributeScriptDelegate::createScriptHeader(const AttributeScript &attrScript) {
+    QString header;
+    foreach (const Descriptor & desc, attrScript.getScriptVars().keys()) {
+        header += QString("var %1; // %2\n").arg(desc.getId()).arg(desc.getDisplayName());
+    }
+    return header;
+}
+
 /********************************
- * AttributeScriptDelegate
+ * StringListDelegate
  ********************************/
-//InputPortDataDelegate::InputPortDataDelegate(const QVariantMap& items, QObject *parent ) : ComboBoxDelegate(items, parent) {
-//}
-//
-//InputPortDataDelegate::~InputPortDataDelegate() {
-//}
-
-/* class WCOREAPI_EXPORT ListLineEdit : public QLineEdit */
-
 void StingListEdit::sl_onExpand()
 {
-    QDialog editor(0);
-    editor.setWindowTitle(StringListDelegate::tr("Enter items"));
+    QObjectScopedPointer<QDialog> editor = new QDialog(this);
+    editor->setWindowTitle(StringListDelegate::tr("Enter items"));
 
-    QPushButton *accept = new QPushButton(StringListDelegate::tr("Ok"), &editor);
-    connect(accept, SIGNAL(clicked()), &editor, SLOT(accept()));
-    QPushButton *reject = new QPushButton(StringListDelegate::tr("Cancel"), &editor);
-    connect(reject, SIGNAL(clicked()), &editor, SLOT(reject()));
+    QPushButton *accept = new QPushButton(StringListDelegate::tr("OK"), editor.data());
+    connect(accept, SIGNAL(clicked()), editor.data(), SLOT(accept()));
+    QPushButton *reject = new QPushButton(StringListDelegate::tr("Cancel"), editor.data());
+    connect(reject, SIGNAL(clicked()), editor.data(), SLOT(reject()));
 
     QHBoxLayout *buttonsLayout = new QHBoxLayout(0);
     buttonsLayout->addStretch();
     buttonsLayout->addWidget(accept);
     buttonsLayout->addWidget(reject);
 
-    QTextEdit *edit = new QTextEdit("", &editor);
+    QTextEdit *edit = new QTextEdit("", editor.data());
 
     foreach (const QString &item, text().split(";", QString::SkipEmptyParts)) {
         edit->append(item.trimmed());
     }
 
-    QVBoxLayout *layout = new QVBoxLayout(&editor);
+    QVBoxLayout *layout = new QVBoxLayout(editor.data());
     layout->addWidget(edit);
     layout->addLayout(buttonsLayout);
 
-    editor.setLayout(layout);
+    editor->setLayout(layout);
 
-    editor.exec();
+    editor->exec();
+    CHECK(!editor.isNull(), );
 
-    if (editor.result() == QDialog::Accepted) {
+    if (editor->result() == QDialog::Accepted) {
         QString s = edit->toPlainText();
         s.replace("\n", "; ");
         setText(s);
@@ -549,58 +718,63 @@ void StingListEdit::focusOutEvent ( QFocusEvent * ) {
     emit si_finished();
 }
 
-/* class ListEditDelegate : public PropertyDelegate */
-
-const QString StringListDelegate::EDITOR("ListLineEdit");
-
-QWidget* StringListDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &) const {
-    QWidget *widget = new QWidget(parent);
-
-    StingListEdit *edit = new StingListEdit(widget);
-    edit->setObjectName(EDITOR);
+StingListWidget::StingListWidget(QWidget *parent)
+: PropertyWidget(parent)
+{
+    edit = new StingListEdit(this);
     edit->setFrame(false);
-    edit->setSizePolicy(QSizePolicy(QSizePolicy::Preferred,QSizePolicy::Preferred));
-    widget->setFocusProxy(edit);
+    edit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    addMainWidget(edit);
 
-    QToolButton *button = new QToolButton(widget);
-    button->setVisible(showButton);
+    QToolButton *button = new QToolButton(this);
     button->setText("...");
-    button->setSizePolicy(QSizePolicy(QSizePolicy::Fixed,QSizePolicy::Preferred));
+    button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     connect(button, SIGNAL(clicked()), edit, SLOT(sl_onExpand()));
+    layout()->addWidget(button);
 
-    QHBoxLayout *layout = new QHBoxLayout(widget);
-    layout->setSpacing(0);
-    layout->setMargin(0);
-    layout->addWidget(edit);
-    layout->addWidget(button);
+    connect(edit, SIGNAL(si_finished()), SIGNAL(finished()));
+}
+
+QVariant StingListWidget::value() {
+    return edit->text();
+}
+
+void StingListWidget::setValue(const QVariant &value) {
+    edit->setText(value.toString());
+}
+
+void StingListWidget::setRequired() {
+    edit->setPlaceholderText(L10N::required());
+}
+
+PropertyWidget * StringListDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new StingListWidget(parent);
+}
+
+QWidget * StringListDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &) const {
+    StingListWidget *widget = new StingListWidget(parent);
+    connect(widget, SIGNAL(finished()), SLOT(sl_commit()));
 
     currentEditor = widget;
-    connect(edit, SIGNAL(si_finished()), SLOT(sl_commit()));
-
     return widget;
 }
 
 void StringListDelegate::sl_commit() {
-    //sender()->disconnect(this);
     emit commitData(currentEditor);
 }
 
 void StringListDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const
 {
-    QString val = index.model()->data(index, ConfigurationEditor::ItemValueRole).toString();
-
-    QLineEdit *ed = editor->findChild<QLineEdit*>(EDITOR);
-    assert(ed);
-
-    ed->setText(val);
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    StingListWidget *lineEdit = dynamic_cast<StingListWidget*>(editor);
+    lineEdit->setValue(val);
 }
 
 void StringListDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const
 {
-    QLineEdit *ed = editor->findChild<QLineEdit*>(EDITOR);
-    assert(ed);
-    
-    QString val = ed->text();
+    StingListWidget *lineEdit = dynamic_cast<StingListWidget*>(editor);
+
+    QString val = lineEdit->value().toString();
     model->setData(index, val, ConfigurationEditor::ItemValueRole);
 
     QVariantList vl;
@@ -611,14 +785,9 @@ void StringListDelegate::setModelData(QWidget *editor, QAbstractItemModel *model
     model->setData(index, vl, ConfigurationEditor::ItemListValueRole);
 }
 
-void StringListDelegate::sl_showEditorButton(bool show) {
-    showButton = show;
-}
-
 /********************************
  * StringSelectorDelegate
 ********************************/
-
 QWidget *StringSelectorDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &) const {
     QWidget * editor = new QWidget(parent);
     valueEdit = new QLineEdit(editor);
@@ -641,22 +810,24 @@ QWidget *StringSelectorDelegate::createEditor(QWidget *parent, const QStyleOptio
 
     currentEditor = editor;
     connect(valueEdit, SIGNAL(editingFinished()), SLOT(sl_commit()));
-    
+
     return editor;
 }
 
 void StringSelectorDelegate::sl_commit() {
-    //sender()->disconnect(this);
     emit commitData(currentEditor);
 }
 
 void StringSelectorDelegate::sl_onClick() {
-    QDialog *dlg = f->createSelectorDialog(initValue);
-    if(dlg->exec() == QDialog::Accepted) {
-        valueEdit->setText(f->getSelectedString(dlg));
+    QObjectScopedPointer<QDialog> dlg = f->createSelectorDialog(initValue);
+
+    const int dialogResult = dlg->exec();
+    CHECK(!dlg.isNull(), );
+
+    if (QDialog::Accepted == dialogResult) {
+        valueEdit->setText(f->getSelectedString(dlg.data()));
         sl_commit();
     }
-    delete dlg;
 }
 
 void StringSelectorDelegate::setEditorData(QWidget *, const QModelIndex &index) const {
@@ -679,31 +850,30 @@ void StringSelectorDelegate::setModelData(QWidget *, QAbstractItemModel *model, 
 /********************************
  * CharacterDelegate
  ********************************/
-QWidget *CharacterDelegate::createEditor(QWidget *parent,
+PropertyWidget * CharacterDelegate::createWizardWidget(U2OpStatus & /*os*/, QWidget *parent) const {
+    return new DefaultPropertyWidget(1, parent);
+}
+
+QWidget * CharacterDelegate::createEditor(QWidget *parent,
                                    const QStyleOptionViewItem &/* option */,
                                    const QModelIndex &/* index */) const
 {
-    QLineEdit * lineEdit = new QLineEdit(parent);
-    lineEdit->setMaxLength(1);
-    return lineEdit;
+    return new DefaultPropertyWidget(1, parent);
 }
 
 void CharacterDelegate::setEditorData(QWidget *editor,
                                 const QModelIndex &index) const
 {
-    QString val = index.model()->data(index, ConfigurationEditor::ItemValueRole).toString();
-    QLineEdit * lineEdit = qobject_cast<QLineEdit*>(editor);
-    assert(lineEdit);
-    lineEdit->setText(val);
+    QVariant val = index.model()->data(index, ConfigurationEditor::ItemValueRole);
+    DefaultPropertyWidget *lineEdit = dynamic_cast<DefaultPropertyWidget*>(editor);
+    lineEdit->setValue(val);
 }
 
 void CharacterDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
                                const QModelIndex &index) const
 {
-    QLineEdit * lineEdit = qobject_cast<QLineEdit*>(editor);
-    assert(lineEdit);
-    QString val = lineEdit->text();
-    model->setData(index, val, ConfigurationEditor::ItemValueRole);
+    DefaultPropertyWidget *lineEdit = dynamic_cast<DefaultPropertyWidget*>(editor);
+    model->setData(index, lineEdit->value().toString(), ConfigurationEditor::ItemValueRole);
 }
 
 }//namespace U2

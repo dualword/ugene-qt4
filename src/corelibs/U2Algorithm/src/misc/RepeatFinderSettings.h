@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_REPEAT_FINDER_SETTINGS_H_
 
 #include <U2Core/Task.h>
+#include <QString>
 
 namespace U2 {
 
@@ -34,15 +35,37 @@ enum RFAlgorithm {
     RFAlgorithm_Suffix
 };
 
-class RFResult {
+enum RepeatsFilterAlgorithm
+{
+    DisjointRepeats,
+    NoFiltering,
+    UniqueRepeats
+};
+
+
+
+class RFResult
+{
 public:
     RFResult() : x(0), y(0), l(0), c(0){}
-    RFResult(int _x, int _y, int _len, int _c = 0) : x(_x), y(_y), l(_len){if(_c==0) c=l; else c = _c;} //if not specified, repeats have no mismatches
+
+    RFResult(int _x, int _y, int _len, int _c = 0)
+        : x(_x), y(_y), l(_len)
+    {   //if not specified, repeats have no mismatches
+        if(_c==0) c=l; else c = _c;
+    }
+
+    RFResult(int _x, int _y, int _len, int _c, QString _fragment)
+        : fragment(_fragment), x(_x), y(_y), l(_len), c(_c)
+    {
+        if(_c==0) c=l; else c = _c;
+    }
 
     bool operator==(const RFResult& r) const {return x == r.x && y == r.y && l == r.l;}
     bool operator!=(const RFResult& r) const {return !(*this == r);}
     bool operator <(const RFResult& r) const {return (x != r.x) ? x < r.x : (y != r.y) ? y < r.y: (l < r.l);}
 
+    QString fragment;
     int x;
     int y;
     int l;
@@ -65,7 +88,7 @@ struct RepeatFinderSettings {
 
     RepeatFinderSettings(
         RFResultsListener* _l, const char *_seqX, int _sizeX, bool _inverted,
-        const char *_seqY, int _sizeY, DNAAlphabet *_al, int _w, int _mismatches,
+        const char *_seqY, int _sizeY, const DNAAlphabet *_al, int _w, int _mismatches,
         RFAlgorithm _alg, int _nThreads = MAX_PARALLEL_SUBTASKS_AUTO
     )
     :   l(_l), seqX(_seqX), sizeX(_sizeX), inverted(_inverted),
@@ -80,7 +103,7 @@ struct RepeatFinderSettings {
     bool                inverted;
     const char *        seqY;
     int                 sizeY;
-    DNAAlphabet *       al;
+    const DNAAlphabet *       al;
     int                 w;
     int                 mismatches;
     RFAlgorithm         alg;

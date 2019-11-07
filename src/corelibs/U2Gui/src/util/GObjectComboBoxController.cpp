@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 
 #include <U2Core/GObjectUtils.h>
 #include <U2Core/UnloadedObject.h>
+#include <U2Core/U2SafePoints.h>
 
 namespace U2 {
 
@@ -36,12 +37,19 @@ GObjectComboBoxController::GObjectComboBoxController(QObject* p, const GObjectCo
 {
     connect(AppContext::getProject(), SIGNAL(si_documentAdded(Document*)), SLOT(sl_onDocumentAdded(Document*)));
     connect(AppContext::getProject(), SIGNAL(si_documentRemoved(Document*)), SLOT(sl_onDocumentRemoved(Document*)));
-    foreach(Document* d, AppContext::getProject()->getDocuments()) {
-        sl_onDocumentAdded(d);
-    }
     objectIcon = QIcon(":core/images/gobject.png");
     unloadedObjectIcon = objectIcon.pixmap(QSize(16, 16), QIcon::Disabled);
     combo->setInsertPolicy(QComboBox::InsertAlphabetically);
+
+    foreach(Document* d, AppContext::getProject()->getDocuments()) {
+        connectDocument(d);
+    }
+    updateCombo();
+}
+
+void GObjectComboBoxController::updateConstrains(const GObjectComboBoxControllerConstraints& c)
+{
+    settings = c;
     updateCombo();
 }
 
@@ -62,13 +70,27 @@ void GObjectComboBoxController::updateCombo() {
     }
 }
 
+void GObjectComboBoxController::connectDocument(Document *document) {
+    if (document->isDatabaseConnection()) {
+        return;
+    }
+    connect(document, SIGNAL(si_objectAdded(GObject*)), SLOT(sl_onObjectAdded(GObject*)));
+    connect(document, SIGNAL(si_objectRemoved(GObject*)), SLOT(sl_onObjectRemoved(GObject*)));
+}
+
 void GObjectComboBoxController::addDocumentObjects(Document* d) {
+    if (d->isDatabaseConnection()) {
+        return;
+    }
     foreach(GObject* obj, d->getObjects()) {
         addObject(obj);
     }
 }
 
 void GObjectComboBoxController::removeDocumentObjects(Document* d) {
+    if (d->isDatabaseConnection()) {
+        return;
+    }
     foreach(GObject* obj, d->getObjects()) {
         removeObject(obj);
     }
@@ -121,12 +143,15 @@ void GObjectComboBoxController::addObject(GObject* obj) {
     connect(obj, SIGNAL(si_lockedStateChanged()), SLOT(sl_lockedStateChanged()));
     combo->addItem(obj->isUnloaded() ? unloadedObjectIcon: objectIcon, itemText(obj), 
                         QVariant::fromValue<GObjectReference>(GObjectReference(obj)));
+
+    emit si_comboBoxChanged();
 }
 
 void GObjectComboBoxController::removeObject(const GObjectReference& ref) {
     int n = findItem(combo, ref);
     if (n >= 0) {
         combo->removeItem(n);
+        emit si_comboBoxChanged();
     }
 }
 
@@ -139,13 +164,22 @@ bool GObjectComboBoxController::setSelectedObject(const GObjectReference& objRef
     return true;
 }
 
+GObjectReference GObjectComboBoxController::getSelectedObjectReference() const {
+    GObject *object = getSelectedObject();
+    if (NULL != object) {
+        return GObjectReference(object);
+    } else {
+        return GObjectReference();
+    }
+}
+
 GObject* GObjectComboBoxController::getSelectedObject() const {
     int n = combo->currentIndex();
     if (n == -1) {
         return NULL;
     }
     GObjectReference r = combo->itemData(n).value<GObjectReference>();
-    assert(r.isValid());
+    SAFE_POINT(r.isValid(), "GObjectReverence is invalid", NULL);
     GObject* obj = GObjectUtils::selectObjectByReference(r, GObjectUtils::findAllObjects(UOF_LoadedAndUnloaded), UOF_LoadedAndUnloaded);
     assert(obj!=NULL);
     return obj;
@@ -153,8 +187,7 @@ GObject* GObjectComboBoxController::getSelectedObject() const {
 
 
 void GObjectComboBoxController::sl_onDocumentAdded(Document* d) {
-    connect(d, SIGNAL(si_objectAdded(GObject*)), SLOT(sl_onObjectAdded(GObject*)));
-    connect(d, SIGNAL(si_objectRemoved(GObject*)), SLOT(sl_onObjectRemoved(GObject*)));
+    connectDocument(d);
     if (d->isLoaded()) {
         addDocumentObjects(d);
     }

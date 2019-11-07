@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,18 +24,33 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/DNASequenceObject.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/L10n.h>
+
 #include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/HelpButton.h>
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/AnnotatedDNAView.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QPushButton>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+#endif
 
 
 namespace U2 {
-
 
 DNAFlexDialog::DNAFlexDialog(ADVSequenceObjectContext* _ctx)
   : QDialog(_ctx->getAnnotatedDNAView()->getWidget())
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122323");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Search"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     ctx = _ctx;
 
     // Get the sequence length
@@ -43,6 +58,7 @@ DNAFlexDialog::DNAFlexDialog(ADVSequenceObjectContext* _ctx)
 
     // Creating and initializing the annotation model
     CreateAnnotationModel annotModel;
+    annotModel.hideAnnotationType = true;
     annotModel.hideLocation = true;  // hides location field and does not check it in validate()
     annotModel.data->name = "dna_flex";
     annotModel.sequenceObjectRef = ctx->getSequenceObject();
@@ -51,10 +67,7 @@ DNAFlexDialog::DNAFlexDialog(ADVSequenceObjectContext* _ctx)
     // Initializing and adding the annotations widget
     annotController = new CreateAnnotationWidgetController(annotModel, this);
     QWidget* annotWidget = annotController->getWidget();
-    QVBoxLayout* annotWidgetLayout = new QVBoxLayout();
-    annotWidgetLayout->addWidget(annotWidget);
-    annotationsWidget->setLayout(annotWidgetLayout);
-    annotationsWidget->setMinimumSize(annotWidget->layout()->minimumSize());
+    annotationsWidget->layout()->addWidget(annotWidget);
 
     // Setting the dialog icon to the standard UGENE icon
     setWindowIcon(QIcon(":/ugene/images/ugene_16.png"));
@@ -76,8 +89,8 @@ DNAFlexDialog::DNAFlexDialog(ADVSequenceObjectContext* _ctx)
     connect(doubleSpinBoxThreshold, SIGNAL(valueChanged(double)), SLOT(sl_spinThresholdChanged(double)));
     connect(btnRemember, SIGNAL(clicked()), SLOT(sl_rememberSettings()));
     connect(btnDefaults, SIGNAL(clicked()), SLOT(sl_defaultSettings()));
-}
 
+}
 
 void DNAFlexDialog::accept()
 {
@@ -85,18 +98,32 @@ void DNAFlexDialog::accept()
     // TODO
 
     // Preparing the annotations object and other annotations parameters
-    annotController->prepareAnnotationObject();
+    QString err = annotController->validate();
+    if (!err.isEmpty()) {
+        QMessageBox::warning(this, tr("Error"), err);
+        return;
+    }
+    bool objectPrepared = annotController->prepareAnnotationObject();
+    if (!objectPrepared){
+        QMessageBox::warning(this, tr("Error"), tr("Cannot create an annotation object. Please check settings"));
+        return;
+    }
     const CreateAnnotationModel& annotModel = annotController->getModel();
     QString annotName = annotModel.data->name;
     QString annotGroup = annotModel.groupName;
 
+
     // Creating the task
+    U2OpStatusImpl os;
+    QByteArray seqData = ctx->getSequenceObject()->getWholeSequenceData(os);
+    CHECK_OP_EXT(os, QMessageBox::critical(this, L10N::errorTitle(), os.getError()), );
     DNAFlexTask* task = new DNAFlexTask(
         settings,
         annotModel.getAnnotationObject(),
         annotName,
         annotGroup,
-        ctx->getSequenceObject()->getWholeSequence());
+        annotModel.description,
+        seqData);
 
     // Registering the task
     AppContext::getTaskScheduler()->registerTopLevelTask(task);
@@ -105,30 +132,25 @@ void DNAFlexDialog::accept()
     QDialog::accept();
 }
 
-
 void DNAFlexDialog::sl_spinWindowSizeChanged(int newValue)
 {
     settings.windowSize = newValue;
 }
-
 
 void DNAFlexDialog::sl_spinWindowStepChanged(int newValue)
 {
     settings.windowStep = newValue;
 }
 
-
 void DNAFlexDialog::sl_spinThresholdChanged(double newValue)
 {
     settings.threshold = newValue;
 }
 
-
 void DNAFlexDialog::sl_rememberSettings()
 {
     settings.rememberSettings();
 }
-
 
 void DNAFlexDialog::sl_defaultSettings()
 {
@@ -136,14 +158,12 @@ void DNAFlexDialog::sl_defaultSettings()
     updateHighFlexValues();
 }
 
-
 void DNAFlexDialog::updateHighFlexValues()
 {
     spinBoxWindowSize->setValue(settings.windowSize);
     spinBoxWindowStep->setValue(settings.windowStep);
     doubleSpinBoxThreshold->setValue(settings.threshold);
 }
-
 
 } // namespace
 

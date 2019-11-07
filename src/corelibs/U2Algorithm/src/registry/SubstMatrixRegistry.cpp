@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,9 @@
 
 namespace U2 {
 
-SubstMatrixRegistry::SubstMatrixRegistry(QObject* pOwn) : QObject(pOwn) {
+SubstMatrixRegistry::SubstMatrixRegistry(QObject* pOwn)
+: QObject(pOwn), mutex(QMutex::Recursive)
+{
     readMatrices();
 }
 
@@ -52,7 +54,7 @@ QStringList SubstMatrixRegistry::getMatrixNames() const {
     return result;
 }
 
-QList<SMatrix> SubstMatrixRegistry::selectMatricesByAlphabet(DNAAlphabet* al) const {
+QList<SMatrix> SubstMatrixRegistry::selectMatricesByAlphabet(const DNAAlphabet* al) const {
     QMutexLocker lock(&mutex);
     QList<SMatrix> result;
     foreach(const SMatrix& m, getMatrices()) {
@@ -63,13 +65,23 @@ QList<SMatrix> SubstMatrixRegistry::selectMatricesByAlphabet(DNAAlphabet* al) co
     return result;
 }
 
-QStringList SubstMatrixRegistry::selectMatrixNamesByAlphabet(DNAAlphabet* al) const {
+QStringList SubstMatrixRegistry::selectMatrixNamesByAlphabet(const DNAAlphabet* al) const {
     QMutexLocker lock(&mutex);
     QStringList result;
     foreach(const SMatrix& m, matrixByName.values()) {
-        DNAAlphabet* mAlpha = m.getAlphabet();
+        const DNAAlphabet* mAlpha = m.getAlphabet();
         if (al->getType() == mAlpha->getType() && al->getNumAlphabetChars() <= mAlpha->getNumAlphabetChars()) {
-            result.append(m.getName());
+            QByteArray aChars = al->getAlphabetChars(), mChars = mAlpha->getAlphabetChars();
+            bool addToResult = true;
+            foreach(char c, aChars){
+                if(!mChars.contains(c)){
+                    addToResult = false;
+                    break;
+                }
+            }
+            if(addToResult){
+                result.append(m.getName());
+            }
         }
     }
     result.sort();
@@ -120,11 +132,11 @@ SMatrix SubstMatrixRegistry::readMatrixFromFile(const QString& fileName, QString
 
 SMatrix SubstMatrixRegistry::parseMatrix(const QString& name, const QByteArray& text, QString& error) {
     QList<QByteArray> lines = text.split('\n');
-    
+
     QByteArray alphaRow;
     QList<SScore> charScores;
     QString description;
-    DNAAlphabet* alphabet = NULL;
+    const DNAAlphabet* alphabet = NULL;
     QByteArray mappedAlphas; //cache of mapped characters. Used to check that no character is mapped twice
     // put comments into description
     for (int i=0; i < lines.length(); i++) {
@@ -148,7 +160,7 @@ SMatrix SubstMatrixRegistry::parseMatrix(const QString& name, const QByteArray& 
                     error = tr("Invalid character token '%1' , line %2").arg(token).arg(i+1);
                     return SMatrix();
                 }
-                char c = token.at(0).toUpper().toAscii();
+                char c = token.at(0).toUpper().toLatin1();
                 if (alphaRow.contains(c)) {
                     error = tr("Duplicate character '%1' , line %2").arg(token).arg(i+1);
                     return SMatrix();
@@ -172,7 +184,7 @@ SMatrix SubstMatrixRegistry::parseMatrix(const QString& name, const QByteArray& 
                 error = tr("Invalid character token '%1' , line %2").arg(token).arg(i+1);
                 return SMatrix();
             }
-            char c1 = token.at(0).toUpper().toAscii();
+            char c1 = token.at(0).toUpper().toLatin1();
             if (!alphaRow.contains(c1)) {
                 error = tr("Invalid character row '%1' , line %2").arg(token).arg(i+1);
                 return SMatrix();

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,8 +19,6 @@
  * MA 02110-1301, USA.
  */
 
-
-#include <memory>
 #include <cstdio>
 
 #include <U2Core/Log.h>
@@ -29,18 +27,16 @@
 
 #include <U2Remote/RemoteMachine.h>
 
-
 #include "PingTask.h"
 
 namespace U2 {
 
- 
 /************************************
 * PingTask
 ***********************************/
- 
+
 PingTask::PingTask(RemoteMachine* m)
- : Task( tr( "PingTask" ), TaskFlag_None), machine(m) 
+ : Task( tr( "PingTask" ), TaskFlag_None), machine(m)
 {
     assert(machine!=NULL);
     GCOUNTER( cvar, tvar, "PingTask" );

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,21 +43,23 @@ class FindWorker : public BaseWorker {
     Q_OBJECT
 public:
     FindWorker(Actor* a);
-    
+
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
-    
+
 private slots:
     void sl_taskFinished(Task*);
 
 protected:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     QString resultName;
     QMap<Task*, QByteArray> patterns;
-}; 
+    QMap<Task*, QPair< QString, QByteArray> > filePatterns;
+    QList<QPair<QString, QString> > namesPatterns;
+    bool patternFileLoaded;
+    bool useNames;
+};
 
 class FindWorkerFactory : public DomainFactory {
 public:
@@ -70,12 +72,12 @@ public:
 class FindAllRegionsTask : public Task { //FIXME this is temporary solution until FindAlgorithmTask moved to SequenceWalker
     Q_OBJECT
 public:
-    FindAllRegionsTask(const FindAlgorithmTaskSettings& s, const QList<SharedAnnotationData>&);
+    FindAllRegionsTask(const FindAlgorithmTaskSettings& s, const QList<AnnotationData> &);
     virtual void prepare();
     QList<FindAlgorithmResult> getResult();
 private:
-    FindAlgorithmTaskSettings cfg; 
-    QList<SharedAnnotationData> regions;
+    FindAlgorithmTaskSettings cfg;
+    QList<AnnotationData> regions;
 };
 
 } // Workflow namespace

@@ -1,49 +1,70 @@
-#include "HMMSearchTask.h"
-#include "TaskLocalStorage.h"
-#include "HMMIO.h"
-
-#include <U2Core/AppContext.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/DNATranslation.h>
-#include <U2Core/Counter.h>
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
 
 #include <hmmer2/funcs.h>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/Counter.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNATranslation.h>
 #include <U2Core/SequenceWalkerTask.h>
+
+#include "HMMIO.h"
+#include "HMMSearchTask.h"
+#include "TaskLocalStorage.h"
 
 namespace U2 {
 
 HMMSearchTask::HMMSearchTask(plan7_s* _hmm, const DNASequence& _seq, const UHMMSearchSettings& s)
-: Task("", TaskFlag_NoRun), 
+: Task("", TaskFlag_NoRun),
   hmm(_hmm), seq(_seq), settings(s), complTrans(NULL), aminoTrans(NULL), fName(""), swTask(NULL), readHMMTask(NULL)
 {
     setTaskName(tr("HMM search with '%1'").arg(hmm->name));
-    GCOUNTER( cvar, tvar, "HMM2 Search" );
+    GCOUNTER(cvar, tvar, "HMM2 Search");
 }
 
-HMMSearchTask::HMMSearchTask( const QString& hFile, const DNASequence& _seq, const UHMMSearchSettings& s )
-:Task("", TaskFlag_NoRun), 
+HMMSearchTask::HMMSearchTask(const QString& hFile, const DNASequence& _seq, const UHMMSearchSettings& s)
+:Task("", TaskFlag_NoRun),
 hmm(NULL), seq(_seq), settings(s), complTrans(NULL), aminoTrans(NULL), fName(hFile), swTask(NULL), readHMMTask(NULL)
 {
-    setTaskName(tr("HMM search"));
-    GCOUNTER( cvar, tvar, "HMM2 Search" );
+    setTaskName(tr("HMM Search"));
+    GCOUNTER(cvar, tvar, "HMM2 Search");
 }
 
 void HMMSearchTask::prepare() {
 
-    if( hasError() ) {
+    if(hasError()) {
         return;
     }
 
-    if( NULL != hmm ) {
+    if(NULL != hmm) {
         swTask = getSWSubtask();
-        if( NULL == swTask ) {
-            assert( hasError() );
+        if(NULL == swTask) {
+            assert(hasError());
             return;
         }
-        addSubTask( swTask );
+        addSubTask(swTask);
     } else {
         readHMMTask = new HMMReadTask(fName);
-        addSubTask( readHMMTask );
+        addSubTask(readHMMTask);
     }
 //     if (!checkAlphabets(hmm->atype, seq.alphabet, complTrans, aminoTrans)) {
 //         return;
@@ -61,14 +82,14 @@ void HMMSearchTask::prepare() {
 //     } else {
 //         config.lastChunkExtraLen = settings.extraLen;
 //     }
-//     
+//
 //     config.nThreads = MAX_PARALLEL_SUBTASKS_AUTO;
-//     
+//
 //     addSubTask(new SequenceWalkerTask(config, this, tr("parallel_hmm_search_task")));
 }
 
 
-void HMMSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& si) 
+void HMMSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& si)
 {
     const char* localSeq = t->getRegionSequence();
     int localSeqSize = t->getRegionSequenceLen();
@@ -83,18 +104,18 @@ void HMMSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& si)
     try {
         sresults = UHMMSearch::search(hmm, localSeq, localSeqSize, settings, si);
     } catch (HMMException e) {
-        stateInfo.setError(  e.error );
+        stateInfo.setError(e.error);
     }
     if (si.hasError()) {
-        stateInfo.setError(  si.getError() );
+        stateInfo.setError(si.getError());
     }
     if (sresults.isEmpty()  || stateInfo.cancelFlag || stateInfo.hasError()) {
         TaskLocalData::freeHMMContext(t->getTaskId());
         return;
     }
-    
+
     //convert all UHMMSearchResults into HMMSearchTaskResult
-    QMutexLocker locker( &lock );
+    QMutexLocker locker(&lock);
     int halfOverlap = hmm->M;
     foreach(const UHMMSearchResult& sr, sresults) {
         HMMSearchTaskResult r;
@@ -103,7 +124,7 @@ void HMMSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& si)
         r.onCompl = wasCompl;
         r.onAmino = wasAmino;
         int resLen   = wasAmino ? sr.r.length * 3 : sr.r.length;
-		int resStart = wasAmino ? sr.r.startPos * 3 : sr.r.startPos;
+        int resStart = wasAmino ? sr.r.startPos * 3 : sr.r.startPos;
         if (wasCompl) {
             resStart = globalReg.length - resStart - resLen;
         }
@@ -139,7 +160,7 @@ static bool HMMSearchResult_LessThan(const HMMSearchTaskResult& r1, const HMMSea
                 return &r1 < &r2;
             }
             return r2.onCompl;
-        } 
+        }
         return r1.r < r2.r;
     }
     return r1.evalue < r2.evalue;
@@ -197,16 +218,17 @@ Task::ReportResult HMMSearchTask::report() {
             results.append(r);
         }
     }
-   
+
     // sort results by E-value
     qSort(results.begin(), results.end(), HMMSearchResult_LessThan);
     return ReportResult_Finished;
 }
 
-QList<SharedAnnotationData> HMMSearchTask::getResultsAsAnnotations(const QString& name) const {
+QList<SharedAnnotationData> HMMSearchTask::getResultsAsAnnotations(U2FeatureType type, const QString& name) const {
     QList<SharedAnnotationData>  annotations;
-    foreach(const HMMSearchTaskResult& hmmRes, results) {
-        AnnotationData* a = new AnnotationData();
+    foreach (const HMMSearchTaskResult &hmmRes, results) {
+        SharedAnnotationData a(new AnnotationData);
+        a->type = type;
         a->name = name;
         a->setStrand(hmmRes.onCompl ? U2Strand::Complementary : U2Strand::Direct);
         a->location->regions << hmmRes.r;
@@ -231,21 +253,21 @@ QList<SharedAnnotationData> HMMSearchTask::getResultsAsAnnotations(const QString
         //a->qualifiers.append(U2Qualifier("E-value", QString().sprintf("%.2lg", ((double) hmmRes.evalue))));
         a->qualifiers.append(U2Qualifier("E-value", str));
         a->qualifiers.append(U2Qualifier("Score", QString().sprintf("%.1f", hmmRes.score)));
-        annotations.append(SharedAnnotationData(a));
+        annotations.append(a);
     }
     return annotations;
 }
 
-bool HMMSearchTask::checkAlphabets(int hmmAlType, DNAAlphabet* seqAl, DNATranslation*& complTrans, DNATranslation*& aminoTrans) 
+bool HMMSearchTask::checkAlphabets(int hmmAlType, const DNAAlphabet* seqAl, DNATranslation*& complTrans, DNATranslation*& aminoTrans)
 {
     assert(stateInfo.getError().isEmpty());
     DNAAlphabetType hmmAl = HMMIO::convertHMMAlphabet(hmmAlType);
     if (hmmAl == DNAAlphabet_RAW) {
-        stateInfo.setError(  tr("invalid_hmm_alphabet_type") );
+        stateInfo.setError(tr("Invalid HMM alphabet!"));
         return false;
     }
     if (seqAl->isRaw()) {
-        stateInfo.setError(  tr("invalid_sequence_alphabet_type") );
+        stateInfo.setError(tr("Invalid sequence alphabet!"));
         return false;
     }
 
@@ -253,14 +275,14 @@ bool HMMSearchTask::checkAlphabets(int hmmAlType, DNAAlphabet* seqAl, DNATransla
     aminoTrans = NULL;
     if (seqAl->isNucleic()) {
         DNATranslationRegistry* tr = AppContext::getDNATranslationRegistry();
-        QList<DNATranslation*> complTs = tr->lookupTranslation(seqAl, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!complTs.empty()) {
-            complTrans = complTs.first();
+        DNATranslation* complT = tr->lookupComplementTranslation(seqAl);
+        if (complT != NULL) {
+            complTrans = complT;
         }
         if (hmmAl == DNAAlphabet_AMINO) {
             QList<DNATranslation*> aminoTs = tr->lookupTranslation(seqAl, DNATranslationType_NUCL_2_AMINO);
             if (!aminoTs.empty()) {
-                aminoTrans = aminoTs.first();
+                aminoTrans = tr->getStandardGeneticCodeTranslation(seqAl);
             }
         }
     } else {
@@ -273,7 +295,7 @@ bool HMMSearchTask::checkAlphabets(int hmmAlType, DNAAlphabet* seqAl, DNATransla
             assert(complTrans == NULL && aminoTrans == NULL);
         } else {
             if (aminoTrans == NULL) {
-                stateInfo.setError(  tr("can_t_find_amino") );
+                stateInfo.setError(tr("Amino translation is not available for the sequence alphabet!"));
                 return false;
             }
         }
@@ -284,9 +306,9 @@ bool HMMSearchTask::checkAlphabets(int hmmAlType, DNAAlphabet* seqAl, DNATransla
 
 SequenceWalkerTask* HMMSearchTask::getSWSubtask()
 {
-    assert( !hasError() );
-    assert( NULL != hmm );
-    
+    assert(!hasError());
+    assert(NULL != hmm);
+
     if (!checkAlphabets(hmm->atype, seq.alphabet, complTrans, aminoTrans)) {
         return NULL;
     }
@@ -303,32 +325,33 @@ SequenceWalkerTask* HMMSearchTask::getSWSubtask()
     } else {
         config.lastChunkExtraLen = settings.extraLen;
     }
+    config.walkCircular = false;
 
     config.nThreads = MAX_PARALLEL_SUBTASKS_AUTO;
 
-    return new SequenceWalkerTask(config, this, tr("parallel_hmm_search_task"));
+    return new SequenceWalkerTask(config, this, tr("Parallel HMM search"));
 }
 
-QList< Task* > HMMSearchTask::onSubTaskFinished( Task* subTask )
+QList< Task* > HMMSearchTask::onSubTaskFinished(Task* subTask)
 {
-    assert( NULL != subTask );
+    assert(NULL != subTask);
     QList< Task* > res;
-    if( subTask->hasError() ) {
+    if(subTask->hasError()) {
         stateInfo.setError(subTask->getError());
         return res;
     }
 
-    if( readHMMTask == subTask ) {
+    if(readHMMTask == subTask) {
         hmm = readHMMTask->getHMM();
         swTask = getSWSubtask();
-        if( NULL == swTask ) {
-            assert( hasError() );
+        if(NULL == swTask) {
+            assert(hasError());
             return res;
         }
         res << swTask;
     } else {
-        if( swTask != subTask ) {
-            assert( 0 && "undefined_subtask_finished" );
+        if(swTask != subTask) {
+            assert(0 && "undefined_subtask_finished");
         }
     }
 

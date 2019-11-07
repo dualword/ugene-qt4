@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,12 @@
 #ifndef _U2_BAM_CONVERT_TO_SQLITE_DIALOG_H_
 #define _U2_BAM_CONVERT_TO_SQLITE_DIALOG_H_
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 #include <QtCore/QList>
 #include <U2Core/GUrl.h>
 #include "ui_ConvertToSQLiteDialog.h"
@@ -39,6 +44,7 @@ public:
     ConvertToSQLiteDialog(const GUrl& sourceUrl, BAMInfo& bamInfo, bool sam);
 
     const GUrl &getDestinationUrl()const;
+    QString getReferenceUrl()const;
     bool        addToProject() const;
     void        hideAddToProjectOption();
 public slots:
@@ -46,11 +52,19 @@ public slots:
 
 private slots:
     void on_destinationUrlButton_clicked();
-    void sl_contigCheckChanged(QTableWidgetItem * item);
+    void sl_assemblyCheckChanged(QTableWidgetItem * item);
     void sl_bamInfoButtonClicked();
+    void sl_refUrlButtonClicked();
     void sl_selectAll();
     void sl_unselectAll();
     void sl_inverseSelection();
+
+private:
+    void hideReferenceUrl();
+    void hideReferencesTable();
+    void hideReferenceMessage();
+    bool referenceFromFile();
+    bool checkReferencesState();
 
 private:
     Ui::ConvertToSQLiteDialog ui;
@@ -58,7 +72,7 @@ private:
     GUrl destinationUrl;
     GUrl sourceUrl;
     BAMInfo &bamInfo;
-    
+
     bool askIfDestFileExist;
 };
 

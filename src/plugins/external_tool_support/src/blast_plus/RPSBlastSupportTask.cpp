@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,10 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QFileInfo>
+
 #include "RPSBlastSupportTask.h"
 #include "BlastPlusSupport.h"
-
 
 namespace U2 {
 
@@ -36,7 +37,9 @@ ExternalToolRunTask* RPSBlastSupportTask::createBlastPlusTask() {
     algoLog.trace("RPSBlast arguments: "+arguments.join(" "));
     logParser=new ExternalToolLogParser;
     QString workingDirectory=QFileInfo(url).absolutePath();
-    return new ExternalToolRunTask(RPSBLAST_TOOL_NAME, arguments, logParser, workingDirectory);
+    ExternalToolRunTask* runTask = new ExternalToolRunTask(ET_RPSBLAST, arguments, logParser, workingDirectory);
+    setListenerForTask(runTask);
+    return runTask;
 }
 
 LocalCDSearch::LocalCDSearch(const CDSearchSettings& settings) {

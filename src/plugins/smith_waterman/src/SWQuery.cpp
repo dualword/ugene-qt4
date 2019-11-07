@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -71,7 +71,7 @@ QDSWActor::QDSWActor(QDActorPrototype const* proto) : QDActor(proto), algo(0) {
 }
 
 int QDSWActor::getMinResultLen() const {
-    return cfg->getParameter(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toAscii().size()/2;
+    return cfg->getParameter(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toLatin1().size()/2;
 }
 
 int QDSWActor::getMaxResultLen() const {
@@ -81,7 +81,7 @@ int QDSWActor::getMaxResultLen() const {
 QString QDSWActor::getText() const {
     QMap<QString, Attribute*> params = cfg->getParameters();
 
-    QString pattern = params.value(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toAscii().toUpper();
+    QString pattern = params.value(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toLatin1().toUpper();
     if (pattern.isEmpty()) {
         pattern = "unset";
     }
@@ -90,7 +90,7 @@ QString QDSWActor::getText() const {
 
     int percentOfScore = params.value(SCORE_ATTR)->getAttributeValueWithoutScript<int>();
     QString percentOfScoreStr = QString("<a href=%1>%2%</a>").arg(SCORE_ATTR).arg(percentOfScore);
-    QString match = percentOfScore < 100 ? 
+    QString match = percentOfScore < 100 ?
         QDSWActor::tr("matches with <u>at least %1 score</u>").arg(percentOfScoreStr) : QDSWActor::tr("exact matches");
 
     QString strandName;
@@ -142,7 +142,7 @@ Task* QDSWActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
         QString err = tr("%1: incorrect result filter.").arg(getParameters()->getLabel());
         return new FailTask(err);
     }
-    settings.ptrn = params.value(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toAscii().toUpper();
+    settings.ptrn = params.value(PATTERN_ATTR)->getAttributeValueWithoutScript<QString>().toLatin1().toUpper();
     if(settings.ptrn.isEmpty()) {
         QString err = tr("%1: pattern is empty.").arg(getParameters()->getLabel());
         return new FailTask(err);
@@ -160,10 +160,13 @@ Task* QDSWActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
     settings.sqnc = dnaSeq.seq;
 
     if (settings.strand != StrandOption_DirectOnly) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-            lookupTranslation(dnaSeq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!compTTs.isEmpty()) {
-            settings.complTT = compTTs.first();
+        DNATranslation* compTT = NULL;
+        if (dnaSeq.alphabet->isNucleic()) {
+            compTT = AppContext::getDNATranslationRegistry()->
+                lookupComplementTranslation(dnaSeq.alphabet);
+        }
+        if (compTT != NULL) {
+            settings.complTT = compTT;
         } else {
             //Could not find complement translation, searching only direct strand
             settings.strand = StrandOption_DirectOnly;
@@ -173,8 +176,8 @@ Task* QDSWActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
     if (params.value(AMINO_ATTR)->getAttributeValueWithoutScript<bool>()) {
         DNATranslationType tt = (dnaSeq.alphabet->getType() == DNAAlphabet_NUCL) ? DNATranslationType_NUCL_2_AMINO : DNATranslationType_RAW_2_AMINO;
         QList<DNATranslation*> TTs = AppContext::getDNATranslationRegistry()->lookupTranslation(dnaSeq.alphabet, tt);
-        if (!TTs.isEmpty()) {
-            settings.aminoTT = TTs.first(); //FIXME let user choose or use hints ?
+        if (!TTs.isEmpty()) { //FIXME let user choose or use hints ?
+                settings.aminoTT = AppContext::getDNATranslationRegistry()->getStandardGeneticCodeTranslation(dnaSeq.alphabet);
         }
     }
     assert(settings.pSm.getName().isEmpty() && mtrx.toLower() != "auto");
@@ -191,15 +194,11 @@ Task* QDSWActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
 
     settings.globalRegion = U2Region(0, dnaSeq.length());
 
-    //SmithWatermanReportCallbackImpl* rcb = new SmithWatermanReportCallbackImpl(NULL, resultName, QString()); //FIXME!!! where to delete?
-    //settings.resultCallback = rcb;
-    //settings.resultListener = new SmithWatermanResultListener(); //FIXME: where to delete??
-
-    //task = algo->getTaskInstance(settings, QDSWActor::tr("smith_waterman_task"));
     task = new Task(tr("SSearch"), TaskFlag_NoRun);
     foreach(const U2Region& r, searchLocation) {
         SmithWatermanSettings stngs(settings);
-        SmithWatermanReportCallbackImpl* rcb = new SmithWatermanReportCallbackImpl(NULL,"",QString());
+        SmithWatermanReportCallbackAnnotImpl* rcb = new SmithWatermanReportCallbackAnnotImpl( NULL,
+            U2FeatureTypes::MiscFeature, QString(), QString(), "", false );
         stngs.resultCallback = rcb;
         stngs.resultListener = new SmithWatermanResultListener();
         stngs.globalRegion = r;
@@ -208,25 +207,19 @@ Task* QDSWActor::getAlgorithmTask(const QVector<U2Region>& searchLocation) {
         task->addSubTask(sub);
         callbacks.insert(sub, rcb);
     }
-    //callbacks.insert(task, rcb);
     connect(new TaskSignalMapper(task), SIGNAL(si_taskFinished(Task*)), SLOT(sl_onAlgorithmTaskFinished(Task*)));
     return task;
 }
 
 void QDSWActor::sl_onAlgorithmTaskFinished(Task*) {
-    /*SmithWatermanReportCallbackImpl* rcb = callbacks.take(t);
-    assert(rcb);*/
-    //const QList<SharedAnnotationData>& res = rcb->getAnotations();
     QList<SharedAnnotationData> res;
-    QMapIterator<Task*, SmithWatermanReportCallbackImpl*> iter(callbacks);
+    QMapIterator<Task*, SmithWatermanReportCallbackAnnotImpl*> iter(callbacks);
     while (iter.hasNext()) {
         iter.next();
         res << iter.value()->getAnotations();
     }
 
-    //QDStrandOption schemaStrand = scheme->getStrand();
-
-    foreach(const SharedAnnotationData& ad, res) {
+    foreach (const SharedAnnotationData &ad, res) {
         QDResultUnit ru(new QDResultUnitData);
         ru->strand = ad->getStrand();
         ru->quals = ad->qualifiers;
@@ -268,30 +261,30 @@ SWQDActorFactory::SWQDActorFactory() {
     attributes << new Attribute(god, BaseTypes::NUM_TYPE(), false, -10.);
     attributes << new Attribute(ged, BaseTypes::NUM_TYPE(), false, -1.);
 
-    QMap<QString, PropertyDelegate*> delegates;    
+    QMap<QString, PropertyDelegate*> delegates;
     {
         QVariantMap m; m["minimum"] = 1; m["maximum"] = 100; m["suffix"] = "%";
         delegates[SCORE_ATTR] = new SpinBoxDelegate(m);
-    }    
+    }
     {
         QVariantMap m; m["maximum"] = -0.; m["minimum"]=-10000000.;
         delegates[GAPOPEN_ATTR] = new DoubleSpinBoxDelegate(m);
         m["maximum"] = -1.;
         delegates[GAPEXT_ATTR] = new DoubleSpinBoxDelegate(m);
-    }    
+    }
     {
-        QVariantMap m;   
+        QVariantMap m;
         foreach(const QString& n, filterLst) {
             m.insert(n,n);
-        } 
+        }
         delegates[FILTER_ATTR] = new ComboBoxDelegate(m);
     }
     {
         QVariantMap m; m.insert(QDSWActor::tr("Auto"), QString("---"));
-        QStringList lst = AppContext::getSubstMatrixRegistry()->getMatrixNames();	
+        QStringList lst = AppContext::getSubstMatrixRegistry()->getMatrixNames();
         foreach(const QString& n, lst) {
             m.insert(n,n);
-        } 
+        }
         delegates[MATRIX_ATTR] = new ComboBoxDelegate(m);
     }
 

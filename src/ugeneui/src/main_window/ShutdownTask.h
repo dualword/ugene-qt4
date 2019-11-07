@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,23 +26,25 @@
 
 namespace U2 {
 
+class Document;
 class MainWindowImpl;
 
 class ShutdownTask : public Task {
     Q_OBJECT
 public:
-	ShutdownTask(MainWindowImpl* mw);
-	
-	void prepare();
+    ShutdownTask(MainWindowImpl* mw);
 
-	ReportResult report();
+    void prepare();
+
+    ReportResult report();
 
 protected:
-	virtual QList<Task*> onSubTaskFinished(Task* subTask);
+    virtual QList<Task*> onSubTaskFinished(Task* subTask);
 
 private:
-	MainWindowImpl* mw;
-
+    MainWindowImpl* mw;
+    bool docsToRemoveAreFetched;
+    QList<Document *> docsToRemove;
 };
 
 

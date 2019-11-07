@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ namespace U2 {
 
 #define DEFAULT_FILL_VALUE -1000000.0f
 
-SMatrix::SMatrix(const QString& _name, DNAAlphabet* _alphabet, const QList<SScore>& rawMatrix, const QString& _description)
+SMatrix::SMatrix(const QString& _name, const DNAAlphabet* _alphabet, const QList<SScore>& rawMatrix, const QString& _description)
 : name(_name), description(_description), alphabet(_alphabet)
 {
     validCharacters = alphabet->getAlphabetChars();
@@ -47,7 +47,7 @@ SMatrix::SMatrix(const QString& _name, DNAAlphabet* _alphabet, const QList<SScor
         minScore = qMin(minScore, s.score);
         maxScore = qMax(maxScore, s.score);
     }
-    
+
     //try to fix amino alphabet for extended symbols if needed: U(Selenocysteine) & O(Pyrrolysine)
     if (alphabet->isAmino()) {
         if (getScore('U', 'U') == DEFAULT_FILL_VALUE) { // no score for 'U' symbol, use score value for 'C' (Cysteine)
@@ -63,7 +63,7 @@ SMatrix::SMatrix(const QString& _name, DNAAlphabet* _alphabet, const QList<SScor
         foreach(char c2, validCharacters) {
             float score = getScore(c1, c2);
             if (score == DEFAULT_FILL_VALUE) {
-                setScore(c1, c2, minScore);            
+                setScore(c1, c2, minScore);
             }
         }
     }
@@ -76,7 +76,7 @@ void SMatrix::copyCharValues(char srcChar, char dstChar) {
         setScore(dstChar, c, scoreSrc1);
         float scoreSrc2 = getScore(c, srcChar);
         setScore(c, dstChar, scoreSrc2);
-    }                
+    }
 }
 
 QVariant SMatrix::toQVariant() const {
@@ -109,8 +109,8 @@ SMatrix SMatrix::fromQVariant(const QVariant& v) {
     m.description = list.at(n++).toString();
     QString alphabetId = list.at(n++).toString();
     m.alphabet = AppContext::getDNAAlphabetRegistry()->findById(alphabetId);
-    m.minChar = list.at(n++).toChar().toAscii();
-    m.maxChar = list.at(n++).toChar().toAscii();
+    m.minChar = list.at(n++).toChar().toLatin1();
+    m.maxChar = list.at(n++).toChar().toLatin1();
     m.charsInRow = list.at(n++).toInt();
     m.validCharacters = list.at(n++).toByteArray();
     m.minScore = (float)list.at(n++).toDouble();

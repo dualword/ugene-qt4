@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,12 @@
 #ifndef _U2_QD_GROUPS_EDITOR_H_
 #define _U2_QD_GROUPS_EDITOR_H_
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
-
+#else
+#include <QtWidgets/QTreeWidget>
+#endif
 
 namespace U2 {
 

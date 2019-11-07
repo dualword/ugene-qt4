@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,14 +42,18 @@ public:
     static const QString WRITE_STOCKHOLM_PROTO_ID;
     static const QString WRITE_MSA_PROTO_ID;
     static const QString WRITE_SEQ_PROTO_ID;
-    
+    static const QString GROUPER_ID;
+
     static const QString TEXT_TYPESET_ID;
-    
+
     static const QString WORKFLOW_ON_CLOUD_TASK_ID;
     static const QString WORKFLOW_SCHEMA_ATTR;
     static const QString DATA_IN_ATTR;
     static const QString DATA_OUT_ATTR;
-    
+    static const QString GROUPER_SLOT_ATTR;
+    static const QString GROUPER_OUT_SLOTS_ATTR;
+    static const QString GROUPER_OPER_ATTR;
+
 }; // CoreLibConstants
 
 } // Workflow

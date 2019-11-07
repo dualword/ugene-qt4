@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,11 @@
 #include <U2Core/ServiceModel.h>
 #include <U2Test/TestRunnerTask.h>
 #include <QtScript>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 namespace U2 {
 
@@ -41,7 +45,7 @@ class GTestEnvironment;
 class TestRunnerPlugin : public Plugin {
     Q_OBJECT
 public:
-    TestRunnerPlugin();   
+    TestRunnerPlugin();
 private slots:
     void sl_startTestRunner();
 };
@@ -79,12 +83,12 @@ private:
     void saveSuites();
     void readBuiltInVars();
     void deallocateSuites();
-    
+
     void readEnvForKeys(QStringList keys);
     void saveEnv();
     void updateDefaultEnvValues(GTestSuite* ts);
 
-    
+
     TestViewController*         view;
     QAction*                    windowAction;
     QList<GTestSuite*>          suites;

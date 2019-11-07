@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,11 @@
 
 #include <U2Core/global.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 #include <ui/ui_ExportSequences2MSADialog.h>
 
 namespace U2 {
@@ -35,21 +39,22 @@ class ExportSequences2MSADialog : public QDialog, Ui_ExportSequences2MSADialog {
     Q_OBJECT
 public:
     ExportSequences2MSADialog(QWidget* p, const QString& defaultUrl = QString() );
-    
+
     void setOkButtonText(const QString& text) const;
     void setFileLabelText(const QString& text) const;
 
     virtual void accept();
 
 
-public:    
+public:
     QString url;
     DocumentFormatId format;
     bool    addToProjectFlag;
     bool    useGenbankHeader;
 
-private:    
+private:
     SaveDocumentGroupController* saveContoller;
+    QPushButton* okButton;
 
 };
 

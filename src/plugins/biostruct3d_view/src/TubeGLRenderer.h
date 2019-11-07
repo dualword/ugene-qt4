@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,17 +33,17 @@ namespace U2 {
 
 
 class TubeGLRenderer : public BioStruct3DGLRenderer {
-        
+
     typedef QVector< SharedAtom > AtomsVector;
-    
+
     struct Tube {
         QMap<int, AtomsVector> modelsMap;
-    }; 
-    
+    };
+
 
     QMap<int, Tube> tubeMap;
 
-    void drawTubes(const BioStruct3DColorScheme* colorScheme); 
+    void drawTubes(const BioStruct3DColorScheme* colorScheme);
 
 protected:
     TubeGLRenderer(const BioStruct3D& struc, const BioStruct3DColorScheme* s, const QList<int> &shownModels, const BioStruct3DRendererSettings *settings);

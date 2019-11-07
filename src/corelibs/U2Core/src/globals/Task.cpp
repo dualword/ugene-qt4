@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,6 +38,7 @@ Task::Task(const QString& _name, TaskFlags f) {
     state       = State_New;
     tpm         = Progress_SubTasksBased;
     flags       = f;
+    setVerboseOnTaskCancel(true);
     taskId      = genTaskId();
     parentTask  = NULL;
     progressWeightAsSubtask = 1;
@@ -55,7 +56,8 @@ void Task::setTaskName(const QString& _taskName) {
     taskName = _taskName;
 }
 
-void Task::cancel() { 
+void Task::cancel() {
+    CHECK(!isFinished(), );
     foreach(Task* t, subtasks) {
         if (!t->isFinished()) {
             t->cancel();
@@ -69,9 +71,9 @@ void Task::addSubTask(Task* sub) {
     SAFE_POINT(sub != NULL, "Trying to add NULL subtask",);
     SAFE_POINT(sub->parentTask==NULL, "Task already has a parent!",);
     SAFE_POINT(state == State_New, "Parents can be assigned to tasks in NEW state only!",);
-    
+
     sub->parentTask = this;
-    subtasks.append(sub); 
+    subtasks.append(sub);
     emit si_subtaskAdded(sub);
 }
 
@@ -103,9 +105,9 @@ Task* Task::getSubtaskWithErrors() const  {
     return NULL;
 }
 
-QList<Task*> Task::onSubTaskFinished(Task*){ 
-    static QList<Task*> stub; 
-    return stub; 
+QList<Task*> Task::onSubTaskFinished(Task*){
+    static QList<Task*> stub;
+    return stub;
 }
 
 
@@ -125,10 +127,19 @@ void Task::setMinimizeSubtaskErrorText(bool v) {
 }
 
 void Task::addTaskResource(const TaskResourceUsage& r) {
-    SAFE_POINT(state == Task::State_New, QString("Can't add task resource in current state: %1)").arg(getState()),);    
-    SAFE_POINT(!insidePrepare || !r.prepareStageLock, "Can't add prepare-time resource from within prepare function call!",);    
+    SAFE_POINT(state == Task::State_New, QString("Can't add task resource in current state: %1)").arg(getState()),);
+    SAFE_POINT(!insidePrepare || !r.prepareStageLock, "Can't add prepare-time resource from within prepare function call!",);
     SAFE_POINT(!r.locked, QString("Resource is already locked, resource id: %1").arg(r.resourceId),);
     taskResources.append(r);
+}
+
+void Task::setCollectChildrensWarningsFlag(bool v) {
+    setFlag(TaskFlag_CollectChildrenWarnings, v);
+    if (v) {
+        foreach (Task* sub, subtasks) {
+            sub->setCollectChildrensWarningsFlag(v);
+        }
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -139,21 +150,25 @@ void TaskScheduler::addSubTask(Task* t, Task* sub) {
     SAFE_POINT(sub != NULL, "When adding subtask to TaskScheduler, the subtask is NULL",);
     SAFE_POINT(sub->getParentTask() == NULL, "Task already has a parent!",);
 
+    if (t->hasFlags(TaskFlag_CollectChildrenWarnings)) {
+        sub->setCollectChildrensWarningsFlag(true);
+    }
+
     sub->parentTask = t;
     t->subtasks.append(sub);
     emit t->si_subtaskAdded(sub);
 }
 
-void TaskScheduler::setTaskState(Task* t, Task::State newState) { 
+void TaskScheduler::setTaskState(Task* t, Task::State newState) {
     SAFE_POINT(t->getState() < newState, QString("Illegal task state change! Current state: %1, new state: %2").arg(t->getState()).arg(newState),);
 
-    t->state = newState; 
-    
+    t->state = newState;
+
     emit t->si_stateChanged();
     emit si_stateChanged(t);
 }
 
-void TaskScheduler::setTaskStateDesc(Task* t, const QString& desc) { 
+void TaskScheduler::setTaskStateDesc(Task* t, const QString& desc) {
     t->stateInfo.setDescription(desc);
 }
 

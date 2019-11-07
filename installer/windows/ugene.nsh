@@ -2,8 +2,14 @@
 
 ################################################################
 # Modern UI
-!include "MUI.nsh"
+!include "MUI2.nsh"
 !verbose 4
+
+!define CompanyName "Unipro"
+!define ProductName "UGENE"
+!define FullProductName "${CompanyName} ${ProductName}"
+!define TargetPlatform x86
+
 
 # Compressor
     SetCompressor /SOLID /FINAL lzma
@@ -11,11 +17,20 @@
 
 # Interface Settings
     !define MUI_ABORTWARNING
+    !define MUI_LANGDLL_ALLLANGUAGES        
     !define MUI_HEADERIMAGE
     !define MUI_HEADERIMAGE_BITMAP "images\header.bmp"
     !define MUI_SPECIALIMAGE
     !define MUI_WELCOMEFINISHPAGE_BITMAP "images\welcome.bmp"
     !define MUI_FINISHPAGE_RUN "$INSTDIR\ugeneui.exe"
+
+;--------------------------------
+;Language Selection Dialog Settings
+
+  ;Remember the installer language
+  !define MUI_LANGDLL_REGISTRY_ROOT "HKCU" 
+  !define MUI_LANGDLL_REGISTRY_KEY "Software\${CompanyName}\${ProductName}" 
+  !define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
 
 # Pages
     !insertmacro MUI_PAGE_WELCOME
@@ -30,6 +45,18 @@
 
 # Languages
     !insertmacro MUI_LANGUAGE "English"
+    !insertmacro MUI_LANGUAGE "Russian"
+    !insertmacro MUI_LANGUAGE "Czech"
+    !insertmacro MUI_LANGUAGE "SimpChinese"
+
+;--------------------------------
+;Reserve Files
+  
+  ;If you are using solid compression, files that are required before
+  ;the actual installation should be stored first in the data block,
+  ;because this will make your installer start faster.
+  
+  !insertmacro MUI_RESERVEFILE_LANGDLL
 
 Function "checkInstDir"
    CreateDirectory $INSTDIR
@@ -40,13 +67,14 @@ FunctionEnd
 
 !include ugene_extensions.nsh
 
+!define MUI_LANGDLL_WINDOWTITLE "Select Language"
+
+Function .onInit
+    !insertmacro MUI_LANGDLL_DISPLAY
+FunctionEnd
+
 ################################################################
 # Installer options
-    !define CompanyName "Unipro"
-    !define ProductName "UGENE"
-    !define FullProductName "${CompanyName} ${ProductName}"
-    !define TargetPlatform x86
-
     !define ReleaseBuildDir "..\..\src\_release"
     !include ${ReleaseBuildDir}\version.nsis
     !ifndef ProductVersion
@@ -73,6 +101,28 @@ FunctionEnd
     !endif
 
 
+Function languageUGENEIni
+    CreateDirectory "$APPDATA\${CompanyName}\"
+    ClearErrors
+
+    FileOpen $4 "$APPDATA\${CompanyName}\${ProductName}.ini" a
+    FileWrite $4 "[user_apps]$\r$\n"
+    FileWrite $4 "translation_file=transl_"
+
+        StrCmp $LANGUAGE ${LANG_RUSSIAN} 0 +2
+            FileWrite $4 "ru"
+        StrCmp $LANGUAGE ${LANG_ENGLISH} 0 +2
+            FileWrite $4 "en"
+        StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
+            FileWrite $4 "zh"
+        StrCmp $LANGUAGE ${LANG_CZECH} 0 +2
+            FileWrite $4 "cs"
+
+    FileWrite $4 "$\r$\n"
+    FileClose $4
+FunctionEnd
+
+
 ################################################################
 Section "Build"
     !include "FileFunc.nsh"
@@ -90,6 +140,7 @@ Section "Build"
     File "${ReleaseBuildDir}\ugeneui.map"
     File "${ReleaseBuildDir}\ugenecl.map"
     File "${ReleaseBuildDir}\ugenem.exe"
+    File "${ReleaseBuildDir}\plugins_checker.exe"
     Rename ugenecl.exe ugene.exe
     File "${ReleaseBuildDir}\U2Algorithm.dll"
     File "${ReleaseBuildDir}\U2Core.dll"
@@ -99,6 +150,7 @@ Section "Build"
     File "${ReleaseBuildDir}\U2Lang.dll"
     File "${ReleaseBuildDir}\U2Private.dll"
     File "${ReleaseBuildDir}\U2Remote.dll"
+    File "${ReleaseBuildDir}\U2Script.dll"
     File "${ReleaseBuildDir}\U2Test.dll"
     File "${ReleaseBuildDir}\U2View.dll"
     File "${ReleaseBuildDir}\ugenedb.dll"
@@ -110,6 +162,7 @@ Section "Build"
     File "${ReleaseBuildDir}\U2Lang.map"
     File "${ReleaseBuildDir}\U2Private.map"
     File "${ReleaseBuildDir}\U2Remote.map"
+    File "${ReleaseBuildDir}\U2Script.map"
     File "${ReleaseBuildDir}\U2Test.map"
     File "${ReleaseBuildDir}\U2View.map"
     File "${ReleaseBuildDir}\ugenedb.map"
@@ -122,8 +175,16 @@ Section "Build"
     SetOutPath $INSTDIR\data
     File /r /x .svn "..\..\data\*.*"
 
+    !ifdef ExternalTools
+    SetOutPath $INSTDIR\tools
+    File /r /x .svn "..\..\src\_release\tools\*.*"
+    !endif
+
     SetOutPath $INSTDIR\styles
     File "includes\styles\qtdotnet2.dll"
+
+    SetOutPath $INSTDIR\sqldrivers
+    File "includes\sqldrivers\qsqlmysql4.dll"
 
     SetOutPath $INSTDIR\plugins
     File /r /x .svn "includes\plugins\*.*"
@@ -131,38 +192,42 @@ Section "Build"
     !insertmacro AddPlugin annotator
     !insertmacro AddPlugin ball
     !insertmacro AddPlugin biostruct3d_view
+    !insertmacro AddPlugin browser_support
     !insertmacro AddPlugin chroma_view
     !insertmacro AddPlugin circular_view
-    !insertmacro AddPlugin remote_service
     !insertmacro AddPlugin cuda_support
-    !insertmacro AddPlugin opencl_support
+    !insertmacro AddPlugin dbi_bam
     !insertmacro AddPlugin dna_export
+    !insertmacro AddPlugin dna_flexibility
     !insertmacro AddPlugin dna_graphpack
     !insertmacro AddPlugin dna_stat
     !insertmacro AddPlugin dotplot
     !insertmacro AddPlugin enzymes
+    !insertmacro AddPlugin expert_discovery
     !insertmacro AddPlugin external_tool_support
     !insertmacro AddPlugin genome_aligner
     !insertmacro AddPlugin gor4
     !insertmacro AddPlugin hmm2
     !insertmacro AddPlugin hmm3
     !insertmacro AddPlugin kalign
+    !insertmacro AddPlugin linkdata_support
+    !insertmacro AddPlugin opencl_support
     !insertmacro AddPlugin orf_marker
+    !insertmacro AddPlugin pcr
     !insertmacro AddPlugin phylip
     !insertmacro AddPlugin primer3
     !insertmacro AddPlugin psipred
+    !insertmacro AddPlugin ptools
     !insertmacro AddPlugin query_designer
     !insertmacro AddPlugin remote_blast
+    !insertmacro AddPlugin remote_service
     !insertmacro AddPlugin repeat_finder
-    !insertmacro AddPlugin sitecon
     !insertmacro AddPlugin smith_waterman
+    !insertmacro AddPlugin sitecon
     !insertmacro AddPlugin umuscle
     !insertmacro AddPlugin weight_matrix
     !insertmacro AddPlugin workflow_designer
-    !insertmacro AddPlugin dbi_bam
-    !insertmacro AddPlugin expert_discovery
-    !insertmacro AddPlugin ptools
-    !insertmacro AddPlugin dna_flexibility
+    !insertmacro AddPlugin variants
     
     SetOutPath $INSTDIR\tools
     File /r /x .svn "includes\tools\*.*"
@@ -194,6 +259,9 @@ Section "Build"
 
     Iferrors 0 +2
     StrCpy $warnText "$warnText$\r$\nWarning: cannot create uninstaller!"
+
+    # Write language param in ini file
+    Call languageUGENEIni
 
     # Remove old config
     # Delete $APPDATA\${CompanyName}\${ProductName}.ini
@@ -240,6 +308,7 @@ Section Uninstall
     Delete "$INSTDIR\Uninst.exe"
     RMDir /r "$INSTDIR"
     DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${FullProductName}"
+    DeleteRegKey HKCU "Software\${CompanyName}\${ProductName}"
 SectionEnd
 
 ################################################################
@@ -248,3 +317,12 @@ SectionEnd
 
 
 ################################################################
+
+;--------------------------------
+;Uninstaller Functions
+
+Function un.onInit
+
+  !insertmacro MUI_UNGETLANGUAGE
+  
+FunctionEnd

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,26 +34,39 @@ namespace U2 {
 class BlastRunCommonDialog : public QDialog, public Ui_BlastAllSupportDialog {
     Q_OBJECT
 public:
-    BlastRunCommonDialog(QWidget* parent);
+    enum BlastType {BlastAll, BlastPlus};
+    BlastRunCommonDialog(QWidget *parent, BlastType blastType, bool useCompValues, QStringList compValues);
 
     const BlastTaskSettings &getSettings()const;
+    QPushButton* okButton;
+    QPushButton* cancelButton;
+    QPushButton* restoreButton;
 protected slots:
     virtual void sl_runQuery() = 0;
     virtual void sl_lineEditChanged() = 0;
 
-    void sl_onBrowseDatabasePath();//=
+    void sl_onBrowseDatabasePath();
 
-    void sl_onProgNameChange(int i);//=
-    void sl_onMatchScoresChanged(int i);//=
-    void sl_onMatrixChanged(int i);//=
-    void sl_megablastChecked();//=
-    void sl_restoreDefault();//=
+    void sl_onProgNameChange(int i);
+    void sl_onMatchScoresChanged(int i);
+    void sl_onMatrixChanged(int i);
+    void sl_megablastChecked();
+    void sl_restoreDefault();
+    void sl_onCompStatsChanged();
 protected:
     void getSettings(BlastTaskSettings& settings);
+    void enableStrandBox(bool enable);
 
     BlastTaskSettings                   settings;
     bool                                needRestoreDefault;
     CreateAnnotationWidgetController*   ca_c;
+
+private:
+    void setupCompositionBasedStatistics();
+
+private:
+    bool useCompValues;
+    QStringList compValues;
 };
 }//namespace
 #endif // _U2_BLAST_RUN_COMMON_DIALOG_H

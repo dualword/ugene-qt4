@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,8 +26,8 @@
 
 namespace U2 {
 
-#define BOWTIE_TOOL_NAME "Bowtie "  //this space is a dirty hack
-#define BOWTIE_BUILD_TOOL_NAME "Bowtie-build"
+#define ET_BOWTIE "Bowtie aligner"
+#define ET_BOWTIE_BUILD "Bowtie build indexer"
 
 class BowtieSupport : public ExternalTool {
     Q_OBJECT

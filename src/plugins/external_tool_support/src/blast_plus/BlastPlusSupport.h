@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,12 +25,13 @@
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Gui/ObjectViewModel.h>
 
-#define BLASTN_TOOL_NAME "BlastN"
-#define BLASTP_TOOL_NAME "BlastP"
-#define BLASTX_TOOL_NAME "BlastX"
-#define TBLASTN_TOOL_NAME "TBlastN"
-#define TBLASTX_TOOL_NAME "TBlastX"
-#define RPSBLAST_TOOL_NAME "RPSBlast"
+#define ET_BLASTN "BlastN"
+#define ET_BLASTP "BlastP"
+#define ET_GPU_BLASTP "GPU-BlastP"
+#define ET_BLASTX "BlastX"
+#define ET_TBLASTN "TBlastN"
+#define ET_TBLASTX "TBlastX"
+#define ET_RPSBLAST "RPSBlast"
 #define BLASTPLUS_TMP_DIR    "blast_plus"
 
 namespace U2 {
@@ -53,6 +54,7 @@ public:
 
 protected slots:
     void sl_showDialog();
+    void sl_fetchSequenceById();
 
 protected:
     virtual void initViewContext(GObjectView* view);
@@ -61,6 +63,8 @@ private:
     QStringList toolList;
     QString lastDBPath;
     QString lastDBName;
+    QString selectedId;
+    QAction* fetchSequenceByIdAction;
 };
 
 }//namespace

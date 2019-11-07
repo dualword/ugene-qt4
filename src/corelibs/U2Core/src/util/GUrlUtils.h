@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
  * MA 02110-1301, USA.
  */
 
-#ifndef _U2_GURL_UTILS_H_ 
+#ifndef _U2_GURL_UTILS_H_
 #define _U2_GURL_UTILS_H_
 
 #include <U2Core/global.h>
@@ -46,14 +46,24 @@ public:
     // ensures that url ends with one of the exts
     static GUrl     ensureFileExt(const GUrl& url, const QStringList& typeExt);
 
+    // Changes the file's extension without affecting the ".gz" extension, returns an empty GUrl if any error occurs
+    // doesn't remove the previous extension if it doesn't belong to format defined by @oldFormatId
+    static GUrl changeFileExt(const GUrl &url, const DocumentFormatId &oldFormatId, const DocumentFormatId &newFormatId);
+
+    // Changes the file's extension without affecting the ".gz" extension, returns an empty GUrl if any error occurs
+    static GUrl changeFileExt(const GUrl &url, const DocumentFormatId &newFormatId);
+
     // returns url suitable for backup renaming (increments name for rolling file until non-existing name found)
-    static QString  rollFileName(const QString& url, const QString& rolledSuffix, const QSet<QString>& excludeList);
+    static QString  rollFileName(const QString& url, const QString& rolledSuffix, const QSet<QString>& excludeList = QSet<QString>());
 
     // same as above but with empty suffix
     static QString  rollFileName(const QString& url, const QSet<QString>& excludeList) { return rollFileName(url, "", excludeList);}
 
     // returns a list of existing files with rolled @originalUrl
     static QStringList getRolledFilesList(const QString& originalUrl, const QString& rolledSuffix);
+
+    // inserts a suffix before the extension if is exists and returns the new url
+    static QString insertSuffix(const QString &originalUrl, const QString &suffix);
 
     // renames actual file by rolling its name
     static bool renameFileWithNameRoll(const QString& url, TaskStateInfo& ti, const QSet<QString>& excludeList = QSet<QString>(), Logger* log = NULL);
@@ -75,13 +85,13 @@ public:
     // adds count to the url. Ensures that URL ends with one of the exts from typeExt
     static QString prepareFileName(const QString& url, int count, const QStringList& typeExt);
 
-    // checks that file path is valid: creates required directory if needed. 
+    // checks that file path is valid: creates required directory if needed.
     // Returns canonical path to file. Does not create nor remove file, affects just directory
     // Returns empty string and error message if some error occurs
     // Sample usage: processing URLs in "save file" inputs
     static QString prepareFileLocation(const QString& filePath, U2OpStatus& os);
 
-    // checks that dir path is valid. Creates the directory if needed. 
+    // checks that dir path is valid. Creates the directory if needed.
     // Returns canonical directory path. Does not affect directory if already exists.
     // Returns empty string and error message if some error occurs
     // Sample usage: processing URLs in "save dir" inputs
@@ -91,6 +101,42 @@ public:
 
     static void removeDir(const QString& path, U2OpStatus& os);
 
+    /*removes file if exists and if its a file*/
+    static void removeFile(const QString& filePath, U2OpStatus& os);
+
+    //checks if filePath is writable
+    //creates and deletes a tmp file to check permissions
+    //it seems the only way to check permissions correctly on all platforms
+    static bool canWriteFile(const QString &path);
+
+    //returns default path for UGENE data
+    //returns empty string if path is not ready
+    static QString getDefaultDataPath();
+
+    //Get quoted input string if it has spaces
+    static QString getQuotedString(const QString& inString);
+
+    // Creates the directory with a rolled path: @path + @suffix + "num". Returns the new path
+    static QString createDirectory(const QString &path, const QString &suffix, U2OpStatus &os);
+
+    // If url is local returns values from it, else returns default values: default data dir path from settings and @defaultBaseFileName
+    static void getLocalPathFromUrl(const GUrl& url, const QString& defaultBaseFileName, QString& dirPath, QString& baseFileName);
+
+    // If url is local returns values from it, else returns default values
+    static QString getLocalUrlFromUrl(const GUrl &url, const QString &defaultBaseFileName, const QString &dotExtention, const QString &suffix);
+
+    // Rolls the result of getLocalUrlFromUrl()
+    static QString getNewLocalUrlByFormat(const GUrl &url, const QString &defaultBaseFileName, const DocumentFormatId &format, const QString &suffix);
+    static QString getNewLocalUrlByExtention(const GUrl &url, const QString &defaultBaseFileName, const QString &dotExtention, const QString &suffix);
+
+    // Check that @url is the path to the local file. Creates the path if it does not exist
+    static void validateLocalFileUrl(const GUrl &url, U2OpStatus &os, const QString &urlName = tr("Output URL"));
+
+    /**
+    * Replaces from the filename all symbols except 0-9, a-z, A-Z, '.', '_', and '-' with '_' symbol,
+    * so file name will both POSIX-compatible and Windows-compatible.
+    */
+    static QString fixFileName(const QString &fileName);
 };
 
 } //namespace

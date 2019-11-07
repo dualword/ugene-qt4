@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,23 +22,22 @@
 #include <QtAlgorithms>
 #include "GeomUtils.h"
 
-
 namespace U2 {
 
-std::auto_ptr< QVector<Vector3D> > GeodesicSphere::elementarySphere(NULL);
+QScopedPointer< QVector<Vector3D> > GeodesicSphere::elementarySphere(NULL);
 int GeodesicSphere::currentDetailLevel = 1;
 
 GeodesicSphere::GeodesicSphere( const Vector3D& center, float radius, int detaillevel)
 {
-    if (elementarySphere.get() == NULL || currentDetailLevel != detaillevel) {
+    if (elementarySphere.isNull() || currentDetailLevel != detaillevel) {
         elementarySphere.reset(createGeodesicSphere(detaillevel));
         currentDetailLevel = detaillevel;
     }
 
     QVector<Vector3D> normals;
     vertices.resize(elementarySphere->count());
-    qCopy(elementarySphere->begin(), elementarySphere->end(), vertices.begin());    
-    
+    qCopy(elementarySphere->begin(), elementarySphere->end(), vertices.begin());
+
     int size = vertices.count();
     for (int i = 0; i < size; ++i) {
         Vector3D& vertex = vertices[i];
@@ -53,11 +52,11 @@ GeodesicSphere::GeodesicSphere( const Vector3D& center, float radius, int detail
         face.v[0] = vertices.at(i);
         face.v[1] = vertices.at(i+1);
         face.v[2] = vertices.at(i+2);
-        
+
         face.n[0] = normals.at(i);
         face.n[1] = normals.at(i+1);
         face.n[2] = normals.at(i+2);
-        
+
         faces.append(face);
     }
 
@@ -83,7 +82,7 @@ void GeodesicSphere::interpolate( const Vector3D& v1, const Vector3D& v2, const 
     interpolate(nv3, nv2, v3,v,  detailLevel - 1);
     return;
 
-    
+
 }
 
 QVector<Vector3D>* GeodesicSphere::createGeodesicSphere( int detailLevel )
@@ -129,8 +128,8 @@ QVector<Vector3D>* GeodesicSphere::createGeodesicSphere( int detailLevel )
     for (int i = 0; i < 24; i += 3) {
         interpolate(base.at(i), base.at(i+1), base.at(i+2),v, detailLevel);
     }
-    
-    return v;    
+
+    return v;
 }
 
 

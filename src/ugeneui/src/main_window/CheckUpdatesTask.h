@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,8 @@ namespace U2 {
 
 class CheckUpdatesTask : public Task {
     Q_OBJECT
-
+public slots:
+    void sl_registerInTaskScheduler();
 public:
     CheckUpdatesTask(bool startUp = false);
     void run();

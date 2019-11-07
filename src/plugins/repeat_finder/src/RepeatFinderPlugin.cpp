@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,34 +19,40 @@
  * MA 02110-1301, USA.
  */
 
-#include "RepeatFinderPlugin.h"
-#include "RepeatFinderTests.h"
-#include "RepeatWorker.h"
-#include "FindRepeatsDialog.h"
-#include "FindTandemsDialog.h"
-#include "RepeatQuery.h"
-#include "TandemQuery.h"
-#include "RFTaskFactory.h"
+#include <cstdio>
 
+#include <QAction>
+#include <QMenu>
+#include <QMessageBox>
+
+#include <U2Algorithm/RepeatFinderTaskFactoryRegistry.h>
 
 #include <U2Core/DNAAlphabet.h>
-#include <U2Algorithm/RepeatFinderTaskFactoryRegistry.h>
+#include <U2Core/GAutoDeleteList.h>
+#include <U2Core/L10n.h>
+
 #include <U2Gui/GUIUtils.h>
-#include <U2View/AnnotatedDNAViewFactory.h>
-#include <U2View/AnnotatedDNAView.h>
+#include <U2Core/QObjectScopedPointer.h>
+
+#include <U2Lang/QueryDesignerRegistry.h>
+
+#include <U2Test/GTestFrameworkComponents.h>
+#include <U2Test/XMLTestFormat.h>
+
 #include <U2View/ADVConstants.h>
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/ADVUtils.h>
-#include <U2Core/GAutoDeleteList.h>
-#include <U2Lang/QueryDesignerRegistry.h>
+#include <U2View/AnnotatedDNAView.h>
+#include <U2View/AnnotatedDNAViewFactory.h>
 
-#include <U2Test/XMLTestFormat.h>
-#include <U2Test/GTestFrameworkComponents.h>
-
-#include <QtGui/QMenu>
-#include <QtGui/QAction>
-
-#include <cstdio>
+#include "FindRepeatsDialog.h"
+#include "FindTandemsDialog.h"
+#include "RFTaskFactory.h"
+#include "RepeatFinderPlugin.h"
+#include "RepeatFinderTests.h"
+#include "RepeatQuery.h"
+#include "RepeatWorker.h"
+#include "TandemQuery.h"
 
 namespace U2 {
 
@@ -65,7 +71,7 @@ RepeatFinderPlugin::RepeatFinderPlugin() : Plugin(tr("Repeats Finder"), tr("Sear
     QDActorPrototypeRegistry* pr = AppContext::getQDActorProtoRegistry();
     pr->registerProto(new QDRepeatActorPrototype());
     pr->registerProto(new QDTandemActorPrototype());
-    
+
     //tests
     GTestFormatRegistry* tfr = AppContext::getTestFramework()->getTestFormatRegistry();
     XMLTestFormat *xmlTestFormat = qobject_cast<XMLTestFormat*>(tfr->findFormat("XML"));
@@ -74,7 +80,7 @@ RepeatFinderPlugin::RepeatFinderPlugin() : Plugin(tr("Repeats Finder"), tr("Sear
     GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
     l->qlist = RepeatFinderTests::createTestFactories();
 
-    foreach(XMLTestFactory* f, l->qlist) { 
+    foreach(XMLTestFactory* f, l->qlist) {
         bool res = xmlTestFormat->registerTestFactory(f);
         assert(res); Q_UNUSED(res);
     }
@@ -84,8 +90,8 @@ RepeatFinderPlugin::RepeatFinderPlugin() : Plugin(tr("Repeats Finder"), tr("Sear
     rfTfr->registerFactory(new RFTaskFactory(), "");
 }
 
-RepeatViewContext::RepeatViewContext(QObject* p) : 
-GObjectViewWindowContext(p, AnnotatedDNAViewFactory::ID) 
+RepeatViewContext::RepeatViewContext(QObject* p) :
+GObjectViewWindowContext(p, AnnotatedDNAViewFactory::ID)
 {
 }
 
@@ -93,9 +99,11 @@ void RepeatViewContext::initViewContext(GObjectView* v) {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(v);
     ADVGlobalAction* a = new ADVGlobalAction(av, QIcon(":repeat_finder/images/repeats.png"), tr("Find repeats..."), 40);
     a->addAlphabetFilter(DNAAlphabet_NUCL);
+    a->setObjectName("find_repeats_action");
     connect(a, SIGNAL(triggered()), SLOT(sl_showDialog()));
     ADVGlobalAction* a2 = new ADVGlobalAction(av, QIcon(":repeat_finder/images/repeats_tandem.png"), tr("Find tandems..."), 41);
     a2->addAlphabetFilter(DNAAlphabet_NUCL);
+    a2->setObjectName("find_tandems_action");
     connect(a2, SIGNAL(triggered()), SLOT(sl_showTandemDialog()));
 }
 
@@ -105,8 +113,14 @@ void RepeatViewContext::sl_showDialog() {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(viewAction->getObjectView());
     ADVSequenceObjectContext* sctx = av->getSequenceInFocus();
     assert(sctx!=NULL && sctx->getAlphabet()->isNucleic());
-    FindRepeatsDialog d(sctx);
-    d.exec();
+
+#ifdef UGENE_X86
+    CHECK_EXT( !(sctx->getSequenceLength() > U2SequenceObject::getMaxSeqLengthForX86Os()),
+               QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), U2SequenceObject::MAX_SEQ_32_ERROR_MESSAGE), );
+#endif
+
+    QObjectScopedPointer<FindRepeatsDialog> d = new FindRepeatsDialog(sctx);
+    d->exec();
 }
 
 void RepeatViewContext::sl_showTandemDialog() {
@@ -115,8 +129,14 @@ void RepeatViewContext::sl_showTandemDialog() {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(viewAction->getObjectView());
     ADVSequenceObjectContext* sctx = av->getSequenceInFocus();
     assert(sctx!=NULL && sctx->getAlphabet()->isNucleic());
-    FindTandemsDialog d(sctx);
-    d.exec();
+
+#ifdef UGENE_X86
+    CHECK_EXT( !(sctx->getSequenceLength() > U2SequenceObject::getMaxSeqLengthForX86Os()),
+               QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), U2SequenceObject::MAX_SEQ_32_ERROR_MESSAGE), );
+#endif
+
+    QObjectScopedPointer<FindTandemsDialog> d = new FindTandemsDialog(sctx);
+    d->exec();
 }
 
 }//namespace

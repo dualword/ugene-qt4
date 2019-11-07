@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,21 +19,29 @@
  * MA 02110-1301, USA.
  */
 
-#include "GetSequenceByIdDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
 #include <U2Core/UserApplicationsSettings.h>
 
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include "GetSequenceByIdDialog.h"
 
 namespace U2 {
 
 GetSequenceByIdDialog::GetSequenceByIdDialog(QWidget *w): QDialog(w) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122329");
+
     connect(toolButton, SIGNAL(clicked()), SLOT(sl_saveFilenameButtonClicked()));
     QString defaultPath = AppContext::getAppSettings()->getUserAppsSettings()->getDownloadDirPath();
     directoryEdit->setText(defaultPath);
@@ -44,7 +52,7 @@ const QString DOWNLOAD_REMOTE_FILE_DOMAIN = "DownloadRemoteFileDialog";
 
 void GetSequenceByIdDialog::sl_saveFilenameButtonClicked() {
     LastUsedDirHelper lod(DOWNLOAD_REMOTE_FILE_DOMAIN);
-    QString dirName = QFileDialog::getExistingDirectory(this, tr("Select directory to save"), lod.dir);
+    QString dirName = U2FileDialog::getExistingDirectory(this, tr("Select directory to save"), lod.dir);
     if(!dirName.isEmpty()) {
         directoryEdit->setText(dirName);
         dir = dirName;
@@ -55,10 +63,10 @@ void GetSequenceByIdDialog::accept() {
     if(dir.isEmpty()) {
         return;
     }
-    
+
     QDir downloadDir(dir);
     if (!downloadDir.exists()) {
-        if (QMessageBox::Yes == QMessageBox::question(this, 
+        if (QMessageBox::Yes == QMessageBox::question(this,
             windowTitle(), tr("Directory doesn't exist. Do you want to create it?"),
             QMessageBox::Yes, QMessageBox::No))
         {
@@ -67,7 +75,7 @@ void GetSequenceByIdDialog::accept() {
             return;
         }
     }
-    
+
     addToProject = addBox->isChecked();
     QDialog::accept();
 }

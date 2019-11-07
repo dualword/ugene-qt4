@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,17 +34,18 @@ namespace Workflow {
 class U2LANG_EXPORT WorkflowEnvImpl : public WorkflowEnv {
 protected:
     virtual ~WorkflowEnvImpl();
-    
-    virtual DataTypeRegistry* initDataRegistry();
-    virtual ActorPrototypeRegistry* initProtoRegistry();
-    virtual DomainFactoryRegistry* initDomainRegistry();
-    virtual DataTypeValueFactoryRegistry* initDataTypeValueFactoryRegistry();
-    virtual ExternalToolCfgRegistry* initExternalToolCfgRegistry();
-    
+
+    virtual DataTypeRegistry * initDataRegistry();
+    virtual ActorPrototypeRegistry * initProtoRegistry();
+    virtual DomainFactoryRegistry * initDomainRegistry();
+    virtual DataTypeValueFactoryRegistry * initDataTypeValueFactoryRegistry();
+    virtual ExternalToolCfgRegistry * initExternalToolCfgRegistry();
+    virtual SchemaActorsRegistry * initSchemaActorsRegistry();
+    virtual WorkflowTasksRegistry * initWorkflowTasksRegistry();
+    virtual ActorValidatorRegistry * initActorValidatorRegistry();
 }; // WorkflowEnvImpl
 
-} //namespace Workflow
+} // Workflow
+} // U2
 
-} //namespace U2
-
-#endif
+#endif // _U2_WORKFLOW_ENVIMPL_H_

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,7 +41,7 @@ const QString PassFilterWorkerFactory::ACTOR_ID("filter-by-values");
  * FilterSequenceWorker
  *******************************/
 PassFilterWorker::PassFilterWorker(Actor *p)
-: BaseWorker(p), inChannel(NULL), outChannel(NULL), done(false)
+: BaseWorker(p), inChannel(NULL), outChannel(NULL)
 {
 }
 
@@ -55,32 +55,24 @@ void PassFilterWorker::init() {
     }
 }
 
-bool PassFilterWorker::isReady() {
-    int hasMsg = inChannel->hasMessage();
-    bool ended = inChannel->isEnded();
-    return hasMsg || (ended && !done);
-}
-
 Task *PassFilterWorker::tick() {
     while (inChannel->hasMessage()) {
         Message inputMessage = getMessageAndSetupScriptValues(inChannel);
+        if (inputMessage.isEmpty()) {
+            continue;
+        }
         QVariantMap data = inputMessage.getData().toMap();
         QString value = data.value(BaseSlots::TEXT_SLOT().getId()).toString();
 
         if (passedValues.contains(value)) {
-            Message mes(mtype, QVariantMap());
-            outChannel->put(inputMessage);
+            outChannel->put(Message::getEmptyMapMessage());
         }
     }
     if (inChannel->isEnded()) {
-        done = true;
         outChannel->setEnded();
+        setDone();
     }
     return NULL;
-}
-
-bool PassFilterWorker::isDone() {
-    return done;
 }
 
 void PassFilterWorker::cleanup() {
@@ -116,6 +108,7 @@ void PassFilterWorkerFactory::init() {
     ActorPrototype *proto = new IntegralBusActorPrototype(protoDesc, portDescs, attrs);
     proto->setEditor(new DelegateEditor(QMap<QString, PropertyDelegate*>()));
     proto->setPrompter(new PassFilterPrompter());
+    proto->setInfluenceOnPathFlag(true);
 
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_DATAFLOW(), proto);
     WorkflowEnv::getDomainRegistry()->getById(LocalDomainFactory::ID)->registerEntry(new PassFilterWorkerFactory());

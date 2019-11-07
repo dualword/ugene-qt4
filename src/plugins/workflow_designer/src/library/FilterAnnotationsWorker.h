@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -45,16 +45,14 @@ public:
     FilterAnnotationsWorker(Actor* a) : BaseWorker(a), input(NULL), output(NULL) {};
 
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
 private slots:
-    void sl_taskFinished();
+    void sl_taskFinished(Task *t);
 private:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     QList<SharedAnnotationData> inputAnns;
-}; 
+};
 
 class FilterAnnotationsWorkerFactory : public DomainFactory {
 public:
@@ -67,15 +65,19 @@ public:
 class FilterAnnotationsTask : public Task {
     Q_OBJECT
 public:
-    FilterAnnotationsTask(QList<SharedAnnotationData>& annotations, const QString& names, bool accept)
-        : Task(tr("Filter annotations task"), TaskFlag_None), annotations_(annotations), names_(names), accept_(accept) {}
+    FilterAnnotationsTask(QList<SharedAnnotationData> &annotations, const QString& names, bool accept)
+        : Task(tr("Filter annotations task"), TaskFlag_None), annotations_(annotations), names_(names), accept_(accept)
+    {
+    
+    }
+
     void run();
 
 private:
     QStringList readAnnotationNames();
-    
+
 private:
-    QList<SharedAnnotationData>& annotations_;
+    QList<SharedAnnotationData> &annotations_;
     QString names_;
     bool accept_;
 };

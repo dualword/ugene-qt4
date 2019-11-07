@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,9 +24,8 @@
 
 #include <QtCore/QVector>
 #include <U2Core/Vector3D.h>
-#include <memory>
 
-namespace U2 { 
+namespace U2 {
 
 const float PI = 3.14159265f;
 const float Rad2Deg = 57.2957795f;
@@ -43,7 +42,7 @@ struct U2ALGORITHM_EXPORT Face {
 class U2ALGORITHM_EXPORT GeodesicSphere {
     QVector<Vector3D> vertices;
     QVector<Face> faces;
-    static std::auto_ptr< QVector<Vector3D> > elementarySphere;
+    static QScopedPointer< QVector<Vector3D> > elementarySphere;
     static int currentDetailLevel;
     static void interpolate(const Vector3D& v1, const Vector3D& v2, const Vector3D& v3, QVector<Vector3D>* v, int detailLevel);
 public:

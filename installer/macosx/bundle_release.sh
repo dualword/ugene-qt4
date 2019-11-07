@@ -1,13 +1,13 @@
 PRODUCT_NAME="ugeneui"
-PRODUCT_DISPLAY_NAME="UGENE"
+PRODUCT_DISPLAY_NAME="Unipro UGENE"
 
 VERSION=`cat ../../src/ugene_version.pri | grep UGENE_VERSION | awk -F'=' '{print $2}'`
+ARCHITECTURE=`uname -m`
 BUILD_DIR=./release_bundle
 RELEASE_DIR=../../src/_release
 TARGET_APP_DIR="$BUILD_DIR/${PRODUCT_NAME}.app/"
 TARGET_APP_DIR_RENAMED="$BUILD_DIR/${PRODUCT_DISPLAY_NAME}.app/"
 TARGET_EXE_DIR="${TARGET_APP_DIR}/Contents/MacOS"
-PATH_TO_QT="/usr/local/Trolltech/Qt-4.7.4/lib"
 
 source bundle_common.sh
 
@@ -21,6 +21,9 @@ echo
 echo copying UGENE bundle 
 cp -R $RELEASE_DIR/ugeneui.app/ "$TARGET_APP_DIR"
 changeCoreInstallNames ugeneui
+
+echo copying icons
+cp ../../src/ugeneui/images/ugene-doc.icns "$TARGET_APP_DIR/Contents/Resources"
 
 mkdir "${TARGET_EXE_DIR}/../Frameworks"
 mkdir "${TARGET_EXE_DIR}/plugins"
@@ -36,25 +39,24 @@ echo copying data dir
 cp -R "$RELEASE_DIR/../../data" "${TARGET_EXE_DIR}/"
 find $TARGET_EXE_DIR -name ".svn" | xargs rm -rf
 
+#include external tools package if applicable
+if [ -e "$RELEASE_DIR/../../tools" ]; then
+    cp -R "$RELEASE_DIR/../../tools" "${TARGET_EXE_DIR}/"
+    find $TARGET_EXE_DIR -name ".svn" | xargs rm -rf
+fi
+
+echo copying ugenem
+cp "$RELEASE_DIR/ugenem.app/Contents/MacOS/ugenem" "$TARGET_EXE_DIR"
+
 echo copying console binary
 cp "$RELEASE_DIR/ugenecl.app/Contents/MacOS/ugenecl" "$TARGET_EXE_DIR"
 changeCoreInstallNames ugenecl
-changeQtInstallNames ugenecl
 
-echo copying qt libraries - plugin dependencies
-cp $PATH_TO_QT/libQtOpenGL.4.dylib "${TARGET_EXE_DIR}/../Frameworks/libQtOpenGL.4.dylib"
-install_name_tool -id @executable_path/../Frameworks/libQtOpenGL.4.dylib ${TARGET_EXE_DIR}/../Frameworks/libQtOpenGL.4.dylib
-changeQtInstallNames ../Frameworks/libQtOpenGL.4.dylib
-cp $PATH_TO_QT/libQtSvg.4.dylib "${TARGET_EXE_DIR}/../Frameworks/libQtSvg.4.dylib"
-install_name_tool -id @executable_path/../Frameworks/libQtSvg.4.dylib ${TARGET_EXE_DIR}/../Frameworks/libQtSvg.4.dylib
-changeQtInstallNames ../Frameworks/libQtSvg.4.dylib
-if [ "$1" == "-test" ]
-    then
-        cp $PATH_TO_QT/libQtTest.4.dylib "${TARGET_EXE_DIR}/../Frameworks/libQtTest.4.dylib"
-        install_name_tool -id @executable_path/../Frameworks/libQtTest.4.dylib ${TARGET_EXE_DIR}/../Frameworks/libQtTest.4.dylib
-        changeQtInstallNames ../Frameworks/libQtTest.4.dylib
-fi
+echo copying plugin checker binary
+cp "$RELEASE_DIR/plugins_checker" "$TARGET_EXE_DIR"
+changeCoreInstallNames plugins_checker
 
+cp ./ugene "$TARGET_EXE_DIR"
 
 echo Copying core shared libs
 
@@ -66,67 +68,99 @@ add-library U2Gui
 add-library U2Lang
 add-library U2Private
 add-library U2Remote
+add-library U2Script
 add-library U2Test
 add-library U2View
 add-library ugenedb
+if [ "$1" == "-test" ]
+   then
+      add-library gtest
+fi
 
 echo Copying plugins
 
-add-plugin annotator
-add-plugin ball
-add-plugin biostruct3d_view
-#add-plugin bowtie
-add-plugin chroma_view
-add-plugin circular_view
-add-plugin remote_service
-add-plugin dna_export
-add-plugin dna_graphpack
-add-plugin dna_stat
-add-plugin dotplot
-add-plugin enzymes
-add-plugin external_tool_support
-add-plugin genome_aligner
-add-plugin gor4
-add-plugin hmm2
-add-plugin hmm3
-add-plugin kalign
-add-plugin orf_marker
-add-plugin phylip
-add-plugin primer3
-add-plugin psipred
-add-plugin query_designer
-add-plugin remote_blast
-add-plugin repeat_finder
-add-plugin sitecon
-add-plugin smith_waterman
-add-plugin umuscle
-add-plugin weight_matrix
-add-plugin workflow_designer
-add-plugin opencl_support
-add-plugin dbi_bam
-#add-plugin dbi_file
-add-plugin ptools
-add-plugin dna_flexibility
+# plugins to copy to the bundle
+# to ignore plugin remove it
+PLUGIN_LIST="annotator \
+            ball \
+            biostruct3d_view \
+            browser_support \
+            chroma_view \
+            circular_view \
+            dbi_bam \
+            dna_export \
+            dna_flexibility \
+            dna_graphpack \
+            dna_stat \
+            dotplot \
+            enzymes \
+            expert_discovery \
+            external_tool_support \
+            genome_aligner \
+            gor4 \
+            hmm2 \
+            hmm3 \
+            kalign \
+            linkdata_support \
+            opencl_support \
+            orf_marker \
+            pcr \
+            phylip \
+            primer3 \
+            psipred \
+            ptools \
+            query_designer \
+            remote_blast \
+            remote_service \
+            repeat_finder \
+            sitecon \
+            smith_waterman \
+            umuscle \
+            variants \
+            weight_matrix \
+            workflow_designer"
+#perf_monitor - removed plugin
 
 if [ "$1" == "-test" ]
    then
-      add-plugin CoreTests
-      add-plugin test_runner
+   PLUGIN_LIST="$PLUGIN_LIST CoreTests \
+                             GUITestBase \
+                             test_runner \
+                             api_tests"
 fi
+
+for PLUGIN in $PLUGIN_LIST
+do
+    add-plugin $PLUGIN
+done
 
 echo
 echo macdeployqt running...
-macdeployqt "$TARGET_APP_DIR" 
+macdeployqt "$TARGET_APP_DIR" -executable="$TARGET_EXE_DIR"/ugenecl -executable="$TARGET_EXE_DIR"/ugenem -executable="$TARGET_EXE_DIR"/plugins_checker
+
+# Do not use @loader_path that produced by macdeployqt with "-executable" argument,
+# it cause a crash with plugins loading (UGENE-2994)
+# Restore @executable_path:
+echo
+echo @executable_path restoring...
+for PLUGIN in $PLUGIN_LIST
+do
+    restorePluginsQtInstallNames $PLUGIN
+done
 
 mv "$TARGET_APP_DIR" "$TARGET_APP_DIR_RENAMED"
+
+cd  $BUILD_DIR 
+ln -s ./Unipro\ UGENE.app/Contents/MacOS/data/samples ./Samples
+cd ..
+
+echo copy readme.txt file
+cp ./readme.txt $BUILD_DIR/readme.txt
 
 if [ ! "$1" ] 
    then
       echo
       echo pkg-dmg running...
-      ./pkg-dmg --source $BUILD_DIR --target ugene-${VERSION}-mac-x86-r${BUILD_VCS_NUMBER_new_trunk} --license ../source/LICENSE --volname "Unipro UGENE $VERSION" --symlink /Applications
-    
+      ./pkg-dmg --source $BUILD_DIR --target ugene-${VERSION}-mac-${ARCHITECTURE}-r${BUILD_VCS_NUMBER_new_trunk} --license ./LICENSE.with_3rd_party --volname "Unipro UGENE $VERSION" --symlink /Applications
 fi
 
-
- 

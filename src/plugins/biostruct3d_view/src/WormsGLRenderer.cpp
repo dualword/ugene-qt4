@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
  */
 
 #include <U2Core/BioStruct3D.h>
+#include <U2Core/U2SafePoints.h>
 #include <QtOpenGL>
 
 #include "GraphicUtils.h"
@@ -28,7 +29,7 @@
 #include "WormsGLRenderer.h"
 
 
-namespace U2 { 
+namespace U2 {
 
 const QString WormsGLRenderer::ID(QObject::tr("Worms"));
 
@@ -40,62 +41,37 @@ WormsGLRenderer::WormsGLRenderer( const BioStruct3D& struc, const BioStruct3DCol
 }
 
 bool WormsGLRenderer::isAvailableFor(const BioStruct3D &bioStruct) {
-    bool available = false;
+    // Try to construct objects to draw
+    QMap<int, BioPolymer > bioPolymerMap;
+    createBioPolymerMap(bioStruct.moleculeMap, bioPolymerMap);
 
-    const char* alphaCarbonTag = "CA";
-    const char* phosophorTag = "P";
-    const char* carbonylOxygenTag = "O";
-
-    foreach (const SharedMolecule &mol, bioStruct.moleculeMap) {
-        int modelId = 0;
-        foreach (const Molecule3DModel& model, mol->models) {
-            foreach (const SharedAtom atom, model.atoms) {
-                if (    (atom->name.trimmed() == alphaCarbonTag)
-                        || (atom->name.trimmed() == phosophorTag)
-                        || (atom->name.trimmed() == carbonylOxygenTag) ) {
-                    available = true;
+    // Find objects to draw
+    foreach (const SharedSecondaryStructure ss, bioStruct.secondaryStructures) {
+        int startId = ss->startSequenceNumber;
+        int endId = ss->endSequenceNumber;
+        int chainId = ss->chainIndex;
+        Q_ASSERT( chainId != 0 );
+        if (bioPolymerMap.contains(chainId)) {
+            const BioPolymer& bpolymer = bioPolymerMap.value(chainId);
+            foreach (const BioPolymerModel& bpModel, bpolymer.bpModels.values() ) {
+                if (bpModel.monomerMap.contains(startId) && bpModel.monomerMap.contains(endId)) {
+                    if (ss->type == SecondaryStructure::Type_AlphaHelix ) {
+                        return true;
+                    } else if (ss->type == SecondaryStructure::Type_BetaStrand) {
+                        return true;
+                    }
                 }
             }
-            ++modelId;
         }
     }
 
-    return available;
-
+    return false;
 }
 
 void WormsGLRenderer::create() {
     assert(isAvailableFor(bioStruct) && "Availability must be checked first!");
 
-    const char* alphaCarbonTag = "CA";
-    const char* phosophorTag = "P";
-    const char* carbonylOxygenTag = "O";
-
-    int numModels = bioStruct.modelMap.count();
-
-    QMapIterator<int, SharedMolecule> i(bioStruct.moleculeMap);
-    while (i.hasNext()) {
-        i.next();
-        const SharedMolecule mol = i.value();
-        BioPolymer bioPolymer;
-        bioPolymer.bpModels.resize(numModels);
-        int modelId = 0;
-        foreach (const Molecule3DModel& model, mol->models) {
-            BioPolymerModel& bpModel = bioPolymer.bpModels[modelId];
-            foreach (const SharedAtom atom, model.atoms) {
-                if ((atom->name.trimmed() == alphaCarbonTag) || (atom->name.trimmed() == phosophorTag)) {
-                    bpModel.monomerMap[atom->residueIndex.toInt()].alphaCarbon = atom;
-                }
-                if ( (atom->name.trimmed() == carbonylOxygenTag) && (bpModel.monomerMap.contains(atom->residueIndex.toInt()))) {
-                    bpModel.monomerMap[atom->residueIndex.toInt()].carbonylOxygen = atom;
-                }
-            }
-            ++modelId;
-
-        }
-        bioPolymerMap.insert(i.key(), bioPolymer);
-    }
-
+    createBioPolymerMap(bioStruct.moleculeMap, bioPolymerMap);
     createWorms();
 }
 
@@ -115,7 +91,7 @@ void WormsGLRenderer::drawWorms(  )
         foreach (int index, shownModels) {
             const WormModel& model = worm.models.at(index);
             //Draw worm bodies (let the bodies set the scene!!!)
-            const AtomsVector wormCoords = model.atoms; 
+            const AtomsVector wormCoords = model.atoms;
             int size = wormCoords.size();
             Color4f atomColor;
             for (int i = 0; i + 3 < size; ++i) {
@@ -152,7 +128,7 @@ void WormsGLRenderer::drawWorms(  )
                 glDrawHalfWorm(atomCoordLast, aN1->coord3d, aN2->coord3d, aN3->coord3d, ribbonThickness, true, false, tension, settings->detailLevel);
                 glDrawHalfWorm(aN3->coord3d, aN2->coord3d, aN1->coord3d, atomCoordLast, ribbonThickness, false, false, tension, settings->detailLevel);
             }
-            
+
             //Draw 3d objects
             if (shownModels.count() == 1) {
                 foreach( Object3D* obj, model.objects) {
@@ -183,7 +159,7 @@ void WormsGLRenderer::updateColorScheme()
              model.objects.clear();
          }
      }
-    
+
     //TODO: optimization -> don't have to create everything again
     createObjects3D();
 }
@@ -206,14 +182,14 @@ void WormsGLRenderer::createObjects3D()
         if (bioPolymerMap.contains(chainId)) {
             const BioPolymer& bpolymer = bioPolymerMap.value(chainId);
             int modelId = 0;
-            foreach (const BioPolymerModel& bpModel, bpolymer.bpModels ) {
+            foreach (const BioPolymerModel& bpModel, bpolymer.bpModels.values() ) {
                 if (bpModel.monomerMap.contains(startId) && bpModel.monomerMap.contains(endId)) {
                     Object3D* obj = NULL;
                     if (ss->type == SecondaryStructure::Type_AlphaHelix ) {
                         obj = createHelix3D(startId, endId, bpModel);
                     } else if (ss->type == SecondaryStructure::Type_BetaStrand) {
                         obj = createStrand3D(startId, endId, bpModel);
-                    } 
+                    }
                     if (obj != NULL) {
                         wormMap[chainId].models[modelId].objects.append(obj);
                     }
@@ -230,42 +206,109 @@ void WormsGLRenderer::createWorms()
     QMapIterator<int, BioPolymer> i(bioPolymerMap);
     while (i.hasNext()) {
         i.next();
-        int chainID = i.key();
-        const BioPolymer& bioPolymer = i.value();
-        Vector3D r1, r2,a,b;
-        Vector3D openingVector, closingVector;
         Worm worm;
-        foreach (const BioPolymerModel& bpModel, bioPolymer.bpModels) {
-            WormModel wormModel;
+        const BioPolymer& bioPolymer = i.value();
+        foreach (const BioPolymerModel& bpModel, bioPolymer.bpModels.values()) {
             const QMap<int,Monomer> monomers = bpModel.monomerMap;
+            SAFE_POINT(monomers.size() != 0, "Cannot create worms - no monomers!", );
+
+            const bool atLeast2MonomersExist = ( 1 < monomers.size( ) );
             QMap<int,Monomer>::const_iterator iter(monomers.constBegin());
             // Calculate opening atom coords
-            Monomer m = iter.value();
-            r1 = iter.value().alphaCarbon.constData()->coord3d;
-            r2 = (++iter).value().alphaCarbon.constData()->coord3d;
-            
-            a = r1;
-            b = (r2 - r1) / 100.f;
+            Vector3D r1( iter.value().alphaCarbon.constData()->coord3d );
+            Vector3D r2( ( atLeast2MonomersExist ? ++iter : iter ).value().alphaCarbon.constData()
+                ->coord3d );
+
+            Vector3D a( r1 );
+            Vector3D b( (r2 - r1) / 100.f );
+
+            WormModel wormModel;
             wormModel.openingAtom = a + b*(-10.f);
             // Calculate closing atom coords
             iter = bpModel.monomerMap.constEnd();
             r1 = (--iter).value().alphaCarbon.constData()->coord3d;
-            r2 = (--iter).value().alphaCarbon.constData()->coord3d;
+            r2 = ( atLeast2MonomersExist ? --iter : iter ).value().alphaCarbon.constData()->coord3d;
             a = r1;
             b = (r2 - r1) / 100.f;
-            wormModel.closingAtom = a + b*(-10.f);
-            // Add worm-building atom coords 
+            wormModel.closingAtom = a + b * (-10.f);
+            // Add worm-building atom coords
             foreach (const Monomer& monomer, monomers) {
                 const SharedAtom& atom = monomer.alphaCarbon;
                 wormModel.atoms.append(atom);
             }
             worm.models.append(wormModel);
         }
+        const int chainID = i.key();
         wormMap.insert(chainID, worm);
     }
-    
     createObjects3D();
 
+}
+
+void WormsGLRenderer::createBioPolymerMap(const QMap<int, SharedMolecule> &moleculeMap, QMap<int, BioPolymer> &bioPolymerMap) {
+    const char* alphaCarbonTag = "CA";
+    const char* phosophorTag = "P";
+    const char* carbonylOxygenTag = "O";
+
+    QMapIterator<int, SharedMolecule> i(moleculeMap);
+    while (i.hasNext()) {
+        i.next();
+        const SharedMolecule mol = i.value();
+        BioPolymer bioPolymer;
+        foreach (int modelId, mol->models.keys()) {
+            const Molecule3DModel& model = mol->models.value(modelId);
+            BioPolymerModel& bpModel = bioPolymer.bpModels[modelId];
+            QMap<int, QPair<bool, bool> > checkList;
+            foreach (const SharedAtom atom, model.atoms) {
+                int residueIdx = atom->residueIndex.toInt();
+                if ((atom->name.trimmed() == alphaCarbonTag) || (atom->name.trimmed() == phosophorTag)) {
+
+                    if (checkList.contains(residueIdx)) {
+                        QPair<bool, bool> check = checkList.value(residueIdx);
+                        if (check.first == false) {
+                            SAFE_POINT(check.second == true, "Invalid checklist state", );
+                            bpModel.monomerMap[residueIdx].alphaCarbon = atom;
+                            checkList.remove(residueIdx);
+                        } else {
+                           FAIL("Reapeated alpha carbon atom in the same residue", );
+                        }
+                    } else {
+                        checkList[residueIdx] = QPair<bool, bool>(true, false);
+                        bpModel.monomerMap[residueIdx].alphaCarbon = atom;
+                    }
+                }
+                if ( (atom->name.trimmed() == carbonylOxygenTag)) {
+                    if (checkList.contains(residueIdx)) {
+                        QPair<bool, bool> check = checkList.value(residueIdx);
+                        if (check.second == false) {
+                            SAFE_POINT(check.first == true, "", );
+                            bpModel.monomerMap[residueIdx].carbonylOxygen = atom;
+                            checkList.remove(residueIdx);
+                        } else {
+                            FAIL("Reapeated carbonyl oxygen atom in the same residue", );
+                        }
+
+                    } else {
+                        checkList[residueIdx] = QPair<bool, bool>(false, true);
+                        bpModel.monomerMap[residueIdx].carbonylOxygen = atom;
+                    }
+                }
+            }
+            foreach (int residueIdx, checkList.keys()) {
+                QPair<bool, bool> check = checkList[residueIdx];
+                if (check.first == false && check.second == true) {
+                    bpModel.monomerMap.remove(residueIdx);
+                }
+            }
+
+            if (bpModel.monomerMap.isEmpty()) {
+                bioPolymer.bpModels.remove(modelId);
+            }
+        }
+        if (!bioPolymer.bpModels.isEmpty()) {
+            bioPolymerMap.insert(i.key(), bioPolymer);
+        }
+    }
 }
 
 
@@ -334,7 +377,7 @@ Object3D* WormsGLRenderer::createStrand3D( int startId, int endId, const BioPoly
         color[i] /= (endId - startId + 1);
     }
 
-    return new Strand3D(color, axis.first, axis.second); 
+    return new Strand3D(color, axis.first, axis.second);
 }
 
 } //namespace

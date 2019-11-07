@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,18 +23,16 @@
 #define _U2_FIND_REPEATS_DIALOG_H_
 
 #include <ui/ui_FindRepeatsDialog.h>
-#include "FindRepeatsTask.h"
 
-#include <U2Core/PluginModel.h>
-#include <U2Gui/ObjectViewModel.h>
-#include <U2Gui/RegionSelector.h>
 #include <U2Core/U2Region.h>
 
-#include <QtGui/QDialog>
+#include "FindRepeatsTask.h"
 
 namespace U2 {
+
 class CreateAnnotationWidgetController;
 class ADVSequenceObjectContext;
+class RegionSelector;
 
 class FindRepeatsDialog : public QDialog, public Ui_FindRepeatsDialog {
     Q_OBJECT
@@ -42,7 +40,7 @@ public:
     FindRepeatsDialog(ADVSequenceObjectContext* seq);
 
     static FindRepeatsTaskSettings defaultSettings();
-    
+
     virtual void accept();
 
 protected slots:

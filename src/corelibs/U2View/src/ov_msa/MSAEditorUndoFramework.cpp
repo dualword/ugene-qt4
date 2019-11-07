@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,28 +23,36 @@
 #include "MSACollapsibleModel.h"
 
 #include <U2Core/MAlignmentObject.h>
+#include <U2Core/MAlignment.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 namespace U2 {
 
-MSAEditorUndoFramework::MSAEditorUndoFramework(QObject* p, MAlignmentObject* ma) 
-: QUndoStack(p), maObj(ma), lastSavedObjectVersion(0), maxMemUse(20*1024*1024)
+MSAEditorUndoFramework::MSAEditorUndoFramework(QObject* p, MAlignmentObject* ma)
+: QUndoStack(p), maObj(ma), lastSavedObjectVersion(0), maxMemUse(20*1024*1024), stateComplete(true)
 {
     if (maObj!=NULL) {
-        connect(maObj, SIGNAL(si_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)), 
+        connect(maObj, SIGNAL(si_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)),
                        SLOT(sl_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)));
+        connect(maObj, SIGNAL(si_completeStateChanged(bool)), SLOT(sl_completeStateChanged(bool)));
         connect(maObj, SIGNAL(si_lockedStateChanged()), SLOT(sl_lockedStateChanged()));
     }
-    
+
     setUndoLimit(100);
-    
+
     uAction = createUndoAction(this);
+    uAction->setObjectName("Undo");
     uAction->setIcon(QIcon(":core/images/undo.png"));
     uAction->setShortcut(QKeySequence::Undo);
     uAction->setToolTip(QString("%1 (%2)").arg(uAction->text()).arg(uAction->shortcut().toString()));
 
     rAction = createRedoAction(this);
+    rAction->setObjectName("Redo");
     rAction->setIcon(QIcon(":core/images/redo.png"));
     rAction->setShortcut(QKeySequence::Redo);
     rAction->setToolTip(QString("%1 (%2)").arg(rAction->text()).arg(rAction->shortcut().toString()));
@@ -56,7 +64,7 @@ MSAEditorUndoFramework::MSAEditorUndoFramework(QObject* p, MAlignmentObject* ma)
 void MSAEditorUndoFramework::sl_lockedStateChanged() {
     bool active = maObj ? !maObj->isStateLocked() : false;
     setActive(active);
-    
+
     int activeIdx = index();
     int cnt = count();
     uAction->setEnabled(active && activeIdx > 0);
@@ -71,14 +79,18 @@ void MSAEditorUndoFramework::applyUndoRedoAction(const MAlignment& ma) {
     }
 }
 
-void MSAEditorUndoFramework::sl_alignmentChanged(const MAlignment& maBefore, const MAlignmentModInfo& mi) {
-    if (maObj == NULL || lastSavedObjectVersion == maObj->getModificationVersion() || maBefore.getRows() == maObj->getMAlignment().getRows()) {
-        return;
-    }
+void MSAEditorUndoFramework::sl_completeStateChanged(bool _stateCompele){
+    stateComplete = _stateCompele;
+}
 
-    if (mi.hints.value(MODIFIER) == MAROW_SIMILARITY_SORT) {
+void MSAEditorUndoFramework::sl_alignmentChanged(const MAlignment& maBefore, const MAlignmentModInfo& mi) {
+    if (maObj == NULL || lastSavedObjectVersion == maObj->getModificationVersion() ||
+            ((maBefore.getRows() == maObj->getMAlignment().getRows()) && (maBefore.getRowNames() == maObj->getMAlignment().getRowNames())))
+    {
         return;
     }
+    if (mi.hints.value(MODIFIER) == MAROW_SIMILARITY_SORT) {return;}
+    if(!stateComplete){return;}
 
     lastSavedObjectVersion = maObj->getModificationVersion();
     const MAlignment& maAfter = maObj->getMAlignment();
@@ -102,7 +114,7 @@ void MSAEditorUndoFramework::sl_alignmentChanged(const MAlignment& maBefore, con
         int dMem = 0;
         int cnt  = count();
         for (; itemsToRemove < cnt; itemsToRemove++) {
-            dMem+=(static_cast<const MSAEditorUndoCommand*>(command(itemsToRemove)))->getMemUsage();    
+            dMem+=(static_cast<const MSAEditorUndoCommand*>(command(itemsToRemove)))->getMemUsage();
             if (newMemUse - dMem <= maxMemUse) {
                 break;
             }

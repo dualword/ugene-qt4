@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 
 #include <U2Lang/LocalDomain.h>
 #include <U2Lang/WorkflowUtils.h>
+
 #include "CAP3SupportTask.h"
 
 namespace U2 {
@@ -43,22 +44,35 @@ class CAP3Worker : public BaseWorker {
     Q_OBJECT
 public:
     CAP3Worker(Actor* a);
-    
+
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
-    
+
 private slots:
     void sl_taskFinished();
 
 protected:
-    CommunicationChannel *input, *output;
-    QString resultName,transId;
-    CAP3SupportTaskSettings cfg;
-    
-}; 
+    IntegralBus *input;
+
+    CAP3SupportTaskSettings settings;
+    QStringList inputSeqUrls; // contains URL(s) from a current dataset
+    QString currentDatasetName; // used on each tick() to split URL(s) in datasets
+    int datasetNumber;
+
+private:
+    /** Use data filled by a user to init the CAP3 settings */
+    void initSettings();
+
+    /** Init external tool and temporary directory paths */
+    void initPaths();
+
+    /**
+     * Corrects output file name, if required (for several datasets).
+     * Runs the CAP3 task and cleans up input URL(s) in the settings.
+     */
+    Task * runCap3();
+};
 
 class CAP3WorkerFactory : public DomainFactory {
 public:

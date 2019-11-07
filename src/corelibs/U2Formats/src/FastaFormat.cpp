@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,26 +19,28 @@
  * MA 02110-1301, USA.
  */
 
-#include "FastaFormat.h"
+#include <QtCore/QTextStream>
+
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/AppResources.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/Task.h>
+#include <U2Core/TextUtils.h>
+#include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2AttributeDbi.h>
+#include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2SequenceUtils.h>
 
 #include "DocumentFormatUtils.h"
-
-#include <U2Core/Task.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/L10n.h>
-
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/TextUtils.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/U2SafePoints.h>
-#include <U2Core/U2DbiUtils.h>
-#include <U2Core/U2SequenceUtils.h>
-#include <U2Core/U2AttributeDbi.h>
-#include <U2Core/U1AnnotationUtils.h>
+#include "FastaFormat.h"
 
 namespace U2 {
 
@@ -46,13 +48,18 @@ namespace U2 {
 /* TRANSLATOR U2::IOAdapter */
 /* TRANSLATOR U2::Document */
 
-FastaFormat::FastaFormat(QObject* p) 
+const char FastaFormat::FASTA_HEADER_START_SYMBOL = '>';
+const char FastaFormat::FASTA_COMMENT_START_SYMBOL = ';';
+
+FastaFormat::FastaFormat(QObject* p)
 : DocumentFormat(p, DocumentFormatFlags_SW, QStringList()<<"fa"<<"mpfa"<<"fna"<<"fsa"<<"fas"<<"fasta"<<"sef"<<"seq"<<"seqs")
 {
     formatName = tr("FASTA");
     supportedObjectTypes+=GObjectTypes::SEQUENCE;
     supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
-    formatDescription = tr("FASTA format is a text-based format for representing either nucleotide sequences or peptide sequences, in which base pairs or amino acids are represented using single-letter codes. The format also allows for sequence names and comments to precede the sequences.");
+    formatDescription = tr("FASTA format is a text-based format for representing either nucleotide sequences or peptide sequences, "
+        "in which base pairs or amino acids are represented using single-letter codes. "
+        "The format also allows for sequence names and comments to precede the sequences.");
 }
 
 static QVariantMap analyzeRawData(const QByteArray& data) {
@@ -61,11 +68,12 @@ static QVariantMap analyzeRawData(const QByteArray& data) {
     int maxLen = -1;
     int len = 0;
     int nSequences = 0;
+
     QTextStream input(data, QIODevice::ReadOnly);
     QString line;
     do {
         line = input.readLine();
-        if (line[0] == '>') {
+        if (line[0] == FastaFormat::FASTA_HEADER_START_SYMBOL) {
             nSequences++;
             if (len > 0) {
                 minLen = minLen == -1 ? len : qMin(minLen, len);
@@ -78,7 +86,7 @@ static QVariantMap analyzeRawData(const QByteArray& data) {
                 hasGaps = true;
             }
         }
-    } while (!line.isEmpty());
+    } while (!input.atEnd());
 
     QVariantMap res;
     res[RawDataCheckResult_Sequence] = true;
@@ -102,80 +110,316 @@ FormatCheckResult FastaFormat::checkRawData(const QByteArray& rawData, const GUr
     int n = TextUtils::skip(TextUtils::WHITES, data, size);
     int newSize = size - n;
     const char* newData = data + n;
-    if (newSize <= 0 || newData[0] != '>' ) {
+    if (newSize <= 0 || (newData[0] != FASTA_HEADER_START_SYMBOL && newData[0] != FASTA_COMMENT_START_SYMBOL) ) {
         return FormatDetection_NotMatched;
     }
     bool hasBinaryBlocks = TextUtils::contains(TextUtils::BINARY, data, size);
     if (hasBinaryBlocks) {
         return FormatDetection_NotMatched;
     }
-    
+
     //ok, format is matched -> add hints on sequence sizes
     FormatCheckResult res(FormatDetection_Matched);
     res.properties = analyzeRawData(data);
     return res;
 }
 
-
 #define READ_BUFF_SIZE  4096
 static void load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, QList<GObject*>& objects,
-                 int gapSize, QString& writeLockReason, U2OpStatus& os) 
+                 int gapSize, QString& writeLockReason, U2OpStatus& os)
 {
-    static char fastaHeaderStartChar = '>';
-    static QBitArray fastaHeaderStart = TextUtils::createBitMap(fastaHeaderStartChar);
+    DbiOperationsBlock opBlock(dbiRef, os);
+    CHECK_OP(os, );
+    Q_UNUSED(opBlock);
+
+    static char fastaCommentStartChar = FastaFormat::FASTA_COMMENT_START_SYMBOL;
+
+    MemoryLocker memoryLocker(os, 1);
+    CHECK_OP(os, );
 
     writeLockReason.clear();
-    GUrl docUrl = io->getURL();
     QByteArray readBuff(READ_BUFF_SIZE + 1, 0);
     char* buff = readBuff.data();
     qint64 len = 0;
-    
+
     bool merge = gapSize != -1;
     QStringList headers;
-    QSet<QString> names;
+    QSet<QString> uniqueNames;
     QVector<U2Region> mergedMapping;
-
-    TmpDbiObjects dbiObjects(dbiRef, os);
 
     // for lower case annotations
     GObjectReference sequenceRef;
-    
+
     //skip leading whites if present
     bool lineOk = true;
     static QBitArray nonWhites = ~TextUtils::WHITES;
     io->readUntil(buff, READ_BUFF_SIZE, nonWhites, IOAdapter::Term_Exclude, &lineOk);
 
-    U2SequenceImporter seqImporter(fs);
+    U2SequenceImporter seqImporter(fs, true);
+    const QString folder = fs.value(DocumentFormat::DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
 
     qint64 sequenceStart = 0;
     int sequenceNumber = 0;
+    DbiConnection con(dbiRef, os);
+    bool headerReaded = false;
+    QStringList emptySeqNames;
+
+    const int objectsCountLimit = fs.contains(DocumentReadingMode_MaxObjectsInDoc) ? fs[DocumentReadingMode_MaxObjectsInDoc].toInt() : -1;
+    const bool settingsMakeUniqueName = !fs.value(DocumentReadingMode_DontMakeUniqueNames, false).toBool();
     while (!os.isCoR()) {
-        //read header
-        len = io->readUntil(buff, READ_BUFF_SIZE, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
-        if (len == 0) { //end if stream
+        //skip start comments and read header
+        if(!headerReaded){
+            do{
+                len = io->readLine(buff, READ_BUFF_SIZE);
+            }while(buff[0] == fastaCommentStartChar && len > 0);
+        }
+
+        if (len == 0 && io->isEof()) { //end if stream
             break;
         }
-        CHECK_EXT(lineOk, os.setError(FastaFormat::tr("Line is too long")), ); 
-        
+        CHECK_EXT_BREAK(lineOk, os.setError(FastaFormat::tr("Line is too long")));
+
         QString headerLine = QString(QByteArray::fromRawData(buff+1, len-1)).trimmed();
-        CHECK_EXT(buff[0] == fastaHeaderStartChar, os.setError(FastaFormat::tr("First line is not a FASTA header")), ); 
-        
+        CHECK_EXT_BREAK(buff[0] == FastaFormat::FASTA_HEADER_START_SYMBOL, os.setError(FastaFormat::tr("First line is not a FASTA header")));
+
         //read sequence
         if (sequenceNumber == 0 || !merge) {
-            QString objName = merge ? "Sequence" : TextUtils::variate(headerLine, "_", names);
-            names.insert(objName);
-            seqImporter.startSequence(dbiRef, objName, false, os);
-            CHECK_OP(os, );
+            QString objName = headerLine;
+            if(objName.isEmpty()){
+                objName = "Sequence";
+            }
+            if (settingsMakeUniqueName) {
+                objName = (merge) ? "Sequence" : TextUtils::variate(objName, "_", uniqueNames);
+                objName.squeeze();
+                memoryLocker.tryAcquire(2*objName.size());
+                CHECK_OP_BREAK(os);
+                uniqueNames.insert(objName);
+            }
+            seqImporter.startSequence(dbiRef, folder, objName, false, os);
+            CHECK_OP_BREAK(os);
 
             sequenceRef = GObjectReference(io->getURL().getURLString(), objName, GObjectTypes::SEQUENCE);
-        } 
+        }
         if (sequenceNumber >= 1 && merge) {
             seqImporter.addDefaultSymbolsBlock(gapSize, os);
             sequenceStart += gapSize;
-            CHECK_OP(os, );
+            CHECK_OP_BREAK(os);
         }
         int sequenceLen = 0;
         while (!os.isCoR()) {
+            do{
+                len = io->readLine(buff, READ_BUFF_SIZE);
+            }while(len <= 0 && !io->isEof());
+
+            if (len <= 0 && io->isEof()) {
+                break;
+            }
+            buff[len] = 0;
+
+            if(buff[0] != fastaCommentStartChar && buff[0] != FastaFormat::FASTA_HEADER_START_SYMBOL){
+                len = TextUtils::remove(buff, len, TextUtils::WHITES);
+                if(len > 0){
+                    seqImporter.addBlock(buff, len, os);
+                    sequenceLen += len;
+                }
+            }else if( buff[0] == FastaFormat::FASTA_HEADER_START_SYMBOL){
+                headerReaded = true;
+                break;
+            }
+
+            CHECK_OP_BREAK(os);
+            os.setProgress(io->getProgress());
+        }
+
+        if (merge) {
+            memoryLocker.tryAcquire(headerLine.size());
+            CHECK_OP_BREAK(os);
+            headers.append(headerLine);
+            mergedMapping.append(U2Region(sequenceStart, sequenceLen));
+        } else {
+            if (objectsCountLimit > 0 && objects.size() >= objectsCountLimit) {
+                os.setError(FastaFormat::tr("File \"%1\" contains too many sequences to be displayed. "
+                    "However, you can process these data using instruments from the menu <i>Tools -> NGS data analysis</i> "
+                    "or pipelines built with Workflow Designer.")
+                    .arg(io->getURL().getURLString()));
+                break;
+            }
+            memoryLocker.tryAcquire(800);
+            CHECK_OP_BREAK(os);
+            U2Sequence seq = seqImporter.finalizeSequenceAndValidate(os);
+            if (os.hasError() && os.getError() == U2SequenceImporter::EMPTY_SEQUENCE_ERROR) {
+                os.setError("");
+                emptySeqNames << headerLine;
+                continue;
+            }
+            sequenceRef.entityRef = U2EntityRef(dbiRef, seq.id);
+
+            //TODO parse header
+            U2StringAttribute attr(seq.id, DNAInfo::FASTA_HDR, headerLine);
+            con.dbi->getAttributeDbi()->createStringAttribute(attr, os);
+            CHECK_OP_BREAK(os);
+
+            objects << new U2SequenceObject(seq.visualName, U2EntityRef(dbiRef, seq.id));
+            CHECK_OP_BREAK(os);
+
+            U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL, fs);
+        }
+        sequenceStart += sequenceLen;
+        sequenceNumber++;
+        ioLog.trace(QString("Sequence #%1 is processed").arg(sequenceNumber));
+    }
+
+    CHECK_OP_EXT(os, qDeleteAll(objects); objects.clear(), );
+    CHECK_EXT(!objects.isEmpty() || merge, os.setError(Document::tr("Document is empty.")), );
+    SAFE_POINT(headers.size() == mergedMapping.size(), "headers <-> regions mapping failed!", );
+    ioLog.trace("All sequences are processed");
+
+    if (!emptySeqNames.isEmpty()) {
+        QString warningMessage;
+        warningMessage.append(FastaFormat::tr("Loaded sequences: %1.\n").arg(sequenceNumber));
+        warningMessage.append(FastaFormat::tr("Skipped sequences: %1.\n").arg(emptySeqNames.size()));
+        warningMessage.append(FastaFormat::tr("The following sequences are empty:\n%1").arg(emptySeqNames.join(",\n")));
+        os.addWarning(warningMessage);
+    }
+
+    if (!merge) {
+        return;
+    }
+
+    U2Sequence seq = seqImporter.finalizeSequenceAndValidate(os);
+    CHECK_OP(os, );
+    sequenceRef.entityRef = U2EntityRef(dbiRef, seq.id);
+
+    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL, fs);
+    objects << new U2SequenceObject(seq.visualName, U2EntityRef(dbiRef, seq.id));
+    objects << DocumentFormatUtils::addAnnotationsForMergedU2Sequence( sequenceRef, dbiRef, headers, mergedMapping, fs );
+    if (headers.size() > 1) {
+        writeLockReason = DocumentFormat::MERGED_SEQ_LOCK;
+    }
+}
+
+
+Document* FastaFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os) {
+    CHECK_EXT(io!=NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), NULL);
+
+    QList<GObject*> objects;
+
+    int gapSize = qBound(-1, DocumentFormatUtils::getMergeGap(fs), 1000 * 1000);
+
+    QString lockReason;
+    load(io, dbiRef, fs, objects, gapSize, lockReason, os);
+    CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
+
+    Document* doc = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs, lockReason);
+    return doc;
+}
+
+static void writeHeaderToFile( IOAdapter* io, const QString &sequenceName, U2OpStatus &os ) {
+    QByteArray block;
+    block.append( FastaFormat::FASTA_HEADER_START_SYMBOL ).append( sequenceName ).append( '\n' );
+    if ( io->writeBlock( block ) != block.length( ) ) {
+        os.setError( L10N::errorWritingFile( io->getURL( ) ) );
+    }
+}
+
+static void writeBlockToFile( IOAdapter* io, const char *block, int blockSize, U2OpStatus &os ) {
+    if ( io->writeBlock( block, blockSize ) != blockSize || !io->writeBlock( "\n", 1 ) ) {
+        os.setError( L10N::errorWritingFile( io->getURL( ) ) );
+    }
+}
+
+#define SAVE_LINE_LEN 1024 * 1024
+
+static void saveSequence( IOAdapter* io, const U2SequenceObject *sequence, U2OpStatus& os ) {
+    writeHeaderToFile( io, sequence->getSequenceName( ), os );
+    CHECK_OP( os, );
+
+    const int len = sequence->getSequenceLength( );
+    for ( int i = 0; i < len; i += SAVE_LINE_LEN ) {
+        int chunkSize = qMin( SAVE_LINE_LEN, len - i );
+        const QByteArray chunkContent = sequence->getSequenceData( U2Region( i, chunkSize ), os );
+        CHECK_OP( os, );
+        writeBlockToFile( io, chunkContent.constData( ), chunkSize, os );
+        CHECK_OP( os, );
+    }
+}
+
+static void saveSequence(IOAdapter* io, const DNASequence& sequence, U2OpStatus& os) {
+    writeHeaderToFile( io, sequence.getName( ), os );
+    CHECK_OP( os, );
+
+    const char *seq = sequence.seq.constData( );
+    const int len = sequence.seq.length( );
+    for ( int i = 0; i < len; i += SAVE_LINE_LEN ) {
+        const int chunkSize = qMin( SAVE_LINE_LEN, len - i );
+        writeBlockToFile( io, seq + i, chunkSize, os );
+        CHECK_OP( os, );
+    }
+}
+
+void FastaFormat::storeDocument( Document* doc, IOAdapter* io, U2OpStatus& os ) {
+    //TODO: check saved op states!!!
+    foreach( GObject *o, doc->getObjects( ) ) {
+        U2SequenceObject *seqObj = dynamic_cast<U2SequenceObject *>( o );
+        if ( NULL != seqObj ) {
+            saveSequence( io, seqObj, os );
+            CHECK_OP( os, );
+        } else {
+            QList<DNASequence> sequences = DocumentFormatUtils::toSequences( o );
+            foreach( const DNASequence &s, sequences ) {
+                saveSequence( io, s, os );
+                CHECK_OP( os, );
+            }
+        }
+    }
+}
+
+void FastaFormat::storeEntry( IOAdapter *io, const QMap<GObjectType, QList<GObject *> > &objectsMap,
+    U2OpStatus &os )
+{
+    SAFE_POINT( objectsMap.contains( GObjectTypes::SEQUENCE ), "Fasta entry storing: no sequences", );
+    const QList<GObject *> &seqs = objectsMap[GObjectTypes::SEQUENCE];
+    SAFE_POINT( 1 == seqs.size( ), "Fasta entry storing: sequence objects count error", );
+
+    U2SequenceObject *seq = dynamic_cast<U2SequenceObject *>( seqs.first( ) );
+    SAFE_POINT( NULL != seq, "Fasta entry storing: NULL sequence object", );
+    saveSequence(io, seq, os);
+}
+
+DNASequence *FastaFormat::loadSequence(IOAdapter* io, U2OpStatus& os) {
+    try {
+        MemoryLocker l(os);
+        CHECK_OP(os, NULL);
+
+        static QBitArray fastaHeaderStart = TextUtils::createBitMap(FASTA_HEADER_START_SYMBOL);
+        static QBitArray nonWhites = ~TextUtils::WHITES;
+
+        CHECK_EXT(io != NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), NULL);
+
+        QByteArray readBuff(READ_BUFF_SIZE+1, 0);
+        char* buff = readBuff.data();
+        qint64 len = 0;
+
+        //skip leading whites if present
+        bool lineOk = true;
+        io->readUntil(buff, READ_BUFF_SIZE, nonWhites, IOAdapter::Term_Exclude, &lineOk);
+
+        //read header
+        len = io->readUntil(buff, READ_BUFF_SIZE, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
+        CHECK(len > 0, NULL); //end of stream
+        CHECK_EXT(lineOk, os.setError(FastaFormat::tr("Line is too long")), NULL);
+        QByteArray headerLine = QByteArray(buff + 1, len-1).trimmed();
+        CHECK_EXT(buff[0] == FASTA_HEADER_START_SYMBOL, os.setError(FastaFormat::tr("First line is not a FASTA header")), NULL);
+
+        l.tryAcquire(headerLine.capacity());
+        CHECK_OP(os, NULL);
+
+        //read sequence
+        QByteArray sequence;
+        int predictedSize = 1000;
+        sequence.reserve(predictedSize);
+
+        do {
             len = io->readUntil(buff, READ_BUFF_SIZE, fastaHeaderStart, IOAdapter::Term_Exclude);
             if (len <= 0) {
                 break;
@@ -183,165 +427,83 @@ static void load(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, Q
             len = TextUtils::remove(buff, len, TextUtils::WHITES);
             buff[len] = 0;
 
-            seqImporter.addBlock(buff, len, os);
-            sequenceLen += len;
-            CHECK_OP(os, );
-            os.setProgress(io->getProgress());
-        } 
+            l.tryAcquire(len);
+            CHECK_OP(os, NULL);
 
-        if (merge) {
-            headers.append(headerLine);
-            mergedMapping.append(U2Region(sequenceStart, sequenceLen));
-        } else {
-            U2Sequence seq = seqImporter.finalizeSequence(os);
-            dbiObjects.objects << seq.id;
-            CHECK_OP(os, );
-            
-            //TODO parse header
-            DbiConnection con(dbiRef, os);
-            U2StringAttribute attr(seq.id, DNAInfo::FASTA_HDR, headerLine);
-            con.dbi->getAttributeDbi()->createStringAttribute(attr, os);
-            CHECK_OP(os, );
-            
-            objects << new U2SequenceObject(seq.visualName, U2EntityRef(dbiRef, seq.id));
-            CHECK_OP(os, );
+            sequence.append(buff);
+        } while (!os.isCoR());
+        sequence.squeeze();
 
-            U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL);
+        DNASequence *seq = new DNASequence(headerLine, sequence);
+        seq->alphabet = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_EXTENDED());
+        assert(seq->alphabet!=NULL);
+
+        if (!seq->alphabet->isCaseSensitive()) {
+            TextUtils::translate(TextUtils::UPPER_CASE_MAP, const_cast<char*>(seq->seq.constData()), seq->seq.length());
         }
-        sequenceStart += sequenceLen;
-        sequenceNumber++;
+
+        return seq;
+    } catch (...) {
+        os.setError("Memory error");
+        return NULL;
     }
-    CHECK_OP(os, );
-    CHECK_EXT(!objects.isEmpty() || merge, os.setError(Document::tr("Document is empty.")), );
-    SAFE_POINT(headers.size() == mergedMapping.size(), "headers <-> regions mapping failed!", );
-
-    if (!merge) {
-        return;
-    }
-
-    U2Sequence seq = seqImporter.finalizeSequence(os);
-    dbiObjects.objects << seq.id;
-    CHECK_OP(os, );
-
-    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, NULL);
-    objects << new U2SequenceObject(seq.visualName, U2EntityRef(dbiRef, seq.id));
-    objects << DocumentFormatUtils::addAnnotationsForMergedU2Sequence(docUrl, headers, seq, mergedMapping, os);
-    if (headers.size() > 1) {
-        writeLockReason = DocumentFormat::MERGED_SEQ_LOCK;
-    }
-}
-
-
-Document* FastaFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& _fs, U2OpStatus& os) {
-    CHECK_EXT(io!=NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), NULL);
-
-    QVariantMap fs = _fs;
-    QList<GObject*> objects;
-
-    int gapSize = qBound(-1, DocumentFormatUtils::getMergeGap(fs), 1000 * 1000);
-    
-    QString lockReason;
-    load(io, dbiRef, _fs, objects, gapSize, lockReason, os);
-    CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
-
-    Document* doc = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs, lockReason);
-    return doc;
-}
-
-#define SAVE_LINE_LEN 70
-static void saveSequence(IOAdapter* io, const DNASequence& sequence, U2OpStatus& os) {
-    //writing header;
-
-    // TODO better header out of info tags
-    /*QString hdr = seqObj->getDNASequence().info.value(DNAInfo::FASTA_HDR).toString();
-    if (hdr.isEmpty()) {
-        hdr = seqObj->getGObjectName();
-    }*/
-
-    QByteArray block;
-    QString hdr = sequence.getName();
-    block.append('>').append(hdr).append('\n');
-    if (io->writeBlock( block ) != block.length()) {
-        os.setError(L10N::errorWritingFile(io->getURL()));
-        return;
-    }
-    const char* seq = sequence.seq.constData();
-    int len = sequence.seq.length();
-    for (int i = 0; i < len; i += SAVE_LINE_LEN ) {
-        int chunkSize = qMin( SAVE_LINE_LEN, len - i );
-        if (io->writeBlock( seq + i, chunkSize ) != chunkSize || !io->writeBlock( "\n", 1 )) {
-            os.setError(L10N::errorWritingFile(io->getURL()));
-            return;
-        }
-    }
-}
-
-
-void FastaFormat::storeDocument( Document* doc, IOAdapter* io, U2OpStatus& os ) {
-    //TODO: check saved op states!!!
-    foreach( GObject* o, doc->getObjects() ) {
-        QList<DNASequence> sequences = DocumentFormatUtils::toSequences(o);
-        foreach(const DNASequence& s, sequences) {
-            saveSequence(io, s, os);
-            CHECK_OP(os, );
-        }
-    }
-}
-
-void FastaFormat::storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os) {
-    Q_UNUSED(anns);
-    saveSequence(io, seq->getWholeSequence(), os);
-}
-
-DNASequence *FastaFormat::loadSequence(IOAdapter* io, U2OpStatus& os) {
-    static char fastaHeaderStartChar = '>';
-    static QBitArray fastaHeaderStart = TextUtils::createBitMap(fastaHeaderStartChar);
-    static QBitArray nonWhites = ~TextUtils::WHITES;
-
-    CHECK_EXT(io != NULL && io->isOpen(), os.setError(L10N::badArgument("IO adapter")), NULL);
-    
-    QByteArray readBuff(READ_BUFF_SIZE+1, 0);
-    char* buff = readBuff.data();
-    qint64 len = 0;
-
-    //skip leading whites if present
-    bool lineOk = true;
-    io->readUntil(buff, READ_BUFF_SIZE, nonWhites, IOAdapter::Term_Exclude, &lineOk);
-
-    //read header
-    len = io->readUntil(buff, READ_BUFF_SIZE, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
-    CHECK(len > 0, NULL); //end of stream
-    CHECK_EXT(lineOk, os.setError(FastaFormat::tr("Line is too long")), NULL);
-    QByteArray headerLine = QByteArray(buff + 1, len-1).trimmed();
-    CHECK_EXT(buff[0] == fastaHeaderStartChar, os.setError(FastaFormat::tr("First line is not a FASTA header")), NULL);
-    
-    //read sequence
-    QByteArray sequence;
-    int predictedSize = 1000;
-    sequence.reserve(predictedSize);
-    do {
-        len = io->readUntil(buff, READ_BUFF_SIZE, fastaHeaderStart, IOAdapter::Term_Exclude);
-        if (len <= 0) {
-            break;
-        }
-        len = TextUtils::remove(buff, len, TextUtils::WHITES);
-        buff[len] = 0;
-        sequence.append(buff);
-    } while (!os.isCoR());
-    
-    DNASequence *seq = new DNASequence(headerLine, sequence);
-    seq->alphabet = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_EXTENDED());
-    assert(seq->alphabet!=NULL);
-
-    if (!seq->alphabet->isCaseSensitive()) {
-        TextUtils::translate(TextUtils::UPPER_CASE_MAP, const_cast<char*>(seq->seq.constData()), seq->seq.length());
-    }
-
-    return seq;
 }
 
 void FastaFormat::storeSequence(const DNASequence& sequence, IOAdapter* io, U2OpStatus& os) {
     saveSequence(io, sequence, os);
+}
+
+void FastaFormat::storeSequence( const U2SequenceObject *sequence, IOAdapter *io, U2OpStatus &os ) {
+    saveSequence( io, sequence, os );
+}
+
+static QString skipComments(const QString &userInput, U2OpStatus &os) {
+    QStringList lines = userInput.trimmed().split("\n", QString::SkipEmptyParts);
+    QStringList result = lines;
+    QStringList unreferenced;
+    foreach (const QString &line, lines) {
+        if (line.startsWith(FastaFormat::FASTA_HEADER_START_SYMBOL)) {
+            break;
+        } else {
+            result.removeFirst();
+        }
+
+        if (!line.startsWith(FastaFormat::FASTA_COMMENT_START_SYMBOL)) {
+            unreferenced << line;
+        }
+    }
+
+    if (!unreferenced.isEmpty()) {
+        QString seq = unreferenced.join(" ");
+        os.setError(FastaFormat::tr("Unreferenced sequence in the beginning of patterns: %1").arg(seq));
+    }
+
+    return result.join("\n");
+}
+
+QList <QPair<QString, QString> > FastaFormat::getSequencesAndNamesFromUserInput( const QString &userInput, U2OpStatus &os ){
+    QList <QPair<QString, QString> > result;
+
+    if(userInput.contains(FASTA_HEADER_START_SYMBOL)) {
+        QString patterns = skipComments(userInput, os);
+        QStringList seqDefs = patterns.trimmed().split(FASTA_HEADER_START_SYMBOL, QString::SkipEmptyParts);
+
+        foreach (const QString &seqDef, seqDefs) {
+            QStringList seqData = seqDef.split("\n");
+            CHECK_EXT(!seqData.isEmpty(), os.setError("Invalid fasta input"), result);
+            QString name = seqData.takeFirst();
+            QString sequence;
+            foreach (const QString &line, seqData) {
+                if (line.startsWith(FASTA_COMMENT_START_SYMBOL)) {
+                    continue;
+                }
+                sequence += line;
+            }
+            result.append(qMakePair(name, sequence));
+        }
+    }
+
+    return result;
 }
 
 }//namespace

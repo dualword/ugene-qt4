@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,11 +33,10 @@ namespace LocalWorkflow {
 class ScriptWorkerTask: public Task {
     Q_OBJECT
 public:
-    ScriptWorkerTask(WorkflowScriptEngine *_engine, AttributeScript*  _script ):Task(tr("Script worker task"),TaskFlag_None), isList(false),engine(_engine),script(_script) {}
+    ScriptWorkerTask(WorkflowScriptEngine *engine, AttributeScript *script);
     void run();
-    QVariant getResult() const {return result;}
-    WorkflowScriptEngine *getEngine() {return engine;}
-    bool isList;
+    QVariant getResult() const;
+    WorkflowScriptEngine * getEngine();
 
 private:
     QVariant result;
@@ -48,7 +47,7 @@ private:
 class ScriptPromter : public PrompterBase<ScriptPromter> {
     Q_OBJECT
 public:
-    ScriptPromter( Actor * p = 0 ) : PrompterBase<ScriptPromter>(p) {};
+    ScriptPromter(Actor * p = 0) : PrompterBase<ScriptPromter>(p) {}
 protected:
     QString composeRichDoc();
 };
@@ -58,10 +57,9 @@ class ScriptWorker: public BaseWorker {
 public:
     ScriptWorker(Actor *a);
     virtual void init();
-    virtual bool isReady();
-    virtual bool isDone();
-    virtual Task* tick();
+    virtual Task * tick();
     virtual void cleanup();
+    virtual void setDone();
 
 private slots:
     void sl_taskFinished();
@@ -69,25 +67,33 @@ private slots:
 private:
     void bindAttributeVariables();
     void bindPortVariables();
-    //QVariant scriptResult;
 
-    CommunicationChannel *input, *output;
+    CommunicationChannel *input;
+    CommunicationChannel *output;
     WorkflowScriptEngine *engine;
-    AttributeScript *script;  
+    AttributeScript *script;
+    bool taskFinished;
+
+private:
+    bool isNeedToBeDone() const;
+    bool isNeedToBeRun() const;
 };
 
 class ScriptWorkerFactory: public DomainFactory {
-    
 public:
     ScriptWorkerFactory(QString name) : DomainFactory(name) {}
-    static bool init(QList<DataTypePtr > input, QList<DataTypePtr > output, QList<Attribute*> attrs, const QString& name,const QString &description);
-    virtual Worker* createWorker(Actor* a) {return new ScriptWorker(a);}
 
+    virtual Worker * createWorker(Actor *a);
+
+    static bool init(QList<DataTypePtr> input, QList<DataTypePtr> output, QList<Attribute*> attrs,
+        const QString &name,const QString &description, const QString &actorFilePath);
+
+public:
     static const QString ACTOR_ID;
 };
 
 
-} // Workflow namespace
-} // U2 namespace
+} // LocalWorkflow
+} // U2
 
 #endif

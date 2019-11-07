@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,9 +23,10 @@
 #define _U2_BLAST_TASK_SETTINGS_H
 
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
 
 namespace U2 {
+
+class AnnotationTableObject;
 
 /*Options for BlastAll
 blastall 2.2.21 not included arguments:
@@ -121,6 +122,8 @@ public:
 
     QString         queryFile;              //-i Query File [File In]
     QByteArray      querySequence;
+    bool            isSequenceCircular;     // if the sequence is circular, UGENE will expand the sequence
+                                            // and results on circular junction will be found
     QString         outputResFile;          //Output file with annotations
     QString         outputOriginalFile;     //-o BLAST report Output File [File Out]  Optional
     int             outputType;             //-m Type of BLAST report Output File [File Out]  Optional
@@ -128,13 +131,17 @@ public:
     int             numberOfProcessors;     //-a Number of processors to use [Integer]
     int             numberOfHits;           //-K Number of best hits from a region to keep. Off by default.  If used a value of 100 is recommended.
 
+    QString         compStats;              //-comp_based_stats <String> (-C in blastall)
+
     bool            isNucleotideSeq;
-    DNAAlphabet*    alphabet;
+    const DNAAlphabet*    alphabet;
     //settings for annotations
     bool                    needCreateAnnotations;
-    AnnotationTableObject*  aobj;
+    AnnotationTableObject *   aobj;
     QString                 groupName;
+    QString                 annDescription;
     int                     offsInGlobalSeq;
+    TriState                directStrand;
 
 };
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +22,16 @@
 #ifndef _U2_MAFFT_SUPPORT_TASK_H
 #define _U2_MAFFT_SUPPORT_TASK_H
 
-#include <U2Core/Task.h>
+#include <QtCore/QFile>
+
+#include <U2Core/ExternalToolRunTask.h>
 #include <U2Core/IOAdapter.h>
-
-#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/GObjectReference.h>
+#include <U2Core/MAlignment.h>
 #include <U2Core/SaveDocumentTask.h>
+#include <U2Core/Task.h>
+
 #include "utils/ExportTasks.h"
-
-#include <U2Core/MAlignmentObject.h>
-
-#include "ExternalToolRunTask.h"
 
 namespace U2 {
 
@@ -45,8 +45,11 @@ namespace U2 {
 ? --thread # :     Number of threads. (# must be <= number of physical cores - 1)
 
 */
+
+class LoadDocumentTask;
 class MAFFTLogParser;
-class MAFFTSupportTaskSettings {
+
+class MAFFTSupportTaskSettings  {
 public:
     MAFFTSupportTaskSettings() {reset();}
     void reset();
@@ -55,23 +58,32 @@ public:
     float   gapExtenstionPenalty;
     int     maxNumberIterRefinement;
     QString inputFilePath;
+    QString outputFilePath;
+
 };
 
 
-class MAFFTSupportTask : public Task {
+class MAFFTSupportTask : public ExternalToolSupportTask {
     Q_OBJECT
+    Q_DISABLE_COPY(MAFFTSupportTask)
 public:
-    MAFFTSupportTask(MAlignmentObject* _mAObject, const MAFFTSupportTaskSettings& settings);
+    MAFFTSupportTask(const MAlignment& _inputMsa, const GObjectReference& _objRef, const MAFFTSupportTaskSettings& settings);
+    ~MAFFTSupportTask();
+
     void prepare();
     Task::ReportResult report();
 
     QList<Task*> onSubTaskFinished(Task* subTask);
 
     MAlignment                  resultMA;
+
+private slots:
+    void sl_progressUndefined();
+
 private:
-    MAlignmentObject*           mAObject;
-    Document*                   currentDocument;
-    Document*                   newDocument;
+    MAlignment                  inputMsa;
+    GObjectReference            objRef;
+    QPointer<Document>          tmpDoc;
     QString                     url;
     MAFFTLogParser*             logParser;
 
@@ -79,10 +91,14 @@ private:
     ExternalToolRunTask*        mAFFTTask;
     LoadDocumentTask*           loadTmpDocumentTask;
     MAFFTSupportTaskSettings    settings;
+    QPointer<StateLock>         lock;
 };
+
+class MAlignmentObject;
 
 class MAFFTWithExtFileSpecifySupportTask : public Task {
     Q_OBJECT
+    Q_DISABLE_COPY(MAFFTWithExtFileSpecifySupportTask)
 public:
     MAFFTWithExtFileSpecifySupportTask(const MAFFTSupportTaskSettings& settings);
     ~MAFFTWithExtFileSpecifySupportTask();
@@ -102,14 +118,21 @@ private:
 };
 
 class MAFFTLogParser : public ExternalToolLogParser {
+    Q_OBJECT
+    Q_DISABLE_COPY(MAFFTLogParser)
 public:
     MAFFTLogParser(int countSequencesInMSA, int countRefinementIter, const QString& outputFileName);
-    ~MAFFTLogParser(){ outFile.close(); }
+    ~MAFFTLogParser(){ cleanup(); }
     int getProgress();
     void parseOutput(const QString& partOfLog);
     void parseErrOutput(const QString& partOfLog);
 
     bool isOutFileCreated(){ return isOutputFileCreated; }
+    void cleanup();
+
+signals:
+    void si_progressUndefined();
+
 private:
     int     countSequencesInMSA;
     int     countRefinementIter;
@@ -118,10 +141,16 @@ private:
     bool    isOutputFileCreated;
     QString lastErrLine;
 
+    bool    isMemSaveModeEnabled;   // there is no progress in the memsave mode
     bool    firstDistanceMatrix;
+    bool    secondDistanceMatrix;
     bool    firstUPGMATree;
+    bool    secondUPGMATree;
     bool    firstProAlign;
+    bool    secondProAlign;
     int     progress;
+
+    static const QString MEM_SAVE_MODE_MESSAGE;
 };
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,6 @@
 #include <U2Core/Task.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/MAlignment.h>
-#include <memory>
-
 
 namespace U2 {
 
@@ -36,17 +34,20 @@ namespace U2 {
 class SaveAlignmentTask : public Task {
     Q_OBJECT
 public:
-    SaveAlignmentTask(const MAlignment& ma, const QString& fileName, DocumentFormatId f);
+    SaveAlignmentTask(const MAlignment& ma, const QString& fileName, DocumentFormatId f, const QVariantMap& hints = QVariantMap());
 
     void run();
 
-    virtual Document* getDocument() const {return doc.get();}
+    virtual Document* getDocument() const {return doc.data();}
+
+    MAlignment& getMAlignment() {return ma;}
 
 private:
     MAlignment              ma;
     QString                 fileName;
+    QVariantMap             hints;
     DocumentFormatId        format;
-    std::auto_ptr<Document> doc;
+    QScopedPointer<Document> doc;
 };
 
 
@@ -58,14 +59,14 @@ public:
 
     void run();
 
-    virtual Document* getDocument() const {return doc.get();}
+    virtual Document* getDocument() const {return doc.data();}
 
 private:
     MAlignment              ma;
     QString                 url;
     bool                    trimAli;
     QString                 format;
-    std::auto_ptr<Document> doc;
+    QScopedPointer<Document> doc;
 };
 
 }//namespace

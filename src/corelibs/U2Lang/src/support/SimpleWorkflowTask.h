@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,8 @@
 
 #include <U2Core/Task.h>
 #include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentProviderTask.h>
 #include <U2Core/SaveDocumentTask.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/MAlignment.h>
 
 #include <U2Lang/Schema.h>
@@ -39,6 +39,7 @@ namespace U2 {
 
 using namespace Workflow;
 
+class LoadDocumentTask;
 class MAlignmentObject;
 
 class U2LANG_EXPORT SimpleInOutWorkflowTaskConfig {
@@ -52,8 +53,8 @@ public:
     QString             schemaName;
 };
 
-/** 
-    Runs workflow in a separate process and handles in-out parameters 
+/**
+    Runs workflow in a separate process and handles in-out parameters
     The result is output document
 */
 class U2LANG_EXPORT SimpleInOutWorkflowTask : public DocumentProviderTask {
@@ -62,18 +63,18 @@ public:
     SimpleInOutWorkflowTask(const SimpleInOutWorkflowTaskConfig& conf);
     void prepare();
     virtual QList<Task*> onSubTaskFinished(Task* subTask);
-    
+
 private:
     void prepareTmpFile(QTemporaryFile& tmpFile, const QString& tmpl);
 
     SimpleInOutWorkflowTaskConfig        conf;
-    
+
     Document*                           inDoc;
-    
+
     SaveDocumentTask*                   saveInputTask;
     QTemporaryFile                      inputTmpFile;
 
-    RunCmdlineWorkflowTask*    runWorkflowTask;
+    RunCmdlineWorkflowTask*             runWorkflowTask;
 
     QTemporaryFile                      resultTmpFile;
     LoadDocumentTask*                   loadResultTask;
@@ -91,33 +92,24 @@ public:
     QVariantMap resultDocHints;
 };
 
-class U2LANG_EXPORT SimpleMSAWorkflowTask : public Task {
-    Q_OBJECT
-
-public:
-    SimpleMSAWorkflowTask(const QString& taskName, const MAlignment& ma, const SimpleMSAWorkflowTaskConfig& conf);
-    MAlignment getResult();
-private:
-    SimpleMSAWorkflowTaskConfig conf;
-    SimpleInOutWorkflowTask* runWorkflowTask;
-};
-
-
-class U2LANG_EXPORT SimpleMSAWorkflow4GObjectTask : public SimpleMSAWorkflowTask {
+class U2LANG_EXPORT SimpleMSAWorkflow4GObjectTask : public Task {
     Q_OBJECT
 
 public:
     SimpleMSAWorkflow4GObjectTask(const QString& taskName, MAlignmentObject* maObj, const SimpleMSAWorkflowTaskConfig& conf);
     ~SimpleMSAWorkflow4GObjectTask();
-    
+
     void prepare();
     ReportResult report();
+    MAlignment getResult();
 
 private:
     QPointer<MAlignmentObject>  obj;
-    StateLock*                  lock;
+    QPointer<StateLock>         lock;
     QString                     docName;
     SimpleMSAWorkflowTaskConfig conf;
+    SimpleInOutWorkflowTask*    runWorkflowTask;
+    U2UseCommonUserModStep      *userModStep;
 };
 
 }    // namespace U2

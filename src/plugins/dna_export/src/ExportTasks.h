@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,12 +27,12 @@
 #include <U2Core/Task.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/MAlignment.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/DocumentProviderTask.h>
-
 
 namespace U2 {
 
+class DNATranslation;
+class LoadDocumentTask;
 
 /** A task to adds exported document to project and open view*/
 //TODO: make this task a general purpose routine
@@ -43,6 +43,7 @@ public:
     QList<Task*> onSubTaskFinished( Task* subTask );
 private:
     DocumentProviderTask* exportTask;
+    LoadDocumentTask* loadTask;
 };
 
 
@@ -79,7 +80,7 @@ private:
 class ExportMSA2MSATask : public DocumentProviderTask {
     Q_OBJECT
 public:
-    ExportMSA2MSATask(const MAlignment& ma, int offset, int len, const QString& url, 
+    ExportMSA2MSATask(const MAlignment& ma, int offset, int len, const QString& url,
         const QList<DNATranslation*>& aminoTranslations, DocumentFormatId format);
 
     void run();
@@ -94,7 +95,6 @@ private:
 };
 
 class DNAChromatogramObject;
-class LoadDocumentTask;
 
 /** A task to export chromatogram to SCF */
 
@@ -118,9 +118,6 @@ private:
     ExportChromatogramTaskSettings settings;
     LoadDocumentTask* loadTask;
 };
-
-
-
 
 }//namespace
 

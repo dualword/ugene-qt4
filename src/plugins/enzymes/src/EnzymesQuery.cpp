@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,12 +32,17 @@
 
 #include <U2Lang/BaseTypes.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QInputDialog>
+#else
+#include <QtWidgets/QInputDialog>
+#endif
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 
 
 namespace U2 {
-    
+
 /************************************************************************/
 /* QDEnzymesActor                                                       */
 /************************************************************************/
@@ -46,7 +51,7 @@ static const QString ENZYMES_ATTR = "enzymes";
 static const QString CIRC_ATTR = "circular";
 static const QString MIN_ATTR = "min";
 static const QString MAX_ATTR = "max";
-    
+
 QDEnzymesActor::QDEnzymesActor(QDActorPrototype const* proto) : QDActor(proto) {
     selectorFactory = NULL;
     cfg->setAnnotationKey("<rsite>");
@@ -61,7 +66,7 @@ Task* QDEnzymesActor::getAlgorithmTask(const QVector<U2Region>& location) {
     Task* t = NULL;
 
     bool circular = cfg->getParameter(CIRC_ATTR)->getAttributePureValue().toBool();
-    
+
     assert(!location.isEmpty());
     t = new Task(tr("Enzymes query"), TaskFlag_NoRun);
 
@@ -75,9 +80,8 @@ Task* QDEnzymesActor::getAlgorithmTask(const QVector<U2Region>& location) {
         }
     }
 
-    const DNASequence& seq = scheme->getSequence();
     foreach(const U2Region& r, location) {
-        FindEnzymesTask* st = new FindEnzymesTask(seq, r, enzymes, INT_MAX, circular);
+        FindEnzymesTask* st = new FindEnzymesTask(scheme->getEntityRef(), r, enzymes, INT_MAX, circular);
         t->addSubTask(st);
         enzymesTasks.append(st);
     }
@@ -86,17 +90,17 @@ Task* QDEnzymesActor::getAlgorithmTask(const QVector<U2Region>& location) {
 }
 
 void QDEnzymesActor::sl_onAlgorithmTaskFinished() {
-    foreach(FindEnzymesTask* st, enzymesTasks) {
-        foreach(const QString& id, ids) {
+    foreach (FindEnzymesTask *st, enzymesTasks) {
+        foreach (const QString &id, ids) {
             QList<SharedAnnotationData> dataz = st->getResultsAsAnnotations(id);
-            foreach(const SharedAnnotationData& ad, dataz) {
+            foreach (const SharedAnnotationData &ad, dataz) {
                 QDResultUnit ru(new QDResultUnitData);
                 ru->strand = ad->getStrand();
                 ru->quals = ad->qualifiers;
                 ru->quals.append(U2Qualifier("id", id));
                 ru->region = ad->location->regions[0];
                 ru->owner = units.value("enzyme");
-                QDResultGroup* g = new QDResultGroup(QDStrand_Both);
+                QDResultGroup *g = new QDResultGroup(QDStrand_Both);
                 g->add(ru);
                 results.append(g);
             }
@@ -108,7 +112,7 @@ void QDEnzymesActor::sl_onAlgorithmTaskFinished() {
 
 QDEnzymesActorPrototype::QDEnzymesActorPrototype() {
     descriptor.setId("rsite");
-    descriptor.setDisplayName(QDEnzymesActor::tr("RestrictionSites"));
+    descriptor.setDisplayName(QDEnzymesActor::tr("Restriction Sites"));
     descriptor.setDocumentation(QDEnzymesActor::tr("Finds restriction cut sites in supplied DNA sequence."));
 
     Descriptor ed(ENZYMES_ATTR, QDEnzymesActor::tr("Enzymes"), QDEnzymesActor::tr("Restriction enzymes used to recognize the restriction sites."));
@@ -141,12 +145,15 @@ QString EnzymesSelectorDialogHandler::getSelectedString(QDialog* dlg) {
 EnzymesSelectorDialog::EnzymesSelectorDialog(EnzymesSelectorDialogHandler* parent)
 : factory(parent) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122335");
+
     QVBoxLayout* vl = new QVBoxLayout();
     enzSel = new EnzymesSelectorWidget();
     vl->setMargin(0);
     vl->addWidget(enzSel);
     enzymesSelectorWidget->setLayout(vl);
     enzymesSelectorWidget->setMinimumSize(enzSel->size());
+
 }
 
 QString EnzymesSelectorDialog::getSelectedString() const {

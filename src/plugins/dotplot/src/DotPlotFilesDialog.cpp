@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,20 @@
  * MA 02110-1301, USA.
  */
 
-#include "DotPlotFilesDialog.h"
+#include <QMessageBox>
+#include <QPushButton>
 
-#include <U2Core/GObjectTypes.h>
 #include <U2Core/DocumentUtils.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <U2Gui/LastUsedDirHelper.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
-
+#include "DotPlotFilesDialog.h"
 
 namespace U2 {
 
@@ -38,6 +40,9 @@ DotPlotFilesDialog::DotPlotFilesDialog(QWidget *parent)
 : QDialog(parent)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122211");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Next"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
     connect(openFirstButton, SIGNAL(clicked()), SLOT(sl_openFirstFile()));
     connect(openSecondButton, SIGNAL(clicked()), SLOT(sl_openSecondFile()));
@@ -48,6 +53,7 @@ DotPlotFilesDialog::DotPlotFilesDialog(QWidget *parent)
 
     filter = DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::MULTIPLE_ALIGNMENT, true).append("\n").append(
         DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::SEQUENCE, false));
+
 }
 
 void DotPlotFilesDialog::sl_oneSequence() {
@@ -71,19 +77,25 @@ void DotPlotFilesDialog::sl_mergeSecond() {
 void DotPlotFilesDialog::sl_openFirstFile() {
 
     LastUsedDirHelper lod("DotPlot first file");
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open first file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(NULL, tr("Open first file"), lod.dir, filter);
 
-    Q_ASSERT(firstFileEdit);
+    SAFE_POINT(firstFileEdit, "firstFileEdit is NULL", );
     if (!lod.url.isEmpty()) {
         firstFileEdit->setText(lod.url);
         FormatDetectionConfig conf;
         conf.useImporters = true;
         conf.bestMatchesOnly = true;
-        FormatDetectionResult format = DocumentUtils::detectFormat(lod.url, conf).at(0); //get moslty matched format
+        QList<FormatDetectionResult> results = DocumentUtils::detectFormat(lod.url, conf);
+        if (results.isEmpty()){
+            firstFileEdit->setText("");
+            lod.url = "";
+            return;
+        }
+        FormatDetectionResult format = results.at(0); //get moslty matched format
         bool multySeq = format.rawDataCheckResult.properties.value(RawDataCheckResult_MultipleSequences).toBool();
         if(multySeq){
             mergeFirstCheckBox->setChecked(true);
-            sl_mergeFirst();            
+            sl_mergeFirst();
         }
     }
 }
@@ -97,19 +109,25 @@ void DotPlotFilesDialog::sl_openSecondFile() {
 
         lod.dir = lodFirst.dir;
     }
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open second file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(NULL, tr("Open second file"), lod.dir, filter);
 
-    Q_ASSERT(secondFileEdit);
+    SAFE_POINT(secondFileEdit, "secondFileEdit is NULL", );
     if (!lod.url.isEmpty()) {
         secondFileEdit->setText(lod.url);
         FormatDetectionConfig conf;
         conf.useImporters = true;
         conf.bestMatchesOnly = true;
-        FormatDetectionResult format = DocumentUtils::detectFormat(lod.url, conf).at(0);//get moslty matched format
+        QList<FormatDetectionResult> results = DocumentUtils::detectFormat(lod.url, conf);
+        if (results.isEmpty()){
+            secondFileEdit->setText("");
+            lod.url = "";
+            return;
+        }
+        FormatDetectionResult format = results.at(0); //get moslty matched format
         bool multySeq = format.rawDataCheckResult.properties.value(RawDataCheckResult_MultipleSequences).toBool();
         if(multySeq){
             mergeSecondCheckBox->setChecked(true);
-            sl_mergeSecond();            
+            sl_mergeSecond();
         }
     }
 }
@@ -117,8 +135,8 @@ void DotPlotFilesDialog::sl_openSecondFile() {
 // ok button clicked
 void DotPlotFilesDialog::accept() {
 
-    Q_ASSERT(firstFileEdit);
-    Q_ASSERT(secondFileEdit);
+    SAFE_POINT(firstFileEdit, "firstFileEdit is NULL", );
+    SAFE_POINT(secondFileEdit, "secondFileEdit is NULL", );
 
     firstFileName = firstFileEdit->text();
     secondFileName = secondFileEdit->text();
@@ -127,12 +145,29 @@ void DotPlotFilesDialog::accept() {
         secondFileName = firstFileName;
     }
 
+    FormatDetectionConfig conf;
+    QList<FormatDetectionResult> results = DocumentUtils::detectFormat(firstFileName, conf);
+    if (results.isEmpty()){
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Select files"), tr("Unable to detect file format %1.\r\nSelect valid file to build dotplot").arg(firstFileEdit->text()));
+        firstFileEdit->setText("");
+        mb->exec();
+        return;
+    }
+
+    results = DocumentUtils::detectFormat(secondFileName, conf);
+    if (results.isEmpty()){
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Select files"), tr("Unable to detect format of given file %1.\r\nSelect valid file to build dotplot").arg(secondFileEdit->text()));
+        firstFileEdit->setText("");
+        mb->exec();
+        return;
+    }
+
     if (!firstFileName.isEmpty() && !secondFileName.isEmpty()) {
         QDialog::accept();
     }
     else {
-        QMessageBox mb(QMessageBox::Critical, tr("Select files"), tr("Select files first to build dotplot"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Select files"), tr("Select files first to build dotplot"));
+        mb->exec();
     }
 }
 

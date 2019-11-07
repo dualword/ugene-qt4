@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -81,7 +81,7 @@ private:
     QDDocument* document;
 };
 
-class QDDocument : QObject {
+class QDDocument : public QObject {
     Q_OBJECT
 public:
     QDDocument() : schemaStrand(QDStrand_Both) {}
@@ -112,8 +112,12 @@ public:
     void parseSchemaStrand(const QString& str);
     QDStrandOption getSchemaStrand() const { return schemaStrand; }
     void setSchemaStrand(QDStrandOption stOp) { schemaStrand = stOp; }
+
+    static bool isHeaderLine(const QString &line);
+
 public:
     static const QString HEADER_LINE;
+    static const QString DEPRECATED_HEADER_LINE;
     static const QString GROUPS_SECTION;
     static const QString ID_PATTERN;
 private:

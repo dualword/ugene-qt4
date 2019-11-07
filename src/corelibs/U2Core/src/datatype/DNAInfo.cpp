@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,45 +23,45 @@
 
 namespace U2 {
 
-const QString DNAInfo::LOCUS = "LOCUS";  
+const QString DNAInfo::LOCUS = "LOCUS";
 
-const QString DNAInfo::DEFINITION = "DEFINITION";  
+const QString DNAInfo::DEFINITION = "DEFINITION";
 
-const QString DNAInfo::ACCESSION = "ACCESSION";  
+const QString DNAInfo::ACCESSION = "ACCESSION";
 
-const QString DNAInfo::VERSION = "VERSION";  
+const QString DNAInfo::VERSION = "VERSION";
 
-const QString DNAInfo::PROJECT = "PROJECT";  
+const QString DNAInfo::PROJECT = "PROJECT";
 
-const QString DNAInfo::SEGMENT = "SEGMENT";  
+const QString DNAInfo::SEGMENT = "SEGMENT";
 
-const QString DNAInfo::SOURCE = "SOURCE";  
+const QString DNAInfo::SOURCE = "SOURCE";
 
-const QString DNAInfo::KEYWORDS = "KEYWORDS";  
+const QString DNAInfo::KEYWORDS = "KEYWORDS";
 
-const QString DNAInfo::REFERENCE = "REFERENCE";  
+const QString DNAInfo::REFERENCE = "REFERENCE";
 
-const QString DNAInfo::AUTHORS = "AUTHORS";  
+const QString DNAInfo::AUTHORS = "AUTHORS";
 
-const QString DNAInfo::CONSRTM = "CONSRTM";  
+const QString DNAInfo::CONSRTM = "CONSRTM";
 
-const QString DNAInfo::TITLE = "TITLE";  
+const QString DNAInfo::TITLE = "TITLE";
 
-const QString DNAInfo::JOURNAL = "JOURNAL";  
+const QString DNAInfo::JOURNAL = "JOURNAL";
 
-const QString DNAInfo::MEDLINE = "MEDLINE";  
+const QString DNAInfo::MEDLINE = "MEDLINE";
 
-const QString DNAInfo::PUBMED = "PUBMED";  
+const QString DNAInfo::PUBMED = "PUBMED";
 
-const QString DNAInfo::REMARK = "REMARK";  
+const QString DNAInfo::REMARK = "REMARK";
 
-const QString DNAInfo::COMMENT = "COMMENT";  
+const QString DNAInfo::COMMENT = "COMMENT";
 
-const QString DNAInfo::FEATURES = "FEATURES";  
+const QString DNAInfo::FEATURES = "FEATURES";
 
-const QString DNAInfo::CONTIG = "CONTIG";  
+const QString DNAInfo::CONTIG = "CONTIG";
 
-const QString DNAInfo::ORIGIN = "ORIGIN";  
+const QString DNAInfo::ORIGIN = "ORIGIN";
 
 const QString DNAInfo::CHAIN_ID = "CHAIN_ID";
 
@@ -72,6 +72,7 @@ const QString DNAInfo::FASTQ_QUAL_TYPE = "FASTQ_QUAL_TYPE";
 const QString DNAInfo::EMBL_ID = "EMBL_ID";
 const QString DNAInfo::ID = "ID";
 const QString DNAInfo::GENBANK_HEADER = "GENBANK_HEADER";
+const QString DNAInfo::FASTQ_COMMENT = "FASTQ_COMMENT";
 
 
 QString DNAInfo::getPrimaryAccession( const QVariantMap& vm)
@@ -111,5 +112,13 @@ QString DNAInfo::getName( const QVariantMap& vm) {
         name = getPrimaryAccession(vm);
     }
     return name;
+}
+
+QString DNAInfo::getFastqComment(const QVariantMap & vm){
+    QString comment;
+    if (vm.contains(FASTQ_COMMENT)) {
+        comment = vm.value(FASTQ_COMMENT).toString();
+    }
+    return comment;
 }
 }//namespace

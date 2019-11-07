@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,61 +22,86 @@
 #ifndef _U2_EXPORT_IMAGE_DIALOG_H_
 #define _U2_EXPORT_IMAGE_DIALOG_H_
 
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
+
+#include "imageExport/ImageExportTask.h"
 #include <U2Gui/LastUsedDirHelper.h>
 
-#include <QtCore/QList>
-#include <QtCore/QString>
-#include <QtGui/QDialog>
-
 class Ui_ImageExportForm;
+class QRadioButton;
+class QAbstractButton;
+class QButtonGroup;
 
 namespace U2 {
 
-class U2GUI_EXPORT ExportImageDialog : public QDialog
-{
+
+class U2GUI_EXPORT ExportImageDialog : public QDialog {
     Q_OBJECT
-
 public:
-    ExportImageDialog(QWidget* widget, bool showSizeRuler=false, bool useVectorFormats=false, const QString& file = QString("untitled"));
-    ExportImageDialog(QWidget* widget, QRect rect, bool showSizeRuler=false, bool useVectorFormats=false, const QString& file = QString("untitled"));
+    enum InvokedFrom{ WD, CircularView, MSA, SequenceView, AssemblyView, PHYTreeView, DotPlot, MolView};
+    enum ImageScalingPolicy {
+        NoScaling,
+        SupportScaling
+    };
 
-    virtual bool exportToSVG();
-    virtual bool exportToPDF();
-    virtual bool exportToBitmap();
+    ExportImageDialog(QWidget* screenShotWidget,
+                      InvokedFrom invoSource,
+                      ImageScalingPolicy scalingPolicy = NoScaling,
+                      QWidget* parent = NULL, const QString& file = QString("untitled"));
 
-    const QString& getFilename(){return filename;}
-    const QString& getFormat(){return format;}
-    bool hasQuality();
-    int getWidth();
-    int getHeight();
-    int getQuality();
+    ExportImageDialog(ImageExportController *factory,
+                      InvokedFrom invoSource,
+                      ImageScalingPolicy scalingPolicy = NoScaling,
+                      QWidget* parent = NULL, const QString& file = QString("untitled"));
+
+    ~ExportImageDialog();
+
+    const QString& getFilename() const { return filename; }
+    const QString& getFormat() const { return format; }
+    int getWidth() const;
+    int getHeight() const;
+
+    bool hasQuality() const;
+    int getQuality() const;
 
 public slots:
-    virtual void accept();
+    void accept();
 
 private slots:
     void sl_onBrowseButtonClick();
     void sl_onFormatsBoxItemChanged(const QString& text);
 
+    void sl_showMessage(const QString& message);
+    void sl_disableExport(bool disable);
+
 private:
-    void setupComponents();
+    void init();
     void setSizeControlsEnabled(bool enabled);
+    void setFormats();
+    void setRasterFormats();
+    void setSvgAndPdfFormats();
+    void removeOutputFileNameExtention(const QString& ext);
 
-    static bool isVectorGraphicFormat(const QString& formatName);
-    static int getVectorFormatIdByName(const QString& formatName);
+    static bool isVectorGraphicFormat(const QString &formatName);
+    static bool isLossyFormat(const QString &formatName);
 
 private:
-    QList<QString> supportedFormats;
-    QWidget* widget;
+    ImageExportController*  exportController;
+    ImageScalingPolicy      scalingPolicy;
+
+    QList<QString>      supportedFormats;
     QString filename;
     QString origFilename;
     QString format;
 
     LastUsedDirHelper lod;
     Ui_ImageExportForm* ui;
-    QRect rect;
-    bool showSizeRuler;
-    bool useVectorFormats;
+    InvokedFrom source;
 }; // class ExportImageDialog
 
 } // namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,10 +38,8 @@
 #include <QtCore/QVector>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
-#include <QtCore/QTextIStream>
+#include <QtCore/QTextStream>
 #include <QtCore/qmath.h>
-
-#include <memory>
 
 /* TRANSLATOR U2::IOAdapter */
 
@@ -77,7 +75,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
     model.err1.fill(defaultVal, 100);
     model.err2.fill(defaultVal, 100);
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Read)) {
         si.setError(  L10N::errorOpeningFileRead(url) );
         return model;
@@ -107,7 +105,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
     STATE state = FILE_S;
     QString line = reader.readLine();
     if (line!=FILE_HEADER) {
-        si.setError(  tr("not_sitecon_model_file") );
+        si.setError(  tr("Not a sitecon model") );
         return model;
     }
     QSet<int> passedPropsAve;
@@ -142,11 +140,16 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
             break;
         } 
         switch(state) {
+            case FILE_S:
+                {
+                    model.description += line + '\n';
+                }
+                break;
             case SETTINGS_S:
                 {
                     int i = line.indexOf(' ');
                     if (i == -1) {
-                        si.setError(  tr("error_parsing_settings_line_%1").arg(line) );
+                        si.setError(  tr("Error parsing settings, line %1").arg(line) );
                         break;
                     }
                     QString name = line.left(i);
@@ -157,7 +160,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                     } else if (name == "W") {
                         model.settings.windowSize = val.toInt(&ok);
                         if (!ok) {
-                            si.setError(  tr("error_parsing_settings_window_size_%1").arg(line) );
+                            si.setError(  tr("Error parsing window size: %1").arg(line) );
                             break;
                         } 
                         model.matrix.resize(model.settings.windowSize-1);
@@ -170,25 +173,25 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                     } else if (name == "CLEN") {
                         model.settings.secondTypeErrorCalibrationLen = val.toInt(&ok);
                         if (!ok) {
-                            si.setError(  tr("error_parsing_calibration_len_%1").arg(line) );
+                            si.setError(  tr("Error parsing calibration len: %1").arg(line) );
                             break;
                         } 
                     } else if (name == "RSEED") {
                         model.settings.randomSeed = val.toInt(&ok);
                         if (!ok) {
-                            si.setError(  tr("error_parsing_rseed_%1").arg(line) );
+                            si.setError(  tr("Error parsing RSEED: %1").arg(line) );
                             break;
                         } 
                     } else if (name == "NSEQ") {
                         model.settings.numSequencesInAlignment = val.toInt(&ok);
                         if (!ok) {
-                            si.setError(  tr("error_parsing_nsequence_in_ali_%1").arg(line) );
+                            si.setError(  tr("Error parsing number of sequence in original alignment: %1").arg(line) );
                             break;
                         } 
                     } else if (name == "WALG") {
                         int alg = val.toInt(&ok);
                         if (!ok) {
-                            si.setError(  tr("error_parsing_nsequence_in_ali_%1").arg(line) );
+                            si.setError(  tr("Error parsing in alignment %1").arg(line) );
                             break;
                         } 
                         if (alg == 0) {
@@ -196,7 +199,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                         } else if (alg == 2) {
                             model.settings.weightAlg = SiteconWeightAlg_Alg2;
                         } else {
-                            si.setError(  tr("illegal_weight_alg_%1").arg(line) );
+                            si.setError(  tr("Illegal weight algorithm: %1").arg(line) );
                             break;
                         }
                     }
@@ -208,7 +211,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                 {
                     QStringList l = line.split(MATRIX_VAL_SEPARATOR);
                     if (l.size()-2 !=  model.settings.windowSize - 1) { //num values == size-2, modelLen = w-1
-                        si.setError(  tr("model_size_not_matched_%1_expected_%2").arg(l.size()-2).arg(model.settings.windowSize-1) );
+                        si.setError(  tr("Model size not matched: %1, expected: %2").arg(l.size()-2).arg(model.settings.windowSize-1) );
                         break;
                     }
                     QString propNum = l.first();
@@ -231,7 +234,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                                 passedPropsWeight.insert(idx);
                             }
                             if (duplicate) {
-                                si.setError(  tr("duplicate_prop_%1").arg(propNum) );
+                                si.setError(  tr("Duplicate property: %1").arg(propNum) );
                                 break;
                             }
                             break;
@@ -241,7 +244,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                         break;
                     }
                     if (idx == -1) {
-                        si.setError(  tr("property_not_recognized_%1").arg(line) );
+                        si.setError(  tr("Property not recognized: %1").arg(line) );
                         break;
                     }
                     //setup position specific value for property
@@ -257,7 +260,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                             fval = (float)valStr.trimmed().toDouble(&ok);
                         }
                         if (!ok) {
-                            si.setError(  tr("error_parsing_matrix_val_%1_in_line_%2").arg(valStr).arg(line) );
+                            si.setError(  tr("Error parsing %1 in line %2").arg(valStr).arg(line) );
                             break;
                         }
                         if (state == AVE_S) {
@@ -275,25 +278,26 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                 {
                     QStringList l = line.split(' ');
                     if (l.size() != 2) {
-                        si.setError(  tr("error_parsing_errors_line_%1").arg(line) );
+                        si.setError(  tr("Error parsing in line %1").arg(line) );
                         break;
                     }
                     bool ok = true;
                     const QString& percentStr = l[0];
                     const QString& errStr = l[1];
-                    percentStr.left(percentStr.length()-1);
+                    // TODO: what purpose is this code needed for? Why does UGENE work without it?
+                    // percentStr.left(percentStr.length()-1);
                     int p = percentStr.toInt(&ok);
                     if (!ok) {
-                        si.setError(  tr("error_parsing_error_val_%1").arg(line) );
+                        si.setError(  tr("Error parsing %1").arg(line) );
                         break;
                     }
                     float e = (float)errStr.toDouble(&ok);
                     if (!ok) {
-                        si.setError(  tr("error_parsing_error_val_%1").arg(line) );
+                        si.setError(  tr("Error parsing %1").arg(line) );
                         break;
                     }
                     if (p < 0 || p >= 100) {
-                        si.setError(  tr("illegal_err_val_%1").arg(line) );
+                        si.setError(  tr("Illegal error %1").arg(line) );
                         break;
                     }
                     if (state == ERR1_S) {
@@ -303,7 +307,7 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
                     }
                 }
                 break;
-            default: si.setError(  tr("error_parsing_file_line_%1").arg(line) );
+            default: si.setError(  tr("Error parsing file in line %1").arg(line) );
         }
     }
     
@@ -312,17 +316,17 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
     }
 
     if (passedPropsAve.size() != passedPropsSDev.size()) {
-        si.setError(  tr("ave_props_in_file_%1_not_matched_sdev_props_%2").arg(passedPropsAve.size()).arg(passedPropsSDev.size()) );
+        si.setError(  tr("Number of 'average' and  'sdev' properties not matches").arg(passedPropsAve.size()).arg(passedPropsSDev.size()) );
         return model;
     }
     
     if (passedPropsAve.size() != passedPropsWeight.size()) {
-        si.setError(  tr("ave_props_in_file_%1_not_matched_weight_props_%2").arg(passedPropsAve.size()).arg(passedPropsWeight.size()) );
+        si.setError(  tr("Number of 'average' and 'weight' properties not matches").arg(passedPropsAve.size()).arg(passedPropsWeight.size()) );
         return model;
     }
     
     if (passedPropsAve.size() != props.size()) {
-        si.setError(  tr("props_in_file_%1_not_matched_actual_props_%2").arg(passedPropsAve.size()).arg(props.size()) );
+        si.setError(  tr("Property in file %1 is not the same as built-in: %2").arg(passedPropsAve.size()).arg(props.size()) );
         return model;
     }
     
@@ -350,14 +354,14 @@ SiteconModel SiteconIO::readModel(IOAdapterFactory* iof, const QString& url, Tas
     }
 
     if (model.err1.contains(defaultVal) || model.err2.contains(defaultVal)) {
-        si.setError(  tr("error_info_not_complete") );
+        si.setError(  tr("Error info in file is not complete") );
         return model;
     }
     model.deviationThresh = (float)critchi(model.settings.chisquare, model.settings.numSequencesInAlignment - 1) / model.settings.numSequencesInAlignment;
 
     bool ok = model.checkState(false);
     if(!ok) {
-        si.setError(  tr("model_verification_error") );
+        si.setError(  tr("Model verification error") );
     } 
     return model;
 }
@@ -455,7 +459,7 @@ void SiteconIO::writeModel(IOAdapterFactory* iof, const QString& url, TaskStateI
 
     res.append('\n').append(END_MARKER);
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Write)) {
         si.setError(  L10N::errorOpeningFileWrite(url) );
         return;

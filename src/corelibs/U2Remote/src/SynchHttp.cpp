@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,34 +20,78 @@
  */
 
 #include "SynchHttp.h"
+#include <U2Core/U2SafePoints.h>
+#include <QtNetwork/QNetworkRequest>
+#include <QtCore/QTimer>
 
 namespace U2 {
 
-SyncHTTP::SyncHTTP(const QString& hostName, quint16 port, QObject* parent)
-: QHttp(hostName,port,parent), requestID(-1)
+SyncHTTP::SyncHTTP(U2OpStatus &os, QObject* parent)
+: QNetworkAccessManager(parent)
+,loop(NULL)
+,errString(""),
+os(os)
 {
-    connect(this,SIGNAL(requestFinished(int,bool)),SLOT(finished(int,bool)));
+    connect(this,SIGNAL(finished(QNetworkReply*)),SLOT(finished(QNetworkReply*)));
 }
 
-QString SyncHTTP::syncGet(const QString& path) {
-    assert(requestID == -1);
-    QBuffer to;
-    requestID = get(path, &to);
-    loop.exec();
-    return QString(to.data());
+QString SyncHTTP::syncGet(const QUrl& url) {
+    connect(this,SIGNAL(proxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*)), this, SLOT(onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*)));
+    QNetworkRequest request(url);
+    QNetworkReply *reply = get(request);
+    SAFE_POINT(reply != NULL, "SyncHTTP::syncGet no reply is created", "");
+    runTimer();
+    if (loop == NULL){
+        loop = new QEventLoop();
+    }
+    CHECK_OP(os, QString());
+    loop->exec();
+    err=reply->error();
+    errString=reply->errorString();
+    return QString(reply->readAll());
 }
 
-QString SyncHTTP::syncPost(const QString & path, QIODevice * data) {
-    assert(requestID == -1);
-    QBuffer to;
-    requestID = post(path, data, &to);
-    loop.exec();
-    return QString(to.data());
+QString SyncHTTP::syncPost(const QUrl & url, QIODevice * data) {
+    connect(this,SIGNAL(proxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*)), this, SLOT(onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*)));
+    QNetworkRequest request(url);
+    QNetworkReply *reply = post(request, data);
+    SAFE_POINT(reply != NULL, "SyncHTTP::syncGet no reply is created", "");
+    runTimer();
+    if (loop == NULL){
+        loop = new QEventLoop();
+    }
+    CHECK_OP(os, QString());
+    loop->exec();
+    err=reply->error();
+    errString=reply->errorString();
+    return QString(reply->readAll());
 }
 
-void SyncHTTP::finished(int idx, bool err) {
-    assert(idx = requestID);Q_UNUSED(err); Q_UNUSED(idx);
-    loop.exit();
+void SyncHTTP::finished(QNetworkReply*) {
+    SAFE_POINT(loop != NULL, "SyncHTTP::finished no event loop", );
+    loop->exit();
+}
+
+void SyncHTTP::onProxyAuthenticationRequired(const QNetworkProxy &proxy, QAuthenticator *auth){
+    auth->setUser(proxy.user());
+    auth->setPassword(proxy.password());
+    disconnect(this, SLOT(onProxyAuthenticationRequired(const QNetworkProxy&, QAuthenticator*)));
+}
+
+SyncHTTP::~SyncHTTP(){
+    delete loop;
+    loop = NULL;
+}
+void SyncHTTP::runTimer() {
+    QTimer *timer = new QTimer(this);
+    connect(timer, SIGNAL(timeout()), this, SLOT(sl_taskCancellingCheck()));
+    timer->start(500);
+}
+
+void SyncHTTP::sl_taskCancellingCheck() {
+    if (loop != NULL && os.isCanceled()) {
+        loop->exit();
+    }
 }
 
 }  // U2

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,8 +48,8 @@ void ResourceSettingsGUIPageController::saveState(AppSettingsGUIPageState* _stat
     ResourceSettingsGUIPageState* state = qobject_cast<ResourceSettingsGUIPageState*>(_state);
     AppResourcePool* s = AppContext::getAppSettings()->getAppResourcePool();
     assert(state->nCpus <= state->nThreads);
-    s->setIdealThreadCount(state->nCpus);
     s->setMaxThreadCount(state->nThreads);
+    s->setIdealThreadCount(state->nCpus);
     s->setMaxMemorySizeInMB(state->maxMem);
 }
 
@@ -59,8 +59,17 @@ AppSettingsGUIPageWidget* ResourceSettingsGUIPageController::createWidget(AppSet
     return r;
 }
 
+const QString ResourceSettingsGUIPageController::helpPageId = QString("4227264");
+
 ResourceSettingsGUIPageWidget::ResourceSettingsGUIPageWidget(ResourceSettingsGUIPageController*) {
     setupUi(this);
+
+    int maxMem = AppResourcePool::x32MaxMemoryLimitMb;
+#if defined(Q_OS_MAC64) || defined(Q_OS_WIN64) || defined(UGENE_X86_64) || defined( __amd64__ ) || defined( __AMD64__ ) || defined( __x86_64__ ) || defined( _M_X64 )
+    maxMem = AppResourcePool::x64MaxMemoryLimitMb;
+#endif
+
+    memBox->setMaximum(maxMem);
     connect(threadBox, SIGNAL(valueChanged(int)), SLOT(sl_threadsCountChanged(int)));
     connect(cpuBox, SIGNAL(valueChanged(int)), SLOT(sl_cpuCountChanged(int)));
 }
@@ -75,7 +84,7 @@ void ResourceSettingsGUIPageWidget::setState(AppSettingsGUIPageState* s) {
 AppSettingsGUIPageState* ResourceSettingsGUIPageWidget::getState(QString& err) const {
     Q_UNUSED(err);
     ResourceSettingsGUIPageState* state = new ResourceSettingsGUIPageState();
-    state->nCpus =cpuBox->value();
+    state->nCpus = cpuBox->value();
     state->nThreads = threadBox->value();
     state->maxMem = memBox->value();
     return state;

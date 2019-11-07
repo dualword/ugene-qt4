@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@
 #include "MSADistanceAlgorithmRegistry.h"
 
 #include "MSADistanceAlgorithmHamming.h"
+#include "MSADistanceAlgorithmSimilarity.h"
 #include "MSADistanceAlgorithmHammingRevCompl.h"
 
 namespace U2 {
@@ -29,6 +30,7 @@ namespace U2 {
 MSADistanceAlgorithmRegistry::MSADistanceAlgorithmRegistry(QObject* p) : QObject(p) {
     addAlgorithm(new MSADistanceAlgorithmFactoryHamming());
     //addAlgorithm(new MSADistanceAlgorithmFactoryHammingRevCompl());
+    addAlgorithm(new MSADistanceAlgorithmFactorySimilarity());
 }
 
 MSADistanceAlgorithmRegistry::~MSADistanceAlgorithmRegistry() {

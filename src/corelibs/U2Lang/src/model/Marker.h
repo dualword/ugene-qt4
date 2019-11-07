@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,8 @@
 #include <U2Core/global.h>
 #include <U2Lang/Datatype.h>
 #include <U2Lang/Descriptor.h>
+
+#undef TEXT
 
 namespace U2 {
 
@@ -59,16 +61,6 @@ public:
     static const Descriptor TEXT();
 };
 
-//class U2LANG_EXPORT MarkerAttributes : public QObject {
-//    Q_OBJECT
-//public:
-//    static const Descriptor LENGTH_MARKER_ATTRIBUTE();
-//    static const Descriptor ANNOTATION_COUNT_MARKER_ATTRIBUTE();
-//    static const Descriptor ANNOTATION_VALUE_MARKER_ATTRIBUTE();
-//    static const Descriptor FILENAME_MARKER_ATTRIBUTE();
-//
-//};
-
 class U2LANG_EXPORT MarkerSlots : public QObject {
     Q_OBJECT
 public:
@@ -92,6 +84,12 @@ enum MarkerGroup {
     TEXT
 };
 
+enum ParameterState {
+    NONE,
+    NOT_REQUIRED,
+    REQUIRED
+};
+
 class U2LANG_EXPORT Marker : public QObject{
     Q_OBJECT
 public:
@@ -102,7 +100,7 @@ public:
     virtual QString getMarkingResult(const QVariant &object);
     virtual MarkerGroup getGroup() = 0;
     virtual Marker *clone() = 0;
-    virtual bool hasAdditionalParameter();
+    virtual ParameterState hasAdditionalParameter();
     virtual void setAdditionalParameter(const QVariant &param);
     virtual QVariant getAdditionalParameter();
     virtual QString getAdditionalParameterName();
@@ -155,7 +153,7 @@ public:
     virtual QString getMarkingResult(const QVariant &object);
     virtual MarkerGroup getGroup();
     virtual Marker *clone();
-    virtual bool hasAdditionalParameter();
+    virtual ParameterState hasAdditionalParameter();
     virtual void setAdditionalParameter(const QVariant &param);
     virtual QVariant getAdditionalParameter();
     virtual QString getAdditionalParameterName();
@@ -177,7 +175,7 @@ public:
     virtual QString getMarkingResult(const QVariant &object);
     virtual MarkerGroup getGroup();
     virtual Marker *clone();
-    virtual bool hasAdditionalParameter();
+    virtual ParameterState hasAdditionalParameter();
     virtual void setAdditionalParameter(const QVariant &param);
     virtual QVariant getAdditionalParameter();
     virtual QString getAdditionalParameterName();

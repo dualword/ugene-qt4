@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@
 #include <U2Core/global.h>
 
 #include <QtCore/QMetaType>
+#include <QtCore/QMutex>
 #include <QtCore/QTime>
 #include <QtCore/QStringList>
 
@@ -55,46 +56,58 @@ public:
     virtual ~Logger();
 
     static void log(LogLevel level, const QString& message, const QString& category);
-    
+
     static void log(LogLevel level, const QString& message, const QStringList& categoryies);
 
-    void message(LogLevel level, const QString& msg);
-    
+    virtual void message(LogLevel level, const QString& msg);
+
     void message(LogLevel level, const QString& msg, const QString& extraCategory);
 
     void message(LogLevel level, const QString& msg, const QStringList& extraCategories);
-    
+
     void trace(const QString& msg)  { message(LogLevel_TRACE, msg);}
-    
+
     void details(const QString& msg)  { message(LogLevel_DETAILS, msg);}
-    
+
     void info(const QString& msg)  { message(LogLevel_INFO, msg);}
 
     void error(const QString& msg)  { message(LogLevel_ERROR, msg);}
 
     const QStringList& getCategories() const {return categoryNames;}
 
-private:
+protected:
     void init();
     QStringList categoryNames;
 };
 
+class U2CORE_EXPORT LogListener {
+public:
+    virtual void onMessage(const LogMessage& m) = 0;
+};
+
+
 class U2CORE_EXPORT LogServer : public QObject {
     Q_OBJECT
     friend class Logger;
+    friend class UiLogger;
 public:
     LogServer();
     static LogServer* getInstance();
     const QList<Logger*>& getLoggers() const {return loggers;}
     QStringList getCategories() const;
 
-private:
-    void message(const LogMessage& m) {emit si_message(m);}
-    QList<Logger*> loggers;
+    void addListener(LogListener* listner);
+    void removeListener(LogListener* listener);
 
-signals:
-    void si_message(const LogMessage& m);
+private:
+    void message(const LogMessage& m);
+    void message(const LogMessage& m, LogListener* listener);
+
+    QList<Logger*> loggers;
+    QList<LogListener*> listeners;
+    QMutex listenerMutex;
 };
+
 
 //TODO: support log category translation + use log category ids instead of the names in code
 
@@ -116,17 +129,20 @@ signals:
 #define ULOG_CAT_TASKS              "Tasks"
 // Log category for UI related events
 #define ULOG_CAT_USER_INTERFACE     "User Interface"
+// Log category for user's actions
+#define ULOG_CAT_USER_ACTIONS    "User Actions"
 
 
 static Logger algoLog(ULOG_CAT_ALGORITHM);
 static Logger cmdLog(ULOG_CAT_CONSOLE);
-static Logger coreLog(ULOG_CAT_CORE_SERVICES); 
+static Logger coreLog(ULOG_CAT_CORE_SERVICES);
 static Logger ioLog(ULOG_CAT_IO);
 static Logger rsLog(ULOG_CAT_REMOTE_SERVICE);
 static Logger perfLog(ULOG_CAT_PERFORMANCE);
 static Logger scriptLog(ULOG_CAT_SCRIPTS);
 static Logger taskLog(ULOG_CAT_TASKS);
 static Logger uiLog(ULOG_CAT_USER_INTERFACE);
+static Logger userActLog(ULOG_CAT_USER_ACTIONS);
 
 
 }//namespace

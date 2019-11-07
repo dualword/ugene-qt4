@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,8 +19,11 @@
  * MA 02110-1301, USA.
  */
 
-#include "ProjectParsing.h"
+#include <QtCore/QDir>
 
+#include <QtXml/qdom.h>
+
+#include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/U2OpStatus.h>
 #include <U2Core/L10n.h>
@@ -29,8 +32,9 @@
 #include <U2Core/U2SafePoints.h>
 
 #include <U2Gui/ObjectViewModel.h>
+#include <U2Gui/ProjectUtils.h>
 
-#include <QtXml/qdom.h>
+#include "ProjectParsing.h"
 
 namespace U2 {
 
@@ -46,7 +50,7 @@ static QString map2String(const QVariantMap& map) {
 static QVariantMap string2Map(const QString& string, bool emptyMapIfError) {
     Q_UNUSED(emptyMapIfError);
 
-    QDataStream s(QByteArray::fromBase64(string.toAscii()));
+    QDataStream s(QByteArray::fromBase64(string.toLatin1()));
     QVariant res(QVariant::Map);
     s >> res;
     if (res.type() == QVariant::Map) {
@@ -127,6 +131,9 @@ void ProjectFileUtils::saveProjectFile(U2OpStatus& ts, Project* project,
 
     //save documents
     foreach(Document* gbDoc, project->getDocuments()) {
+        if (ProjectUtils::isDatabaseDoc(gbDoc)) {
+            continue;
+        }
         gbDoc->getDocumentFormat()->updateFormatSettings(gbDoc);
 
         QString docUrl = gbDoc->getURLString();
@@ -163,7 +170,7 @@ void ProjectFileUtils::saveProjectFile(U2OpStatus& ts, Project* project,
             docElement.appendChild(hintsNode);
         }
 
-        //now save unloaded objects info for all document objects 
+        //now save unloaded objects info for all document objects
         foreach(GObject* obj, gbDoc->getObjects()) {
             QDomElement objElement = xmlDoc.createElement("object");
             UnloadedObjectInfo info(obj);
@@ -179,6 +186,7 @@ void ProjectFileUtils::saveProjectFile(U2OpStatus& ts, Project* project,
             }
             docElement.appendChild(objElement);
         }
+
         projectElement.appendChild(docElement);
     }
 
@@ -290,6 +298,16 @@ ProjectParserRegistry * ProjectParserRegistry::instance(){
 //////////////////////////////////////////////////////////////////////////
 // Parser for v1.0 format
 
+namespace {
+    GUrl getUrl(const QString &docUrl, const DocumentFormatId &format) {
+        if (BaseDocumentFormats::DATABASE_CONNECTION == format) {
+            return GUrl(docUrl, GUrl_Network);
+        } else {
+            return docUrl;
+        }
+    }
+}
+
 Project* ProjectParser10::createProjectFromXMLModel( const QString& pURL, const QDomDocument& xmlDoc, U2OpStatus& os) {
     QDomElement projectElement = xmlDoc.documentElement();
     QString name = projectElement.attribute("name");
@@ -337,9 +355,13 @@ Project* ProjectParser10::createProjectFromXMLModel( const QString& pURL, const 
             ioLog.info(tr("Duplicate document found: %1, ignoring").arg(docUrl));
             continue;
         }
+        DocumentFormatId format = docElement.attribute("format");
+        if (BaseDocumentFormats::DATABASE_CONNECTION == format) {
+            ioLog.info(tr("Database document: %1, ignoring").arg(docUrl));
+            continue;
+        }
         docUrls.insert(docUrl);
 
-        DocumentFormatId format = docElement.attribute("format");
         bool readonly = docElement.attribute("readonly").toInt() != 0;
         bool instanceLock = docElement.attribute("format-lock").toInt() != 0;
         IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(ioAdapterId);
@@ -382,7 +404,7 @@ Project* ProjectParser10::createProjectFromXMLModel( const QString& pURL, const 
         
         }
         QString lockReason = instanceLock ? tr("The last loaded state was locked by format") : QString();
-        Document* d = df->createNewUnloadedDocument(iof, docUrl, os, fs, unloadedObjects, lockReason);
+        Document* d = df->createNewUnloadedDocument(iof, getUrl(docUrl, format), os, fs, unloadedObjects, lockReason);
         CHECK_OP_EXT(os, qDeleteAll(documents), NULL);
         d->setUserModLock(readonly);
         documents.append(d);

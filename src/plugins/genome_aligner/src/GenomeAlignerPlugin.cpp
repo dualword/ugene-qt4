@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -76,17 +76,22 @@ GenomeAlignerPlugin::GenomeAlignerPlugin() : Plugin( tr("UGENE Genome Aligner"),
 
     // Register GenomeAligner algorithm
     DnaAssemblyAlgRegistry* registry = AppContext::getDnaAssemblyAlgRegistry();
-    
+
     bool guiMode = AppContext::getMainWindow();
     DnaAssemblyGUIExtensionsFactory* guiFactory = guiMode ? new GenomeAlignerGuiExtFactory(): NULL;
-    DnaAssemblyAlgorithmEnv* algo = new DnaAssemblyAlgorithmEnv("UGENE Genome Aligner", new GenomeAlignerTask::Factory, guiFactory, true, true);
+    QStringList referenceFormats(BaseDocumentFormats::FASTA);
+    referenceFormats << BaseDocumentFormats::PLAIN_GENBANK;
+    referenceFormats << BaseDocumentFormats::FASTQ;
+    QStringList readsFormats;
+    readsFormats << BaseDocumentFormats::FASTA;
+    readsFormats << BaseDocumentFormats::FASTQ;
+    readsFormats << BaseDocumentFormats::PLAIN_GENBANK;
+    DnaAssemblyAlgorithmEnv* algo = new DnaAssemblyAlgorithmEnv("UGENE Genome Aligner", new GenomeAlignerTask::Factory, guiFactory, true, true, false, referenceFormats, readsFormats);
     bool res = registry->registerAlgorithm(algo);
     Q_UNUSED(res);
     assert(res);
-   
-    //LocalWorkflow::GenomeAlignerWorkerFactory::init();
-    //LocalWorkflow::GenomeAlignerBuildWorkerFactory::init();
-    //LocalWorkflow::GenomeAlignerIndexReaderWorkerFactory::init();
+
+    LocalWorkflow::GenomeAlignerWorkerFactory::init();
 
     registerCMDLineHelp();
     processCMDLineOptions();

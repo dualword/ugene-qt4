@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,19 +25,31 @@
 #include <U2Gui/MainWindow.h>
 #include <U2Gui/Notification.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMainWindow>
 #include <QtGui/QMenuBar>
 #include <QtGui/QMenu>
 #include <QtGui/QMdiArea>
+#else
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMenuBar>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QMdiArea>
+#endif
 
 class QMdiArea;
 class QToolBar;
+
+#if defined(Q_WS_MACX) && !defined(_DEBUG)
+#define _INSTALL_TO_PATH_ACTION
+#endif
 
 namespace U2 {
 
 class MWDockManagerImpl;
 class MWMenuManagerImpl;
 class MWToolBarManagerImpl;
+class TmpDirChecker;
 
 //workaround for QMdiArea issues
 class FixedMdiArea : public QMdiArea {
@@ -46,6 +58,10 @@ public:
     FixedMdiArea(QWidget * parent = 0);
     void setViewMode(QMdiArea::ViewMode mode);
     QMdiSubWindow * addSubWindow( QWidget * widget);
+
+public slots:
+    void tileSubWindows();
+
 private slots:
     //Workaround for QTBUG-17428
     void sysContextMenuAction(QAction*);
@@ -55,27 +71,35 @@ private slots:
 class MainWindowImpl: public MainWindow {
     Q_OBJECT
 public:
-	MainWindowImpl();
-	~MainWindowImpl();
-    
+    MainWindowImpl();
+    ~MainWindowImpl();
+
     virtual QMenu* getTopLevelMenu(const QString& sysName) const;
     virtual QToolBar* getToolbar(const QString& sysName) const;
 
     virtual MWMDIManager*           getMDIManager() const {return mdiManager;}
     virtual MWDockManager*          getDockManager() const {return dockManager;}
     virtual QMainWindow*            getQMainWindow() const {return mw;}
-	virtual NotificationStack*		getNotificationStack() const {return nStack;}
+    virtual NotificationStack*		getNotificationStack() const {return nStack;}
 
-	virtual void setWindowTitle(const QString& title);
-    
-    void show();
+    virtual void setWindowTitle(const QString& title);
+    void registerAction(QAction *action);
+
+    void prepare();
     void close();
 
-	void runClosingTask();
-    void setShutDownInProcess(bool flag) {shutDownInProcess = flag;}
+    void runClosingTask();
+    void setShutDownInProcess(bool flag);
+    void registerStartupChecks(QList<Task*> tasks);
+    void addNotification(const QString& message, NotificationType type);
+signals:
+    void si_show();
+    void si_showWelcomePage();
+public slots:
+    void sl_tempDirPathCheckFailed(QString  path);
 
 private slots:
-	void sl_exitAction();
+    void sl_exitAction();
     void sl_aboutAction();
     void sl_checkUpdatesAction();
     void sl_visitWeb();
@@ -83,32 +107,49 @@ private slots:
     void sl_openManualAction();
     void sl_openWDManualAction();
     void sl_openQDManualAction();
+    void sl_show();
+#ifdef _INSTALL_TO_PATH_ACTION
+    void sl_installToPathAction();
+#endif
 
 private:
     void createActions();
     void prepareGUI();
     void openManual(const QString& name);
 
-    QMainWindow*			mw;
-    FixedMdiArea*			mdi;
-    
-    MWMenuManagerImpl*  	menuManager;
-	MWToolBarManagerImpl*	toolbarManager;
-    MWMDIManager*			mdiManager;
-    MWDockManager*			dockManager;
+    QMainWindow*            mw;
+    FixedMdiArea*           mdi;
 
-	NotificationStack*		nStack;
+    MWMenuManagerImpl*      menuManager;
+    MWToolBarManagerImpl*   toolbarManager;
+    MWMDIManager*           mdiManager;
+    MWDockManager*          dockManager;
 
-    QAction*				exitAction;
-    QAction*				aboutAction;
-    QAction*				checkUpdateAction;
+    NotificationStack*      nStack;
+
+    QAction*                exitAction;
+    QAction*                aboutAction;
+    QAction*                checkUpdateAction;
     QAction*                visitWebAction;
     QAction*                viewOnlineDocumentation;
     QAction*                openManualAction;
     QAction*                openWDManualAction;
     QAction*                openQDManualAction;
-
+    QAction*                welcomePageAction;
+#ifdef _INSTALL_TO_PATH_ACTION
+    QAction*                installToPathAction;
+#endif
     bool                    shutDownInProcess;
+
+    QList<Task*>            startupTasklist;
+    QList<Notification*>    startupNotificationsList;
+};
+
+class MainWindowDragNDrop {
+public:
+    static void dragEnterEvent(QDragEnterEvent *event);
+    static void dropEvent(QDropEvent *event);
+    static void dragMoveEvent(QDragMoveEvent *event);
 };
 
 }//namespace

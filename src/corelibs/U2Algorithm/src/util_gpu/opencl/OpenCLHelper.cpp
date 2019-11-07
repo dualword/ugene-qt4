@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -45,6 +45,7 @@ namespace U2 {
     const static char * clEnqueueNDRangeKernel_n ("clEnqueueNDRangeKernel");
     const static char * clWaitForEvents_n ("clWaitForEvents");
     const static char * clEnqueueReadBuffer_n ("clEnqueueReadBuffer");
+    const static char * clFlush_n ("clFlush");
     const static char * clFinish_n ("clFinish");
     const static char * clBuildProgram_n ("clBuildProgram");
     const static char * clReleaseEvent_n ("clReleaseEvent");
@@ -54,6 +55,9 @@ namespace U2 {
     const static char * clReleaseCommandQueue_n ("clReleaseCommandQueue");
     const static char * clReleaseContext_n ("clReleaseContext");
     const static char * clReleaseMemObject_n ("clReleaseMemObject");
+
+    const static char * clGetKernelWorkGroupInfo_n ("clGetKernelWorkGroupInfo");
+    const static char * clGetEventProfilingInfo_n ("clGetEventProfilingInfo");
 
     OpenCLHelper::OpenCLHelper() : openclLib( OPENCL_DRIVER_LIB )  {
 
@@ -166,6 +170,13 @@ namespace U2 {
             return;
         }
 
+        clFlush_p = clFlush_f( openclLib.resolve(clFlush_n));
+        if( !clFlush_p ) {
+            coreLog.details( QObject::tr("Cannot resolve symbol %1").arg(clFlush_n) );
+            status = Error_BadDriverLib;
+            return;
+        }
+
         clFinish_p = clFinish_f( openclLib.resolve(clFinish_n));
         if( !clFinish_p ) {
             coreLog.details( QObject::tr("Cannot resolve symbol %1").arg(clFinish_n) );
@@ -222,7 +233,19 @@ namespace U2 {
             return;
         }
 
+        clGetKernelWorkGroupInfo_p = clGetKernelWorkGroupInfo_f( openclLib.resolve(clGetKernelWorkGroupInfo_n));
+        if( !clGetKernelWorkGroupInfo_p ) {
+            coreLog.details( QObject::tr("Cannot resolve symbol %1").arg(clGetKernelWorkGroupInfo_n) );
+            status = Error_BadDriverLib;
+            return;
+        }
 
+        clGetEventProfilingInfo_p = clGetEventProfilingInfo_f( openclLib.resolve(clGetEventProfilingInfo_n));
+        if( !clGetEventProfilingInfo_p ) {
+            coreLog.details( QObject::tr("Cannot resolve symbol %1").arg(clGetEventProfilingInfo_n) );
+            status = Error_BadDriverLib;
+            return;
+        }
 
         status = Error_NoError;
     }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,35 +19,32 @@
  * MA 02110-1301, USA.
  */
 
-#include "TBlastNPlusSupportTask.h"
-#include "BlastPlusSupport.h"
+#include <QtCore/QFileInfo>
+
+#include <QtXml/QDomDocument>
 
 #include <U2Core/AppContext.h>
-#include <U2Core/AppSettings.h>
-#include <U2Core/UserApplicationsSettings.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/AppSettings.h>
+#include <U2Core/CreateAnnotationTask.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Core/Log.h>
 #include <U2Core/ProjectModel.h>
+#include <U2Core/UserApplicationsSettings.h>
 
-#include <QtXml/QDomDocument>
-
-#include <U2Core/CreateAnnotationTask.h>
-//#include <U2Core/AddDocumentTask.h>
+#include "TBlastNPlusSupportTask.h"
+#include "BlastPlusSupport.h"
 
 namespace U2 {
 
 ExternalToolRunTask* TBlastNPlusSupportTask::createBlastPlusTask(){
 
     QStringList arguments;
-    //arguments <<"-p"<< settings.programName; //taskname
-//    if(!settings.filter.isEmpty()){
-//        arguments <<"-F"<<settings.filter;
-//    }
+
     arguments <<"-db"<< settings.databaseNameAndPath;
     arguments <<"-evalue"<< QString::number(settings.expectValue);
-//    arguments <<"-task"<< (settings.megablast ? "megablast" : "blastn");
+
     if(settings.wordSize <= 0){
         arguments <<"-word_size"<< "3";
     }else{
@@ -94,10 +91,10 @@ ExternalToolRunTask* TBlastNPlusSupportTask::createBlastPlusTask(){
     {
         arguments << "-window_size" << QString::number(settings.windowSize);
     }
-    //I always get error from BLAST+:
-    //ncbi-blast-2.2.24+-src/c++/src/corelib/ncbithr.cpp", line 649: Fatal: ncbi::CThread::Run()
-    //- Assertion failed: (0) CThread::Run() -- system does not support threads
-    //arguments <<"-num_threads"<< QString::number(settings.numberOfProcessors);
+    if (!settings.compStats.isEmpty()) {
+        arguments << "-comp_based_stats" << settings.compStats;
+    }
+    arguments <<"-num_threads"<< QString::number(settings.numberOfProcessors);
     arguments <<"-outfmt"<< QString::number(settings.outputType);//"5";//Set output file format to xml
     if(settings.outputOriginalFile.isEmpty()){
         arguments <<"-out"<< url+".xml";
@@ -107,9 +104,13 @@ ExternalToolRunTask* TBlastNPlusSupportTask::createBlastPlusTask(){
     }
 
 
-    algoLog.trace("Blastall arguments: "+arguments.join(" "));
+    algoLog.trace("TBlastN+ arguments: "+arguments.join(" "));
     logParser=new ExternalToolLogParser();
     QString workingDirectory=QFileInfo(url).absolutePath();
-    return new ExternalToolRunTask(TBLASTN_TOOL_NAME, arguments, logParser, workingDirectory);
+    ExternalToolRunTask* runTask = new ExternalToolRunTask(ET_TBLASTN, arguments, logParser, workingDirectory);
+    setListenerForTask(runTask);
+    return runTask;
 }
-}//namespace
+
+} // namespace U2
+

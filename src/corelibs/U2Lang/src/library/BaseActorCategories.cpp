@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ const Descriptor BaseActorCategories::CATEGORY_CONVERTERS() {
     return Descriptor("bc", tr("Data Converters"), "");
 }
 
-const Descriptor BaseActorCategories::CATEGORY_BASIC() { 
+const Descriptor BaseActorCategories::CATEGORY_BASIC() {
     return Descriptor("c", tr("Basic Analysis"), "");
 }
 
@@ -47,16 +47,32 @@ const Descriptor BaseActorCategories::CATEGORY_STATISTIC() {
     return Descriptor("st", tr("Utils"), "");
 }
 
-const Descriptor BaseActorCategories::CATEGORY_ALIGNMENT() { 
+const Descriptor BaseActorCategories::CATEGORY_ALIGNMENT() {
     return Descriptor("d", tr("Multiple Sequence Alignment"), "");
 }
 
 const Descriptor BaseActorCategories::CATEGORY_ASSEMBLY() {
-    return Descriptor("asm", tr("DNA Assembly"), ""); 
+    return Descriptor("asm", tr("DNA Assembly"), "");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_NGS_BASIC() {
+    return Descriptor("ngs_base", tr("NGS: Basic"), "");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_NGS_ALIGN_SHORT_READS() {
+    return Descriptor("ngs_align", tr("NGS: Align Short Reads"), "");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_RNA_SEQ() {
+    return Descriptor("rna", tr("NGS: RNA-Seq Analysis"), "");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_VARIATION_ANALYSIS() {
+    return Descriptor("var", tr("NGS: Variant Analysis"), "");
 }
 
 const Descriptor BaseActorCategories::CATEGORY_TRANSCRIPTION() {
-    return Descriptor("tr", tr("Transcription Factor"), ""); 
+    return Descriptor("tr", tr("Transcription Factor"), "");
 }
 
 const Descriptor BaseActorCategories::CATEGORY_SCRIPT() {
@@ -69,6 +85,19 @@ const Descriptor BaseActorCategories::CATEGORY_EXTERNAL() {
 
 const Descriptor BaseActorCategories::CATEGORY_DATAFLOW() {
     return Descriptor("df", tr("Data Flow"),"");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_INCLUDES() {
+    return Descriptor("inc", tr("Includes"),"");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_SNP_ANNOTATION()
+{
+    return Descriptor("sch", tr("SNP Annotation"),"");
+}
+
+const Descriptor BaseActorCategories::CATEGORY_CHIP_SEQ() {
+    return Descriptor("chs", tr("NGS: ChIP-Seq Analysis"), "");
 }
 
 }//Workflow namespace

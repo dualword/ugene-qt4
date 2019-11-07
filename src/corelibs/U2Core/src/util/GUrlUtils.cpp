@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,19 @@
  * MA 02110-1301, USA.
  */
 
-#include "GUrlUtils.h"
+#include <QtCore/QDir>
 
+#include <U2Core/AppContext.h>
+#include <U2Core/AppSettings.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentUtils.h>
 #include <U2Core/Log.h>
 #include <U2Core/Task.h>
-#include <U2Core/U2SafePoints.h>
 #include <U2Core/U2OpStatus.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/UserApplicationsSettings.h>
 
-#include <QtCore/QFile>
-#include <QtCore/QDir>
-#include <QtCore/QFileInfo>
+#include "GUrlUtils.h"
 
 namespace U2 {
 
@@ -44,11 +47,11 @@ QString GUrlUtils::getUncompressedExtension(const GUrl& url) {
 
 GUrl GUrlUtils::ensureFileExt(const GUrl& url, const QStringList& typeExt) {
     SAFE_POINT(!typeExt.isEmpty(), "Type extension is empty!", GUrl());
-    
+
     if( url.isVFSFile() ) {
         return url;
     }
-    
+
     if (typeExt.isEmpty()) {
         return url;
     }
@@ -59,6 +62,75 @@ GUrl GUrlUtils::ensureFileExt(const GUrl& url, const QStringList& typeExt) {
     return GUrl(url.getURLString() + "."  + typeExt.first(), url.getType());
 }
 
+GUrl GUrlUtils::changeFileExt(const GUrl &url, const DocumentFormatId &oldFormatId, const DocumentFormatId &newFormatId) {
+    CHECK(url.isLocalFile(), GUrl());
+    DocumentFormatRegistry *dfRegistry = AppContext::getDocumentFormatRegistry();
+    CHECK(NULL != dfRegistry, GUrl());
+    DocumentFormat *oldFormat = dfRegistry->getFormatById(oldFormatId);
+    CHECK(NULL != oldFormat, GUrl());
+    DocumentFormat *newFormat = dfRegistry->getFormatById(newFormatId);
+    CHECK(NULL != newFormat, GUrl());
+
+    const QString dirPath = url.dirPath();
+    const QString baseFileName = url.baseFileName();
+    QString completeSuffix = url.completeFileSuffix();
+
+    bool isCompressed = false;
+    if (completeSuffix.endsWith("gz")) {
+        isCompressed = true;
+        completeSuffix.chop(QString(".gz").size());
+    }
+
+    const QString currentExtension = completeSuffix.mid(completeSuffix.lastIndexOf(".") + 1);
+    if (oldFormat->getSupportedDocumentFileExtensions().contains(currentExtension)) {
+        completeSuffix.chop(currentExtension.size() + 1);
+    }
+
+    const QStringList newFormatExtensions = newFormat->getSupportedDocumentFileExtensions();
+    if (!newFormatExtensions.isEmpty()) {
+        completeSuffix += "." + newFormatExtensions.first();
+    }
+
+    if (isCompressed) {
+        completeSuffix += ".gz";
+    }
+
+    const QString dotCompleteSuffix = (completeSuffix.startsWith(".") ? completeSuffix : "." + completeSuffix);
+    return GUrl(dirPath + QDir::separator() + baseFileName + dotCompleteSuffix);
+}
+
+GUrl GUrlUtils::changeFileExt(const GUrl &url, const DocumentFormatId &newFormatId) {
+    CHECK(url.isLocalFile(), GUrl());
+    DocumentFormatRegistry *dfRegistry = AppContext::getDocumentFormatRegistry();
+    CHECK(NULL != dfRegistry, GUrl());
+    DocumentFormat *newFormat = dfRegistry->getFormatById(newFormatId);
+    CHECK(NULL != newFormat, GUrl());
+
+    const QString dirPath = url.dirPath();
+    const QString baseFileName = url.baseFileName();
+    QString completeSuffix = url.completeFileSuffix();
+
+    bool isCompressed = false;
+    if (completeSuffix.endsWith("gz")) {
+        isCompressed = true;
+        completeSuffix.chop(QString(".gz").size());
+    }
+
+    const QString currentExtension = completeSuffix.mid(completeSuffix.lastIndexOf(".") + 1);
+    completeSuffix.chop(currentExtension.size() + 1);
+
+    const QStringList newFormatExtensions = newFormat->getSupportedDocumentFileExtensions();
+    if (!newFormatExtensions.isEmpty()) {
+        completeSuffix += "." + newFormatExtensions.first();
+    }
+
+    if (isCompressed) {
+        completeSuffix += ".gz";
+    }
+
+    const QString dotCompleteSuffix = (completeSuffix.startsWith(".") ? completeSuffix : "." + completeSuffix);
+    return GUrl(dirPath + QDir::separator() + baseFileName + dotCompleteSuffix);
+}
 
 bool GUrlUtils::renameFileWithNameRoll(const QString& original, TaskStateInfo& ti, const QSet<QString>& excludeList, Logger* log) {
     QString rolled = GUrlUtils::rollFileName(original, "_oldcopy", excludeList);
@@ -90,11 +162,17 @@ static void getPreNPost(const QString &originalUrl, QString &pre, QString &post)
                 pre.append(".gz");
             }
         }
-        if (!extSuffix.contains("\\")) {
+        if (!extSuffix.contains("\\") && !extSuffix.contains("/")) {
             post = extSuffix;
             pre.chop(extSuffix.length());
         }
     }
+}
+
+QString GUrlUtils::insertSuffix(const QString &originalUrl, const QString &suffix) {
+    QString pre, post;
+    getPreNPost(originalUrl, pre, post);
+    return pre + suffix + post;
 }
 
 QStringList GUrlUtils::getRolledFilesList(const QString& originalUrl, const QString& rolledSuffix) {
@@ -127,7 +205,7 @@ QUrl GUrlUtils::gUrl2qUrl( const GUrl& gurl) {
     if( gurl.isVFSFile() ) {
         return QUrl();
     }
-    
+
     QString str = gurl.getURLString();
     if (str.startsWith("http://") || str.startsWith("https://") || str.startsWith("file://")) {
         return str;
@@ -162,7 +240,7 @@ QString GUrlUtils::prepareFileName(const QString& url, int count, const QStringL
     return prepareFileName(url, QString("%1").arg(count, 3, 10, QChar('0')), typeExt);
 }
 
-QString GUrlUtils::prepareFileName(const QString& url, const QString& baseSuffix, const QStringList& typeExt) {    
+QString GUrlUtils::prepareFileName(const QString& url, const QString& baseSuffix, const QStringList& typeExt) {
     QFileInfo fi(url);
     QStringList suffixList = fi.completeSuffix().split(".");
     QString ext;
@@ -191,7 +269,7 @@ QString GUrlUtils::prepareFileName(const QString& url, const QString& baseSuffix
     return result;
 }
 
-// checks that file path is valid: creates required directory if needed. 
+// checks that file path is valid: creates required directory if needed.
 // Returns canonical path to file. Does not create nor remove file, affects just directory
 // Sample usage: processing URLs in "save file" inputs
 QString GUrlUtils::prepareFileLocation(const QString& filePath, U2OpStatus& os) {
@@ -199,13 +277,14 @@ QString GUrlUtils::prepareFileLocation(const QString& filePath, U2OpStatus& os) 
     QString dirPath = fi.absoluteDir().absolutePath();
     QString canonicalDirPath = prepareDirLocation(dirPath, os);
     CHECK_OP(os, QString());
-    // examples with "/" at the end: 
+    // examples with "/" at the end:
     QString result = canonicalDirPath + (canonicalDirPath.endsWith("/") ? "" : "/") + fi.fileName();
     return result;
 }
 
-// checks that dir path is valid. Creates the directory if needed. 
-// Returns canonical directory path. Does not affect directory if already exists.
+// checks that dir path is valid. Creates the directory if needed.
+// Returns absolute (without "." or ".." but with symlinks) directory path.
+// Does not affect directory if already exists.
 // Sample usage: processing URLs in "save dir" inputs
 QString GUrlUtils::prepareDirLocation(const QString& dirPath, U2OpStatus& os) {
     CHECK_EXT(!dirPath.isEmpty(), os.setError(tr("Directory is not specified")), QString());
@@ -215,14 +294,14 @@ QString GUrlUtils::prepareDirLocation(const QString& dirPath, U2OpStatus& os) {
         if (!targetDir.mkpath(absPath)) {
             os.setError(tr("Directory can't be created: %1").arg(absPath));
             return QString();
-        } 
+        }
         targetDir = QDir(absPath); //It looks like QT caches results for QDir? Create new QDir instance in this case!
         if (!targetDir.isReadable()) {
             os.setError(tr("Directory can't be read: %1").arg(absPath));
             return QString();
         }
     }
-    QString result = targetDir.canonicalPath();
+    QString result = targetDir.absolutePath();
     return result;
 }
 
@@ -257,6 +336,143 @@ void GUrlUtils::removeDir(const QString& dirPath, U2OpStatus& os) {
         CHECK_OP(os, );
     }
     QDir().rmdir(dirPath);
+}
+
+void GUrlUtils::removeFile( const QString& filePath, U2OpStatus& os ){
+    CHECK_EXT(!filePath.isEmpty(), os.setError(tr("File path is not specified")), );
+    QFileInfo info(filePath);
+
+    CHECK_EXT(!info.isDir(), os.setError(tr("Directory path instead of file path")), );
+
+    if(info.exists()){
+        QFile::remove(info.absoluteFilePath());
+    }
+
+}
+
+bool GUrlUtils::canWriteFile(const QString &path) {
+    bool res = false;
+
+#ifdef Q_OS_WIN // a workaround of that files with a colon in names can be created but are not accessible on Windows
+    if (QFileInfo(path).fileName().contains(':')) {
+        return false;
+    }
+#endif
+
+    QFile tmpFile(path);
+    if (!tmpFile.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    if (tmpFile.isWritable()) {
+        res = true;
+        tmpFile.close();
+        tmpFile.remove();
+    } else {
+        res = false;
+    }
+    return res;
+}
+
+QString GUrlUtils::getDefaultDataPath(){
+    QString res;
+
+    QString path = AppContext::getAppSettings()->getUserAppsSettings()->getDefaultDataDirPath();
+
+    if (!QDir(path).exists()) {
+        if (!QDir().mkpath(path)) {
+            return res;
+        }
+    }
+    res = path;
+
+    return res;
+}
+
+QString GUrlUtils::getQuotedString( const QString& inString ){
+    if (inString.contains(QRegExp("\\s"))) {
+        return "\"" + inString + "\"";
+    }
+    return inString;
+}
+
+QString GUrlUtils::createDirectory(const QString &path, const QString &suffix, U2OpStatus &os) {
+    QString newPath = rollFileName(path, suffix, QSet<QString>());
+    QDir dir(newPath);
+    bool created = dir.mkpath(newPath);
+    if (!created) {
+        os.setError(tr("Can not create a directory: %1").arg(newPath));
+    }
+    return newPath;
+}
+
+namespace {
+    QString getDotExtension(const DocumentFormatId &formatId) {
+        DocumentFormatRegistry *dfr = AppContext::getDocumentFormatRegistry();
+        SAFE_POINT(NULL != dfr, "NULL document format registry", "");
+
+        DocumentFormat *format = AppContext::getDocumentFormatRegistry()->getFormatById(formatId);
+        CHECK(NULL != format, "");
+
+        QStringList results = format->getSupportedDocumentFileExtensions();
+        CHECK(!results.isEmpty(), "");
+
+        return "." + results.first();
+    }
+}
+
+void GUrlUtils::getLocalPathFromUrl(const GUrl &url, const QString &defaultBaseFileName, QString &dirPath, QString &baseFileName) {
+    if (url.isLocalFile()) {
+        dirPath = url.dirPath();
+        baseFileName = url.baseFileName();
+    } else {
+        dirPath = getDefaultDataPath();
+        baseFileName = fixFileName(defaultBaseFileName);
+    }
+}
+
+QString GUrlUtils::getLocalUrlFromUrl(const GUrl &url, const QString &defaultBaseFileName, const QString &dotExtention, const QString &suffix) {
+    QString dirPath;
+    QString baseFileName;
+    GUrlUtils::getLocalPathFromUrl(url, defaultBaseFileName, dirPath, baseFileName);
+    QString result = dirPath + QDir::separator() + baseFileName + suffix + dotExtention;
+    return QDir::toNativeSeparators(result);
+}
+
+QString GUrlUtils::getNewLocalUrlByFormat(const GUrl &url, const QString &defaultBaseFileName, const DocumentFormatId &format, const QString &suffix) {
+    return getNewLocalUrlByExtention(url, defaultBaseFileName, getDotExtension(format), suffix);
+}
+
+QString GUrlUtils::getNewLocalUrlByExtention(const GUrl &url, const QString &defaultBaseFileName, const QString &dotExtention, const QString &suffix) {
+    QString result = getLocalUrlFromUrl(url, defaultBaseFileName, dotExtention, suffix);
+    return rollFileName(result, DocumentUtils::getNewDocFileNameExcludesHint());
+}
+
+void GUrlUtils::validateLocalFileUrl(const GUrl &url, U2OpStatus &os, const QString &urlName) {
+    QString urlStr = url.getURLString();
+    if (!url.isLocalFile()) {
+        os.setError(tr("%1 is not a local file [%2].").arg(urlName).arg(urlStr));
+        return;
+    }
+
+    QFileInfo info(urlStr);
+    if (!info.exists()) {
+        QString dirUrl = info.dir().absolutePath();
+        bool created = QDir().mkpath(dirUrl);
+        if (!created) {
+            os.setError(tr("Can not create a directory [%1].").arg(dirUrl));
+        }
+        return;
+    }
+    if (info.isDir()) {
+        os.setError(tr("%1 is a directory [%2].").arg(urlName).arg(urlStr));
+        return;
+    }
+}
+
+QString GUrlUtils::fixFileName(const QString &fileName) {
+    QString result = fileName;
+    result.replace(QRegExp("[^0-9a-zA-Z._\\-]"), "_");
+    return result.replace(QRegExp("_+"), "_");
 }
 
 }//namespace

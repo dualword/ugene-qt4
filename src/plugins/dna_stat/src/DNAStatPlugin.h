@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ public:
 private:
     GObjectViewWindowContext* statViewCtx;
     GObjectViewWindowContext* distanceViewCtx;
-	GObjectViewWindowContext* dnaStatsViewCtx;
+    GObjectViewWindowContext* dnaStatsViewCtx;
 };
 
 class DNAStatMSAEditorContext: public GObjectViewWindowContext {
@@ -63,14 +63,14 @@ protected:
 };
 
 class DNAViewStatsContext : public GObjectViewWindowContext {
-	Q_OBJECT
-public: 
-	DNAViewStatsContext(QObject* p);
+    Q_OBJECT
+public:
+    DNAViewStatsContext(QObject* p);
 protected slots:
-	void sl_showDnaStats();
-	void buildMenu(GObjectView* v, QMenu* m);
+    void sl_showDnaStats();
+    void buildMenu(GObjectView* v, QMenu* m);
 protected:
-	virtual void initViewContext(GObjectView* view);
+    virtual void initViewContext(GObjectView* view);
 };
 
 

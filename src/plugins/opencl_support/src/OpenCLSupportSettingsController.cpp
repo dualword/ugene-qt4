@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,16 @@
  * MA 02110-1301, USA.
  */
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
 #include <QtGui/QLayout>
 #include <QtGui/QCheckBox>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLayout>
+#include <QtWidgets/QCheckBox>
+#endif
 
 #include <U2Core/AppContext.h>
 #include <U2Algorithm/OpenCLGpuRegistry.h>
@@ -41,7 +48,7 @@ AppSettingsGUIPageState * OpenCLSupportSettingsPageController::getSavedState() {
         s->enabledGpus[i] = registeredGpus.at(i)->isEnabled();
     }
 
-    return s;    
+    return s;
 }
 
 void OpenCLSupportSettingsPageController::saveState( AppSettingsGUIPageState * _s ) {
@@ -55,9 +62,9 @@ void OpenCLSupportSettingsPageController::saveState( AppSettingsGUIPageState * _
 
     //increasing/decreasing maxuse of according resource
     int totalEnabled = s->enabledGpus.count(true);
-    AppResource * gpuResource = AppResourcePool::instance()->getResource( RESOURCE_OPENCL_GPU );
+    AppResourceSemaphore* gpuResource = dynamic_cast<AppResourceSemaphore*>(AppResourcePool::instance()->getResource( RESOURCE_OPENCL_GPU ));
     if( gpuResource ) {
-        gpuResource->maxUse = totalEnabled;
+        gpuResource->setMaxUse(totalEnabled);
     } //else - resource was not registered, nothing to do.
 }
 
@@ -67,12 +74,14 @@ AppSettingsGUIPageWidget * OpenCLSupportSettingsPageController::createWidget( Ap
     return w;
 }
 
+const QString OpenCLSupportSettingsPageController::helpPageId = QString("4227272");
+
 OpenCLSupportSettingsPageState::OpenCLSupportSettingsPageState( int num_gpus ) {
     assert( num_gpus >= 0 );
     enabledGpus.resize( num_gpus );
 }
 
-const static char * gpusDiscoveredText = 
+const static char * gpusDiscoveredText =
     "The following OpenCL-enabled GPUs are detected.<br>\
     Check the GPUs to use for accelerating algorithms computations.";
 
@@ -105,7 +114,7 @@ onlyMsg(_msg){
             vLayout->setAlignment( Qt::AlignLeft | Qt::AlignTop );
             QHBoxLayout * hLayout = new QHBoxLayout(this);
 
-            QString gpuText = m->getName() + " " + QString::number(m->getGlobalMemorySizeBytes() / (1024*1024)) + " Mb"; 
+            QString gpuText = m->getName() + " " + QString::number(m->getGlobalMemorySizeBytes() / (1024*1024)) + " Mb";
             QCheckBox * check = new QCheckBox( gpuText, this );
 
             check->setChecked(true);
@@ -116,7 +125,7 @@ onlyMsg(_msg){
         }
         setLayout(vLayout);
     }
-    
+
 }
 
 void OpenCLSupportSettingsPageWidget::setState( AppSettingsGUIPageState * _state ) {

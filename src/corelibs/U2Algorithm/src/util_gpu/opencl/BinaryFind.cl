@@ -1,97 +1,91 @@
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
 
 typedef long NumberType;
 
 __kernel void
-        binarySearch_classic( __const __global NumberType  * sortedArray,
-                                      __global NumberType  * findMeArray,
-                             __const int  findMeArraySize,
-                             __const   unsigned int globalLowerBound,
-                             __const   unsigned int globalUpperBound,
-                             __const   unsigned int numberOfIteration,
-                             __const __global NumberType* preSaveBounds,
-                             __const __global NumberType* c_preSaveValues,
-                             __const int preSaveDepth,
-                             __local NumberType* preSaveValues,
-                             __const NumberType filter)
+        binarySearch_classic(__const __global NumberType* haystack,
+                             __const int haystackSize,
+                             __global NumberType* needlesArr,
+                             __const int needlesArrSize,
+                             __const __global int *windowSizes
+                             )
 {
-    const unsigned int tid = get_global_id(0);
-
-    event_t event = 0;
-    async_work_group_copy(preSaveValues, c_preSaveValues, preSaveDepth, event);
-
-    unsigned int iterPos = tid * numberOfIteration;
-    if (iterPos >= findMeArraySize) {
+    size_t global_id = get_global_id(0);
+    if (global_id >= needlesArrSize) {
         return;
     }
 
-    NumberType lowBound = 0, highBound = 0, findMe = 0,
-        preLowBound = 0, preUpperBound = 0, preMid = 0,
-        preCurValue = 0, mid = 0, curValue = 0;
+    NumberType needle = 0, // the number to search for, with the filter applied
+        curValue = 0, // the current value from the haystack
+        low = 0, high = haystackSize - 1, mid = 0, // indices used when searching in both mini and full-sized arrays
+        firstOccurrenceOffset; // used to search the first occurrence of a needle when a row of identical ones is found
 
-    const NumberType firstPreMid = preSaveDepth / 2;
-    const NumberType firstPreCurValue = preSaveValues[firstPreMid];
-    NumberType preAns = 0;
+        long filter = ((long)0 - 1) << (62 - windowSizes[global_id] * 2);
+        needle = needlesArr[global_id] & filter;
 
-    for (int i = iterPos; i < iterPos + numberOfIteration; i++)
-    {
-        findMe = findMeArray[i];
-        //TODO: optimize
-        if ((findMe & filter) > (preSaveValues[preSaveDepth - 1] & filter)) {
-            findMeArray[i] = -1;
-            continue;
+        // needle < min(haystack)
+//      if (needle < (miniHaystack[0] & filter)) {
+        if (needle < (haystack[low] & filter)) {
+            needlesArr[global_id] = -1;
+            return;
         }
 
-        preLowBound = 0;
-        preUpperBound = preSaveDepth;
-        preMid = firstPreMid;
-        preCurValue = firstPreCurValue;
+        // needle > max(haystack)
+//         if (needle > (miniHaystack[miniHaystackSize - 1] & filter)) {
+        if (needle > (haystack[high] & filter)) {
+            needlesArr[global_id] = -1;
+            return;
+        }
 
-//*****search in const memory
-        for (int j = 0; preLowBound <= preUpperBound && (preCurValue & filter) != (findMe & filter); j++){
+        // needle == haystack[0]
+//      if(needle == (miniHaystack[0] & filter)) {
+        if(needle == (haystack[low] & filter)) {
+            needlesArr[global_id] = 0;
+            return;
+        }
 
-            if ((findMe & filter) > (preCurValue & filter)) {
-                preLowBound = preMid + 1;
+        // search in the big haystack now
+        mid = haystackSize / 2;
+        curValue = haystack[mid] & filter;
+
+        for (int j = 0; low <= high && curValue != needle; j++){
+            if (needle > curValue) {
+                low = mid + 1;
             }
             else {
-                preUpperBound = preMid - 1;
+                high = mid - 1;
             }
-            preMid = preLowBound + (preUpperBound - preLowBound) / 2;
-            preCurValue = preSaveValues[preMid];
+            mid = low + (high - low) / 2;
+            curValue = haystack[mid] & filter;
         }
+        
+        if (curValue == needle) {
+            for(firstOccurrenceOffset = mid; 
+                firstOccurrenceOffset >= 0 && (haystack[firstOccurrenceOffset] & filter) == needle;
+                firstOccurrenceOffset--) {};
 
-        if (((preCurValue & filter) == (findMe & filter))) {
-            //findMeArray[i] = preSaveBounds[preMid];
-            preAns = preSaveBounds[preMid];
-            for(;preAns>=0 && (sortedArray[preAns] & filter)==(findMe & filter); preAns--){};
-            findMeArray[i] = preAns + 1;
-            continue;
+            needlesArr[global_id] = firstOccurrenceOffset + 1;
         } else {
-            lowBound = preSaveBounds[preUpperBound];
-            highBound = preSaveBounds[preLowBound];
+            needlesArr[global_id] = -1;
         }
-//*******
-
-        mid = lowBound + (highBound - lowBound) / 2;
-        curValue = sortedArray[mid];
-
-        for (int j = 0; lowBound <= highBound && (curValue & filter) != (findMe & filter); j++){
-
-            if ((findMe & filter) > (curValue & filter)) {
-                lowBound = mid + 1;
-            }
-            else {
-                highBound = mid - 1;
-            }
-            mid = lowBound + (highBound - lowBound) / 2;
-            curValue = sortedArray[mid];
-        }
-        if (((curValue & filter) == (findMe & filter))) {
-            //findMeArray[i] = mid;
-            preAns = mid;
-            for(;preAns>=0 && (sortedArray[preAns] & filter)==(findMe & filter); preAns--){};
-            findMeArray[i] = preAns + 1;
-        } else {
-            findMeArray[i] = -1;
-        }
-    }
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 
 #include <QtCore/QMap>
 #include <QtCore/QVariantMap>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QMenu>
+#endif
 
 namespace U2 {
 
@@ -60,8 +65,8 @@ class GObjectReference;
 class U2GUI_EXPORT GObjectViewState : public QObject {
     Q_OBJECT
 public:
-    GObjectViewState(GObjectViewFactoryId _factoryId, const QString& _viewName, const QString& _stateName, 
-        const QVariantMap& _stateData, QObject* p = NULL) 
+    GObjectViewState(GObjectViewFactoryId _factoryId, const QString& _viewName, const QString& _stateName,
+        const QVariantMap& _stateData, QObject* p = NULL)
         : QObject(p), factoryId(_factoryId), viewName(_viewName), stateName(_stateName), stateData(_stateData){}
 
     GObjectViewFactoryId getViewFactoryId() const {return factoryId;}
@@ -91,10 +96,10 @@ private:
 };
 
 class U2GUI_EXPORT GObjectViewFactory : public QObject {
-public:	
+public:
     static const GObjectViewFactoryId SIMPLE_TEXT_FACTORY;
 
-    GObjectViewFactory(GObjectViewFactoryId _id, const QString& _name, QObject* p = NULL) 
+    GObjectViewFactory(GObjectViewFactoryId _id, const QString& _name, QObject* p = NULL)
         : QObject(p), id(_id), name(_name){}
 
     GObjectViewFactoryId getId() const {return id;}
@@ -121,6 +126,7 @@ protected:
 };
 
 class GObjectViewCloseInterface;
+class OptionsPanel;
 
 class U2GUI_EXPORT GObjectView : public QObject {
     Q_OBJECT
@@ -130,10 +136,13 @@ public:
     GObjectViewFactoryId getFactoryId() const {return factoryId;}
 
     const QString& getName() const {return viewName;}
-    
+
     void setName(const QString& name);
 
-    QWidget* getWidget();
+    QWidget*        getWidget();
+
+    /** Returns the options panel object, or 0 if it is not defined */
+    virtual OptionsPanel*   getOptionsPanel();
 
     const QList<GObject*>& getObjects() const {return objects;}
 
@@ -169,6 +178,8 @@ public:
     virtual void addObjectHandler(GObjectViewObjectHandler* oh) {objectHandlers.append(oh);}
     virtual void removeObjectHandler(GObjectViewObjectHandler* oh) {objectHandlers.removeOne(oh);}
 
+    virtual bool onCloseEvent() { return true; }
+
 protected:
     /** if 'true' is returned -> view will be closed */
     virtual bool onObjectRemoved(GObject* o);
@@ -198,13 +209,13 @@ protected slots:
 protected:
     GObjectViewFactoryId                factoryId;
     QString                             viewName;
-    QWidget*			                widget;
-    QList<GObject*>		                objects;
-    QList<GObject*>		                requiredObjects;
+    QWidget*                            widget;
+    QList<GObject*>                     objects;
+    QList<GObject*>                     requiredObjects;
     GObjectViewCloseInterface*          closeInterface;
-    bool				                closing;
+    bool                                closing;
     QList<GObjectViewObjectHandler*>    objectHandlers;
-
+    OptionsPanel*                       optionsPanel;
 };
 
 class U2GUI_EXPORT GObjectViewCloseInterface {
@@ -243,16 +254,17 @@ public:
     virtual void setupViewMenu(QMenu* n);
 
 protected:
-    bool onCloseEvent();
+    virtual bool onCloseEvent();
 signals:
     void si_persistentStateChanged(GObjectViewWindow* thiz);
+    void si_windowClosed(GObjectViewWindow* viewWindow);
 
 private:
     void updateDocumentConnections(Document* o, bool added);
 
 protected:
-    GObjectView*		view;
-    bool				persistent;
+    GObjectView*        view;
+    bool                persistent;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -287,7 +299,7 @@ public:
 
     static QList<GObjectViewState*> selectStates(GObjectViewFactory* f, const MultiGSelection& ms, const QList<GObjectViewState*>& states);
 
-    // Returns active object view window. 
+    // Returns active object view window.
     // Returns NULL if active window is not object view window
     static GObjectViewWindow* getActiveObjectViewWindow();
 };
@@ -296,13 +308,10 @@ public:
 class U2GUI_EXPORT GObjectViewAction : public QAction {
     Q_OBJECT
 public:
-    GObjectViewAction(QObject* p, GObjectView* v, const QString& text, int order = GObjectViewAction_DefaultOrder)
-        :  QAction(text, p), view(v), actionOrder(order) {}
+    GObjectViewAction(QObject* p, GObjectView* v, const QString& text, int order = GObjectViewAction_DefaultOrder);
 
-    GObjectView* getObjectView() const {return view;}
-
-    int getActionOrder() const {return actionOrder;}
-
+    GObjectView* getObjectView() const;
+    int getActionOrder() const;
     void addToMenuWithOrder(QMenu* menu);
 
 private:
@@ -328,23 +337,27 @@ class U2GUI_EXPORT GObjectViewWindowContext : public QObject, public GObjectView
 public:
     GObjectViewWindowContext(QObject* p, const GObjectViewFactoryId& id);
     virtual ~GObjectViewWindowContext();
-    void init();
+    virtual void init();
 
     QList<GObjectViewAction*> getViewActions(GObjectView* view) const;
+
+    // GObjectViewObjectHandler
+    virtual void onObjectRemoved(GObjectView* v, GObject* obj);
 
 protected:
     /// init context associated with 'view'
     virtual void initViewContext(GObjectView* view) = 0;
     void addViewResource(GObjectView* view, QObject* r);
-    void addViewAction(GObjectViewAction* a) {addViewResource(a->getObjectView(), a);}
+    void addViewAction(GObjectViewAction* a);
+    GObjectViewAction * findViewAction(GObjectView* v, const QString &actionName) const;
 
 protected slots:
     virtual void sl_windowAdded(MWMDIWindow*);
     virtual void sl_windowClosing(MWMDIWindow*);
-    virtual void sl_buildContextMenu(GObjectView* v, QMenu* m) {buildMenu(v, m);}
-    virtual void sl_buildStaticMenu(GObjectView* v, QMenu* m)   {buildMenu(v, m);}
+    virtual void sl_buildContextMenu(GObjectView* v, QMenu* m);
+    virtual void sl_buildStaticMenu(GObjectView* v, QMenu* m);
 
-protected:    
+protected:
     virtual void buildMenu(GObjectView* v, QMenu* m){Q_UNUSED(v); Q_UNUSED(m);}
     virtual void disconnectView(GObjectView* v);
 

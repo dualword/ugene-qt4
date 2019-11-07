@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,16 +47,13 @@ public:
     MarkSequenceWorker(Actor *p);
 
     virtual void init();
-    virtual bool isReady();
     virtual Task *tick();
-    virtual bool isDone();
-    virtual void cleanup();
+    virtual void cleanup() {}
 
 private:
-    CommunicationChannel *inChannel;
-    CommunicationChannel *outChannel;
+    IntegralBus *inChannel;
+    IntegralBus *outChannel;
     DataTypePtr mtype;
-    bool done;
 
 }; // MarkSequenceWorker
 

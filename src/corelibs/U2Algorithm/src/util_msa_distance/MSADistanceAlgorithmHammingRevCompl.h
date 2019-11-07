@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ class U2ALGORITHM_EXPORT MSADistanceAlgorithmFactoryHammingRevCompl: public MSAD
     Q_OBJECT
 public:
     MSADistanceAlgorithmFactoryHammingRevCompl(QObject* p = NULL);
-            
+
     virtual MSADistanceAlgorithm* createAlgorithm(const MAlignment& ma, QObject* parent);
 
     virtual QString getDescription() const;

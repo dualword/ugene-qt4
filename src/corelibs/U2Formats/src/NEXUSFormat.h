@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,12 +30,12 @@
 
 #include <cassert>
 
-namespace U2 
+namespace U2
 {
 
 class IOAdapter;
 
-class U2FORMATS_EXPORT NEXUSFormat : public DocumentFormat 
+class U2FORMATS_EXPORT NEXUSFormat : public DocumentFormat
 {
     Q_OBJECT
 
@@ -52,8 +52,8 @@ protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
 private:
-    QList<GObject*> loadObjects(IOAdapter *io, U2OpStatus &ti);
-    void storeObjects(QList<GObject*> objects, IOAdapter *io, U2OpStatus &ti);
+    QList<GObject*> loadObjects(IOAdapter *io, const U2DbiRef& dbiRef, const QVariantMap &fs, U2OpStatus &ti);
+    void storeObjects(QList<GObject*> objects, bool simpleNames, IOAdapter *io, U2OpStatus &ti);
 
 private:
     QString formatName;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,30 +19,38 @@
  * MA 02110-1301, USA.
  */
 
-#include "AppSettingsGUIImpl.h"
-#include "AppSettingsDialogController.h"
-
-#include "format_settings/FormatSettingsGUIController.h"
-#include "network_settings/NetworkSettingsGUIController.h"
-#include "user_apps_settings/UserApplicationsSettingsGUIController.h"
-#include "resource_settings/ResourceSettingsGUIController.h"
+#include <QMenu>
 
 #include <U2Core/AppContext.h>
-#include <U2Gui/MainWindow.h>
 
-#include <QtGui/QMenu>
+#include <U2Gui/MainWindow.h>
+#include <U2Core/QObjectScopedPointer.h>
+
+#include "AppSettingsDialogController.h"
+#include "AppSettingsGUIImpl.h"
+#include "directories_settings/DirectoriesSettingsGUIController.h"
+#include "format_settings/FormatSettingsGUIController.h"
+#include "network_settings/NetworkSettingsGUIController.h"
+#include "resource_settings/ResourceSettingsGUIController.h"
+#include "user_apps_settings/UserApplicationsSettingsGUIController.h"
 
 namespace U2 {
+
 AppSettingsGUIImpl::AppSettingsGUIImpl(QObject* p) : AppSettingsGUI(p)
 {
     registerBuiltinPages();
     QMenu* m = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_SETTINGS);
     
-    QAction* settingsdialogAction = new QAction(QIcon(":ugene/images/preferences.png"), tr("Preferences..."), this);
-    connect(settingsdialogAction, SIGNAL(triggered()), SLOT(sl_showSettingsDialog()));
-    settingsdialogAction->setObjectName("action__settings");
-    m->addAction(settingsdialogAction);
-    //m->addAction(tr("app_settings"), this, SLOT(sl_showSettingsDialog()));
+    QAction* settingsDialogAction = new QAction(QIcon(":ugene/images/preferences.png"), tr("Preferences..."), this);
+    connect(settingsDialogAction, SIGNAL(triggered()), SLOT(sl_showSettingsDialog()));
+    settingsDialogAction->setObjectName("action__settings");
+#ifdef Q_OS_MAC
+    settingsDialogAction->setMenuRole(QAction::ApplicationSpecificRole);
+    settingsDialogAction->setShortcut(QKeySequence("Ctrl+,"));
+    settingsDialogAction->setShortcutContext(Qt::ApplicationShortcut);
+#endif
+    m->addAction(settingsDialogAction);
+    AppContext::getMainWindow()->registerAction(settingsDialogAction);
 }
 
 AppSettingsGUIImpl::~AppSettingsGUIImpl() {
@@ -79,8 +87,8 @@ bool AppSettingsGUIImpl::unregisterPage(AppSettingsGUIPageController* page) {
 
 void AppSettingsGUIImpl::showSettingsDialog(const QString& pageId) const {
     QWidget *p = (QWidget*)(AppContext::getMainWindow()->getQMainWindow());
-    AppSettingsDialogController c(pageId,p);
-    c.exec();
+    QObjectScopedPointer<AppSettingsDialogController> c = new AppSettingsDialogController(pageId,p);
+    c->exec();
 }
 
 AppSettingsGUIPageController* AppSettingsGUIImpl::findPageById(const QString& pageId) const {
@@ -97,6 +105,7 @@ void AppSettingsGUIImpl::registerBuiltinPages() {
     registerPage(new ResourceSettingsGUIPageController());
     registerPage(new NetworkSettingsPageController());
     registerPage(new FormatSettingsGUIPageController());
+    registerPage(new DirectoriesSettingsPageController());
 }
 
 }//namespace

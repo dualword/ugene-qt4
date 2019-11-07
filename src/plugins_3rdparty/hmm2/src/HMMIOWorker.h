@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,11 +26,6 @@
 #include <U2Lang/WorkflowUtils.h>
 
 #include <U2Core/SaveDocumentTask.h>
-
-struct plan7_s;
-struct msa_struct;
-
-Q_DECLARE_METATYPE(plan7_s*);
 
 namespace U2 {
 namespace LocalWorkflow {
@@ -90,10 +85,8 @@ class HMMReader : public BaseWorker {
 public:
     static const QString ACTOR;
     HMMReader(Actor* a) : BaseWorker(a), output(NULL) {}
-    virtual void init() ;
-    virtual bool isReady() {return !urls.isEmpty();}
-    virtual Task* tick() ;
-    virtual bool isDone() {return urls.isEmpty();}
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 private slots:
     void sl_taskFinished();
@@ -108,10 +101,8 @@ class HMMWriter : public BaseWorker {
 public:
     static const QString ACTOR;
     HMMWriter(Actor* a) : BaseWorker(a), input(NULL), done(false), fileMode(SaveDoc_Overwrite) {}
-    virtual void init() ;
-    virtual bool isReady() {return input && input->hasMessage();}
-    virtual Task* tick() ;
-    virtual bool isDone() {return !input || input->isEnded();}
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 
 protected:
@@ -132,6 +123,9 @@ public:
 
 } // Workflow namespace
 } // U2 namespace
+
+#include <hmmer2/structs.h>
+Q_DECLARE_METATYPE(plan7_s *);
 
 #endif
 

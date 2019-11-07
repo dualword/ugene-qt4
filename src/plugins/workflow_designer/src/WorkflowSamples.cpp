@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,31 +21,45 @@
 
 #include "WorkflowSamples.h"
 #include "WorkflowViewController.h"
-#include "HRSceneSerializer.h"
 #include <util/SaveSchemaImageUtils.h>
 #include <U2Core/Log.h>
 #include <U2Core/L10n.h>
 #include <U2Core/Settings.h>
 
 #include <U2Designer/WorkflowGUIUtils.h>
+
+#include <U2Lang/HRSchemaSerializer.h>
 #include <U2Lang/WorkflowUtils.h>
+#include <U2Lang/WorkflowSettings.h>
 
 #include <QtCore/QDir>
-#include <QtCore/QFile>
 #include <QtCore/QUrl>
 #include <QtCore/QTextStream>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QApplication>
+#include <QtGui/QStyle>
 #include <QtGui/QLabel>
+#include <QtGui/QLineEdit>
 #include <QtGui/QMenu>
 #include <QtGui/QToolButton>
-
 #include <QtGui/QHeaderView>
-#include <QtGui/QApplication>
-#include <QtCore/QAbstractItemModel>
 #include <QtGui/QTreeView>
-#include <QtGui/QStyle>
-#include <QtGui/QPainter>
-#include <QtGui/QStyledItemDelegate>
 #include <QtGui/QVBoxLayout>
+#include <QtGui/QStyledItemDelegate>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QStyle>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QToolButton>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QTreeView>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QStyledItemDelegate>
+#endif
+#include <QtCore/QAbstractItemModel>
+#include <QtGui/QPainter>
 #include <QtGui/QContextMenuEvent>
 #include <QtGui/QTextDocument>
 
@@ -60,6 +74,7 @@ QList<SampleCategory> SampleRegistry::data;
 #define INFO_ROLE Qt::UserRole + 1
 #define ICON_ROLE Qt::UserRole + 2
 #define DOC_ROLE Qt::UserRole + 3
+#define ID_ROLE Qt::UserRole + 4
 
 class SampleDelegate : public QStyledItemDelegate {
 public:
@@ -77,51 +92,10 @@ public:
         opt.rect.setSize(widget->size());
         return style->sizeFromContents(QStyle::CT_ItemViewItem, &opt, QSize(), widget);
     }
-
-//     void QStyledItemDelegate::paint(QPainter *painter,
-//         const QStyleOptionViewItem &option, const QModelIndex &index) const
-//     {
-//         Q_ASSERT(index.isValid());
-// 
-//         QStyleOptionViewItemV4 opt = option;
-//         initStyleOption(&opt, index);
-// 
-//         const QWidget *widget = qobject_cast<QWidget*>(parent());//QStyledItemDelegatePrivate::widget(option);
-//         QStyle *style = widget ? widget->style() : QApplication::style();
-//         style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
-//     }
-
-    /*void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const
-    {
-        QStyledItemDelegate::initStyleOption(option, index);
-        QWidget* owner;
-        if ((owner = qobject_cast<QWidget*>(parent()))) {
-            option->rect.setWidth(owner->width());
-            option->rect.setHeight(0);
-        }
-//         QVariant value = index.data(Qt::FontRole);
-//         if (value.isValid() && !value.isNull()) {
-//             option->font = qvariant_cast<QFont>(value).resolve(option->font);
-//             option->fontMetrics = QFontMetrics(option->font);
-//         }
-// 
-//         value = index.data(Qt::TextAlignmentRole);
-//         if (value.isValid() && !value.isNull())
-//             option->displayAlignment = (Qt::Alignment)value.toInt();
-// 
-//         value = index.data(Qt::ForegroundRole);
-//         if (qVariantCanConvert<QBrush>(value))
-//             option->palette.setBrush(QPalette::Text, qvariant_cast<QBrush>(value));
-
-        if (QStyleOptionViewItemV2 *v2 = qstyleoption_cast<QStyleOptionViewItemV2 *>(option)) {
-            v2->features |= QStyleOptionViewItemV2::WrapText;
-        }
-    }*/
 };
 
 SamplesWidget::SamplesWidget(WorkflowScene *scene, QWidget *parent) : QTreeWidget(parent) {
     setColumnCount(1);
-    //header()->hide();
     setHeaderHidden(true);
     setItemDelegate(new SampleDelegate(this));
     setWordWrap(true);
@@ -134,12 +108,43 @@ SamplesWidget::SamplesWidget(WorkflowScene *scene, QWidget *parent) : QTreeWidge
 
     glass = new SamplePane(scene);
 
-    //connect(this, SIGNAL(itemActivated(QTreeWidgetItem*,int)), SLOT(handleItem(QTreeWidgetItem*)));
     connect(this, SIGNAL(currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)), SLOT(handleTreeItem(QTreeWidgetItem*)));
-    //connect(this, SIGNAL(itemSelectionChanged()), glass, SLOT(test()));
     connect(this, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)), SLOT(activateItem(QTreeWidgetItem*)));
     connect(glass, SIGNAL(itemActivated(QTreeWidgetItem*)), SLOT(activateItem(QTreeWidgetItem*)));
     connect(glass, SIGNAL(cancel()), SLOT(cancelItem()));
+    connect(WorkflowSettings::watcher, SIGNAL(changed()), this, SLOT(sl_refreshSampesItems()));
+}
+
+QTreeWidgetItem * SamplesWidget::getSampleItem(const QString &category, const QString &id) {
+    QList<QTreeWidgetItem*> items = findItems(category, Qt::MatchExactly);
+    CHECK(1 == items.size(), NULL);
+
+    for (int i=0; i<items.first()->childCount(); i++) {
+        QTreeWidgetItem *sampleItem = items.first()->child(i);
+        const QString sampleId = sampleItem->data(0, ID_ROLE).toString();
+        if (sampleId == id) {
+            return sampleItem;
+        }
+    }
+
+    return NULL;
+}
+
+void SamplesWidget::activateSample(const QString &category, const QString &id) {
+    QTreeWidgetItem *sampleItem = getSampleItem(category, id);
+    CHECK(NULL != sampleItem, );
+
+    scrollToItem(sampleItem);
+    setCurrentItem(sampleItem);
+    return;
+}
+
+void SamplesWidget::loadSample(const QString &category, const QString &id) {
+    QTreeWidgetItem *sampleItem = getSampleItem(category, id);
+    CHECK(NULL != sampleItem, );
+
+    activateItem(sampleItem);
+    return;
 }
 
 void SamplesWidget::activateItem(QTreeWidgetItem * item) {
@@ -149,13 +154,9 @@ void SamplesWidget::activateItem(QTreeWidgetItem * item) {
 }
 
 void SamplesWidget::handleTreeItem(QTreeWidgetItem * item) {
-//     bool show = false;
      if (item && !item->data(0, DATA_ROLE).isValid()) {
          item = NULL;
-//         glass->setItem(item);
-//         show = true;
      }
-//     emit setupGlass(show ? glass : NULL);
 
     glass->setItem(item);
     emit setupGlass(glass);
@@ -171,6 +172,33 @@ void SamplesWidget::cancelItem() {
      }
 }
 
+void SamplesWidget::sl_nameFilterChanged(const QString &nameFilter) {
+    revisible(nameFilter);
+}
+
+void SamplesWidget::revisible(const QString &nameFilter) {
+    setMouseTracking(false);
+    for (int catIdx=0; catIdx<topLevelItemCount(); catIdx++) {
+        QTreeWidgetItem *category = topLevelItem(catIdx);
+        bool hasVisibleSamples = false;
+        QString catName = category->text(0);
+        for (int childIdx=0; childIdx<category->childCount(); childIdx++) {
+            QTreeWidgetItem *sample = category->child(childIdx);
+            QString name = sample->text(0);
+            if (!NameFilterLayout::filterMatched(nameFilter, name) &&
+                !NameFilterLayout::filterMatched(nameFilter, catName)) {
+                sample->setHidden(true);
+            } else {
+                sample->setHidden(false);
+                hasVisibleSamples = true;
+            }
+        }
+        category->setHidden(!hasVisibleSamples);
+        category->setExpanded(hasVisibleSamples);
+    }
+    setMouseTracking(true);
+}
+
 void SamplesWidget::addCategory( const SampleCategory& cat )
 {
     QTreeWidgetItem* ci = new QTreeWidgetItem(this, QStringList(cat.d.getDisplayName()));
@@ -179,53 +207,31 @@ void SamplesWidget::addCategory( const SampleCategory& cat )
     cf.setBold(true);
     ci->setData(0, Qt::FontRole, cf);
     ci->setData(0, Qt::BackgroundRole, QColor(255,255,160, 127));
-    //QFont sf;
-    //sf.setBold(true);
-    //sf.setItalic(true);
 
     foreach(const Sample& item, cat.items) {
         QTreeWidgetItem* ib = new QTreeWidgetItem(ci, QStringList(item.d.getDisplayName()));
         ib->setData(0, DATA_ROLE, item.content);
-        //ib->setData(0, ICON_ROLE, item.ico.pixmap(200));
-        //ib->setData(0, INFO_ROLE, qVariantFromValue<Descriptor>(item.d));
+        ib->setData(0, ID_ROLE, item.id);
         QTextDocument* doc = new QTextDocument(this);
         ib->setData(0, DOC_ROLE, qVariantFromValue<QTextDocument*>(doc));
-        //ib->setData(0, Qt::FontRole, sf);
         Descriptor d = item.d;
         QIcon ico = item.ico;
         if (ico.isNull()) {
-            ico.addPixmap(SaveSchemaImageUtils::generateSchemaSnapshot(item.content.toUtf8()));
+            const QPixmap pixmap = SaveSchemaImageUtils::generateSchemaSnapshot(item.content.toUtf8());
+            if (!pixmap.isNull()) {
+                ico.addPixmap(pixmap);
+            }
         }
         DesignerGUIUtils::setupSamplesDocument(d, ico, doc);
     }
 }
 
-void SamplePane::setItem(QTreeWidgetItem* it) {
-    item = it;
-//     if (!item) {
-//         m_document->clear();
-//         return;
-//     }
-//     Descriptor d = it->data(0, INFO_ROLE).value<Descriptor>();
-//     QString text = 
-//         "<html>"
-//         "<table align='center' border='0'>"
-//         "<tr><td><h1 align='center'>%1</h1></td></tr>"
-//         "<tr><td><img src=\"%2\"/>%3</td></tr>"
-//         "<tr><td bgcolor='gainsboro' align='center'><font color='maroon' size='+2'>%4</font></td></tr>"
-//         "</table>"
-//         "</html>";
-//     QString img("img://img");
-//     m_document->addResource(QTextDocument::ImageResource, QUrl(img), it->data(0, ICON_ROLE));
-//     
-//     //QString img = QString("<table align='left' width='250' border='0'><tr><td><img src=\"img://img\"/></td></tr></table>");
-//     QString body = Qt::escape(d.getDocumentation()).replace("\n", "<br>");
-//     text = text.arg(d.getDisplayName()).arg(img).arg(body).arg(tr("Double click to load the sample"));
-//     m_document->setHtml(text);
-}
-
-void SamplePane::test() {
-    uiLog.error("Acha!!!");
+void SamplesWidget::sl_refreshSampesItems(){
+    clear();
+    foreach(const SampleCategory& cat, SampleRegistry::getCategories()) {
+        addCategory(cat);
+    }
+    expandAll();
 }
 
 void SamplePane::mouseDoubleClickEvent( QMouseEvent *e) {
@@ -268,7 +274,9 @@ SamplePane::SamplePane(WorkflowScene *_scene) : item(NULL), scene(_scene) {
 
 void SamplePane::paint(QPainter* painter)
 {
-    if (!item && !scene->items().size()) {
+    const WorkflowView *ctrl = scene->getController();
+    SAFE_POINT(NULL != ctrl, "NULL workflow controller", );
+    if (!item && ctrl->isShowSamplesHint()) {
         DesignerGUIUtils::paintSamplesArrow(painter);
         return;
     }
@@ -279,8 +287,9 @@ void SamplePane::paint(QPainter* painter)
     }
 }
 
+const int LoadSamplesTask::maxDepth = 1;
 
-LoadSamplesTask::LoadSamplesTask( const QStringList& lst) 
+LoadSamplesTask::LoadSamplesTask( const QStringList& lst)
 : Task(tr("Load workflow samples"), TaskFlag_None), dirs(lst) {}
 
 void LoadSamplesTask::run() {
@@ -289,7 +298,7 @@ void LoadSamplesTask::run() {
     }
 }
 
-void LoadSamplesTask::scanDir( const QString& s) {
+void LoadSamplesTask::scanDir( const QString& s, int depth) {
     QDir dir(s);
     if (!dir.exists()) {
         ioLog.error(tr("Sample dir does not exist: %1").arg(s));
@@ -300,38 +309,41 @@ void LoadSamplesTask::scanDir( const QString& s) {
     foreach(const QString & ext, WorkflowUtils::WD_FILE_EXTENSIONS) {
         names << "*." + ext;
     }
-    
+
     foreach(const QFileInfo& fi, dir.entryInfoList(names, QDir::Files|QDir::NoSymLinks)) {
         QFile f(fi.absoluteFilePath());
         if(!f.open(QIODevice::ReadOnly)) {
             ioLog.error(tr("Failed to load sample: %1").arg(L10N::errorOpeningFileRead(fi.absoluteFilePath())));
             continue;
         }
-        
+
         QTextStream in(&f);
         in.setCodec("UTF-8");
         Sample sample;
         sample.content = in.readAll();
-        
+
         Metadata meta;
-        QString err = HRSceneSerializer::string2Scene(sample.content, NULL, &meta);
+        QString err = HRSchemaSerializer::string2Schema(sample.content, NULL, &meta);
         if(!err.isEmpty()) {
             coreLog.error(tr("Failed to load sample: %1").arg(err));
             continue;
         }
         sample.d = Descriptor(fi.absoluteFilePath(), meta.name.isEmpty()? fi.baseName() : meta.name, meta.comment);
-        
+
         QString icoName = dir.absoluteFilePath(fi.baseName() + ".png");
         if (QFile::exists(icoName)) {
             sample.ico.addFile(icoName);
         }
+        sample.id = fi.fileName();
         category.items << sample;
     }
     if (!category.items.isEmpty()) {
         result << category;
     }
-    foreach(const QFileInfo& fi, dir.entryInfoList(QStringList(), QDir::AllDirs|QDir::NoSymLinks|QDir::NoDotAndDotDot)) {
-        scanDir(fi.absoluteFilePath());
+    if (depth < maxDepth) {
+        foreach(const QFileInfo& fi, dir.entryInfoList(QStringList(), QDir::AllDirs|QDir::NoSymLinks|QDir::NoDotAndDotDot)) {
+            scanDir(fi.absoluteFilePath(), depth + 1);
+        }
     }
 }
 
@@ -343,6 +355,63 @@ Task::ReportResult LoadSamplesTask::report()
 
 Task* SampleRegistry::init( const QStringList& lst) {
     return new LoadSamplesTask(lst);
+}
+
+/************************************************************************/
+/* NameFilterLayout */
+/************************************************************************/
+NameFilterLayout::NameFilterLayout(QWidget *parent)
+: QHBoxLayout(parent)
+{
+    setContentsMargins(0, 0, 0, 0);
+    setSpacing(6);
+    nameEdit = new QLineEdit();
+    nameEdit->setObjectName("nameFilterLineEdit");
+    nameEdit->setPlaceholderText(tr("Type to filter by name..."));
+
+    QLabel *label = new QLabel(tr("Name filter:"));
+    label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    nameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    addWidget(label);
+    addWidget(nameEdit);
+
+    delTextAction = new QAction(this);
+    delTextAction->setShortcut(QKeySequence(tr("Esc")));
+    nameEdit->addAction(delTextAction);
+
+    connect(delTextAction, SIGNAL(triggered()), nameEdit, SLOT(clear()));
+}
+
+QLineEdit * NameFilterLayout::getNameEdit() const {
+    return nameEdit;
+}
+
+bool NameFilterLayout::filterMatched(const QString &nameFilter, const QString &name) {
+    static QRegExp spaces("\\s");
+    QStringList filterWords = nameFilter.split(spaces);
+    foreach (const QString &word, filterWords) {
+        if (!name.contains(word, Qt::CaseInsensitive)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/************************************************************************/
+/* SamplesWrapper */
+/************************************************************************/
+SamplesWrapper::SamplesWrapper(SamplesWidget *samples, QWidget *parent)
+: QWidget(parent)
+{
+    QVBoxLayout *vl = new QVBoxLayout(this);
+    vl->setContentsMargins(0, 3, 0, 0);
+    vl->setSpacing(3);
+    NameFilterLayout *hl = new NameFilterLayout(NULL);
+    vl->addLayout(hl);
+    vl->addWidget(samples);
+
+    connect(hl->getNameEdit(), SIGNAL(textChanged(const QString &)), samples, SLOT(sl_nameFilterChanged(const QString &)));
+    setFocusProxy(hl->getNameEdit());
 }
 
 } //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -224,7 +224,7 @@ bool QDSceneSerializer::doc2scheme(const QList<QDDocument*>& docs, QMap<QDElemen
 
     QDActor* actor = NULL;
     //map QDElementStatement to QDActor created from it
-    
+
     foreach(QDElementStatement* grpStmt, groups) {
         //if grpStmt references to stmt defined in other query
         //find it and instantiate with that query attributes
@@ -241,7 +241,7 @@ bool QDSceneSerializer::doc2scheme(const QList<QDDocument*>& docs, QMap<QDElemen
                 }
             }
             if (actualStmt==NULL) {
-                algoLog.error(QObject::tr("{%1} is not found in imported files.").arg(actualStmt->getId()));
+             //   algoLog.error(QObject::tr("{%1} is not found in imported files.").arg(grpStmt->getId()));
                 return false;
             }
             actor = QDSchemeSerializer::loadActor(actualStmt, group);
@@ -396,7 +396,7 @@ QDActor* QDSchemeSerializer::loadActor(QDElementStatement* actorElement, QString
     QString actorName = actorElement->getId();
     actor->getParameters()->setLabel(actorName);
     actor->loadConfiguration(actorElement->getAttributes());
-    
+
     QString dirAttrVal = actorElement->getAttribute(STRAND_ATTR);
     if (!dirAttrVal.isEmpty()) {
         if (!STRAND_MAP.values().contains(dirAttrVal)) {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,8 +25,11 @@
 #include "GSequenceLineView.h"
 #include "ADVGraphModel.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
-
+#else
+#include <QtWidgets/QMenu>
+#endif
 
 namespace U2 {
 
@@ -40,48 +43,81 @@ class U2VIEW_EXPORT GSequenceGraphView : public GSequenceLineView {
     Q_OBJECT
 public:
     GSequenceGraphView(QWidget* p, ADVSequenceObjectContext* ctx, GSequenceLineView* baseView, const QString& vName);
+
     ~GSequenceGraphView();
 
     const QString& getGraphViewName() const {return vName;}
 
-    void addGraphData(GSequenceGraphData* g);
-    
+    void getLabelPositions(QList<QVariant> &labelPositions);
+
+    void createLabelsOnPositions(const QList<QVariant>& positions);
+
+    void addGraphData(const QSharedPointer<GSequenceGraphData> &g);
+
     void setGraphDrawer(GSequenceGraphDrawer* gd);
 
-    const QList<GSequenceGraphData*>& getGraphs() const {return graphs;}
-    
+    const QList<QSharedPointer<GSequenceGraphData> >& getGraphs() const {return graphs;}
+
     GSequenceGraphDrawer* getGSequenceGraphDrawer() const {return graphDrawer;}
 
     void buildPopupMenu(QMenu& m);
 
+    void changeLabelsColor();
+
 protected:
     virtual void pack();
     virtual void addActionsToGraphMenu(QMenu* graphMenu);
+    void leaveEvent(QEvent *le);
+    void mousePressEvent(QMouseEvent* me);
+    void mouseMoveEvent(QMouseEvent* me);
+    void addLabel(float xPos);
+    void moveLabel(float xPos);
+    void hideLabel();
+    void onVisibleRangeChanged(bool signal = true);
 
+signals:
+    void si_labelAdded(const QSharedPointer<GSequenceGraphData>& , GraphLabel*, const QRect&);
+    void si_labelMoved(const QSharedPointer<GSequenceGraphData>&, GraphLabel*, const QRect&);
+    void si_frameRangeChanged(const QSharedPointer<GSequenceGraphData>&, const QRect&);
+    void si_labelsColorChange(const QSharedPointer<GSequenceGraphData>&);
 private slots:
     void sl_onShowVisualProperties(bool);
+    void sl_onSelectExtremumPoints();
+    void sl_onDeleteAllLabels();
+    void sl_onSaveGraphCutoffs(bool);
+    void sl_graphRectChanged(const QRect&);
 
 private:
     GSequenceLineView*          baseView;
     QString                     vName;
-    QList<GSequenceGraphData*>  graphs;
+    QList<QSharedPointer<GSequenceGraphData> >  graphs;
     GSequenceGraphDrawer*       graphDrawer;
     QAction*                    visualPropertiesAction;
+    QAction*                    saveGraphCutoffsAction;
+    QAction*                    deleteAllLabelsAction;
+    QAction*                    selectAllExtremumPoints;
 };
 
 
 class U2VIEW_EXPORT GSequenceGraphViewRA : public GSequenceLineViewRenderArea {
+    Q_OBJECT
 public:
     GSequenceGraphViewRA(GSequenceGraphView* g);
     ~GSequenceGraphViewRA();
     virtual GSequenceGraphView* getGraphView() const {return static_cast<GSequenceGraphView*>(view);}
-    
+
     double getCurrentScale() const;
+
+    const QRect& getGraphRect() const { return graphRect;}
 
 protected:
     virtual void drawAll(QPaintDevice* pd);
     virtual void drawHeader(QPainter& p);
     void drawSelection(QPainter& p);
+signals:
+    void si_graphRectChanged(const QRect&);
+private slots:
+    void sl_graphDataUpdated();
 private:
 
     QFont *headerFont;

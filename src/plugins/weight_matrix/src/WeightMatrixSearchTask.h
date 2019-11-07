@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,14 +39,14 @@ public:
         qual = QMap<QString, QString>();
     }
 
-    SharedAnnotationData toAnnotation(const QString& name) const {
-        SharedAnnotationData data;
-        data = new AnnotationData;
+    SharedAnnotationData toAnnotation(U2FeatureType type, const QString& name) const {
+        SharedAnnotationData data(new AnnotationData);
+        data->type = type;
         data->name = name;
         data->location->regions << region;
         data->setStrand(strand);
         if (!modelInfo.isEmpty()) {
-            data->qualifiers.append(U2Qualifier("Weight matrix model", modelInfo));
+            data->qualifiers.append(U2Qualifier("Weight_matrix_model", modelInfo));
         }
         data->qualifiers.append(U2Qualifier("Score", QString::number(score)));
         QMapIterator<QString, QString> iter(qual);
@@ -57,11 +57,10 @@ public:
         return data;
     }
 
-    static QList<SharedAnnotationData> toTable(const QList<WeightMatrixSearchResult>& res, const QString& name)
-    {
+    static QList<SharedAnnotationData> toTable(const QList<WeightMatrixSearchResult>& res, U2FeatureType type, const QString& name) {
         QList<SharedAnnotationData> list;
         foreach (const WeightMatrixSearchResult& f, res) {
-            list.append(f.toAnnotation(name));
+            list.append(f.toAnnotation(type, name));
         }
         return list;
     }
@@ -82,13 +81,20 @@ public:
     DNATranslation* complTT;
     bool complOnly; //FIXME use strand instead
     QString algo;
+
+    bool operator==(const WeightMatrixSearchCfg &c1) const {
+        return c1.minPSUM == minPSUM &&
+                c1.modelName == modelName &&
+                c1.complOnly == complOnly &&
+                c1.algo == algo;
+    }
 };
 
 class WeightMatrixSearchTask : public Task {
     Q_OBJECT
 public:
     WeightMatrixSearchTask(const QList< QPair< PWMatrix, WeightMatrixSearchCfg > >& models, const QByteArray& seq, int resultsOffset);
-    
+
     QList<WeightMatrixSearchResult> takeResults();
 
 private:
@@ -104,7 +110,7 @@ class WeightMatrixSingleSearchTask : public Task, public SequenceWalkerCallback 
     Q_OBJECT
 public:
     WeightMatrixSingleSearchTask(const PWMatrix& model, const QByteArray& seq, const WeightMatrixSearchCfg& cfg, int resultsOffset);
-    
+
     virtual void onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti);
     QList<WeightMatrixSearchResult> takeResults();
 

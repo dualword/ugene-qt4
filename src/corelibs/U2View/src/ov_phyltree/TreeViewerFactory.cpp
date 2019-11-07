@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,7 +55,7 @@ bool TreeViewerFactory::canCreateView(const MultiGSelection& multiSelection) {
 
 Task* TreeViewerFactory::createViewTask(const MultiGSelection& multiSelection, bool single) {
     QList<GObject*> phyObjects = SelectionUtils::findObjects(GObjectTypes::PHYLOGENETIC_TREE, &multiSelection, UOF_LoadedAndUnloaded);
-    QSet<Document*> docsWithPhy = SelectionUtils::findDocumentsWithObjects(GObjectTypes::PHYLOGENETIC_TREE, 
+    QSet<Document*> docsWithPhy = SelectionUtils::findDocumentsWithObjects(GObjectTypes::PHYLOGENETIC_TREE,
                                                             &multiSelection, UOF_LoadedAndUnloaded, false);
     QList<OpenTreeViewerTask*> resTasks;
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,12 @@
  * MA 02110-1301, USA.
  */
 
-#include "ChooseItemDialog.h"
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2Lang/WorkflowUtils.h>
+
+#include "ChooseItemDialog.h"
 
 namespace U2 {
 
@@ -29,6 +32,7 @@ ChooseItemDialog::ChooseItemDialog(QWidget* p) : QDialog(p)
 {
     setupUi(this);
     connect(listWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), SLOT(accept()));
+
 }
 
 QString ChooseItemDialog::select(const QMap<QString, QIcon>& items) {

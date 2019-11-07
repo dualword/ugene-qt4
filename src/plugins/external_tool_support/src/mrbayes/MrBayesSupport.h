@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,18 @@
  * MA 02110-1301, USA.
  */
 
-#ifndef _U2_MRBAYES_SUPPORT_H
-#define _U2_MRBAYES_SUPPORT_H
+#ifndef _U2_MRBAYES_SUPPORT_H_
+#define _U2_MRBAYES_SUPPORT_H_
+
+#include <U2Algorithm/PhyTreeGenerator.h>
 
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Core/PhyTree.h>
-#include <U2View/CreatePhyTreeDialogController.h>
-#include <U2Algorithm/PhyTreeGenerator.h>
 
-#define MRBAYES_TOOL_NAME "MrBayes"
-#define MRBAYES_TMP_DIR   "mrbayes"
+#include <U2View/CreatePhyTreeDialogController.h>
+
+#define ET_MRBAYES "MrBayes"
+#define MRBAYES_TMP_DIR "mrbayes"
 
 namespace U2 {
 
@@ -57,14 +59,12 @@ public:
     static QString vt;
     static QString blosum;
     static QString equalin;
-    static QList<QString> getAAModelTypes();
+    static QStringList getAAModelTypes();
 
     static QString JC69;
     static QString HKY85;
     static QString GTR;
-    static QString Codon;
-    static QList<QString> getSubstitutionModelTypes();
-
+    static QStringList getSubstitutionModelTypes();
 };
 
 class MrBayesVariationTypes{
@@ -73,8 +73,8 @@ public:
     static QString gamma;
     static QString propinv;
     static QString invgamma;
-    static QList<QString> getVariationTypes();
+    static QStringList getVariationTypes();
 };
 
-}//namespace
-#endif // _U2_MRBAYES_SUPPORT_H
+}   // namespace U2
+#endif // _U2_MRBAYES_SUPPORT_H_

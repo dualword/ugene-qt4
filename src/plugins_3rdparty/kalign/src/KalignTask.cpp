@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -18,8 +18,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
-
-#include <memory>
 
 #include "KalignTask.h"
 #include "KalignAdapter.h"
@@ -41,8 +39,12 @@ extern "C" {
 #include <U2Core/ProjectModel.h>
 #include <U2Core/AddDocumentTask.h>
 #include <U2Core/LoadDocumentTask.h>
+#include <U2Core/MSAUtils.h>
 #include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/U2SafePoints.h>
+#include <U2Core/U2Mod.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/DNAAlphabet.h>
 
 #include <U2Lang/WorkflowSettings.h>
 #include <U2Lang/SimpleWorkflowTask.h>
@@ -67,34 +69,45 @@ void KalignTaskSettings::reset() {
     inputFilePath="";
 }
 
-KalignTask::KalignTask(const MAlignment& ma, const KalignTaskSettings& _config) 
+KalignTask::KalignTask(const MAlignment& ma, const KalignTaskSettings& _config)
 :TLSTask(tr("KALIGN alignment"), TaskFlags_FOSCOE), config(_config), inputMA(ma)
 {
     GCOUNTER( cvar, tvar, "KalignTask" );
     inputSubMA = inputMA;
     resultSubMA.setAlphabet(inputSubMA.getAlphabet());
+    QString inputMAName = inputMA.getName();
+    resultMA.setName(inputMAName);
+    resultSubMA.setName(inputMAName);
     tpm = Task::Progress_Manual;
     quint64 mem = inputMA.getNumRows() * sizeof(float);
-    addTaskResource(TaskResourceUsage(RESOURCE_MEMORY,  (mem * mem + 3 * mem) / (1024 * 1024)));
+    quint64 profileMem = (ma.getLength() + 2)*22*sizeof(float); // the size of profile that is built during kalign
+    addTaskResource(TaskResourceUsage(RESOURCE_MEMORY, (profileMem + (mem * mem + 3 * mem)) / (1024 * 1024)));
 }
 
 void KalignTask::_run() {
+    SAFE_POINT_EXT(NULL != inputMA.getAlphabet(), stateInfo.setError("The alphabet is NULL"),);
+    if (inputMA.getAlphabet()->getId() == BaseDNAAlphabetIds::RAW() ||
+            inputMA.getAlphabet()->getId() == BaseDNAAlphabetIds::AMINO_EXTENDED()) {
+        setError(tr("Unsupported alphabet: %1").arg(inputMA.getAlphabet()->getName()));
+        return;
+    }
     algoLog.info(tr("Kalign alignment started"));
-    assert(!hasError());
-    doAlign(); 
+    CHECK(!hasError(),);
+    doAlign();
     if (!hasError() && !isCanceled()) {
-        assert(resultMA.getAlphabet()!=NULL);
+        SAFE_POINT_EXT(NULL != resultMA.getAlphabet(), "The alphabet is NULL",);
         algoLog.info(tr("Kalign alignment successfully finished"));
     }
 }
 
 void KalignTask::doAlign() {
-    assert(resultSubMA.isEmpty());
+    SAFE_POINT_EXT(resultSubMA.isEmpty(), stateInfo.setError("Incorrect result state"),);
     KalignAdapter::align(inputSubMA, resultSubMA, stateInfo);
     if (hasError()) {
         return;
     }
     resultMA = resultSubMA;
+    MSAUtils::compareRowsAfterAlignment(inputMA, resultMA, stateInfo);
 }
 
 Task::ReportResult KalignTask::report() {
@@ -125,7 +138,7 @@ TLSContext* KalignTask::createContextInstance()
 //////////////////////////////////////////////////////////////////////////
 // KalignGObjectTask
 
-KalignGObjectTask::KalignGObjectTask(MAlignmentObject* _obj, const KalignTaskSettings& _config) 
+KalignGObjectTask::KalignGObjectTask(MAlignmentObject* _obj, const KalignTaskSettings& _config)
 : AlignGObjectTask("", TaskFlags_NR_FOSCOE, _obj), lock(NULL), kalignTask(NULL), config(_config)
 {
     QString aliName = obj->getDocument()->getName();
@@ -137,12 +150,21 @@ KalignGObjectTask::KalignGObjectTask(MAlignmentObject* _obj, const KalignTaskSet
 }
 
 KalignGObjectTask::~KalignGObjectTask() {
-    assert(lock == NULL);
+    //Unlock the alignment object if the task has been failed
+    if(!lock.isNull()) {
+        if (!obj.isNull()) {
+            if(obj->isStateLocked()) {
+                obj->unlockState(lock);
+            }
+            delete lock;
+            lock = NULL;
+        }
+    }
 }
 
 void KalignGObjectTask::prepare() {
-    CHECK_EXT(!obj.isNull(), stateInfo.setError(tr("Object is removed!")), );
-    CHECK_EXT(!obj->isStateLocked(), stateInfo.setError(tr("Object is state-locked!")), );
+    CHECK_EXT(!obj.isNull(), stateInfo.setError("Object is removed!"), );
+    CHECK_EXT(!obj->isStateLocked(), stateInfo.setError("Object is state-locked!"), );
 
     lock = new StateLock(KALIGN_LOCK_REASON, StateLockFlag_LiveLock);
     obj->lockState(lock);
@@ -151,19 +173,59 @@ void KalignGObjectTask::prepare() {
 }
 
 Task::ReportResult KalignGObjectTask::report() {
-    if (lock != NULL) {
-        obj->unlockState(lock);
-        delete lock;
-        lock = NULL;
-    }
     propagateSubtaskError();
     CHECK_OP(stateInfo, ReportResult_Finished);
-    
+
     SAFE_POINT(!obj.isNull(), "Object was removed?!", ReportResult_Finished);
-    CHECK_EXT(!obj->isStateLocked(), stateInfo.setError(tr("object_is_state_locked")), ReportResult_Finished);
-    
-    assert(kalignTask->inputMA.getNumRows() == kalignTask->resultMA.getNumRows());
-    obj->setMAlignment(kalignTask->resultMA);    
+    CHECK_EXT(!obj->isStateLocked(), stateInfo.setError("object_is_state_locked"), ReportResult_Finished);
+
+    // Apply the result
+    const MAlignment& inputMA = kalignTask->inputMA;
+    MAlignment resultMA = kalignTask->resultMA;
+
+    QList<qint64> rowsOrder = MSAUtils::compareRowsAfterAlignment(inputMA, resultMA, stateInfo);
+    CHECK_OP(stateInfo, ReportResult_Finished);
+
+    if (rowsOrder.count() != inputMA.getNumRows()) {
+        stateInfo.setError("Unexpected number of rows in the result multiple alignment!");
+        return ReportResult_Finished;
+    }
+
+    QMap<qint64, QList<U2MsaGap> > rowsGapModel;
+    for (int i = 0, n = resultMA.getNumRows(); i < n; ++i) {
+        qint64 rowId = resultMA.getRow(i).getRowDBInfo().rowId;
+        const QList<U2MsaGap>& newGapModel = resultMA.getRow(i).getGapModel();
+        rowsGapModel.insert(rowId, newGapModel);
+    }
+
+    // Save data to the database
+    {
+        if (!lock.isNull()) {
+            obj->unlockState(lock);
+            delete lock;
+            lock = NULL;
+        }
+        else {
+            stateInfo.setError("MAlignment object has been changed");
+            return ReportResult_Finished;
+        }
+
+        U2OpStatus2Log os;
+        U2UseCommonUserModStep userModStep(obj->getEntityRef(), os);
+        Q_UNUSED(userModStep);
+        if (os.hasError()) {
+            stateInfo.setError("Failed to apply the result of the alignment!");
+            return ReportResult_Finished;
+        }
+
+        obj->updateGapModel(rowsGapModel, stateInfo);
+        SAFE_POINT_OP(stateInfo, ReportResult_Finished);
+
+        if (rowsOrder != inputMA.getRowsIds()) {
+            obj->updateRowsOrder(rowsOrder, stateInfo);
+            SAFE_POINT_OP(stateInfo, ReportResult_Finished);
+        }
+    }
 
     return ReportResult_Finished;
 }
@@ -172,16 +234,16 @@ Task::ReportResult KalignGObjectTask::report() {
 ///////////////////////////////////
 //KalignGObjectRunFromSchemaTask
 
-#ifndef RUN_WORKFLOW_IN_THREADS
 
-KalignGObjectRunFromSchemaTask::KalignGObjectRunFromSchemaTask(MAlignmentObject * o, const KalignTaskSettings & c) 
-: AlignGObjectTask("", TaskFlags_NR_FOSCOE,o), config(c)
+KalignGObjectRunFromSchemaTask::KalignGObjectRunFromSchemaTask(MAlignmentObject * obj, const KalignTaskSettings & c)
+: AlignGObjectTask("", TaskFlags_NR_FOSCOE,obj), config(c)
 {
-    QString tName = tr("KAlign align '%1'").arg(o->getDocument()->getName());
-    setTaskName(tName);
+    setMAObject(obj);
     setUseDescriptionFromSubtask(true);
     setVerboseLogMode(true);
+}
 
+void KalignGObjectRunFromSchemaTask::prepare() {
     SimpleMSAWorkflowTaskConfig conf;
     conf.algoName = "KAlign";
     conf.schemaName = "align-kalign";
@@ -189,50 +251,64 @@ KalignGObjectRunFromSchemaTask::KalignGObjectRunFromSchemaTask(MAlignmentObject 
     conf.schemaArgs<< QString("--gap-ext-penalty=%1").arg(config.gapExtenstionPenalty);
     conf.schemaArgs<< QString("--gap-open-penalty=%1").arg(config.gapOpenPenalty);
     conf.schemaArgs<< QString("--gap-terminal-penalty=%1").arg(config.termGapPenalty);
-    addSubTask(new SimpleMSAWorkflow4GObjectTask(QString("Workflow wrapper '%1'").arg(tName), o, conf));
+
+    addSubTask(new SimpleMSAWorkflow4GObjectTask(tr("Workflow wrapper '%1'").arg(getTaskName()), obj, conf));
 }
 
-#endif // RUN_WORKFLOW_IN_THREADS
+void KalignGObjectRunFromSchemaTask::setMAObject(MAlignmentObject* maobj) {
+    SAFE_POINT_EXT(maobj != NULL, setError("Invalid MSA object detected"),);
+    const Document* maDoc = maobj->getDocument();
+    SAFE_POINT_EXT(NULL != maDoc, setError("Invalid MSA document detected"),);
+    const QString objName = maDoc->getName();
+
+    AlignGObjectTask::setMAObject(maobj);
+    const QString tName = tr("KAlign align '%1'").arg(objName);
+    setTaskName(tName);
+}
 
 //////////////////////////////////////////////////////////////////////////
-/// KAlignWithExtFileSpecifySupportTask
+/// KalignWithExtFileSpecifySupportTask
 
-
-KAlignAndSaveTask::KAlignAndSaveTask(Document* doc, const KalignTaskSettings& _config )
+KalignWithExtFileSpecifySupportTask::KalignWithExtFileSpecifySupportTask(const KalignTaskSettings& _config )
 :  Task("Run KAlign alignment task on external file", TaskFlags_NR_FOSCOE), config(_config)
 {
     mAObject = NULL;
-    currentDocument = doc;
+    currentDocument = NULL;
     cleanDoc = true;
     saveDocumentTask = NULL;
+    loadDocumentTask = NULL;
     kalignGObjectTask = NULL;
 }
 
-KAlignAndSaveTask::~KAlignAndSaveTask() {
+KalignWithExtFileSpecifySupportTask::~KalignWithExtFileSpecifySupportTask() {
     if (cleanDoc) {
         delete currentDocument;
     }
 }
 
-void KAlignAndSaveTask::prepare() {
-    assert(currentDocument!=NULL);
-    MAlignmentObject* mAObject = qobject_cast<MAlignmentObject*>(currentDocument->getObjects().first());
-    assert(mAObject!=NULL);
+void KalignWithExtFileSpecifySupportTask::prepare() {
 
-#ifndef RUN_WORKFLOW_IN_THREADS
-    if(WorkflowSettings::runInSeparateProcess() && !WorkflowSettings::getCmdlineUgenePath().isEmpty()) {
-        kalignGObjectTask = new KalignGObjectRunFromSchemaTask(mAObject, config);
-    } else {
-        kalignGObjectTask = new KalignGObjectTask(mAObject, config);
+    DocumentFormatConstraints c;
+    c.checkRawData = true;
+    c.supportedObjectTypes += GObjectTypes::MULTIPLE_ALIGNMENT;
+    c.rawData = IOAdapterUtils::readFileHeader(config.inputFilePath);
+    c.addFlagToExclude(DocumentFormatFlag_CannotBeCreated);
+    QList<DocumentFormatId> formats = AppContext::getDocumentFormatRegistry()->selectFormats(c);
+    if (formats.isEmpty()) {
+        stateInfo.setError("Unrecognized input alignment file format");
+        return;
+        }
+    DocumentFormatId alnFormat = formats.first();
+    QVariantMap hints;
+    if(alnFormat == BaseDocumentFormats::FASTA){
+        hints[DocumentReadingMode_SequenceAsAlignmentHint] = true;
+        }
+    IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(config.inputFilePath));
+    loadDocumentTask = new LoadDocumentTask(alnFormat, config.inputFilePath, iof, hints);
+    addSubTask(loadDocumentTask);
     }
-#else
-    kalignGObjectTask = new KalignGObjectTask(mAObject, config);
-#endif // RUN_WORKFLOW_IN_THREADS
-    assert(kalignGObjectTask != NULL);
-    addSubTask(kalignGObjectTask);
-}
 
-QList<Task*> KAlignAndSaveTask::onSubTaskFinished( Task* subTask ) {
+QList<Task*> KalignWithExtFileSpecifySupportTask::onSubTaskFinished( Task* subTask ) {
     QList<Task*> res;
     if (subTask->hasError()) {
         stateInfo.setError(subTask->getError());
@@ -240,25 +316,25 @@ QList<Task*> KAlignAndSaveTask::onSubTaskFinished( Task* subTask ) {
     }
     if (hasError() || isCanceled()) {
         return res;
+
     }
-    if (subTask == kalignGObjectTask){
-        IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(config.inputFilePath));
-        saveDocumentTask = new SaveDocumentTask(currentDocument,iof,config.inputFilePath);
+        if (subTask == loadDocumentTask){
+        currentDocument = loadDocumentTask->takeDocument();
+        SAFE_POINT(currentDocument != NULL, QString("Failed loading document: %1").arg(loadDocumentTask->getURLString()), res);
+        SAFE_POINT(currentDocument->getObjects().length() == 1, QString("Number of objects != 1 : %1").arg(loadDocumentTask->getURLString()), res);
+        mAObject=qobject_cast<MAlignmentObject*>(currentDocument->getObjects().first());
+        SAFE_POINT(mAObject != NULL, QString("MA object not found!: %1").arg(loadDocumentTask->getURLString()), res);
+
+        kalignGObjectTask = new KalignGObjectRunFromSchemaTask(mAObject, config);
+        res.append(kalignGObjectTask);
+    } else if (subTask == kalignGObjectTask){
+        IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(config.outputFilePath));
+        saveDocumentTask = new SaveDocumentTask(currentDocument,iof,config.outputFilePath);
         res.append(saveDocumentTask);
     } else if (subTask == saveDocumentTask){
-        Project* proj = AppContext::getProject();
-        if (proj == NULL) {
-            res.append(AppContext::getProjectLoader()->openWithProjectTask(currentDocument->getURL(), currentDocument->getGHintsMap()));
-        } else {
-            Document* projDoc = proj->findDocumentByURL(currentDocument->getURL());
-            if (projDoc != NULL) {
-                projDoc->setLastUpdateTime();
-                res.append(new LoadUnloadedDocumentAndOpenViewTask(projDoc));
-            } else {
-                // Add document to project
-                res.append(new AddDocumentAndOpenViewTask(currentDocument));
-                cleanDoc = false;
-            }
+        Task* openTask = AppContext::getProjectLoader()->openWithProjectTask(config.outputFilePath);
+        if (openTask != NULL) {
+            res << openTask;
         }
     }
     return res;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,53 +19,54 @@
  * MA 02110-1301, USA.
  */
 
-#include "ProjectTasksGui.h"
-
-#include "ProjectServiceImpl.h"
-#include "ProjectImpl.h"
-#include "ProjectLoaderImpl.h"
+#include <QDomDocument>
+#include <QMessageBox>
+#include <QMutex>
 
 #include <AppContextImpl.h>
 
-#include <U2Core/SaveDocumentTask.h>
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/RemoveDocumentTask.h>
-#include <U2Core/DocumentUtils.h>
-#include <U2Core/DocumentModel.h>
+#include <U2Core/AppSettings.h>
 #include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/CMDLineUtils.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentUtils.h>
 #include <U2Core/GHints.h>
 #include <U2Core/GObject.h>
-#include <U2Core/AppSettings.h>
-#include <U2Core/L10n.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/Log.h>
-#include <U2Core/GUrlUtils.h>
-#include <U2Core/CMDLineUtils.h>
-#include <U2Core/UnloadedObject.h>
 #include <U2Core/GObjectUtils.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/RemoveDocumentTask.h>
+#include <U2Core/SaveDocumentTask.h>
+#include <U2Core/Settings.h>
 #include <U2Core/U2SafePoints.h>
-
+#include <U2Core/UnloadedObject.h>
+#include <U2Core/UserApplicationsSettings.h>
 
 #include <U2Gui/ObjectViewModel.h>
-#include <U2Gui/UnloadDocumentTask.h>
 #include <U2Gui/ProjectParsing.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/UnloadDocumentTask.h>
 
-#include <QtXml/QDomDocument>
-#include <QtGui/QMessageBox>
-
-#include <QtCore/QMutex>
+#include "ProjectImpl.h"
+#include "ProjectLoaderImpl.h"
+#include "ProjectServiceImpl.h"
+#include "ProjectTasksGui.h"
+#include "ui/ui_SaveProjectDialog.h"
 
 namespace U2 {
 
 //////////////////////////////////////////////////////////////////////////
 ///Close project
-CloseProjectTask::CloseProjectTask() : Task(tr("close_project_task_name"), TaskFlags_NR_FOSCOE)
+CloseProjectTask::CloseProjectTask() : Task(tr("Close project"), TaskFlags(TaskFlag_NoRun) | TaskFlag_CancelOnSubtaskCancel)
 {
 }
 
 void CloseProjectTask::prepare() {
     if (AppContext::getProject()==NULL) {
-        stateInfo.setError(  tr("error_no_active_project") );
+        stateInfo.setError(  tr("No active project found") );
         return;
     }
     /* TODO: this is done by project view. Need to cleanup this part! 
@@ -90,14 +91,14 @@ void CloseProjectTask::prepare() {
 //////////////////////////////////////////////////////////////////////////
 /// OpenProjectTask
 OpenProjectTask::OpenProjectTask(const QString& _url, const QString& _name) 
-    : Task(tr("open_project_task_name"), TaskFlags_NR_FOSCOE), url(_url), name(_name), loadProjectTask(NULL)
+    : Task(tr("Open project/document"), TaskFlags_NR_FOSCOE), url(_url), name(_name), loadProjectTask(NULL)
 {
 }
 
 void OpenProjectTask::prepare() {
     QFileInfo f(url);
     if (f.exists() && !(f.isFile() && f.isReadable())) {
-        stateInfo.setError(  tr("invalid_url%1").arg(url) );
+        stateInfo.setError(  tr("Not a readable file: %1").arg(url) );
         return;
     }
     if (AppContext::getProject() != NULL) {
@@ -125,8 +126,8 @@ QList<Task*> OpenProjectTask::onSubTaskFinished(Task* subTask) {
 
 //////////////////////////////////////////////////////////////////////////
 /// Save project
-SaveProjectTask::SaveProjectTask(SaveProjectTaskKind _k, Project* p, const QString& _url) 
-    : Task(tr("save_project_task_name"), TaskFlag_NoRun), k(_k), proj(p), url(_url)
+SaveProjectTask::SaveProjectTask(SaveProjectTaskKind _k, Project* p, const QString& _url, bool silentSave_) 
+    : Task(tr("Save project"), TaskFlag_NoRun), k(_k), proj(p), url(_url), silentSave(silentSave_)
 {
 }
 
@@ -143,15 +144,44 @@ void SaveProjectTask::prepare() {
     }
     QList<Task *> ssTasks;
     if (url.isEmpty() && (!proj->getGObjectViewStates().isEmpty() || proj->getDocuments().size() > 0)) {
-        //ask if to save project
-        QWidget* w  = AppContext::getMainWindow()->getQMainWindow();
-        int code = QMessageBox::question(w, U2_APP_TITLE, tr("Save current project?"), QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Yes);
-        if (code == QMessageBox::Yes) {
-            ProjectDialogController d(ProjectDialogController::Save_Project, w);
-            int rc = d.exec();
+        //show "save project?" dialog, if needed
+        int savedSaveProjectState = AppContext::getAppSettings()->getUserAppsSettings()->getAskToSaveProject();
+
+        QWidget* mainWindow = AppContext::getMainWindow()->getQMainWindow();
+        int code;
+        if(silentSave == true){
+            code = QDialogButtonBox::Yes;
+        }else{
+            code = savedSaveProjectState;
+            if (QDialogButtonBox::NoButton == savedSaveProjectState) {
+                // QMessageBox::NoButton is a special invalid button state, represents that no saved choise was made
+                QObjectScopedPointer<SaveProjectDialogController> saveProjectDialog = new SaveProjectDialogController(mainWindow);
+                code = saveProjectDialog->exec();
+                CHECK_EXT(!saveProjectDialog.isNull(), setError("dialog is NULL"), );
+
+                if (code == QDialog::Rejected) {
+                    code = QDialogButtonBox::Cancel;
+                }
+
+                if (QDialogButtonBox::Cancel != code && true == saveProjectDialog->dontAskCheckBox->isChecked()) {
+                    AppContext::getAppSettings()->getUserAppsSettings()->setAskToSaveProject(code);
+                }
+            }
+        }
+
+        if (code == QDialogButtonBox::Cancel) {
+            cancel();
+            return;
+        }
+
+        if (code == QDialogButtonBox::Yes) {
+            QObjectScopedPointer<ProjectDialogController> d = new ProjectDialogController(ProjectDialogController::Save_Project, mainWindow);
+            const int rc = d->exec();
+            CHECK_EXT(!d.isNull(), setError("dialog is NULL"), );
+
             if (rc == QDialog::Accepted) {
-                AppContext::getProject()->setProjectName(d.projectNameEdit->text());
-                url = d.projectFolderEdit->text() + "/" + d.projectFileEdit->text();
+                AppContext::getProject()->setProjectName(d->projectNameEdit->text());
+                url = d->projectFolderEdit->text() + "/" + d->projectFileEdit->text();
                 if (!url.endsWith(PROJECTFILE_EXT)) {
                     url.append(PROJECTFILE_EXT);
                 }
@@ -160,16 +190,13 @@ void SaveProjectTask::prepare() {
                 cancel();
                 return;
             }
-        } else if (code == QMessageBox::Cancel) {
-            cancel();
-            return;
         }
     }
 
     if (k!=SaveProjectTaskKind_SaveProjectOnly) {
-        QList<Document*> modifiedDocs = SaveMiltipleDocuments::findModifiedDocuments(AppContext::getProject()->getDocuments());
+        QList<Document*> modifiedDocs = SaveMultipleDocuments::findModifiedDocuments(AppContext::getProject()->getDocuments());
         if (!modifiedDocs.isEmpty()) {
-            ssTasks.append(new SaveMiltipleDocuments(modifiedDocs, k == SaveProjectTaskKind_SaveProjectAndDocumentsAskEach));               
+            ssTasks.append(new SaveMultipleDocuments(modifiedDocs, k == SaveProjectTaskKind_SaveProjectAndDocumentsAskEach, SavedNewDoc_Open));
         }
     }
     if (!url.isEmpty()) {
@@ -209,14 +236,28 @@ void SaveOnlyProjectTask::prepare(){
     }
 
     foreach(Document *d, proj->getDocuments()){
-        if (d->getURL().isLocalFile()) {
-            QFile pathToDoc(d->getURLString());
-            if (!pathToDoc.exists()){
+        
+        QStringList urls = d->getGHintsMap().value(ProjectLoaderHint_MultipleFilesMode_URLDocument, QStringList()).toStringList();
+        if(urls.isEmpty()){ // not merged document
+            if (d->getURL().isLocalFile()) {
+                QFile pathToDoc(d->getURLString());
+                if (pathToDoc.exists()){
+                    continue;
+                }
                 phantomDocs.append(d);
             }
         }
+        else{ // merged document
+            foreach(QString url, urls){
+                QFile pathToDoc(url);
+                if (!pathToDoc.exists()){
+                    phantomDocs.append(d);
+                    break;
+                }
+            }
+        }
     }
-    if (!phantomDocs.isEmpty()){   
+    if (!phantomDocs.isEmpty()){
         sub = new RemoveMultipleDocumentsTask(proj, phantomDocs, false, false);
         addSubTask(sub);
     } else {
@@ -253,7 +294,7 @@ Task::ReportResult SaveOnlyProjectTask::report(){
 //////////////////////////////////////////////////////////////////////////
 /// LoadProjectTask
 LoadProjectTask::LoadProjectTask(const QString& _url) 
-    : Task(tr("load_project_task_name"), TaskFlag_None), proj(NULL), url(_url)
+    : Task(tr("Load project"), TaskFlag_None), proj(NULL), url(_url)
 {
     xmlDoc = new QDomDocument();
 }
@@ -308,7 +349,13 @@ Task(tr("Export project task"), TaskFlags_NR_FOSCOE), compress(_compress), desti
 void ExportProjectTask::prepare(){
     Project *pr = AppContext::getProject();
     if (pr->isItemModified()) {
-        addSubTask(new SaveProjectTask(SaveProjectTaskKind_SaveProjectAndDocuments, pr));
+        //setting url in case of anonymous project
+        if (pr->getProjectURL().isEmpty()) {
+            QString tempDir = AppContext::getAppSettings()->getUserAppsSettings()->getUserTemporaryDirPath();
+            pr->setProjectURL(tempDir + QDir::separator() + projectFile);
+        }else{
+            addSubTask(new SaveProjectTask(SaveProjectTaskKind_SaveProjectAndDocuments, pr, QString::null, true));  
+        }
     }
 }
 
@@ -337,6 +384,7 @@ Task::ReportResult ExportProjectTask::report() {
             QFile f(origPath);
             QFileInfo fi(f);
             QString resultPath = destinationDir + "/" + fi.fileName();
+            resultPath = GUrlUtils::rollFileName(resultPath, "_copy" , QSet<QString>());
             if (resultPath != origPath && !f.copy(resultPath)){
                 if (QFile::exists(resultPath)) {
                     setError(tr("Error during coping documents: file already exist"));

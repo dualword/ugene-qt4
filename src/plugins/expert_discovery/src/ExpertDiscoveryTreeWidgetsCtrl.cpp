@@ -1,9 +1,34 @@
-#include "ExpertDiscoveryTreeWidgetsCtrl.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
 
+#include <QMouseEvent>
 #include <QStandardItemModel>
-#include<QMessageBox>
-#include <QtGui/QMouseEvent>
+#include <QMessageBox>
 
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Core/QObjectScopedPointer.h>
+
+#include "ExpertDiscoveryTreeWidgetsCtrl.h"
+#include "ExpertDiscoveryTask.h"
 
 namespace U2 {
 
@@ -24,8 +49,8 @@ EDProjectItem* EDProjectTree::findEDItem(void* pData){
     return const_cast<EDProjectItem*>(root.findItemConnectedTo(pData));
 }
 
-CSFolder* EDProjectTree::findFolder(EDPICSDirectory *pFolder) const 
-{ 
+CSFolder* EDProjectTree::findFolder(EDPICSDirectory *pFolder) const
+{
     return const_cast<CSFolder*>(pFolder->getFolder());
 }
 
@@ -36,20 +61,20 @@ Signal*EDProjectTree::findSignal(const Signal* pSignal) const
 
 void EDProjectTree::addSubitem(EDProjectItem* subItem, EDProjectItem* parent){
 
-    parent->addChild(subItem);  
+    parent->addChild(subItem);
     updateTree(ED_ITEM_ADDED, subItem);
 }
 
 void EDProjectTree::updateTree(int flag, EDProjectItem* item){
     switch (flag) {
-    case ED_UPDATE_ALL				:	remake();			break;
-    case ED_ITEM_NAME_CHANGED		:	updateItem(item);	break;
-    case ED_ITEM_STATE_CHANGED		:	updateItemState(item);	break;
-    case ED_ITEM_ADDED				:	internalRemake(item, dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(item)->parent()));	break;
-    case ED_ITEM_DELETED			:	/*deleteItem(pItem);*/  break;
-    case ED_CURRENT_ITEM_CHANGED	:	setCurrentItem(item); emit si_changeProp(item); break;
-    case ED_UPDATE_CHILDREN		    :	updateChildren(item); break;
-    case ED_MRK_UPDATE              :   updateMarkup(); break; 
+    case ED_UPDATE_ALL                :    remake();            break;
+    case ED_ITEM_NAME_CHANGED        :    updateItem(item);    break;
+    case ED_ITEM_STATE_CHANGED        :    updateItemState(item);    break;
+    case ED_ITEM_ADDED                :    internalRemake(item, dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(item)->parent()));    break;
+    case ED_ITEM_DELETED            :    /*deleteItem(pItem);*/  break;
+    case ED_CURRENT_ITEM_CHANGED    :    setCurrentItem(item); emit si_changeProp(item); break;
+    case ED_UPDATE_CHILDREN            :    updateChildren(item); break;
+    case ED_MRK_UPDATE              :   updateMarkup(); break;
     };
 }
 
@@ -91,12 +116,12 @@ void EDProjectTree::remake(){
 }
 
 void EDProjectTree::clearTree(){
-   root.takeChildren(); 
+   root.takeChildren();
    mrkRoot.takeChildren();
 }
 
 void EDProjectTree::internalRemake(EDProjectItem* subItem, EDProjectItem* parent){
-   
+
     subItem->setText(0, subItem->getName());
     subItem->setIcon(0, getItemIcon(subItem));
     subItem->setSortOrd(sortOrd);
@@ -108,7 +133,7 @@ void EDProjectTree::internalRemake(EDProjectItem* subItem, EDProjectItem* parent
             connect(item, SIGNAL(si_getMetaInfoBase()), SLOT(sl_setMetainfoBase()));
             internalRemake(item, subItem);
         }
-        
+
     }
     subItem->sortChildren(0, Qt::AscendingOrder);
     updateItemState(subItem);
@@ -118,7 +143,7 @@ void EDProjectTree::internalRemake(EDProjectItem* subItem, EDProjectItem* parent
 void EDProjectTree::updateItem(EDProjectItem* pItem){
     pItem->setText(0, pItem->getName());
     pItem->setIcon(0, getItemIcon(pItem));
- 
+
     QFont curFont = pItem->font(0);
     if (edData.isSignalSelected(pItem))
         curFont.setBold(true);
@@ -134,10 +159,10 @@ void EDProjectTree::updateItem(EDProjectItem* pItem){
             curFont.setBold(false);
         }
     }
-    
+
     pItem->setFont(0, curFont);
 
-    
+
 }
 void EDProjectTree::updateItemState(EDProjectItem *pItem){
     QFont curFont = pItem->font(0);
@@ -151,7 +176,7 @@ void EDProjectTree::updateItemState(EDProjectItem *pItem){
 
 
 void EDProjectTree::updateChildren(EDProjectItem* pItem){
-   
+
     for (int i=0; i<pItem->childCount(); i++){
         EDProjectItem* ch = dynamic_cast<EDProjectItem*>(pItem->child(i));
         internalRemake(ch, pItem);
@@ -167,7 +192,7 @@ void EDProjectTree::updateMarkup(){
         if(item){
             internalRemake(item, &mrkRoot);
         }
-    }    
+    }
 }
 
 void EDProjectTree::updateSequenceBase(EItemType type){
@@ -179,7 +204,7 @@ void EDProjectTree::updateSequenceBase(EItemType type){
                     item->update(true);
                     internalRemake(item, &seqRoot);
             }
-        }  
+        }
     }else{
         for (int i = 0; i < seqRoot.childCount(); i++){
             EDProjectItem* item = dynamic_cast<EDProjectItem*>(seqRoot.child(i));
@@ -189,26 +214,26 @@ void EDProjectTree::updateSequenceBase(EItemType type){
                     internalRemake(item, &seqRoot);
                 }
             }
-        }  
+        }
     }
 }
 
 void EDProjectTree::sl_propChanged(EDProjectItem* item, const EDPIProperty* prop, QString newVal){
     switch (item->getType()) {
-        case PIT_CS_FOLDER: 
-            if (prop->getName().compare("Name", Qt::CaseInsensitive) == NULL) {
+        case PIT_CS_FOLDER:
+            if (prop->getName().compare("Name", Qt::CaseInsensitive) == 0) {
                 EDPICSDirectory* pPI = dynamic_cast<EDPICSDirectory*>(item);
                 CSFolder* pFolder = findFolder(pPI);
                 const CSFolder* pParentFolder = pFolder->getParentFolder();
                 int nIndex = pParentFolder->getFolderIndexByName(newVal);
                 if (nIndex>=0) {
-                    QMessageBox mb(QMessageBox::Critical, tr("Rename error"), tr("Folder already exist"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Rename error"), tr("Folder already exist"));
+                    mb->exec();
                     return;
                 }
                 pFolder->setName(newVal);
-                updateTree(ED_ITEM_NAME_CHANGED, (EDProjectItem *)pPI);
-                updateTree(ED_CURRENT_ITEM_CHANGED, (EDProjectItem *) pPI);
+                updateTree(ED_ITEM_NAME_CHANGED, qobject_cast<EDProjectItem *>(pPI));
+                updateTree(ED_CURRENT_ITEM_CHANGED, qobject_cast<EDProjectItem *>(pPI));
             }
             return;
         case PIT_CS:{
@@ -222,23 +247,26 @@ void EDProjectTree::sl_propChanged(EDProjectItem* item, const EDPIProperty* prop
 
             QString strName = "Name";
             QString strDescription = "Description";
-            
+
             QString strPropName = prop->getName();
-            if (strPropName.compare(strName, Qt::CaseInsensitive)==0) 
+            if (strPropName.compare(strName, Qt::CaseInsensitive)==0)
             {
                 CSFolder* pFolder = findFolder(pParent);
                 int nIndex = pFolder->getSignalIndexByName(newVal);
                 if (nIndex >= 0) {
-                    QMessageBox mb(QMessageBox::Question, tr("Signal rename"), tr("Signal with the same name already exist. Replace?"), QMessageBox::Ok|QMessageBox::Cancel);
-                    if(mb.exec()==QMessageBox::Ok)
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Question, tr("Signal rename"), tr("Signal with the same name already exist. Replace?"), QMessageBox::Ok|QMessageBox::Cancel);
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
+
+                    if (mb->result() == QMessageBox::Ok)
                         pFolder->deleteSignal(nIndex);
-                    else 
+                    else
                         return;
                 }
                 pSignal->setName(newVal.toStdString());
-            } 
-            else 
-                if (strPropName.compare(strDescription, Qt::CaseInsensitive) == 0) 
+            }
+            else
+                if (strPropName.compare(strDescription, Qt::CaseInsensitive) == 0)
                 {
                     pSignal->setDescription(newVal.toStdString());
                 }
@@ -246,7 +274,7 @@ void EDProjectTree::sl_propChanged(EDProjectItem* item, const EDPIProperty* prop
             pParent->update(true);
            // updatingItem = false;
             EDProjectItem* pCurItem = const_cast<EDProjectItem*>(pParent->findItemConnectedTo(pSignal));
-            updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pParent);
+            updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pParent));
             updateTree(ED_CURRENT_ITEM_CHANGED, pCurItem);
             return;
                     }
@@ -258,7 +286,7 @@ void EDProjectTree::sl_propChanged(EDProjectItem* item, const EDPIProperty* prop
         case PIT_CSN_MRK_ITEM:
             onCSNPropertyChanged(item, prop, newVal);
         return;
-    }    
+    }
 }
 
 void EDProjectTree::mousePressEvent(QMouseEvent *e){
@@ -280,7 +308,7 @@ void EDProjectTree::mouseDoubleClickEvent(QMouseEvent *e){
 
     QTreeWidgetItem* curItem = itemAt(e->pos());
     setCurrentItem(curItem, 0);
-    
+
     sl_addToShown();
 
     QTreeWidget::mouseDoubleClickEvent(e);
@@ -315,21 +343,22 @@ QMenu* EDProjectTree::chosePopupMen(EDProjectItem* pItem){
     }else if(pItem->getType() == PIT_MRK_ROOT){
         markupLettersAction->setEnabled(!edData.isLettersMarkedUp() && (edData.getNegSeqBase().getSize() > 0) && (edData.getPosSeqBase().getSize() > 0) );
         loadMarkupAction->setEnabled(edData.getPosSeqBase().getSize() > 0 && edData.getNegSeqBase().getSize() > 0);
-        return popupMenuMrkRoot;  
+        return popupMenuMrkRoot;
     }else if(pItem->getType() == PIT_SEQUENCE || pItem->getType() == PIT_CONTROLSEQUENCE){
         return popupMenuSequence;
     }else if(pItem->getType() == PIT_POSSEQUENCEBASE || pItem->getType() == PIT_NEGSEQUENCEBASE || pItem->getType() == PIT_CONTROLSEQUENCEBASE){
         EDPISequenceBase* pBaseItem = dynamic_cast<EDPISequenceBase*>(pItem);
-        if (!pItem)
+        if (!pBaseItem)
         {
             return NULL;
-        } 
+        }
         generateReportAction->setEnabled(pBaseItem->getSequenceBase().getSize() != 0);
+        exportToSequencesAction->setEnabled(pBaseItem->getSequenceBase().getSize() != 0);
         showFirstSequencesAction->setEnabled(pBaseItem->getSequenceBase().getSize() != 0);
         return popupMenuSequenceBase;
     }
     return NULL;
-      
+
 }
 
 QIcon EDProjectTree::getItemIcon(EDProjectItem* pItem){
@@ -410,6 +439,9 @@ void EDProjectTree::createPopupsAndActions(){
     generateReportAction = new QAction(tr("Generate report"), this);
     connect(generateReportAction, SIGNAL(triggered(bool)), SLOT(sl_generateReport()));
 
+    exportToSequencesAction = new QAction(tr("Export Sequences"), this);
+    connect(exportToSequencesAction, SIGNAL(triggered(bool)), SLOT(sl_exportSequences()));
+
     clearDisplayedAction = new QAction(tr("Clear displayed sequences area"), this);
     connect(clearDisplayedAction, SIGNAL(triggered(bool)), SLOT(sl_clearDisplayed()));
 
@@ -450,8 +482,8 @@ void EDProjectTree::createPopupsAndActions(){
     sortFieldGroup->addAction(sortFieldNameAction);
     sortFieldGroup->addAction(sortFieldProbAction);
 
-    
- 
+
+
     popupMenuCS = new QMenu(this);
     popupMenuCS->addAction(selDeselSigAction);
     popupMenuCS->addAction(deletePIAction);
@@ -459,7 +491,7 @@ void EDProjectTree::createPopupsAndActions(){
     popupMenuCS->addAction(addSignalToMarkupAction);
     //popupMenuCS->addAction(setCurPriorAction);
     //popupMenuCS->addAction(clearCurPriorAction);
-    
+
 
     popupMenuDir = new QMenu(this);
     popupMenuDir->addAction(newFolderAction);
@@ -490,7 +522,7 @@ void EDProjectTree::createPopupsAndActions(){
     sortMenu->addMenu(fieldMenu);
 
     popupMenuDirRoot->addMenu(sortMenu);
- 
+
     popupMenuMrkRoot = new QMenu(this);
     popupMenuMrkRoot->addAction(markupLettersAction);
     popupMenuMrkRoot->addAction(loadMarkupAction);
@@ -502,20 +534,21 @@ void EDProjectTree::createPopupsAndActions(){
 
     popupMenuSequenceBase = new QMenu(this);
     popupMenuSequenceBase->addAction(generateReportAction);
+    popupMenuSequenceBase->addAction(exportToSequencesAction);
     popupMenuSequenceBase->addAction(showFirstSequencesAction);
 }
 
 void EDProjectTree::onCSNPropertyChanged(EDProjectItem* pItem, const EDPIProperty* pProperty, QString strNewValue){
     EDPICSNode* pCSN = dynamic_cast<EDPICSNode*>(pItem);
     Operation* pOp = pCSN->getOperation();
-    
-    
+
+
     EDProjectItem *pParent = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pItem)->parent());
     QString strType = "Type";
 
 
     if (pProperty->getName().compare(strType, Qt::CaseInsensitive) == 0) {
-        
+
         Operation* pNewOp = createCSN(EDPIPropertyTypeListCSNodeTypes::getInstance()->getValueId(strNewValue));
         assert(pNewOp != NULL);
 
@@ -552,23 +585,23 @@ void EDProjectTree::onCSNPropertyChanged(EDProjectItem* pItem, const EDPIPropert
         const EDProjectItem *pNewItemc = pParent->findItemConnectedTo(pNewOp);
         EDProjectItem *pNewItem = const_cast<EDProjectItem*>(pNewItemc);
         connect(pNewItem, SIGNAL(si_getMetaInfoBase()), SLOT(sl_setMetainfoBase()));
-        updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pParent);
+        updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pParent));
         updateTree(ED_CURRENT_ITEM_CHANGED, pNewItem);
     }
     else {
         switch (pCSN->getType()) {
-        case PIT_CSN_DISTANCE	: onDistancePropertyChanged(pCSN, pProperty, strNewValue); break;
-        case PIT_CSN_REPETITION	: onRepetitionPropertyChanged(pCSN, pProperty, strNewValue); break;
-        case PIT_CSN_INTERVAL	: onIntervalPropertyChanged(pCSN, pProperty, strNewValue); break;
-        case PIT_CSN_WORD		: onWordPropertyChanged(pCSN, pProperty, strNewValue); break;
-        case PIT_CSN_MRK_ITEM	: onMrkItemPropertyChanged(pCSN, pProperty, strNewValue); break;
+        case PIT_CSN_DISTANCE    : onDistancePropertyChanged(pCSN, pProperty, strNewValue); break;
+        case PIT_CSN_REPETITION    : onRepetitionPropertyChanged(pCSN, pProperty, strNewValue); break;
+        case PIT_CSN_INTERVAL    : onIntervalPropertyChanged(pCSN, pProperty, strNewValue); break;
+        case PIT_CSN_WORD        : onWordPropertyChanged(pCSN, pProperty, strNewValue); break;
+        case PIT_CSN_MRK_ITEM    : onMrkItemPropertyChanged(pCSN, pProperty, strNewValue); break;
         default: assert(0);
         }
     }
 
     while (pParent->getType() != PIT_CS) {
         pParent->update(false);
-        
+
         //pParent = findEDItem(dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pParent)->parent()));
         pParent = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pParent)->parent());
         connect(pParent, SIGNAL(si_getMetaInfoBase()), SLOT(sl_setMetainfoBase()));
@@ -593,8 +626,9 @@ void EDProjectTree::onDistancePropertyChanged(EDProjectItem* pItem, const EDPIPr
             pOp->setDistance(iDist);
         }
         else{
-            QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-            mb.exec();
+            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+            mb->exec();
+            CHECK(!mb.isNull(), );
         }
     }
     else
@@ -605,30 +639,32 @@ void EDProjectTree::onDistancePropertyChanged(EDProjectItem* pItem, const EDPIPr
             bool bError = false;
             if (nId < 0) {
                 if (bError = !parse(strNewValue.toStdString().c_str(),"%d", &nValue) || nValue<0) {
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
-            else 
+            else
                 nValue = PINF;
             if (!bError) {
                 if (nValue >= iDist.getFrom()) {
                     iDist.setTo(nValue);
                     pOp->setDistance(iDist);
                 }
-                else{ 
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
-                    mb.exec();
+                else{
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
-        } else 
+        } else
             if (pProperty->getName().compare(strOrder, Qt::CaseInsensitive) == 0) {
                 int nId = EDPIPropertyTypeBool::getInstance()->getValueId(strNewValue);
                 if (nId == EDPIPropertyTypeBool::False)
                     pOp->setOrderImportant(false);
-                else 
+                else
                     pOp->setOrderImportant(true);
-            } else 
+            } else
                 if (pProperty->getName().compare(strDistanceType, Qt::CaseInsensitive) == 0) {
                     int nId = EDPIPropertyTypeDistType::getInstance()->getValueId(strNewValue);
                     pOp->setDistanceType((EDistType)nId);
@@ -636,9 +672,10 @@ void EDProjectTree::onDistancePropertyChanged(EDProjectItem* pItem, const EDPIPr
                 else assert(0);
                 pDist->update(true);
                 EDProjectItem* pIt = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pDist)->parent());
-                updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pIt);
+                updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pIt));
                 updateTree(ED_CURRENT_ITEM_CHANGED, pDist);
 }
+
 void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPIProperty* pProperty, QString strNewValue){
     EDPICSNRepetition* pDist = dynamic_cast<EDPICSNRepetition*>(pItem);
     OpReiteration* pOp = dynamic_cast<OpReiteration*>(pDist->getOperation());
@@ -657,8 +694,9 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
             pOp->setDistance(iDist);
         }
         else{
-            QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-            mb.exec();
+            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+            mb->exec();
+            CHECK(!mb.isNull(), );
         }
     }
     else
@@ -669,11 +707,12 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
             bool bError = false;
             if (nId < 0) {
                 if (bError = !parse(strNewValue.toStdString().c_str(),"%d", &nValue)) {
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
-            else 
+            else
                 nValue = PINF;
             if (!bError) {
                 if (nValue >= iDist.getFrom()) {
@@ -681,11 +720,12 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
                     pOp->setDistance(iDist);
                 }
                 else{
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
-        } else 
+        } else
             if (pProperty->getName().compare(strCountFrom, Qt::CaseInsensitive) == 0) {
                 DDisc::Interval iCount = pOp->getCount();
                 int nValue =0;
@@ -694,8 +734,9 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
                     pOp->setCount(iCount);
                 }
                 else {
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
             else
@@ -703,8 +744,9 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
                     DDisc::Interval iCount = pOp->getCount();
                     int nValue =0;
                     if (!parse(strNewValue.toStdString().c_str(),"%d", &nValue)) {
-                        QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-                        mb.exec();
+                        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+                        mb->exec();
+                        CHECK(!mb.isNull(), );
                     }
                     else {
                         if (nValue >= iCount.getFrom()) {
@@ -712,11 +754,12 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
                             pOp->setCount(iCount);
                         }
                         else{
-                            QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
-                            mb.exec();
+                            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
+                            mb->exec();
+                            CHECK(!mb.isNull(), );
                         }
                     }
-                } else 
+                } else
                     if (pProperty->getName().compare(strDistanceType, Qt::CaseInsensitive) == 0) {
                         int nId = EDPIPropertyTypeDistType::getInstance()->getValueId(strNewValue);
                         pOp->setDistanceType((EDistType)nId);
@@ -724,9 +767,10 @@ void EDProjectTree::onRepetitionPropertyChanged(EDProjectItem* pItem, const EDPI
                     else assert(0);
                     pDist->update(true);
                     EDProjectItem* pIt = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pDist)->parent());
-                    updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pIt);
+                    updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pIt));
                     updateTree(ED_CURRENT_ITEM_CHANGED, pDist);
 }
+
 void EDProjectTree::onIntervalPropertyChanged(EDProjectItem* pItem, const EDPIProperty* pProperty, QString strNewValue){
     EDPICSNInterval* pInt = dynamic_cast<EDPICSNInterval*>(pItem);
     OpInterval* pOp = dynamic_cast<OpInterval*>(pInt->getOperation());
@@ -741,8 +785,9 @@ void EDProjectTree::onIntervalPropertyChanged(EDProjectItem* pItem, const EDPIPr
             pOp->setInt(iInt);
         }
         else{
-            QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-            mb.exec();
+            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+            mb->exec();
+            CHECK(!mb.isNull(), );
         }
     }
     else
@@ -753,11 +798,12 @@ void EDProjectTree::onIntervalPropertyChanged(EDProjectItem* pItem, const EDPIPr
             bool bError = false;
             if (nId < 0) {
                 if (bError = !parse(strNewValue.toStdString().c_str(),"%d", &nValue)) {
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be positive integer which is less than the higher bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
-            else 
+            else
                 nValue = PINF;
             if (!bError) {
                 if (nValue >= iInt.getFrom()) {
@@ -765,17 +811,19 @@ void EDProjectTree::onIntervalPropertyChanged(EDProjectItem* pItem, const EDPIPr
                     pOp->setInt(iInt);
                 }
                 else{
-                    QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
-                    mb.exec();
+                    QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The value must be grater than the lower bound"));
+                    mb->exec();
+                    CHECK(!mb.isNull(), );
                 }
             }
         }
         else assert(0);
         pInt->update(true);
         EDProjectItem* pIt = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pInt)->parent());
-        updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pIt);
+        updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pIt));
         updateTree(ED_CURRENT_ITEM_CHANGED, pInt);
 }
+
 void EDProjectTree::onWordPropertyChanged(EDProjectItem* pItem, const EDPIProperty* pProperty, QString strNewValue){
     EDPICSNTSWord* pPITS = dynamic_cast<EDPICSNTSWord*>(pItem);
     TS* pOp = dynamic_cast<TS*>(pPITS->getOperation());
@@ -785,8 +833,8 @@ void EDProjectTree::onWordPropertyChanged(EDProjectItem* pItem, const EDPIProper
         if (isValidWord15(strNewValue.toStdString().c_str()))
             pOp->setWord(strNewValue.toUpper().toStdString());
         else {
-            QMessageBox mb(QMessageBox::Critical, tr("Error"), tr("The word must be in 15-character code"));
-            mb.exec();
+            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Error"), tr("The word must be in 15-character code"));
+            mb->exec();
             return;
         }
 
@@ -795,7 +843,7 @@ void EDProjectTree::onWordPropertyChanged(EDProjectItem* pItem, const EDPIProper
 
     pPITS->update(true);
     EDProjectItem* pIt = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pPITS)->parent());
-    updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pIt);
+    updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pIt));
     updateTree(ED_CURRENT_ITEM_CHANGED, pPITS);
 }
 void EDProjectTree::onMrkItemPropertyChanged(EDProjectItem* pItem, const EDPIProperty* pProperty, QString strNewValue){
@@ -810,7 +858,7 @@ void EDProjectTree::onMrkItemPropertyChanged(EDProjectItem* pItem, const EDPIPro
     if (pProperty->getName().compare(strFamily, Qt::CaseInsensitive) == 0) {
         pTS->setFamily(strNewValue.toStdString().c_str());
     }
-    else 
+    else
         if (pProperty->getName().compare(strSignal, Qt::CaseInsensitive) == 0) {
             pTS->setName(strNewValue.toStdString().c_str());
         }
@@ -819,23 +867,23 @@ void EDProjectTree::onMrkItemPropertyChanged(EDProjectItem* pItem, const EDPIPro
 
     pPITS->update(true);
     EDProjectItem* pIt = dynamic_cast<EDProjectItem*>(dynamic_cast<QTreeWidgetItem*>(pPITS)->parent());
-    updateTree(ED_UPDATE_CHILDREN, (EDProjectItem* ) pIt);
+    updateTree(ED_UPDATE_CHILDREN, qobject_cast<EDProjectItem *>(pIt));
     updateTree(ED_CURRENT_ITEM_CHANGED, pPITS);
     emit si_changeProp(pPITS);
 }
 
 Operation* EDProjectTree::createCSN(int ValueId) const{
     switch (ValueId) {
-    case EDPIPropertyTypeListCSNodeTypes::DISTANCE	: return new OpDistance;
-    case EDPIPropertyTypeListCSNodeTypes::REPETITION	: return new OpReiteration;
-    case EDPIPropertyTypeListCSNodeTypes::INTERVAL	: return new OpInterval;
-    case EDPIPropertyTypeListCSNodeTypes::WORD		: 
+    case EDPIPropertyTypeListCSNodeTypes::DISTANCE    : return new OpDistance;
+    case EDPIPropertyTypeListCSNodeTypes::REPETITION    : return new OpReiteration;
+    case EDPIPropertyTypeListCSNodeTypes::INTERVAL    : return new OpInterval;
+    case EDPIPropertyTypeListCSNodeTypes::WORD        :
         {
             TS* pTS = new TS;
             pTS->setFromMarking(false);
             return pTS;
         }
-    case EDPIPropertyTypeListCSNodeTypes::MRK_ITEM	: 
+    case EDPIPropertyTypeListCSNodeTypes::MRK_ITEM    :
         {
             TS* pTS = new TS;
             pTS->setFromMarking(true);
@@ -904,7 +952,7 @@ void EDProjectTree::deleteFolder(EDPICSFolder* pPI){
     edData.clearScores();
 }
 void EDProjectTree::deleteSignal(EDPICS* pPI){
-    
+
     if(edData.isSignalSelected(pPI)){
         edData.clearScores();
     }
@@ -923,21 +971,21 @@ void EDProjectTree::deleteSignal(EDPICS* pPI){
 
 void EDProjectTree::updateSorting(){
 
-    
+
 //     for (int i = 0; i < seqRoot.childCount(); i++){
 //         EDProjectItem* item = dynamic_cast<EDProjectItem*>(seqRoot.child(i));
 //         if(item){
-//            item->setSortField(sortField); 
+//            item->setSortField(sortField);
 //            item->setSortOrd(sortOrd);
 //            updateSortingRecurs(item);
 //         }
 //     }
-// 
+//
 //     for (int i = 0; i < mrkRoot.childCount(); i++){
 //         EDProjectItem* item = dynamic_cast<EDProjectItem*>(mrkRoot.child(i));
 //         if(item){
-//             item->setSortField(sortField); 
-//             item->setSortOrd(sortOrd); 
+//             item->setSortField(sortField);
+//             item->setSortOrd(sortOrd);
 //             updateSortingRecurs(item);
 //         }
 //     }
@@ -945,7 +993,7 @@ void EDProjectTree::updateSorting(){
     for (int i = 0; i < root.childCount(); i++){
         EDProjectItem* item = dynamic_cast<EDProjectItem*>(root.child(i));
         if(item){
-            item->setSortField(sortField); 
+            item->setSortField(sortField);
             item->setSortOrd(sortOrd);
             updateSortingRecurs(item);
         }
@@ -953,15 +1001,15 @@ void EDProjectTree::updateSorting(){
 //     seqRoot.sortChildren(0, Qt::AscendingOrder);
 //     mrkRoot.sortChildren(0, Qt::AscendingOrder);
     root.sortChildren(0, Qt::AscendingOrder);
-   
+
 }
 
 void EDProjectTree::updateSortingRecurs(EDProjectItem* pItem){
-    
+
     for (int i = 0; i < pItem->childCount(); i++){
         EDProjectItem* item = dynamic_cast<EDProjectItem*>(pItem->child(i));
         if(item){
-            item->setSortField(sortField); 
+            item->setSortField(sortField);
             item->setSortOrd(sortOrd);
             updateSortingRecurs(item);
         }
@@ -980,7 +1028,7 @@ void EDProjectTree::sl_selAllSig(){
             continue;
         }
         if (!edData.isSignalSelected(pSI))
-            edData.switchSelection(const_cast<EDProjectItem*>(pSI), true);	
+            edData.switchSelection(const_cast<EDProjectItem*>(pSI), true);
 
         updateTree(ED_ITEM_STATE_CHANGED, pSI);
     }
@@ -996,7 +1044,7 @@ void EDProjectTree::sl_deselAllSig(){
             continue;
         }
         if (edData.isSignalSelected(pSI))
-               edData.switchSelection(const_cast<EDProjectItem*>(pSI), true);	
+               edData.switchSelection(const_cast<EDProjectItem*>(pSI), true);
         updateTree(ED_ITEM_STATE_CHANGED, pSI);
     }
 }
@@ -1010,9 +1058,9 @@ void EDProjectTree::sl_setPriorAllSig(){
         if(!pSI){
             continue;
         }
-        EDPICS* pCS = dynamic_cast<EDPICS*>(pSI);	
+        EDPICS* pCS = dynamic_cast<EDPICS*>(pSI);
         if (pCS){
-            edData.onSetCurrentSignalParamsAsPrior(pCS, false);	
+            edData.onSetCurrentSignalParamsAsPrior(pCS, false);
             updateTree(ED_CURRENT_ITEM_CHANGED, pCS);
         }
     }
@@ -1027,9 +1075,9 @@ void EDProjectTree::sl_clearPriorAllSig(){
         if(!pSI){
             continue;
         }
-        EDPICS* pCS = dynamic_cast<EDPICS*>(pSI);	
+        EDPICS* pCS = dynamic_cast<EDPICS*>(pSI);
         if (pCS){
-            edData.onClearSignalPriorParams(pCS);	
+            edData.onClearSignalPriorParams(pCS);
             updateTree(ED_CURRENT_ITEM_CHANGED, pCS);
         }
     }
@@ -1096,7 +1144,7 @@ void EDProjectTree::sl_setMetainfoBase(){
     }
 
     item->setMetainfoBase(&edData.getDescriptionBase());
-    
+
 }
 
 void EDProjectTree::sl_generateReport(){
@@ -1106,6 +1154,38 @@ void EDProjectTree::sl_generateReport(){
         return;
     }
     edData.generateRecognizationReport(pItem);
+}
+
+void EDProjectTree::sl_exportSequences(){
+    EDPISequenceBase* pItem = dynamic_cast<EDPISequenceBase*>(currentItem());
+    if (!pItem)
+    {
+        return;
+    }
+    //edData.generateRecognizationReport(pItem);
+
+    ExpertDiscoveryExportSequences *t = new ExpertDiscoveryExportSequences(pItem->getSequenceBase());
+
+    AppContext::getTaskScheduler()->registerTopLevelTask(t);
+//     QFileDialog saveRepDialog;
+//     saveRepDialog.setFileMode(QFileDialog::AnyFile);
+//     saveRepDialog.setNameFilter(tr("Fasta Files (*.fa *.fasta)"));
+//     saveRepDialog.setViewMode(QFileDialog::Detail);
+//     saveRepDialog.setAcceptMode(QFileDialog::AcceptSave);
+//
+//     if(saveRepDialog.exec()){
+//         QStringList fileNames = saveRepDialog.selectedFiles();
+//         if(fileNames.isEmpty()) return;
+//
+//         QString fileName = fileNames.first();
+//
+//         GUrl URL(strNegName);
+//         IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(URL));
+//         DocumentFormat* f = AppContext::getDocumentFormatRegistry()->getFormatById(BaseDocumentFormats::PLAIN_GENBANK);
+//
+//         negDoc = f->createNewUnloadedDocument(iof, URL, stateInfo);
+//         CHECK_OP(stateInfo,);
+//         addSubTask(new LoadUnloadedDocumentTask(negDoc));
 }
 
 void EDProjectTree::sl_sortField(QAction* action){

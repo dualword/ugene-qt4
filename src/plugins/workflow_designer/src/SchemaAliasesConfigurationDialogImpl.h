@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,20 +42,20 @@ public:
     SchemaAliasesCfgDlgModel getModel() const;
     // aliases for schema should be different
     bool validateModel() const;
-    
+
 private:
     void initializeModel( const Schema & schema );
     void clearAliasTable();
-    
+
 private slots:
     void sl_procSelected( int row );
     void sl_onDataChange( int row, int col );
-    
+
 private:
     SchemaAliasesCfgDlgModel    model;
     QMap<int, ActorId>          procListMap; // pairs (row, actorId)
     int                         procNameMaxSz;
-    
+
 }; // SchemaAliasesConfigurationDialogImpl
 
 } // Workflow

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,26 @@
  * MA 02110-1301, USA.
  */
 
+#include <QAbstractItemModel>
+#include <QFileDialog>
+#include <QHeaderView>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTableView>
+
+#include <U2Core/Log.h>
+
+#include <U2Gui/HelpButton.h>
+
+#include <U2Lang/ActorPrototypeRegistry.h>
+#include <U2Lang/BaseSlots.h>
+#include <U2Lang/BaseTypes.h>
+#include <U2Lang/WorkflowSettings.h>
+
 #include "CreateScriptWorker.h"
 #include "WorkflowEditorDelegates.h"
 #include "library/ScriptWorker.h"
-
-#include <U2Core/Log.h>
-#include <U2Lang/ActorPrototypeRegistry.h>
-#include <U2Lang/WorkflowSettings.h>
-#include <U2Lang/BaseTypes.h>
-#include <U2Lang/BaseSlots.h>
-
-#include <QtCore/QAbstractItemModel>
-#include <QtGui/QTableView>
-#include <QtGui/QHeaderView>
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-
+#include "util/WorkerNameValidator.h"
 
 namespace U2 {
 
@@ -148,7 +152,7 @@ private:
 
 class CfgListModel: public QAbstractListModel {
 public:
-    CfgListModel(QObject *obj = NULL): QAbstractListModel(obj) {   
+    CfgListModel(QObject *obj = NULL): QAbstractListModel(obj) {
         items.append(new CfgListItem(DelegateForPort));
     }
 
@@ -173,7 +177,7 @@ public:
 
     Qt::ItemFlags flags(const QModelIndex &) const{
         return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    }    
+    }
 
     CfgListItem* getItem(const QModelIndex &index) const {
         //CfgListItem *item  = static_cast<CfgListItem*>(index.internalPointer());
@@ -229,7 +233,7 @@ public:
 
     bool removeRows(int row, int count, const QModelIndex &parent /* = QModelIndex */) {
         Q_UNUSED(count);
-        if(rowCount() == 1 || row <0 || row > rowCount()) {
+        if(rowCount() == 0 || row <0 || row > rowCount()) {
             return false;
         }
 
@@ -260,7 +264,7 @@ public:
 
     Qt::ItemFlags flags(const QModelIndex &) const{
         return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    }   
+    }
 
     CfgListItem* getItem(const QModelIndex &index) const {
         //CfgListItem *item  = static_cast<CfgListItem*>(index.internalPointer());
@@ -354,6 +358,7 @@ private:
 
 CreateScriptElementDialog::CreateScriptElementDialog(QWidget *p, ActorPrototype* proto): QDialog(p), editing(false) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122519");
 
     inputList->setModel(new CfgListModel());
     inputList->setItemDelegate(new ProxyDelegate());
@@ -362,7 +367,7 @@ CreateScriptElementDialog::CreateScriptElementDialog(QWidget *p, ActorPrototype*
 
     attributeTable->setModel(new CfgTableModel());
     attributeTable->setItemDelegate(new ProxyDelegate());
-    
+
     errorBox->hide();
 
     connect(addInputButton, SIGNAL(clicked()), SLOT(sl_addInputClicked()));
@@ -373,16 +378,21 @@ CreateScriptElementDialog::CreateScriptElementDialog(QWidget *p, ActorPrototype*
     connect(deleteOutputButton, SIGNAL(clicked()), SLOT(sl_deleteOutputClicked()));
     connect(deleteAttributeButton, SIGNAL(clicked()), SLOT(sl_deleteAttributeClicked()));
 
+    QPushButton* okButton = buttonBox->button(QDialogButtonBox::Ok);
+    QPushButton* cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(fileButton, SIGNAL(clicked()), SLOT(sl_getDirectory()));
     connect(okButton, SIGNAL(clicked()), SLOT(sl_okClicked()));
     connect(cancelButton, SIGNAL(clicked()), SLOT(sl_cancelClicked()));
 
     attributeTable->horizontalHeader()->setStretchLastSection(true);
 
+    nameEdit->setValidator(new WorkerNameValidator(this));
+
     if(proto) {
         fillFields(proto);
         editing = true;
     }
+
 }
 
 static DataTypePtr getDatatypeOfSlotDesc(const Descriptor & dt) {
@@ -415,7 +425,7 @@ void CreateScriptElementDialog::fillFields(ActorPrototype *proto) {
                 inputList->model()->setData(mi,getDatatypeOfSlotDesc(d)->getId());
                 inputInd++;
             }
-            
+
         } else {
             outputList->model()->insertRows(0,desc->getType()->getAllDescriptors().size() - 1, QModelIndex());
             foreach(const Descriptor &d, desc->getType()->getAllDescriptors()) {
@@ -441,9 +451,6 @@ void CreateScriptElementDialog::fillFields(ActorPrototype *proto) {
 }
 
 void CreateScriptElementDialog::sl_getDirectory() {
-    /*Settings *s = AppContext::getSettings();
-    QString defaultPath = QDir::searchPaths( PATH_PREFIX_DATA ).first() + "/workflow_samples/" + "users/";
-    QString url = s->getValue(SETTINGS_ROOT + ACTORS_PATH, defaultPath).toString();*/
     QString url = WorkflowSettings::getUserDirectory();
 
     QFileDialog dialog(this);
@@ -536,7 +543,7 @@ void CreateScriptElementDialog::sl_okClicked() {
         }
 
         DataTypePtr ptr = dtr->getById(item->getDataType());
-        Descriptor desc(itemName, itemName, ptr->getDisplayName());      
+        Descriptor desc(itemName, itemName, ptr->getDisplayName());
         if(ptr == BaseTypes::BOOL_TYPE()) {
             attrs << new Attribute(desc, ptr, false, QVariant(false));
         }
@@ -576,7 +583,7 @@ void CreateScriptElementDialog::sl_okClicked() {
         errorBox->show();
         return;
     }
-    
+
     accept();
 }
 
@@ -611,7 +618,8 @@ bool CreateScriptElementDialog::saveParams() {
 
     IOAdapterFactory *iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
     IOAdapter *io = iof->createIOAdapter();
-    if(io->open( url + name + ".usa", IOAdapterMode_Write )) {
+    actorFilePath = url + name + ".usa";
+    if(io->open(actorFilePath, IOAdapterMode_Write)) {
         io->writeBlock(doc.toByteArray());
         io->close();
         return true;
@@ -646,7 +654,7 @@ QDomDocument CreateScriptElementDialog::saveXml() {
         slot.setAttribute(SLOT_ID, str);
         outputPort.appendChild(slot);
     }
-    
+
     CfgTableModel * attrTableModel = static_cast<CfgTableModel*>(attributeTable->model());
     QList<CfgListItem*> attributes = attrTableModel->getItems();
     QDomElement attribute = xml.createElement(ATTRIBUTE_ELEMENT);
@@ -686,6 +694,10 @@ const QString CreateScriptElementDialog::getName() const {
 
 const QString CreateScriptElementDialog::getDescription() const {
     return description;
+}
+
+const QString CreateScriptElementDialog::getActorFilePath() const {
+    return actorFilePath;
 }
 
 } //namespace

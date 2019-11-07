@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,11 @@
 #include <U2Core/global.h>
 #include <U2Core/SMatrix.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -48,11 +52,13 @@ private:
 
     int hlBorderColumn;
     int hlBorderRow;
-    
+
     int hlInnerColumn;
     int hlInnerRow;
 
     SMatrix m;
+
+    QPushButton* bttnClose;
 };
 
 } // namespace

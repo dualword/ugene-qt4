@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,20 +47,28 @@ public:
     RemoteDBFetcherWorker (Actor *a);
 
     virtual void init();
-    virtual bool isReady();
+    virtual bool isReady() const;
     virtual Task* tick();
-    virtual bool isDone();
+    virtual bool isDone() const;
     virtual void cleanup();
 
 private slots:
     void sl_taskFinished();
 
 protected:
+    QString nextId();
+    QString getIdFromList();
+    QString getIdFromFile();
+
     CommunicationChannel *output;
 
     QString dbid;
-    QString fullPathDir;
+
+    QString idsSource;
+    QStringList idsFilePaths;
     QStringList seqids;
+
+    QString fullPathDir;
 };
 
 class RemoteDBFetcherFactory : public DomainFactory
@@ -68,10 +76,12 @@ class RemoteDBFetcherFactory : public DomainFactory
 public:
     static const QString ACTOR_ID;
     static const QMap<QString, QString> cuteDbNames;
-    
+    static const QString idsListString;
+    static const QString localFileString;
+
 private:
     static QMap<QString, QString> initCuteDbNames();
-    
+
 public:
     RemoteDBFetcherFactory() : DomainFactory(ACTOR_ID) {}
 
@@ -79,7 +89,52 @@ public:
     virtual Worker* createWorker(Actor *a) { return new RemoteDBFetcherWorker(a); }
 };
 
-}   // namespace U2
+
+class FetchSequenceByIdFromAnnotationPrompter : public PrompterBase<FetchSequenceByIdFromAnnotationPrompter>
+{
+    Q_OBJECT
+
+public:
+    FetchSequenceByIdFromAnnotationPrompter(Actor *p = 0) : PrompterBase<FetchSequenceByIdFromAnnotationPrompter>(p) {}
+
+protected:
+    virtual QString composeRichDoc();
+};
+
+class FetchSequenceByIdFromAnnotationWorker : public BaseWorker
+{
+    Q_OBJECT
+
+public:
+    FetchSequenceByIdFromAnnotationWorker (Actor *a);
+
+    virtual void init();
+    virtual Task* tick();
+    virtual void cleanup();
+
+private slots:
+    void sl_taskFinished();
+
+protected:
+    IntegralBus *input;
+    IntegralBus *output;
+    QString fullPathDir;
+    QString dbId;
+};
+
+class FetchSequenceByIdFromAnnotationFactory : public DomainFactory
+{
+public:
+    static const QString ACTOR_ID;
+
+public:
+    FetchSequenceByIdFromAnnotationFactory() : DomainFactory(ACTOR_ID) {}
+
+    static void init();
+    virtual Worker* createWorker(Actor *a) { return new FetchSequenceByIdFromAnnotationWorker(a); }
+};
+
 }   // namespace LocalWorkflow
+}   // namespace U2
 
 #endif  // #ifndef _U2_REMOTE_DB_FETCHER_H_

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,9 +38,9 @@ class DNAFlexGraphFactory : public GSequenceGraphFactory
     Q_OBJECT
 public:
     DNAFlexGraphFactory(QObject*);
-    virtual QList<GSequenceGraphData*> createGraphs(GSequenceGraphView*);
+    virtual QList<QSharedPointer<GSequenceGraphData> > createGraphs(GSequenceGraphView*);
     virtual GSequenceGraphDrawer* getDrawer(GSequenceGraphView*);
-    virtual bool isEnabled(U2SequenceObject*) const;
+    virtual bool isEnabled(const U2SequenceObject*) const;
 
 private:
     /** Default size of "window" on a graph */

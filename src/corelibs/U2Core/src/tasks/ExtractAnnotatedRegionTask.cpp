@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,40 +27,39 @@
 
 #include "ExtractAnnotatedRegionTask.h"
 
-namespace U2{ 
+namespace U2{
 
-ExtractAnnotatedRegionTask::ExtractAnnotatedRegionTask( const DNASequence & sequence_, SharedAnnotationData sd_, const ExtractAnnotatedRegionTaskSettings & cfg_ ) :
-Task( tr("Extract annotated regions"), TaskFlag_None ), inputSeq(sequence_), inputAnn(sd_), cfg(cfg_), complT(0), aminoT(0)
+ExtractAnnotatedRegionTask::ExtractAnnotatedRegionTask(const DNASequence & sequence_, const SharedAnnotationData &sd_,
+    const ExtractAnnotatedRegionTaskSettings & cfg_)
+    : Task(tr("Extract annotated regions"), TaskFlag_None), inputSeq(sequence_), inputAnn(sd_), cfg(cfg_), complT(NULL), aminoT(NULL)
 {
+
 }
 
 void ExtractAnnotatedRegionTask::prepare() {
     prepareTranslations();
-    resultedSeq.alphabet = aminoT ? aminoT->getDstAlphabet() : complT ? complT->getDstAlphabet() : inputSeq.alphabet;
-   // resultedSeq.info = inputSeq.info;
-    resultedSeq.info[DNAInfo::ID] = inputSeq.getName();
 }
 
 void ExtractAnnotatedRegionTask::prepareTranslations() {
-    //TODO move these logic somewhere upstairs
+    //TODO move these logic somewhere above
     bool aminoSeq = inputSeq.alphabet->isAmino();
     if (aminoSeq) {
         return;
     }
     if (cfg.complement && inputAnn->getStrand().isCompementary()) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-            lookupTranslation( inputSeq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL );
-        if (!compTTs.isEmpty()) {
-            complT = compTTs.first(); 
+        DNATranslation* compTT = AppContext::getDNATranslationRegistry()->lookupComplementTranslation(inputSeq.alphabet);
+        if (compTT != NULL) {
+            complT = compTT;
         }
     }
 
     if (cfg.translate) {
-        DNATranslationType dnaTranslType = (inputSeq.alphabet->getType() == DNAAlphabet_NUCL) ? DNATranslationType_NUCL_2_AMINO : DNATranslationType_RAW_2_AMINO;
-        QList<DNATranslation*> aminoTTs = AppContext::getDNATranslationRegistry()->lookupTranslation( inputSeq.alphabet, dnaTranslType );
-        if( !aminoTTs.isEmpty() ) {
-            aminoT = aminoTTs.first();
-        } 
+        DNATranslationType dnaTranslType = (inputSeq.alphabet->getType() == DNAAlphabet_NUCL)
+            ? DNATranslationType_NUCL_2_AMINO : DNATranslationType_RAW_2_AMINO;
+        QList<DNATranslation*> aminoTTs = AppContext::getDNATranslationRegistry()->lookupTranslation(inputSeq.alphabet, dnaTranslType);
+        if(!aminoTTs.isEmpty()) {
+             aminoT = AppContext::getDNATranslationRegistry()->getStandardGeneticCodeTranslation(inputSeq.alphabet);
+        }
     }
 }
 
@@ -68,7 +67,6 @@ void ExtractAnnotatedRegionTask::run() {
     QVector<U2Region> safeLocation = inputAnn->getRegions();
     U2Region::bound(0, inputSeq.length(), safeLocation);
     QList<QByteArray> resParts = U1SequenceUtils::extractRegions(inputSeq.seq, safeLocation, complT, NULL, inputSeq.circular);
-    QVector<U2Region> resLocation = U1SequenceUtils::getJoinedMapping(resParts);
     if (aminoT == NULL) { // extension does not work for translated annotations
         if (cfg.extLeft > 0) {
             int annStart = safeLocation.first().startPos;
@@ -76,7 +74,11 @@ void ExtractAnnotatedRegionTask::run() {
             int preLen = annStart - preStart;
             QByteArray preSeq = inputSeq.seq.mid(preStart, preLen);
             resParts.prepend(preSeq);
-            U2Region::shift(cfg.extLeft, resLocation);
+
+            for (int i = 0; i < safeLocation.size(); ++i) {
+                safeLocation[i].startPos -= preLen;
+                safeLocation[i].length += preLen;
+            }
         }
         if (cfg.extRight) {
             U2Region annRegion = U2Region::containingRegion(safeLocation);
@@ -85,16 +87,45 @@ void ExtractAnnotatedRegionTask::run() {
             int postLen = postEnd - annEnd;
             QByteArray postSeq = inputSeq.seq.mid(annEnd, postLen);
             resParts.append(postSeq);
+
+            for (int i = 0; i < safeLocation.size(); ++i) {
+                safeLocation[i].length += postLen;
+            }
         }
     } else {
         resParts = U1SequenceUtils::translateRegions(resParts, aminoT, inputAnn->isJoin());
-        resLocation = U1SequenceUtils::getJoinedMapping(resParts);
     }
-    resultedSeq.seq = resParts.size() == 1 ? resParts.first() : U1SequenceUtils::joinRegions(resParts);
-    resultedAnn = inputAnn;
-    resultedAnn->location->regions = resLocation;
-    resultedAnn->setStrand(U2Strand::Direct);
-    resultedAnn->setLocationOperator(inputAnn->getLocationOperator());
+    foreach (const QByteArray &seq, resParts) {
+        bool onlyOneIteration = false;
+        DNASequence s;
+        s.info[DNAInfo::ID] = inputSeq.getName();
+        if (!cfg.splitJoined || resParts.size() == 1){
+            s.seq = resParts.size() == 1 ? resParts.first() : U1SequenceUtils::joinRegions(resParts, cfg.gapLength);
+            onlyOneIteration = true;
+        }else{
+            s.seq = seq;
+        }
+        s.alphabet = aminoT ? aminoT->getDstAlphabet() : complT ? complT->getDstAlphabet() : inputSeq.alphabet;
+        if (aminoT != NULL) {
+            s.alphabet = aminoT->getDstAlphabet();
+        }else if (complT != NULL) {
+            s.alphabet = complT->getDstAlphabet();
+        }else {
+            s.alphabet = inputSeq.alphabet;
+        }
+        resultedSeqList.append(s);
+        if (onlyOneIteration){
+            break;
+        }
+    }
+}
+
+const QList<DNASequence>& ExtractAnnotatedRegionTask::getResultedSequences() const {
+    return resultedSeqList;
+}
+
+const SharedAnnotationData& ExtractAnnotatedRegionTask::getInputAnnotation() const {
+    return inputAnn;
 }
 
 

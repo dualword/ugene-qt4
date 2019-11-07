@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <U2Core/AppContext.h>
 #include <U2Gui/MainWindow.h>
 
-#include<QtGui/QMenu>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMenu>
+#endif
 
 namespace U2 {
 
@@ -40,6 +44,7 @@ extern "C" Q_DECL_EXPORT Plugin * U2_PLUGIN_INIT_FUNC() {
 PerfMonitorPlugin::PerfMonitorPlugin() : Plugin( tr("Performance Monitor"), tr("Shows performance counters") ) {
     windowId = 0;
     openWindowAction = new QAction(tr("Show counters"), this);
+    openWindowAction->setObjectName("Show counters");
     openWindowAction->setIcon(QIcon(":perf_monitor/images/mon.png"));
     connect(openWindowAction, SIGNAL(triggered()), SLOT(sl_openWindow()));
 

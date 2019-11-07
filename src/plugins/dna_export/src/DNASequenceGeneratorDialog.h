@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -43,6 +43,8 @@ private slots:
 private:
     SaveDocumentGroupController* saveGroupContoller;
     static QMap<char, qreal> content;
+    QPushButton* generateButton;
+    QPushButton* cancelButton;
 };
 
 class BaseContentDialog : public QDialog, public Ui_BaseContentDialog {
@@ -57,6 +59,7 @@ private:
     QMap<char, qreal>& percentMap;
     float gcSkew;
     float gcSkewPrev;
+    QPushButton* saveButton;
 };
 
 } //namespace

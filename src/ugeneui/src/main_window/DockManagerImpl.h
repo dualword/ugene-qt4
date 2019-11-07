@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,11 @@
 
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QtGui>
+#else
+#include <QtWidgets/QtWidgets>
+#endif
 
 namespace U2 {
 
@@ -68,6 +72,8 @@ public:
 
     virtual QWidget* toggleDock(const QString& widgetObjName);
 
+    virtual void dontActivateNextTime(MWDockArea a);
+
 protected:
     bool eventFilter(QObject *obj, QEvent *event);
 
@@ -108,6 +114,10 @@ private:
     QToolBar* dockRight;
     QToolBar* dockBottom;
     QAction*  statusBarAction;
+
+    // This variable is required in order to avoid unnessesary closing of dock widgets.
+    // It is controlled with the eventFilter function.
+    bool mainWindowIsHidden;
 
     QString lastActiveDocksState[MWDockArea_MaxDocks];
 };

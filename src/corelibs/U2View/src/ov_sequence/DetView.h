@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,34 +22,40 @@
 #ifndef _U2_DET_VIEW_H_
 #define _U2_DET_VIEW_H_
 
-#include "GSequenceLineViewAnnotated.h"
-
-#include <U2Core/U2Annotation.h>
-
 #include <QtGui/QFont>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
+
+#include <U2Core/U2Location.h>
+
+#include "GSequenceLineViewAnnotated.h"
 
 class QActionGroup;
 
 namespace U2 {
 
+class Annotation;
 class DNATranslation;
 
 class U2VIEW_EXPORT DetView : public GSequenceLineViewAnnotated {
     Q_OBJECT
-
 public:
     DetView(QWidget* p, ADVSequenceObjectContext* ctx);
 
     bool isOneLineMode()  {return getComplementTT() == NULL && getAminoTT() == NULL;}
     bool hasTranslations()  {return getAminoTT() != NULL;}
     bool hasComplementaryStrand()  {return getComplementTT() != NULL;}
-    
+
     DNATranslation* getComplementTT() const;
     DNATranslation* getAminoTT() const;
 
     void setShowComplement(bool t);
     void setShowTranslation(bool t);
+
+    void setDisabledDetViewActions(bool t);
 
     QAction* getShowComplementAction() const {return showComplementAction;}
     QAction* getShowTranslationAction() const {return showTranslationAction;}
@@ -64,9 +70,9 @@ protected slots:
 protected:
     void showEvent(QShowEvent * e);
     void hideEvent(QHideEvent * e);
-    
+
     void mouseReleaseEvent(QMouseEvent* me);
-    
+
     void updateActions();
 
     void resizeEvent(QResizeEvent *e);
@@ -87,15 +93,16 @@ public:
 
     DetView* getDetView() const {return static_cast<DetView*>(view);}
 
-    virtual U2Region getAnnotationYRange(Annotation* a, int region, const AnnotationSettings* as) const;
-    
+    virtual U2Region getAnnotationYRange(Annotation *a, int region, const AnnotationSettings *as) const;
+    virtual U2Region getMirroredYRange(const U2Strand &mirroredStrand) const;
+    virtual int getHalfOfUnusedHeight() const;
+
     void updateSize();
 
     bool isOnTranslationsLine(int y) const;
 
 protected:
     virtual void drawAll(QPaintDevice* pd);
-
 
 private:
     int getLineY(int line) const {return 2 + line * lineHeight;}
@@ -111,7 +118,7 @@ private:
 
     int posToComplTransLine(int p) const;
     int posToDirectTransLine(int p) const;
-    bool deriveTranslationCharColor(qint64 pos, U2Strand strand, QList<Annotation*> annotationsInRange, QColor& result);
+    bool deriveTranslationCharColor(qint64 pos, const U2Strand &strand, const QList<SharedAnnotationData> &annotationsInRange, QColor &result);
 
     int numLines;
     int rulerLine;
@@ -121,7 +128,6 @@ private:
     int firstComplTransLine;
 };
 
-
-}//namespace;
+} // namespace U2
 
 #endif

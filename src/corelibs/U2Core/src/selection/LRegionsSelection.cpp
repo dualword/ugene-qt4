@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,12 +24,30 @@
 namespace U2 {
 
 static QVector<U2Region> emptyLRegions;
+
+LRegionsSelection::LRegionsSelection(GSelectionType type, QObject *p) : GSelection(type, p)
+{
+    connect(this, SIGNAL(si_selectionChanged(LRegionsSelection*,QVector<U2Region>,QVector<U2Region>)), SLOT(sl_selectionChanged()));
+}
+
 void LRegionsSelection::clear() {
     QVector<U2Region> tmpRemoved = regions;
     regions.clear();
     if (!tmpRemoved.isEmpty()) {
         emit si_selectionChanged(this, emptyLRegions, tmpRemoved);
     }
+}
+
+QVector<U2Region> LRegionsSelection::cropSelection(qint64 sequenceLength, const QVector<U2Region> &regions) {
+    QVector<U2Region> result;
+    foreach (const U2Region &region, regions) {
+        if (region.endPos() < sequenceLength) {
+            result << region;
+        } else if (region.startPos < sequenceLength) {
+            result << U2Region(region.startPos, sequenceLength - region.startPos);
+        }
+    }
+    return result;
 }
 
 void LRegionsSelection::addRegion(const U2Region& r) {
@@ -52,10 +70,22 @@ void LRegionsSelection::removeRegion(const U2Region& r) {
     emit si_selectionChanged(this, emptyLRegions, tmpRemoved);
 }
 
+void LRegionsSelection::setRegion(const U2Region& r)
+{
+    if (r.length == 0)
+    {
+        clear();
+        return;
+    }
+    QVector<U2Region> newRegions;
+    newRegions << r;
+    setSelectedRegions(newRegions);
+}
+
 void LRegionsSelection::setSelectedRegions(const QVector<U2Region>& newSelection) {
     QVector<U2Region> tmpRemoved = regions;
     regions = newSelection;
-    emit si_selectionChanged(this, newSelection, tmpRemoved);    
+    emit si_selectionChanged(this, newSelection, tmpRemoved);
 }
 
 } //namespace

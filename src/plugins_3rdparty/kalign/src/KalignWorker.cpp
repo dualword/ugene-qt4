@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,11 @@
 #include "TaskLocalStorage.h"
 #include "KalignDialogController.h"
 
+#include <U2Core/Log.h>
+#include <U2Core/MAlignmentObject.h>
+
+#include <U2Designer/DelegateEditors.h>
+
 #include <U2Lang/IntegralBusModel.h>
 #include <U2Lang/WorkflowEnv.h>
 #include <U2Lang/ActorPrototypeRegistry.h>
@@ -31,9 +36,8 @@
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseActorCategories.h>
-#include <U2Designer/DelegateEditors.h>
 #include <U2Lang/CoreLibConstants.h>
-#include <U2Core/Log.h>
+#include <U2Lang/NoFailTaskWrapper.h>
 
 /* TRANSLATOR U2::LocalWorkflow::KalignWorker */
 
@@ -134,43 +138,65 @@ void KalignWorker::init() {
     output = ports.value(BasePorts::OUT_MSA_PORT_ID());
 }
 
-bool KalignWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* KalignWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
-    cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
-    cfg.termGapPenalty=actor->getParameter(TERM_GAP_PENALTY)->getAttributeValue<float>(context);
-	cfg.secret=actor->getParameter(BONUS_SCORE)->getAttributeValue<float>(context);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        cfg.gapOpenPenalty=actor->getParameter(GAP_OPEN_PENALTY)->getAttributeValue<float>(context);
+        cfg.gapExtenstionPenalty=actor->getParameter(GAP_EXT_PENALTY)->getAttributeValue<float>(context);
+        cfg.termGapPenalty=actor->getParameter(TERM_GAP_PENALTY)->getAttributeValue<float>(context);
+	    cfg.secret=actor->getParameter(BONUS_SCORE)->getAttributeValue<float>(context);
 
-    MAlignment msa = inputMessage.getData().toMap().value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    if( msa.isEmpty() ) {
-        algoLog.error( tr("An empty MSA has been supplied to Kalign.") );
-        return NULL;
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        if (msa.isEmpty()) {
+            algoLog.error(tr("An empty MSA '%1' has been supplied to Kalign.").arg(msa.getName()));
+            return NULL;
+        }
+        Task *t = new NoFailTaskWrapper(new KalignTask(msa, cfg));
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    Task* t = new KalignTask(msa, cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void KalignWorker::sl_taskFinished() {
-    KalignTask* t = qobject_cast<KalignTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
-    QVariant v = qVariantFromValue<MAlignment>(t->resultMA);
-    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), v));
-    if (input->isEnded()) {
-        output->setEnded();
+    NoFailTaskWrapper *wrapper = qobject_cast<NoFailTaskWrapper*>(sender());
+    CHECK(wrapper->isFinished(), );
+    KalignTask *t = qobject_cast<KalignTask*>(wrapper->originalTask());
+    if (t->hasError()) {
+        coreLog.error(t->getError());
+        return;
     }
+
+    if (t->isCanceled()) {
+        return;
+    }
+
+    SAFE_POINT(NULL != output, "NULL output!", );
+    send(t->resultMA);
     algoLog.info(tr("Aligned %1 with Kalign").arg(t->resultMA.getName()));
 }
 
-bool KalignWorker::isDone() {
-    return !input || input->isEnded();
+void KalignWorker::cleanup() {
 }
 
-void KalignWorker::cleanup() {
+void KalignWorker::send(const MAlignment &msa) {
+    SAFE_POINT(NULL != output, "NULL output!", );
+    SharedDbiDataHandler msaId = context->getDataStorage()->putAlignment(msa);
+    QVariantMap m;
+    m[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(msaId);
+    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), m));
 }
 
 } //namespace LocalWorkflow

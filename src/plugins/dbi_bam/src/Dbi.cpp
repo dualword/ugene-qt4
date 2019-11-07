@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
+
+#include <QtCore/QDir>
 
 #include "IOException.h"
 #include "CancelledException.h"
@@ -51,7 +53,7 @@ void Dbi::init(const QHash<QString, QString> &properties, const QVariantMap & /*
         if(properties.value("url").isEmpty()) {
             throw Exception(BAMDbiPlugin::tr("URL is not specified"));
         }
-        url = GUrl(properties.value(U2_DBI_OPTION_URL));
+        url = GUrl(properties.value(U2DbiOptions::U2_DBI_OPTION_URL));
         if(!url.isLocalFile()) {
             throw Exception(BAMDbiPlugin::tr("Non-local files are not supported"));
         }
@@ -75,7 +77,7 @@ void Dbi::init(const QHash<QString, QString> &properties, const QVariantMap & /*
         }
 
         dbRef.useTransaction = true;
-        if(!exists) { 
+        if(!exists) {
             buildIndex(os);
         }
         assembliesCount = reader->getHeader().getReferences().size();
@@ -91,7 +93,7 @@ void Dbi::init(const QHash<QString, QString> &properties, const QVariantMap & /*
                     throw Exception(opStatus.getError());
                 }
             }
-            assemblyDbi.reset(new AssemblyDbi(*this, *reader, dbRef, assembliesCount, maxReadLengths));
+            assemblyDbi.reset(new AssemblyDbi(*this, *reader, dbRef, maxReadLengths));
         }
         initProperties = properties;
         features.insert(U2DbiFeature_ReadSequence);
@@ -155,7 +157,7 @@ U2DataType Dbi::getEntityTypeById(const U2DataId& id) const {
     if(id.isEmpty()) {
         return U2Type::Unknown;
     } else {
-        quint64 dbId = SQLiteUtils::toDbiId(id);
+        quint64 dbId = U2DbiUtils::toDbiId(id);
         if(dbId <= (quint64)assembliesCount) {
             return U2Type::Assembly;
         } else {
@@ -166,7 +168,7 @@ U2DataType Dbi::getEntityTypeById(const U2DataId& id) const {
 
 U2ObjectDbi *Dbi::getObjectDbi() {
     if(U2DbiState_Ready == state) {
-        return objectDbi.get();
+        return objectDbi.data();
     } else {
         return NULL;
     }
@@ -174,10 +176,14 @@ U2ObjectDbi *Dbi::getObjectDbi() {
 
 U2AssemblyDbi *Dbi::getAssemblyDbi() {
     if(U2DbiState_Ready == state) {
-        return assemblyDbi.get();
+        return assemblyDbi.data();
     } else {
         return NULL;
     }
+}
+
+bool Dbi::isReadOnly() const {
+    return SQLiteUtils::isDatabaseReadOnly(&dbRef, "main") == 1;
 }
 
 
@@ -256,7 +262,7 @@ void Dbi::buildIndex(U2OpStatus &os) {
                     VirtualOffset alignmentOffset = reader->getOffset();
                     Alignment alignment = reader->readAlignment();
                     if(-1 != alignment.getReferenceId()) {
-                        qint64 readLength = Alignment::computeLength(alignment);
+                        qint64 readLength = Alignment::computeLength(alignment.getCigar());
                         qint64 endPosition = alignment.getPosition() + readLength;
                         if(alignment.getPosition() - columnStarts[alignment.getReferenceId()] > COLUMN_DISTANCE) {
                             packedRows[alignment.getReferenceId()] = 0;
@@ -332,8 +338,8 @@ U2DbiFactoryId DbiFactory::getId()const {
 }
 
 FormatCheckResult DbiFactory::isValidDbi(const QHash<QString, QString> &properties, const QByteArray &rawData, U2OpStatus & /*os*/) const {
-    BAMFormat f;
-    FormatCheckResult res = f.checkRawData(rawData, properties.value(U2_DBI_OPTION_URL));
+    BAMFormatUtils f;
+    FormatCheckResult res = f.checkRawData(rawData, properties.value(U2DbiOptions::U2_DBI_OPTION_URL));
     return res;
 }
 
@@ -371,6 +377,30 @@ qint64 ObjectDbi::countObjects(U2DataType type, U2OpStatus &os) {
     } catch(const Exception &e) {
         os.setError(e.getMessage());
         return 0;
+    }
+}
+
+QHash<U2DataId, QString> ObjectDbi::getObjectNames(qint64 offset, qint64 count, U2OpStatus &os) {
+    QHash<U2DataId, QString> result;
+
+    try {
+        if(U2DbiState_Ready != dbi.getState()) {
+            throw Exception(BAMDbiPlugin::tr("Invalid DBI state"));
+        }
+
+        U2OpStatusImpl opStatus;
+        SQLiteQuery q("SELECT id, name FROM Object WHERE type = ?1;", offset, count, &dbRef, opStatus);
+        q.bindType(1, U2Type::Assembly);
+
+        while (q.step()) {
+            const U2DataId id = q.getDataId(0, U2Type::Assembly);
+            const QString name = q.getString(1);
+            result.insert(id, name);
+        }
+        return result;
+    } catch(const Exception &e) {
+        os.setError(e.getMessage());
+        return result;
     }
 }
 
@@ -514,13 +544,20 @@ U2DbiIterator<U2DataId>* ObjectDbi::getObjectsByVisualName(const QString& , U2Da
     return NULL;
 }
 
+void ObjectDbi::renameObject(const U2DataId & /*id*/, const QString & /*newName*/, U2OpStatus &os) {
+    os.setError("Not implemented!");
+}
+
+void ObjectDbi::setObjectRank(const U2DataId & /*objectId*/, U2DbiObjectRank /*newRank*/, U2OpStatus &os) {
+    os.setError("Not implemented!");
+}
+
 // AssemblyDbi
-AssemblyDbi::AssemblyDbi(Dbi &dbi, BamReader &reader, DbRef &dbRef, int assembliesCount, QList<qint64> maxReadLengths):
+AssemblyDbi::AssemblyDbi(Dbi &dbi, BamReader &reader, DbRef &dbRef, QList<qint64> maxReadLengths):
     U2SimpleAssemblyDbi(&dbi),
     dbi(dbi),
     reader(reader),
     dbRef(dbRef),
-    assembliesCount(assembliesCount),
     maxReadLengths(maxReadLengths)
 {
 }
@@ -536,7 +573,7 @@ U2Assembly AssemblyDbi::getAssemblyObject(const U2DataId& id, U2OpStatus &os) {
         U2Assembly result;
         result.id = id;
         result.dbiId = dbi.getDbiId();
-        quint64 dbiDataId = SQLiteUtils::toDbiId(id);
+        quint64 dbiDataId = U2DbiUtils::toDbiId(id);
         result.visualName = reader.getHeader().getReferences()[dbiDataId - 1].getName();
         return result;
     } catch(const Exception &e) {
@@ -573,7 +610,7 @@ qint64 AssemblyDbi::countReads(const U2DataId& assemblyId, const U2Region &r, U2
     }
 }
 
-U2DbiIterator<U2AssemblyRead>* AssemblyDbi::getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os) {
+U2DbiIterator<U2AssemblyRead>* AssemblyDbi::getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os, bool ) {
     try {
         if(U2DbiState_Ready != dbi.getState()) {
             throw Exception(BAMDbiPlugin::tr("Invalid DBI state"));
@@ -592,7 +629,7 @@ U2DbiIterator<U2AssemblyRead>* AssemblyDbi::getReads(const U2DataId& assemblyId,
             q.bindInt64(4, r.startPos);
 
             while(q.step()) {
-                rowIds.append(SQLiteUtils::toU2DataId(q.getInt64(0), U2Type::AssemblyRead));
+                rowIds.append(U2DbiUtils::toU2DataId(q.getInt64(0), U2Type::AssemblyRead));
                 packedRows.append(q.getInt64(1));
             }
             if(opStatus.hasError()) {
@@ -751,11 +788,14 @@ U2AssemblyRead AssemblyDbi::alignmentToRead(const Alignment &alignment) {
     U2AssemblyRead row(new U2AssemblyReadData());
     row->name = alignment.getName();
     row->leftmostPos = alignment.getPosition();
-    row->effectiveLen = Alignment::computeLength(alignment);
+    row->effectiveLen = Alignment::computeLength(alignment.getCigar());
     row->readSequence = alignment.getSequence();
     row->quality = alignment.getQuality();
     row->mappingQuality = alignment.getMapQuality();
     row->flags = alignment.getFlags();
+    row->rnext = alignment.getNextReferenceName();
+    row->pnext = alignment.getNextPosition();
+    row->aux = alignment.getAuxData();
     foreach(const Alignment::CigarOperation &cigarOperation, alignment.getCigar()) {
         U2CigarOp cigarOp = U2CigarOp_Invalid;
         switch(cigarOperation.getOperation()) {
@@ -795,13 +835,13 @@ U2AssemblyRead AssemblyDbi::alignmentToRead(const Alignment &alignment) {
 }
 
 qint64 AssemblyDbi::getMaxReadLength(const U2DataId& assemblyId, const U2Region &/*r*/) {
-    qint64 dbDataId = SQLiteUtils::toDbiId(assemblyId);
+    qint64 dbDataId = U2DbiUtils::toDbiId(assemblyId);
     return maxReadLengths[dbDataId - 1];
 }
 
 U2AssemblyRead AssemblyDbi::getReadById(const U2DataId& rowId, qint64 packedRow, U2OpStatus &os) {
     try {
-        quint64 dbDataId = (quint64)SQLiteUtils::toDbiId(rowId);
+        quint64 dbDataId = (quint64)U2DbiUtils::toDbiId(rowId);
         reader.seek(VirtualOffset(dbDataId));
         U2AssemblyRead row = alignmentToRead(reader.readAlignment());
         row->id = rowId;

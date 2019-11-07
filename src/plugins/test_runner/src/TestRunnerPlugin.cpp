@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,12 @@
 
 #include <U2Test/GTest.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMenu>
+#endif
+
 #include <QtXml/QtXml>
 #include <QtCore/QProcess>
 
@@ -52,7 +57,7 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
 
 TestRunnerPlugin::TestRunnerPlugin() : Plugin(tr("test_runner_plug_name"), tr("test_runner_desc")) {
     if (AppContext::getCMDLineRegistry()->hasParameter( CMDLineCoreOptions::SUITE_URLS )) {
-        connect( AppContext::getPluginSupport(), SIGNAL( si_allStartUpPluginsLoaded() ), SLOT(sl_startTestRunner()));
+        connect(  AppContext::getPluginSupport(), SIGNAL( si_allStartUpPluginsLoaded() ), SLOT(sl_startTestRunner()));
     }
     else {
         services.push_back(new TestRunnerService());
@@ -94,7 +99,7 @@ void TestRunnerPlugin::sl_startTestRunner() {
             QString error;
             GTestSuite *suite = GTestSuite::readTestSuite(dir,error);
             if(error!="") {
-                printf("%s\n",tr("Can't load suite %1").arg(param).toAscii().constData());
+                printf("%s\n",tr("Can't load suite %1").arg(param).toLatin1().constData());
                 AppContext::getTaskScheduler()->cancelAllTasks();
                 AppContext::getMainWindow()->getQMainWindow()->close();
                 return;
@@ -105,7 +110,7 @@ void TestRunnerPlugin::sl_startTestRunner() {
                 QStringList errs;
                 QList<GTestSuite*> lst = GTestSuite::readTestSuiteList(dir, errs);
                 if (!errs.isEmpty()) {
-                    printf("%s\n",tr("Can't load suite %1").arg(param).toAscii().constData());
+                    printf("%s\n",tr("Can't load suite %1").arg(param).toLatin1().constData());
                     AppContext::getTaskScheduler()->cancelAllTasks();
                     AppContext::getMainWindow()->getQMainWindow()->close();
 
@@ -139,7 +144,7 @@ void TestRunnerPlugin::sl_startTestRunner() {
 
 //////////////////////////////////////////////////////////////////////////
 // service
-TestRunnerService::TestRunnerService() 
+TestRunnerService::TestRunnerService()
 : Service(Service_TestRunner, tr("Test runner"), tr("Service to support UGENE embedded testing")), env(NULL)
 {
     windowAction = NULL;
@@ -184,7 +189,7 @@ void TestRunnerService::serviceStateChangedCallback(ServiceState oldState, bool 
         assert(windowAction!=NULL);
         delete windowAction;
         windowAction = NULL;
-        
+
         saveSuites();
         saveEnv();
         deallocateSuites();
@@ -225,7 +230,7 @@ void TestRunnerService::addTestSuite(GTestSuite *ts) {
     assert(!findTestSuiteByURL(ts->getURL()));
     assert(!suites.contains(ts));
     suites.append(ts);
-    
+
     GTestEnvironment * tsEnv = ts->getEnv();
     const QStringList & tsEnvKeys = tsEnv->getVars().keys();
     QStringList tsEnvResultedKeys;
@@ -236,7 +241,7 @@ void TestRunnerService::addTestSuite(GTestSuite *ts) {
         }
     }
     readEnvForKeys(tsEnvResultedKeys);
-    
+
     emit si_testSuiteAdded(ts);
 }
 

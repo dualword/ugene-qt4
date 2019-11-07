@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,11 +25,9 @@
 #include <U2Lang/LocalDomain.h>
 #include <U2Lang/WorkflowUtils.h>
 
-
 namespace U2 {
 
 class QDScheme;
-class AnnotationTableObject;
 
 namespace LocalWorkflow {
 
@@ -50,14 +48,12 @@ public:
     QDWorker(Actor* a);
 
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
 private slots:
     void sl_taskFinished(Task*);
 protected:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     QDScheme* scheme;
 };
 

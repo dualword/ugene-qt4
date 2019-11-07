@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ QString DesignerUtils::getSchemaFileFilter(bool any, bool addOldExt) {
     if(addOldExt) {
         exts << WorkflowUtils::WD_XML_FORMAT_EXTENSION;
     }
-    return DialogUtils::prepareFileFilter(WorkflowUtils::tr("UGENE workflow schemes"), exts, any);
+    return DialogUtils::prepareFileFilter(WorkflowUtils::tr("UGENE workflow documents"), exts, any);
 }
 
 } //ns

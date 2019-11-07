@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,25 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExternalToolSupportSettings.h"
+#include <QApplication>
+#include <QFile>
+#include <QMessageBox>
+#include <QSettings>
+#include <QStyle>
+#include <QStyleFactory>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
-#include <U2Core/UserApplicationsSettings.h>
-#include <U2Core/Settings.h>
 #include <U2Core/ExternalToolRegistry.h>
+#include <U2Core/Settings.h>
 #include <U2Core/U2OpStatus.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/UserApplicationsSettings.h>
 
 #include <U2Gui/AppSettingsGUI.h>
+#include <U2Core/QObjectScopedPointer.h>
 
-#include <QtCore/QSettings>
-#include <QtCore/QFile>
-#include <QtGui/QApplication>
-#include <QtGui/QStyle>
-#include <QtGui/QStyleFactory>
-#include <QtGui/QMessageBox>
+#include "ExternalToolSupportSettings.h"
 
 namespace U2 {
 
@@ -51,11 +53,11 @@ Watcher* const ExternalToolSupportSettings::watcher = new Watcher;
 int ExternalToolSupportSettings::prevNumberExternalTools = 0;
 
 int ExternalToolSupportSettings::getNumberExternalTools() {
-    return AppContext::getSettings()->getValue(NUMBER_EXTERNAL_TOOL, 0).toInt();
+    return AppContext::getSettings()->getValue(NUMBER_EXTERNAL_TOOL, 0, true).toInt();
 }
 
 void ExternalToolSupportSettings::setNumberExternalTools( int v ) {
-    AppContext::getSettings()->setValue(NUMBER_EXTERNAL_TOOL, v);
+    AppContext::getSettings()->setValue(NUMBER_EXTERNAL_TOOL, v, true);
     emit watcher->changed();
 }
 
@@ -66,21 +68,22 @@ bool ExternalToolSupportSettings::getExternalTools() {
     bool isValid;
     QString version;
     for(int i=0; i<numberExternalTools;i++){
-        name=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_NAME + QString::number(i), QVariant("")).toString();
-        path=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_PATH + QString::number(i), QVariant("")).toString();
+        name=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_NAME + QString::number(i), QVariant(""), true).toString();
+        path=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_PATH + QString::number(i), QVariant(""), true).toString();
         if (!QFile::exists(path)) {
             // executable is not found -> leave this tool alone
             continue;
         }
-        isValid=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_IS_VALID + QString::number(i), QVariant(false)).toBool();
-        version=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_VERSION + QString::number(i), QVariant("unknown")).toString();
+        isValid=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_IS_VALID + QString::number(i), QVariant(false), true).toBool();
+        version=AppContext::getSettings()->getValue(PREFIX_EXTERNAL_TOOL_VERSION + QString::number(i), QVariant("unknown"), true).toString();
         if(AppContext::getExternalToolRegistry()->getByName(name) != NULL){
-            AppContext::getExternalToolRegistry()->getByName(name)->setValid(isValid);
             AppContext::getExternalToolRegistry()->getByName(name)->setPath(path);
             AppContext::getExternalToolRegistry()->getByName(name)->setVersion(version);
+            AppContext::getExternalToolRegistry()->getByName(name)->setValid(isValid);
         }
     }
     prevNumberExternalTools = numberExternalTools;
+    ExternalToolSupportSettings::setExternalTools();
     return true;//bad code
 }
 
@@ -99,10 +102,10 @@ void ExternalToolSupportSettings::setExternalTools() {
             path = ExternalToolList.at(i)->getPath();
             isValid = ExternalToolList.at(i)->isValid();
             version = ExternalToolList.at(i)->getVersion();
-            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_NAME + QString::number(i), name);
-            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_PATH + QString::number(i), path);
-            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_IS_VALID + QString::number(i), isValid);
-            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_VERSION + QString::number(i), version);
+            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_NAME + QString::number(i), name, true);
+            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_PATH + QString::number(i), path, true);
+            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_IS_VALID + QString::number(i), isValid, true);
+            AppContext::getSettings()->setValue(PREFIX_EXTERNAL_TOOL_VERSION + QString::number(i), version, true);
         }else{
             AppContext::getSettings()->remove(PREFIX_EXTERNAL_TOOL_NAME + QString::number(i));
             AppContext::getSettings()->remove(PREFIX_EXTERNAL_TOOL_PATH + QString::number(i));
@@ -115,19 +118,63 @@ void ExternalToolSupportSettings::setExternalTools() {
 
 void ExternalToolSupportSettings::checkTemporaryDir(U2OpStatus& os){
     if (AppContext::getAppSettings()->getUserAppsSettings()->getUserTemporaryDirPath().isEmpty()){
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(QObject::tr("Path for temporary files"));
-        msgBox.setText(QObject::tr("Path for temporary files not selected."));
-        msgBox.setInformativeText(QObject::tr("Do you want to select it now?"));
-        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-        msgBox.setDefaultButton(QMessageBox::Yes);
-        int ret = msgBox.exec();
-        if (ret ==  QMessageBox::Yes) {
+        QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox;
+        msgBox->setWindowTitle(QObject::tr("Path for temporary files"));
+        msgBox->setText(QObject::tr("Path for temporary files not selected."));
+        msgBox->setInformativeText(QObject::tr("Do you want to select it now?"));
+        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox->setDefaultButton(QMessageBox::Yes);
+        const int ret = msgBox->exec();
+        CHECK(!msgBox.isNull(), );
+
+        if (ret == QMessageBox::Yes) {
             AppContext::getAppSettingsGUI()->showSettingsDialog(APP_SETTINGS_USER_APPS);
         }
     }
     if (AppContext::getAppSettings()->getUserAppsSettings()->getUserTemporaryDirPath().isEmpty()) {
         os.setError(UserAppsSettings::tr("Temporary UGENE dir is empty"));
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+//LimitedDirIterator
+LimitedDirIterator::LimitedDirIterator( const QDir &dir, int deepLevels )
+:deepLevel(deepLevels)
+,curPath("")
+{
+    if (deepLevel < 0){
+        deepLevel = 0;
+    }
+    data.enqueue(qMakePair(dir.absolutePath(), 0));
+}
+
+bool LimitedDirIterator::hasNext(){
+    return !data.isEmpty();
+}
+
+QString LimitedDirIterator::next(){
+    QString res = curPath;
+
+    fetchNext();
+
+    return res;
+}
+
+QString LimitedDirIterator::filePath(){
+    return curPath;
+}
+
+void LimitedDirIterator::fetchNext(){
+    if (!data.isEmpty()){
+        QPair<QString, int> nextPath = data.dequeue();
+        curPath = nextPath.first;
+        if (deepLevel > nextPath.second){
+            QDir curDir(curPath);
+            QStringList subdirs = curDir.entryList(QDir::NoDotAndDotDot | QDir::Dirs);
+            foreach(const QString& subdir, subdirs){
+                data.enqueue(qMakePair(curPath+ "/" + subdir, nextPath.second + 1));
+            }
+        }
     }
 }
 

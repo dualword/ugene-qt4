@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,14 +47,12 @@ class CDSearchWorker: public BaseWorker {
 public:
     CDSearchWorker(Actor *a) : BaseWorker(a), input(NULL), output(NULL), cds(NULL) {}
     virtual void init();
-    virtual bool isReady();
-    virtual bool isDone();
     virtual Task* tick();
     virtual void cleanup() {};
 private slots:
     void sl_taskFinished(Task*);
 protected:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     CDSearchSettings settings;
     CDSearchResultListener* cds;
 };

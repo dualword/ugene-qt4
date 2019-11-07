@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,22 +22,28 @@
 #include "CreateObjectRelationDialogController.h"
 #include <ui/ui_CreateObjectRelationDialog.h>
 
+#include <U2Core/AnnotationTableObjectConstraints.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/AnnotationTableObject.h>
 #include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectTypes.h>
 
 #include <QtGui/QIcon>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
+
+#include <U2Gui/HelpButton.h>
 
 namespace U2 {
 
-CreateObjectRelationDialogController::CreateObjectRelationDialogController(GObject* _assObj, const QList<GObject*>& _objects, 
-                                                                           const QString& _role, bool rd, const QString& relationHint, QWidget* p)
-: QDialog(p), selectedObject(NULL), assObj(_assObj), objects(_objects), role(_role), removeDuplicates(rd)
+CreateObjectRelationDialogController::CreateObjectRelationDialogController(GObject* _assObj,
+    const QList<GObject*>& _objects, GObjectRelationRole _role, bool rd, const QString& relationHint, QWidget* p)
+    : QDialog(p), selectedObject(NULL), assObj(_assObj), objects(_objects), role(_role), removeDuplicates(rd)
 {
     assert(!objects.isEmpty());
-    assert(!role.isEmpty());
     assert(assObj!=NULL);
     ui = new Ui_CreateObjectRelationDialog;
 
@@ -45,7 +51,7 @@ CreateObjectRelationDialogController::CreateObjectRelationDialogController(GObje
 
     QIcon objectIcon(":/core/images/gobject.png");
     foreach(GObject* obj, objects) {
-        ui->listWidget->addItem(new QListWidgetItem(objectIcon, obj->getGObjectName()));        
+        ui->listWidget->addItem(new QListWidgetItem(objectIcon, obj->getGObjectName()));
     }
     ui->listWidget->setItemSelected(ui->listWidget->item(0), true);
     ui->relationHintLabel->setText(relationHint);
@@ -56,9 +62,9 @@ void CreateObjectRelationDialogController::accept() {
     assert(idx>=0 && idx < objects.size());
     
     GObject* selObj = objects[idx];
-    if (role == GObjectRelationRole::SEQUENCE && assObj->getGObjectType() == GObjectTypes::ANNOTATION_TABLE) {
+    if (role == ObjectRole_Sequence && assObj->getGObjectType() == GObjectTypes::ANNOTATION_TABLE) {
         U2SequenceObject* dnaObj = qobject_cast<U2SequenceObject*>(selObj);
-        AnnotationTableObject* ao = qobject_cast<AnnotationTableObject*>(assObj);
+        AnnotationTableObject *ao = qobject_cast<AnnotationTableObject *>(assObj);
         AnnotationTableObjectConstraints c;
         c.sequenceSizeToFit = dnaObj->getSequenceLength();
         bool res = ao->checkConstraints(&c);

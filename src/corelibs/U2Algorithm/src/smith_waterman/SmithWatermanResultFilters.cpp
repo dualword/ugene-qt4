@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,7 @@ namespace U2 {
 const QString SWRF_EmptyFilter::ID = "none";
 
 // Without any filtering
-bool SWRF_EmptyFilter::applyFilter(QList<SmithWatermanResult>* /*lst*/) {    
+bool SWRF_EmptyFilter::applyFilter(QList<SmithWatermanResult>* /*lst*/) {
     return true;
 }
 
@@ -40,7 +40,7 @@ SmithWatermanResultFilter* SWRF_EmptyFilter::clone() const {
 
 bool SWRF_EmptyFilter::needErase(
                         const SmithWatermanResult& /*currItem*/,
-                        const SmithWatermanResult& /*someItem*/) const {    
+                        const SmithWatermanResult& /*someItem*/) const {
     return false;
 }
 
@@ -59,8 +59,8 @@ static bool revScoreComparator(const SmithWatermanResult &s0, const SmithWaterma
     if (s0.score < s1.score) {
         res = false;
     } else if (s0.score == s1.score) {
-        U2Region r0 = s0.region;
-        U2Region r1 = s1.region;
+        U2Region r0 = s0.refSubseq;
+        U2Region r1 = s1.refSubseq;
         res = r0 < r1;
     } else {
         res = true;
@@ -72,7 +72,7 @@ bool SWRF_WithoutIntersect::applyFilter(QList<SmithWatermanResult>* lst) {
     QList<SmithWatermanResult>& results = *lst;
 
     qSort(results.begin(), results.end(), revScoreComparator);
-    
+
     int i = 0;
     int size = results.size();
     while (i < size) {
@@ -99,9 +99,9 @@ SmithWatermanResultFilter* SWRF_WithoutIntersect::clone() const {
 bool SWRF_WithoutIntersect::needErase(
                         const SmithWatermanResult& currItem,
                         const SmithWatermanResult& someItem) const {
-    U2Region currRegion = currItem.region;
-    U2Region someRegion = someItem.region;
-    if (currRegion.intersects(someRegion) && 
+    U2Region currRegion = currItem.refSubseq;
+    U2Region someRegion = someItem.refSubseq;
+    if (currRegion.intersects(someRegion) &&
         currItem.strand == someItem.strand) {
         return true;
     }

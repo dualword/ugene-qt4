@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,16 +27,17 @@
 #include <U2Core/GAutoDeleteList.h>
 #include "PanView.h"
 
-#include <QtGui/QWidget>
-#include <QtGui/QVBoxLayout>
-#include <QtGui/QMenu>
-#include <QtGui/QToolBar>
-#include <QtGui/QLabel>
-#include <QtGui/QToolButton>
+#include <QWidget>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QMenu>
+#include <QToolBar>
+#include <QToolButton>
+#include <QSplitter>
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 #include <QtCore/QTimer>
-#endif // Q_OS_LINUX
+#endif // Q_OS_UNIX
 
 
 namespace U2 {
@@ -72,16 +73,16 @@ public:
     DetView* getDetView() const {return detView;}
 
     virtual void centerPosition(int pos, QWidget* skipView = NULL);
-    
+
     ADVSequenceObjectContext*   getActiveSequenceContext() const {return (seqContexts.isEmpty()) ? NULL : seqContexts.first();}
     ADVSequenceObjectContext*   getSequenceContext() const {return getActiveSequenceContext();}
-    
+
     DNATranslation* getComplementTT() const;
 
     DNATranslation* getAminoTT() const;
 
     DNASequenceSelection*   getSequenceSelection() const;
-    
+
     int getSequenceLength() const;
 
     virtual void addSequenceView(GSequenceLineView* v, QWidget* after = NULL);
@@ -123,10 +124,13 @@ public:
     virtual int getNumBasesVisible() const;
 
     virtual void setNumBasesVisible(qint64 n);
-    
+
     QAction* getSelectRangeAction() const {return selectRangeAction1;}
 
     virtual void onSequenceObjectRenamed(const QString& oldName);
+
+signals:
+    void si_titleClicked(ADVSequenceWidget*);
 
 protected slots:
     void sl_onViewDestroyed(QObject*);
@@ -142,13 +146,15 @@ protected slots:
     void sl_onLocalCenteringRequest(qint64 pos);
     void sl_createCustomRuler();
     void sl_removeCustomRuler();
-    
-    void sl_onAnnotationSelectionChanged(AnnotationSelection* thiz, const QList<Annotation*>& added, const QList<Annotation*>& removed);
+
+    void sl_onAnnotationSelectionChanged( AnnotationSelection *thiz, const QList<Annotation *> &added, const QList<Annotation *> &removed );
 
 // QT 4.5.0 bug workaround
 public slots:
     void sl_closeView();
-
+    void sl_showStateMenu();
+signals:
+    void si_updateGraphView(const QStringList &, const QVariantMap&);
 private slots:
     void sl_saveScreenshot();
 
@@ -161,21 +167,25 @@ private:
     virtual void updateMinMaxHeight();
 
     void addStateActions(QMenu& m);
-
+    QToolButton* addButtonWithActionToToolbar(QAction * buttonAction, QToolBar * toolBar) const;
     void addRulersMenu(QMenu& m);
     void addSelectMenu(QMenu& m);
+
+    /** Used by several other functions to set new selected region */
+    void setSelectedRegion(const U2Region& region);
 
     virtual GSequenceLineView* findSequenceViewByPos(const QPoint& globalPos) const;
 
     virtual void addZoomMenu(const QPoint& globalPos, QMenu* m);
-    
+
     DetView*                        detView;
     PanView*                        panView;
     Overview*                       overview;
     QList<GSequenceLineView*>       lineViews;
     QVBoxLayout*                    linesLayout;
+    QSplitter*                      linesSplitter;
     ADVSingleSequenceHeaderWidget   *headerWidget;
-    
+
     QAction*        toggleViewAction;
     QAction*        togglePanViewAction;
     QAction*        toggleDetViewAction;
@@ -187,10 +197,14 @@ private:
     QAction*        zoomToRangeAction;
     QAction*        createNewRulerAction;
     QAction*        shotScreenAction;
+    QAction*        closeViewAction;
+    QAction*        widgetStateMenuAction;
 
     QList<QMenu*>   tbMenues;
     QToolButton*    ttButton;
+    QToolButton*    widgetStateMenuButton;
     GAutoDeleteList<QAction> rulerActions;
+    QList<QString> * buttonTabOrederedNames;
 
     PanView::ZoomUseObject zoomUseObject;
 
@@ -201,7 +215,7 @@ class U2VIEW_EXPORT ADVSingleSequenceHeaderWidget : public QWidget {
     Q_OBJECT
 public:
     ADVSingleSequenceHeaderWidget(ADVSingleSequenceWidget* p);
-    
+
     QToolBar* getToolBar() const { return toolBar;}
     void setTitle(const QString & title) {nameLabel->setText(title);}
     void updateTitle();
@@ -209,28 +223,21 @@ public:
 protected:
     virtual void mouseDoubleClickEvent(QMouseEvent *e);
     virtual void paintEvent(QPaintEvent *e);
-    
+
     virtual bool eventFilter (QObject *o, QEvent *e);
 
 protected slots:
     void sl_advFocusChanged(ADVSequenceWidget* prevFocus, ADVSequenceWidget* newFocus);
     void sl_actionTriggered(QAction* a);
-    void sl_showStateMenu();
-    void sl_closeView();
 
 private:
-    void populateToolBars();
     void updateActiveState();
-    QString getShortAlphabetName(DNAAlphabet* al);
+    QString getShortAlphabetName(const DNAAlphabet* al);
 
     ADVSingleSequenceWidget*        ctx;
     QToolBar*                       toolBar;
-    QToolBar*                       closeBar;
     QLabel*                         pixLabel;
     QLabel*                         nameLabel;
-
-    QAction*        closeViewAction;
-    QToolButton*    widgetStateMenuButton;
 };
 
 }//namespace

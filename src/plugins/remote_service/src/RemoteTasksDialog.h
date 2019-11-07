@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,9 +22,12 @@
 #ifndef _REMOTE_TASKS_DIALOG_H_
 #define _REMOTE_TASKS_DIALOG_H_
 
-#include <memory>
-
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 #include "ui/ui_TaskStatisticsDialog.h"
 #include "RemoteServiceMachine.h"
 
@@ -60,7 +63,7 @@ private:
     GetUserTasksInfoTask* getInfoTask;
     FetchRemoteTaskResultTask* fetchResultTask;
     DeleteRemoteDataTask* deleteRemoteDataTask;
-    std::auto_ptr<RemoteServiceMachine> machine;
+    QScopedPointer<RemoteServiceMachine> machine;
 
 };
 

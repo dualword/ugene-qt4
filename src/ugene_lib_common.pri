@@ -7,6 +7,7 @@ isEmpty(UGENE_GLOBALS_DEFINED) {
 
 TEMPLATE = lib
 CONFIG +=qt dll thread debug_and_release
+macx : CONFIG -=plugin
 DEFINES+= QT_DLL
 QT += script
 INCLUDEPATH += src _tmp ../../include
@@ -37,7 +38,4 @@ RCC_DIR=_tmp/rcc
 win32 {
     QMAKE_CXXFLAGS_WARN_ON = -W3
     QMAKE_CFLAGS_WARN_ON = -W3
-	QMAKE_CFLAGS_RELEASE = -O2 -Oy- -MD
-	QMAKE_CXXFLAGS_RELEASE = -O2 -Oy- -MD
-	QMAKE_LFLAGS_RELEASE = /INCREMENTAL:NO /MAP /MAPINFO:EXPORT
 }

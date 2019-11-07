@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <U2Core/global.h>
 
 #include <ui/ui_ExportReadsDialog.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -39,17 +43,17 @@ class ExportReadsDialog : public QDialog, Ui_ExportReadsDialog {
     Q_OBJECT
 public:
     ExportReadsDialog(QWidget * p, const QList<DocumentFormatId> & formats);
-    
+
     virtual void accept();
-    
+
     ExportReadsDialogModel getModel() const;
 
 private slots:
     void sl_selectFile();
-    
+    void sl_formatChanged(const QString &newFormat);
+
 private:
-    QString filter;
-    
+    void initFilePath();
 }; // ExportReadsDialog
 
 } // U2

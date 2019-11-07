@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,13 @@
 #define _U2_WEIGHT_MATRIX_VIEW_MATRIX_DIALOG_CONTROLLER_H_
 
 #include <ui/ui_ViewMatrixDialog.h>
+#include <ui/ui_MatrixAndLogoWidget.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 #include <U2Core/PFMatrix.h>
 #include <U2Core/PWMatrix.h>
@@ -35,19 +40,35 @@
 
 namespace U2 {
 
+class MatrixAndLogoController : public QWidget, public Ui_MatrixAndLogoWidget {
+    Q_OBJECT
+public:
+    MatrixAndLogoController(PFMatrix matrix, QWidget *parent = NULL);
+    MatrixAndLogoController(PWMatrix matrix, QWidget *parent = NULL);
+private:
+    AlignmentLogoRenderArea*    logoArea;
+};
+
+
 class ViewMatrixDialogController : public QDialog, public Ui_ViewMatrixDialog {
     Q_OBJECT
 
 public:
-    ViewMatrixDialogController(QWidget* w = NULL);
     ViewMatrixDialogController(PFMatrix matrix, QWidget* w = NULL);
     ViewMatrixDialogController(PWMatrix matrix, QWidget* w = NULL);
-
-private:
-    AlignmentLogoRenderArea*    logoArea;
-    
 private slots:
     void sl_onCloseButton();
+private:
+    MatrixAndLogoController *ml;
+};
+
+class MatrixViewController : public MWMDIWindow {
+    Q_OBJECT
+public:
+    MatrixViewController(PFMatrix matrix);
+    MatrixViewController(PWMatrix matrix);
+private:
+    QWidget *d;
 };
 
 } //namespace

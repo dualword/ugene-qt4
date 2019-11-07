@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Algorithm/MAlignmentUtilTasks.h>
+#include <U2Core/U2Mod.h>
 
 class MuscleContext;
 
@@ -36,7 +37,6 @@ class StateLock;
 class MAlignmentObject;
 class LoadDocumentTask;
 class MuscleParallelTask;
-class SimpleMSAWorkflowTask;
 
 enum MuscleTaskOp {
     MuscleTaskOp_Align,
@@ -73,7 +73,7 @@ public:
     //number of threads: 0 - auto, 1 - serial
     int nThreads;
     QString         inputFilePath;
-
+    QString         outputFilePath;
 };
 
 class MuscleTask : public Task {
@@ -125,7 +125,7 @@ public:
     virtual void prepare();
     ReportResult report();
 
-    StateLock*                  lock;
+    QPointer<StateLock>         lock;
     MuscleTask*                 muscleTask;
     MuscleTaskSettings          config;
 };
@@ -151,7 +151,6 @@ private:
     MuscleTaskSettings  config;
 };
 
-#ifndef RUN_WORKFLOW_IN_THREADS
 /**
  * runs muscle from cmdline schema in separate process
  * using data/cmdline/align.uwl schema
@@ -168,11 +167,13 @@ class MuscleGObjectRunFromSchemaTask : public AlignGObjectTask {
     Q_OBJECT
 public:
     MuscleGObjectRunFromSchemaTask(MAlignmentObject * obj, const MuscleTaskSettings & config);
+
+    void prepare();
+    void setMAObject(MAlignmentObject* maobj);
 private:
     MuscleTaskSettings config;
 };
 
-#endif // RUN_WORKFLOW_IN_THREADS
 
 }//namespace
 #endif

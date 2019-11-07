@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,14 @@
 #ifndef __U2_ASSEMBLY_READS_AREA_HINT_H__
 #define __U2_ASSEMBLY_READS_AREA_HINT_H__
 
-#include <QtGui/QFrame>
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
+#include <QtGui/QFrame>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QFrame>
+#endif
 
 #include <U2Core/U2Assembly.h>
 
@@ -36,19 +42,18 @@ public:
     static const QPoint OFFSET_FROM_CURSOR;
     static const int LETTER_MAX_COUNT = 60;
     static QString getReadDataAsString(const U2AssemblyRead & r);
-    
+
 public:
     AssemblyReadsAreaHint(QWidget * p);
     void setData(U2AssemblyRead r, QList<U2AssemblyRead> mates);
-    
+
 protected:
-    bool eventFilter(QObject *, QEvent *);
-    void leaveEvent(QEvent * e);
-    void mouseMoveEvent(QMouseEvent * e);
-    
-private:
+    virtual bool eventFilter(QObject *, QEvent *);
+    virtual void leaveEvent(QEvent * e);
+    virtual void mouseMoveEvent(QMouseEvent * e);
+
     QLabel * label;
-    
+
 }; // AssemblyReadsAreaHint
 
 } // U2

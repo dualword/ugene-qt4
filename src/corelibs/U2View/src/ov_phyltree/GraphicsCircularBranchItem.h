@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,12 +39,14 @@ class GraphicsCircularBranchItem: public GraphicsBranchItem {
     bool visible;
 
 public:
-    GraphicsCircularBranchItem(QGraphicsItem* parent, qreal height, GraphicsRectangularBranchItem* from);
+    GraphicsCircularBranchItem(QGraphicsItem* parent, qreal height, GraphicsRectangularBranchItem* from, double nodeValue = -1.0);
 
     QRectF boundingRect() const;
     QPainterPath shape() const;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget);
     void setVisibleW(bool v) { visible = v; }
+protected:
+    void setLabelPositions();
 };
 
 }//namespace;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,11 @@
 
 #include <QMessageBox>
 
+#include <U2Designer/MarkerEditor.h>
 #include <U2Designer/MarkerEditorWidget.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2Lang/Marker.h>
 #include <U2Lang/MarkerUtils.h>
@@ -33,10 +37,11 @@ namespace U2 {
 /************************************************************************/
 /* EditMarkerGroupDialog */
 /************************************************************************/
-EditMarkerGroupDialog::EditMarkerGroupDialog(bool isNew, Marker *marker, QWidget *parent)
-: QDialog(parent), isNew(isNew), marker(NULL)
+EditMarkerGroupDialog::EditMarkerGroupDialog(bool isNew, Marker *marker, Workflow::MarkerGroupListCfgModel *_allModel, QWidget *parent)
+: QDialog(parent), isNew(isNew), marker(NULL), allModel(_allModel)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122633");
     {
         QStringList types;
         types << MarkerTypes::SEQ_LENGTH().getDisplayName(); typeIds << MarkerTypes::SEQ_LENGTH().getId();
@@ -50,9 +55,14 @@ EditMarkerGroupDialog::EditMarkerGroupDialog(bool isNew, Marker *marker, QWidget
         typeBox->addItems(types);
         typeBox->setCurrentIndex(0);
 
+#if (QT_VERSION < 0x050000) //Qt 5
         table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-        table->horizontalHeader()->setStretchLastSection(true);
         table->horizontalHeader()->setClickable(false);
+#else
+        table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+        table->horizontalHeader()->setSectionsClickable(false);
+#endif
+        table->horizontalHeader()->setStretchLastSection(true);
         table->verticalHeader()->hide();
         table->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 6);
     }
@@ -70,13 +80,19 @@ EditMarkerGroupDialog::EditMarkerGroupDialog(bool isNew, Marker *marker, QWidget
     } else {
         this->setWindowTitle(tr("Create Marker Group"));
         this->marker = MarkerFactory::createInstanse(typeIds.at(typeBox->currentIndex()), QVariant());
+        sl_onTypeChanged(typeBox->currentIndex());
     }
     currentTypeIndex = typeBox->currentIndex();
+
+    editButton->setEnabled(false);
+    removeButton->setEnabled(false);
 
     connect(addButton, SIGNAL(clicked()), SLOT(sl_onAddButtonClicked()));
     connect(editButton, SIGNAL(clicked()), SLOT(sl_onEditButtonClicked()));
     connect(removeButton, SIGNAL(clicked()), SLOT(sl_onRemoveButtonClicked()));
     connect(typeBox, SIGNAL(currentIndexChanged(int)), SLOT(sl_onTypeChanged(int)));
+    connect(table, SIGNAL(entered(const QModelIndex &)), SLOT(sl_onItemEntered(const QModelIndex &)));
+    connect(table, SIGNAL(pressed(const QModelIndex &)), SLOT(sl_onItemSelected(const QModelIndex &)));
 
     updateUi();
 }
@@ -85,7 +101,7 @@ void EditMarkerGroupDialog::updateUi() {
     markerModel = new MarkerListCfgModel(this, this->marker);
     table->setModel(markerModel);
 
-    if (marker->hasAdditionalParameter()) {
+    if (NONE != marker->hasAdditionalParameter()) {
         addParamLabel->setText(marker->getAdditionalParameterName()+":");
         addParamEdit->setText(marker->getAdditionalParameter().toString());
         addParamLabel->setVisible(true);
@@ -104,14 +120,29 @@ Marker *EditMarkerGroupDialog::getMarker() {
     return marker->clone();
 }
 
+void EditMarkerGroupDialog::sl_onItemEntered(const QModelIndex &idx) {
+    Qt::MouseButtons bs = QApplication::mouseButtons();
+    if (bs.testFlag(Qt::LeftButton)) {
+        sl_onItemSelected(idx);
+    }
+}
+
+void EditMarkerGroupDialog::sl_onItemSelected(const QModelIndex &) {
+    editButton->setEnabled(true);
+    removeButton->setEnabled(true);
+}
+
 void EditMarkerGroupDialog::sl_onAddButtonClicked() {
-    EditMarkerDialog dlg(true, marker->getType(), "", QVariantList(), this);
+    QObjectScopedPointer<EditMarkerDialog> dlg = new EditMarkerDialog(true, marker->getType(), "", QVariantList(), this);
 
-    if (dlg.exec()) {
+    const int dialogResult = dlg->exec();
+    CHECK(!dlg.isNull(), );
+
+    if (QDialog::Accepted == dialogResult) {
         QString valueString;
-        QString name = dlg.getName();
+        QString name = dlg->getName();
 
-        MarkerUtils::valueToString(MarkerTypes::getDataTypeById(marker->getType()), dlg.getValues(), valueString);
+        MarkerUtils::valueToString(MarkerTypes::getDataTypeById(marker->getType()), dlg->getValues(), valueString);
         markerModel->addMarker(valueString, name);
     }
 }
@@ -127,13 +158,16 @@ void EditMarkerGroupDialog::sl_onEditButtonClicked() {
     i += selected.first().row();
     QVariantList values;
     MarkerUtils::stringToValue(MarkerTypes::getDataTypeById(marker->getType()),marker->getValues().key(*i), values);
-    EditMarkerDialog dlg(false, marker->getType(), *i, values, this);
+    QObjectScopedPointer<EditMarkerDialog> dlg = new EditMarkerDialog(false, marker->getType(), *i, values, this);
 
-    if (dlg.exec()) {
+    const int dialogResult = dlg->exec();
+    CHECK(!dlg.isNull(), );
+
+    if (QDialog::Accepted == dialogResult) {
         QString newValueString;
-        QString newName = dlg.getName();
+        QString newName = dlg->getName();
 
-        MarkerUtils::valueToString(MarkerTypes::getDataTypeById(marker->getType()), dlg.getValues(), newValueString);
+        MarkerUtils::valueToString(MarkerTypes::getDataTypeById(marker->getType()), dlg->getValues(), newValueString);
         markerModel->removeRows(selected.first().row(), 1, selected.first());
         markerModel->addMarker(newValueString, newName);
     }
@@ -178,7 +212,7 @@ void EditMarkerGroupDialog::sl_onTypeChanged(int newTypeIndex) {
             MarkerDataType oldType = MarkerTypes::getDataTypeById(oldMarker->getType());
             MarkerDataType newType = MarkerTypes::getDataTypeById(marker->getType());
             if (oldType == newType) {
-                foreach (QString key, oldMarker->getValues().keys()) {
+                foreach (const QString &key, oldMarker->getValues().keys()) {
                     marker->addValue(key, oldMarker->getValues().value(key));
                 }
             } else {
@@ -191,6 +225,7 @@ void EditMarkerGroupDialog::sl_onTypeChanged(int newTypeIndex) {
     } else {
         typeBox->setCurrentIndex(currentTypeIndex);
     }
+    markerGroupNameEdit->setText(allModel->suggestName(marker->getType()));
 }
 
 bool EditMarkerGroupDialog::checkEditMarkerResult(const QString &oldName, const QString &newName, const QString &newValue, QString &message) {
@@ -243,13 +278,14 @@ void EditMarkerGroupDialog::accept() {
         MarkerEditorWidget *parent = dynamic_cast<MarkerEditorWidget*>(this->parent());
         QString message;
 
-        /*if (marker->hasAdditionalParameter()) {
+        ParameterState state = marker->hasAdditionalParameter();
+        if (NONE != state) {
             marker->setAdditionalParameter(addParamEdit->text());
-            if (addParamEdit->text().isEmpty()) {
-                QMessageBox::critical(this, tr("Error"), tr("%1 is not set").arg(marker->getAdditionalParameterName()));
+            if (REQUIRED == state && addParamEdit->text().isEmpty()) {
+                QMessageBox::critical(this, tr("Error"), tr("Parameter '%1' is not set").arg(marker->getAdditionalParameterName()));
                 return;
             }
-        }*/
+        }
 
         if (isNew) {
             if (!parent->checkAddMarkerGroupResult(marker, message)) {
@@ -328,7 +364,7 @@ bool MarkerListCfgModel::removeRows(int row, int count, const QModelIndex &paren
     if (1 != count) {
         return true;
     }
-    
+
     QMap<QString, QString>::iterator i = marker->getValues().begin();
     i += row;
     if (MarkerUtils::REST_OPERATION == marker->getValues().key(*i)) {
@@ -342,9 +378,11 @@ bool MarkerListCfgModel::removeRows(int row, int count, const QModelIndex &paren
 }
 
 void MarkerListCfgModel::addMarker(const QString &valueString, const QString &name) {
-    int rows = rowCount(QModelIndex());
-    rows = rows>0 ? rows-1 : 0;
-    beginInsertRows(QModelIndex(), 0, rows);
+    QMap<QString, QString> allValues = marker->getValues();
+    allValues[valueString] = name;
+    int newRow = allValues.keys().indexOf(valueString);
+
+    beginInsertRows(QModelIndex(), newRow, newRow);
     marker->getValues().insert(valueString, name);
     endInsertRows();
 }
@@ -356,6 +394,7 @@ EditMarkerDialog::EditMarkerDialog(bool isNew, const QString &type, const QStrin
 : QDialog(parent), isNew(isNew), type(type), name(name), values(values), editWidget(NULL)
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122633");
     if (!isNew) {
         markerNameEdit->setText(name);
 

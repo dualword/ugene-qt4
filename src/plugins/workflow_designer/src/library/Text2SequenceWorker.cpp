@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -70,67 +70,65 @@ void Text2SequenceWorker::init() {
     outSeqPort = ports.value(BasePorts::OUT_SEQ_PORT_ID());
 }
 
-bool Text2SequenceWorker::isReady() {
-    return txtPort->hasMessage();
-}
-
 Task * Text2SequenceWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(txtPort);
-    QString seqName = actor->getParameter(SEQ_NAME_ATTR_ID)->getAttributeValue<QString>(context);
-    if(seqName.isEmpty()) {
-        return new FailTask(tr("Sequence name not set"));
-    }
-    if(tickedNum++ > 0) {
-        seqName += QString::number(tickedNum);
-    }
-    QString alId = actor->getParameter(ALPHABET_ATTR_ID)->getAttributeValue<QString>(context);
-    if(alId.isEmpty()) {
-        alId = ALPHABET_ATTR_ID_DEF_VAL;
-    } else {
-        alId = cuteAlIdNames.key(alId, alId);
-    }
-    bool skipUnknown = actor->getParameter(SKIP_SYM_ATTR_ID)->getAttributeValue<bool>(context);
-    QChar replaceChar;
-    if(!skipUnknown) {
-        QString replaceStr = actor->getParameter(REPLACE_SYM_ATTR_ID)->getAttributeValue<QString>(context);
-        assert(replaceStr.size() <= 1);
-        if(replaceStr.isEmpty()) {
-            return new FailTask(tr("skip flag should be set or replace character defined"));
+    while (txtPort->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(txtPort);
+        if (inputMessage.isEmpty()) {
+            outSeqPort->transit();
+            continue;
         }
-        replaceChar = replaceStr.at(0);
-    }
-    QByteArray txt = inputMessage.getData().toMap().value(BaseSlots::TEXT_SLOT().getId()).value<QString>().toUtf8();
-    
-    DNAAlphabet * alphabet = (alId == ALPHABET_ATTR_ID_DEF_VAL) ? U2AlphabetUtils::findBestAlphabet(txt) : U2AlphabetUtils::getById(alId);
-    if (alphabet == NULL) {
-        QString msg;
-        if(alId == ALPHABET_ATTR_ID_DEF_VAL) {
-            msg = tr("Alphabet cannot be automatically detected");
+        QString seqName = actor->getParameter(SEQ_NAME_ATTR_ID)->getAttributeValue<QString>(context);
+        if(seqName.isEmpty()) {
+            return new FailTask(tr("Sequence name not set"));
+        }
+        if(tickedNum++ > 0) {
+            seqName += QString::number(tickedNum);
+        }
+        QString alId = actor->getParameter(ALPHABET_ATTR_ID)->getAttributeValue<QString>(context);
+        if(alId.isEmpty()) {
+            alId = ALPHABET_ATTR_ID_DEF_VAL;
         } else {
-            msg = tr("Alphabet '%1' cannot be found");
+            alId = cuteAlIdNames.key(alId, alId);
         }
-        return new FailTask(msg);
-    }
-    
-    QByteArray normSequence = SeqPasterWidgetController::getNormSequence(alphabet, txt, !skipUnknown, replaceChar);
-    DNASequence result(seqName, normSequence, alphabet);
-    QVariantMap msgData;
-    {
-        U2DataId seqId = context->getDataStorage()->putSequence(result);
-        msgData[BaseSlots::DNA_SEQUENCE_SLOT().getId()] = seqId;
-    }
-    if(outSeqPort) {
-        outSeqPort->put(Message(BaseTypes::DNA_SEQUENCE_TYPE(), msgData));
+        bool skipUnknown = actor->getParameter(SKIP_SYM_ATTR_ID)->getAttributeValue<bool>(context);
+        QChar replaceChar;
+        if(!skipUnknown) {
+            QString replaceStr = actor->getParameter(REPLACE_SYM_ATTR_ID)->getAttributeValue<QString>(context);
+            assert(replaceStr.size() <= 1);
+            if(replaceStr.isEmpty()) {
+                return new FailTask(tr("skip flag should be set or replace character defined"));
+            }
+            replaceChar = replaceStr.at(0);
+        }
+        QByteArray txt = inputMessage.getData().toMap().value(BaseSlots::TEXT_SLOT().getId()).value<QString>().toUtf8();
+
+        const DNAAlphabet * alphabet = (alId == ALPHABET_ATTR_ID_DEF_VAL) ? U2AlphabetUtils::findBestAlphabet(txt) : U2AlphabetUtils::getById(alId);
+        if (alphabet == NULL) {
+            QString msg;
+            if(alId == ALPHABET_ATTR_ID_DEF_VAL) {
+                msg = tr("Alphabet cannot be automatically detected");
+            } else {
+                msg = tr("Alphabet '%1' cannot be found");
+            }
+            return new FailTask(msg);
+        }
+
+        QByteArray normSequence = SeqPasterWidgetController::getNormSequence(alphabet, txt, !skipUnknown, replaceChar);
+        DNASequence result(seqName, normSequence, alphabet);
+        QVariantMap msgData;
+        {
+            SharedDbiDataHandler seqId = context->getDataStorage()->putSequence(result);
+            msgData[BaseSlots::DNA_SEQUENCE_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(seqId);
+        }
+        if(outSeqPort) {
+            outSeqPort->put(Message(BaseTypes::DNA_SEQUENCE_TYPE(), msgData));
+        }
     }
     if(txtPort->isEnded()) {
+        setDone();
         outSeqPort->setEnded();
     }
-    
     return NULL;
-}
-
-bool Text2SequenceWorker::isDone() {
-    return txtPort->isEnded();
 }
 
 void Text2SequenceWorker::cleanup() {
@@ -146,55 +144,55 @@ void Text2SequenceWorkerFactory::init() {
         QMap<Descriptor, DataTypePtr> inM;
         inM[BaseSlots::TEXT_SLOT()] = BaseTypes::STRING_TYPE();
         DataTypePtr inSet(new MapDataType(TEXT_2_SEQUENCE_IN_TYPE_ID, inM));
-        Descriptor inPortDesc(BasePorts::IN_TEXT_PORT_ID(), Text2SequenceWorker::tr("Input text"), 
+        Descriptor inPortDesc(BasePorts::IN_TEXT_PORT_ID(), Text2SequenceWorker::tr("Input text"),
             Text2SequenceWorker::tr("A text which will be converted to sequence"));
         portDescs << new PortDescriptor(inPortDesc, inSet, true);
-        
+
         QMap<Descriptor, DataTypePtr> outM;
         outM[BaseSlots::DNA_SEQUENCE_SLOT()] = BaseTypes::DNA_SEQUENCE_TYPE();
         DataTypePtr outSet(new MapDataType(TEXT_2_SEQUENCE_OUT_TYPE_ID, outM));
-        Descriptor outPortDesc(BasePorts::OUT_SEQ_PORT_ID(), Text2SequenceWorker::tr("Output sequence"), 
+        Descriptor outPortDesc(BasePorts::OUT_SEQ_PORT_ID(), Text2SequenceWorker::tr("Output sequence"),
             Text2SequenceWorker::tr("Converted sequence"));
         portDescs << new PortDescriptor(outPortDesc, outSet, false);
     }
     // attributes description
     QList<Attribute*> attrs;
     {
-        Descriptor seqNameDesc(SEQ_NAME_ATTR_ID, Text2SequenceWorker::tr("Sequence name"), Text2SequenceWorker::tr("Result sequence name"));
-        Descriptor alphabetDesc(ALPHABET_ATTR_ID, Text2SequenceWorker::tr("Sequence alphabet"), 
-            Text2SequenceWorker::tr("Select one of the listed alphabets or choose auto to auto-detect"));
-        Descriptor skipSymbolsDesc(SKIP_SYM_ATTR_ID, Text2SequenceWorker::tr("Skip unknown symbols"), 
-            Text2SequenceWorker::tr("Do not include symbols that are not contained in alphabet"));
+        Descriptor seqNameDesc(SEQ_NAME_ATTR_ID, Text2SequenceWorker::tr("Sequence name"), Text2SequenceWorker::tr("Result sequence name."));
+        Descriptor alphabetDesc(ALPHABET_ATTR_ID, Text2SequenceWorker::tr("Sequence alphabet"),
+            Text2SequenceWorker::tr("Select one of the listed alphabets or choose auto to auto-detect."));
+        Descriptor skipSymbolsDesc(SKIP_SYM_ATTR_ID, Text2SequenceWorker::tr("Skip unknown symbols"),
+            Text2SequenceWorker::tr("Do not include symbols that are not contained in alphabet."));
         Descriptor replaceSymbolsDesc(REPLACE_SYM_ATTR_ID, Text2SequenceWorker::tr("Replace unknown symbols with"),
-            Text2SequenceWorker::tr("Replace unknown symbols with given character"));
-        
+            Text2SequenceWorker::tr("Replace unknown symbols with given character."));
+
         attrs << new Attribute(seqNameDesc, BaseTypes::STRING_TYPE(), /* required */ true, QVariant(SEQ_NAME_ATTR_DEF_VAL));
         attrs << new Attribute(alphabetDesc, BaseTypes::STRING_TYPE(), false, QVariant(ALPHABET_ATTR_ID_DEF_VAL));
         attrs << new Attribute(skipSymbolsDesc, BaseTypes::BOOL_TYPE(), false, QVariant(true));
         attrs << new Attribute(replaceSymbolsDesc, BaseTypes::STRING_TYPE(), false);
     }
-    
-    Descriptor protoDesc(Text2SequenceWorkerFactory::ACTOR_ID, 
-        Text2SequenceWorker::tr("Convert text to sequence"), 
-        Text2SequenceWorker::tr("Converts input text to sequence"));
+
+    Descriptor protoDesc(Text2SequenceWorkerFactory::ACTOR_ID,
+        Text2SequenceWorker::tr("Convert Text to Sequence"),
+        Text2SequenceWorker::tr("Converts input text to sequence."));
     ActorPrototype * proto = new IntegralBusActorPrototype(protoDesc, portDescs, attrs);
-    
+
     // proto delegates
     QMap<QString, PropertyDelegate*> delegates;
     {
         QVariantMap alMap;
-        QList<DNAAlphabet*> alps = AppContext::getDNAAlphabetRegistry()->getRegisteredAlphabets();
-        foreach(DNAAlphabet *a, alps){
+        QList<const DNAAlphabet*> alps = AppContext::getDNAAlphabetRegistry()->getRegisteredAlphabets();
+        foreach(const DNAAlphabet *a, alps){
             alMap[a->getName()] = Text2SequenceWorker::cuteAlIdNames[a->getId()];
         }
         alMap[ALPHABET_ATTR_ID_DEF_VAL] = ALPHABET_ATTR_ID_DEF_VAL;
         delegates[ALPHABET_ATTR_ID] = new ComboBoxDelegate(alMap);
-        
+
         delegates[REPLACE_SYM_ATTR_ID] = new CharacterDelegate();
     }
     proto->setEditor(new DelegateEditor(delegates));
     proto->setPrompter(new Text2SequencePrompter());
-    
+
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_CONVERTERS(), proto);
     WorkflowEnv::getDomainRegistry()->getById( LocalDomainFactory::ID )->registerEntry( new Text2SequenceWorkerFactory() );
 }
@@ -211,21 +209,21 @@ QString Text2SequencePrompter::composeRichDoc() {
     IntegralBusPort * input = qobject_cast<IntegralBusPort*>(target->getPort(BasePorts::IN_TEXT_PORT_ID()));
     Actor * txtProducer = input->getProducer(BaseSlots::TEXT_SLOT().getId());
     QString txtProducetStr = tr(" from <u>%1</u>").arg(txtProducer ? txtProducer->getLabel() : unsetStr);
-    
+
     QString seqName = getRequiredParam(SEQ_NAME_ATTR_ID);
     QString seqNameStr = tr("sequence with name <u>%1</u>").arg(getHyperlink(SEQ_NAME_ATTR_ID, seqName));
-    
+
     QString alId = getParameter(ALPHABET_ATTR_ID).value<QString>();
     QString seqAlStr;
     if(alId == ALPHABET_ATTR_ID_DEF_VAL) {
         seqAlStr = getHyperlink(ALPHABET_ATTR_ID, tr("Automatically detect sequence alphabet"));
     } else {
         alId = Text2SequenceWorker::cuteAlIdNames.key(alId, "");
-        DNAAlphabet * alphabet = AppContext::getDNAAlphabetRegistry()->findById(alId);
+        const DNAAlphabet * alphabet = AppContext::getDNAAlphabetRegistry()->findById(alId);
         QString alphStr = getHyperlink(ALPHABET_ATTR_ID, alphabet ? alphabet->getName() : unsetStr);
         seqAlStr = tr("Set sequence alphabet to %1").arg(alphStr);
     }
-    
+
     bool skipUnknown = getParameter(SKIP_SYM_ATTR_ID).value<bool>();
     QString replaceStr = getRequiredParam(REPLACE_SYM_ATTR_ID);
     QString unknownSymbolsStr;
@@ -236,7 +234,7 @@ QString Text2SequencePrompter::composeRichDoc() {
             .arg(getHyperlink(SKIP_SYM_ATTR_ID, tr("replaced with symbol")))
             .arg(getHyperlink(REPLACE_SYM_ATTR_ID, replaceStr));
     }
-    
+
     QString doc = tr("Convert input text%1 to %2. %3. Unknown symbols are %4.")
         .arg(txtProducetStr)
         .arg(seqNameStr)

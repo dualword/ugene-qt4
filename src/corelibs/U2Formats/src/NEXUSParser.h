@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,8 @@
 
 #ifndef _U2_NEXUS_PARSER_H_
 #define _U2_NEXUS_PARSER_H_
+
+#include <QtCore/QTextStream>
 
 #include <U2Core/IOAdapter.h>
 #include <U2Core/Task.h>
@@ -67,13 +69,13 @@ class NEXUSParser
 // NEXUS File format parser
 {
 public:
-    NEXUSParser (IOAdapter *io_, U2OpStatus &ti_)
-        : io(io_), ti(ti_), tz(io)
+    NEXUSParser (IOAdapter *io_, const U2DbiRef& dbiRef_, const QString& folder, U2OpStatus &ti_)
+        : io(io_), dbiRef(dbiRef_), folder(folder), ti(ti_), tz(io)
     {
         assert(io_ && "IO must exist");
     }
 
-    QList<GObject*> loadObjects();
+    QList<GObject*> loadObjects(const U2DbiRef &dbiRef);
 
     bool hasError() { return !errors.isEmpty(); }
     bool hasWarnings() { return !warnings.isEmpty(); }
@@ -87,11 +89,11 @@ private:
     bool skipCommand();
     bool readSimpleCommand(Context &ctx);
 
-    bool readBlock(Context &ctx);
+    bool readBlock(Context &ctx, const U2DbiRef &dbiRef);
     bool skipBlockContents();
     bool readTaxaContents(Context &ctx);
     bool readDataContents(Context &ctx);
-    bool readTreesContents(Context &ctx);
+    bool readTreesContents(Context &ctx, const U2DbiRef &dbiRef);
 
     void reportProgress() { ti.setProgress(io->getProgress()); }
 
@@ -114,6 +116,8 @@ private:
 
 private:
     IOAdapter *io;
+    const U2DbiRef& dbiRef;
+    QString folder;
     U2OpStatus &ti;
     Tokenizer tz;
 
@@ -122,7 +126,8 @@ private:
 
     Context global;
 
-    QStringList errors, warnings;
+    QStringList errors;
+    QStringList warnings;
 };
 
 } // namespace U2

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -54,14 +54,14 @@ void GTest_SubstMatrix::init(XMLTestFormat *tf, const QDomElement& el){
 
     buf = el.attribute(COL_ATTR);
     if (!buf.isEmpty()){
-        col = buf.at(0).toAscii();
+        col = buf.at(0).toLatin1();
     }
 
     buf = el.attribute(ROW_ATTR);
     if (!buf.isEmpty()){
-        row = buf.at(0).toAscii();
+        row = buf.at(0).toLatin1();
     }
-    
+
     buf = el.attribute(VALUE_ATTR);
     if (!buf.isEmpty()){
         float tmp = buf.toFloat(&isOk);
@@ -91,7 +91,7 @@ Task::ReportResult GTest_SubstMatrix::report(){
     }
     if(m.getAlphabet()->getId() != expectedAlphabetId){
         stateInfo.setError(tr("Actual alphabet id %1 not equal with expected %2").arg(m.getAlphabet()->getId()).arg(expectedAlphabetId));
-    }    
+    }
     return ReportResult_Finished;
 }
 

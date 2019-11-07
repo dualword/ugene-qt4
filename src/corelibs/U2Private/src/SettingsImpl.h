@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,19 +34,21 @@ class U2PRIVATE_EXPORT SettingsImpl : public Settings {
 public:
     SettingsImpl(QSettings::Scope scope);
     ~SettingsImpl();
-    
-    QStringList getAllKeys(const QString& path);
+
+    QStringList getAllKeys(const QString& path) const;
+    void cleanSection(const QString& path);
 
     virtual bool contains(const QString& key) const;
     virtual void remove(const QString& key);
 
-    virtual QVariant getValue(const QString& key, const QVariant& defaultValue = QVariant()) const;
-    virtual void setValue(const QString& key, const QVariant& value);
+    virtual QVariant getValue(const QString& key, const QVariant& defaultValue = QVariant(), bool versionedValue = false) const;
+    virtual void setValue(const QString& key, const QVariant& value, bool versionedValue = false);
 
     virtual QString toVersionKey(const QString& key) const;
+    virtual QString toMinorVersionKey(const QString& key) const;
 
     virtual void sync();
-    
+
     virtual QString fileName() const;
 
 private:

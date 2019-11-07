@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,9 +32,8 @@ class BowtieSettingsWidget : public DnaAssemblyAlgorithmMainWidget, Ui_BowtieSet
     Q_OBJECT
 public:
     BowtieSettingsWidget(QWidget *parent);
-    QMap<QString, QVariant> getDnaAssemblyCustomSettings();
-    void buildIndexUrl(const GUrl &url);
-    bool isParametersOk(QString &);
+    QMap<QString, QVariant> getDnaAssemblyCustomSettings() const;
+    bool isValidIndex(const QString &oneFileUrl) const;
 };
 
 class BowtieBuildSettingsWidget : public DnaAssemblyAlgorithmBuildIndexWidget, Ui_BowtieBuildSettings {
@@ -43,7 +42,7 @@ public:
     BowtieBuildSettingsWidget(QWidget *parent);
     virtual QMap<QString,QVariant> getBuildIndexCustomSettings();
     virtual QString getIndexFileExtension();
-    virtual void buildIndexUrl(const GUrl& url);
+    virtual GUrl buildIndexUrl(const GUrl& url);
 };
 
 class BowtieGUIExtensionsFactory : public DnaAssemblyGUIExtensionsFactory {

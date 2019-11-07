@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,33 +19,33 @@
  * MA 02110-1301, USA.
  */
 
-#include "SwissProtPlainTextFormat.h"
-#include "GenbankLocationParser.h"
-#include "GenbankFeatures.h"
-#include "DocumentFormatUtils.h"
+#include <QtCore/QBuffer>
 
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectUtils.h>
-
-#include <U2Core/IOAdapter.h>
-#include <U2Core/U2OpStatus.h>
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/DNAInfo.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/GenbankFeatures.h>
+#include <U2Core/IOAdapter.h>
 #include <U2Core/QVariantUtils.h>
 #include <U2Core/TextUtils.h>
+#include <U2Core/U2OpStatus.h>
 #include <U2Core/U2SafePoints.h>
+
+#include "DocumentFormatUtils.h"
+#include "GenbankLocationParser.h"
+#include "SwissProtPlainTextFormat.h"
 
 namespace U2 {
 
-/* TRANSLATOR U2::EMBLPlainTextFormat */    
-/* TRANSLATOR U2::EMBLGenbankAbstractDocument */ 
+/* TRANSLATOR U2::EMBLPlainTextFormat */
+/* TRANSLATOR U2::EMBLGenbankAbstractDocument */
 
 SwissProtPlainTextFormat::SwissProtPlainTextFormat(QObject* p)
 : EMBLGenbankAbstractDocument(BaseDocumentFormats::PLAIN_SWISS_PROT, tr("Swiss-Prot"), 80, DocumentFormatFlag_SupportStreaming, p)
 {
-	formatDescription = tr("SwissProt is a format of the UniProtKB/Swiss-prot database used for "
-			"storing annotated protein sequence");
+    formatDescription = tr("SwissProt is a format of the UniProtKB/Swiss-prot database used for "
+            "storing annotated protein sequence");
     fileExtensions << "sw" << "em" << "emb" << "embl" << "txt";
     sequenceStartPrefix = "SQ";
     fPrefix = "FT";
@@ -102,7 +102,7 @@ bool SwissProtPlainTextFormat::readIdLine(ParserState* s) {
         return false;
     }
     s->entry->tags.insert(DNAInfo::LOCUS, qVariantFromValue<DNALocusInfo>(loi));
-    
+
     return true;
 }
 
@@ -174,7 +174,7 @@ bool SwissProtPlainTextFormat::readEntry(ParserState* st, U2SequenceImporter& se
           In general the feature table lists posttranslational modifications, binding sites, enzyme active sites, local secondary structure or other characteristics reported in the cited references.
         */
         if (st->hasKey("FT", 2)) {
-            readAnnotations(st, fullSequenceLen+gapSize);
+            readAnnotations(st, fullSequenceLen + gapSize);
             hasLine = true;
             continue;
         }
@@ -186,7 +186,7 @@ bool SwissProtPlainTextFormat::readEntry(ParserState* st, U2SequenceImporter& se
         else if (st->hasKey("SQ", 2)) {
             //reading sequence
             readSequence(st,seqImporter,sequenceLen,fullSequenceLen,os);
-			CHECK_OP(os,false);
+            CHECK_OP(os,false);
             return true;
         }
 
@@ -210,7 +210,7 @@ bool SwissProtPlainTextFormat::readEntry(ParserState* st, U2SequenceImporter& se
     return false;
 }
 bool SwissProtPlainTextFormat::readSequence(ParserState *st, U2SequenceImporter& seqImporter, int& sequenceLen, int& fullSequenceLen, U2OpStatus& os){
-	QByteArray res;
+    QByteArray res;
 
     IOAdapter* io = st->io;
     U2OpStatus& si = st->si;
@@ -255,19 +255,19 @@ bool SwissProtPlainTextFormat::readSequence(ParserState *st, U2SequenceImporter&
                 }
             }
         }
-		
+
         if (!ok) {
             si.setError(tr("Error reading sequence: memory allocation failed"));
             break;
         }
-		
-		seqImporter.addBlock(res,res.size(),os);
-		if(os.isCoR()){
-			break;
-		}
-		sequenceLen += res.size();
-		fullSequenceLen += res.size();
-		res.clear();
+
+        seqImporter.addBlock(res,res.size(),os);
+        if(os.isCoR()){
+            break;
+        }
+        sequenceLen += res.size();
+        fullSequenceLen += res.size();
+        res.clear();
 
         si.setProgress(io->getProgress());
     }
@@ -308,9 +308,10 @@ void SwissProtPlainTextFormat::readAnnotations(ParserState *st, int offset){
 
 SharedAnnotationData SwissProtPlainTextFormat::readAnnotation(IOAdapter* io, char* cbuff, int len, int READ_BUFF_SIZE, U2OpStatus& si, int offset, int seqLen){
 
+    Q_UNUSED(seqLen);
     AnnotationData* a = new AnnotationData();
     SharedAnnotationData f(a);
-    QString key = QString::fromAscii(cbuff+5, 10).trimmed();
+    QString key = QString::fromLatin1(cbuff+5, 10).trimmed();
     if (key.isEmpty()) {
         si.setError(EMBLGenbankAbstractDocument::tr("Annotation name is empty"));
         return SharedAnnotationData();
@@ -319,12 +320,12 @@ SharedAnnotationData SwissProtPlainTextFormat::readAnnotation(IOAdapter* io, cha
     if(key == "STRAND" || key == "HELIX" || key == "TURN"){
         a->qualifiers.append(U2Qualifier(GBFeatureUtils::QUALIFIER_GROUP, "Secondary structure"));
     }
-    QString start= QString::fromAscii(cbuff+15, 5).trimmed();
+    QString start= QString::fromLatin1(cbuff+15, 5).trimmed();
     if(start.isEmpty()){
         si.setError(EMBLGenbankAbstractDocument::tr("Annotation start position is empty"));
         return SharedAnnotationData();
     }
-    QString end= QString::fromAscii(cbuff+22, 5).trimmed();
+    QString end= QString::fromLatin1(cbuff+22, 5).trimmed();
     if(end.isEmpty()){
         si.setError(EMBLGenbankAbstractDocument::tr("Annotation end position is empty"));
         return SharedAnnotationData();
@@ -347,7 +348,7 @@ SharedAnnotationData SwissProtPlainTextFormat::readAnnotation(IOAdapter* io, cha
     }
 
 
-    QString valQStr = QString::fromAscii(cbuff).split(QRegExp("\\n")).first().mid(34);
+    QString valQStr = QString::fromLatin1(cbuff).split(QRegExp("\\n")).first().mid(34);
     QString nameQStr = "Description";
     bool isDescription=true;
 
@@ -372,10 +373,10 @@ SharedAnnotationData SwissProtPlainTextFormat::readAnnotation(IOAdapter* io, cha
         //parse line
         if(cbuff[A_COL] != '/'){//continue of description
             valQStr.append(" ");
-            valQStr.append(QString::fromAscii(cbuff).split(QRegExp("\\n")).takeAt(0).mid(34));
+            valQStr.append(QString::fromLatin1(cbuff).split(QRegExp("\\n")).takeAt(0).mid(34));
         }else{
             for (; QN_COL < len && TextUtils::LINE_BREAKS[(uchar)cbuff[len-1]]; len--){}; //remove line breaks
-            int flen = len + readMultilineQualifier(io, cbuff+len, READ_BUFF_SIZE-len, len == maxAnnotationLineLen);
+            int flen = len + readMultilineQualifier(io, cbuff, READ_BUFF_SIZE-len, len == maxAnnotationLineLen, len, si);
             //now the whole feature is in cbuff
             int valStart = A_COL + 1;
             for (; valStart < flen && cbuff[valStart] != '='; valStart++){}; //find '==' and valStart

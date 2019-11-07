@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,53 +19,53 @@
  * MA 02110-1301, USA.
  */
 
-#include "BioStruct3DGLWidget.h"
-#include "BioStruct3DGLRender.h"
-#include "BioStruct3DColorScheme.h"
-#include "GLFrameManager.h"
-#include "ExportImage3DGLDialog.h"
-#include "SettingsDialog.h"
-#include "MolecularSurfaceRenderer.h"
-#include "SelectModelsDialog.h"
-#include "StructuralAlignmentDialog.h"
+#include <time.h>
 
-#include <U2Core/BioStruct3D.h>
-#include <U2Core/AnnotationSettings.h>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/BioStruct3DObject.h>
-#include <U2Core/GObjectRelationRoles.h>
-#include <U2Core/Log.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/Counter.h>
-#include <U2Core/TaskSignalMapper.h>
-#include <U2Core/DNASequenceSelection.h>
-#include <U2Core/AnnotationSelection.h>
-
-#include <U2Core/AppContext.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/DocumentModel.h>
-
-#include <U2Algorithm/StructuralAlignmentAlgorithm.h>
-#include <U2Algorithm/MolecularSurfaceFactoryRegistry.h>
-#include <U2Algorithm/MolecularSurface.h>
-
-#include <U2View/AnnotatedDNAView.h>
-#include <U2View/ADVSequenceObjectContext.h>
-
-
-#include <QtGui/QMouseEvent>
-#include <QtGui/QMessageBox>
-#include <QtGui/QColorDialog>
-#include <QtGui/QFileDialog>
-#include <QtGui/QImageWriter>
-#include <QtCore/QTime>
+#include <QColorDialog>
+#include <QImageWriter>
+#include <QMessageBox>
+#include <QMouseEvent>
+#include <QTime>
 #include <QtOpenGL>
 
+#include <U2Algorithm/MolecularSurface.h>
+#include <U2Algorithm/MolecularSurfaceFactoryRegistry.h>
+#include <U2Algorithm/StructuralAlignmentAlgorithm.h>
+
+#include <U2Core/AnnotationSelection.h>
+#include <U2Core/AnnotationSettings.h>
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/BioStruct3D.h>
+#include <U2Core/BioStruct3DObject.h>
+#include <U2Core/Counter.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/Log.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/TaskSignalMapper.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/ExportImageDialog.h>
+#include <U2Core/QObjectScopedPointer.h>
+
+#include <U2View/ADVSequenceObjectContext.h>
+#include <U2View/AnnotatedDNAView.h>
+
+#include "BioStruct3DColorScheme.h"
+#include "BioStruct3DGLImageExportTask.h"
+#include "BioStruct3DGLRender.h"
+#include "BioStruct3DGLWidget.h"
+#include "GLFrameManager.h"
+#include "MolecularSurfaceRenderer.h"
+#include "SelectModelsDialog.h"
+#include "SettingsDialog.h"
+#include "StructuralAlignmentDialog.h"
 #include "gl2ps/gl2ps.h"
-#include <time.h>
-#include <memory>
 
 // disable "unsafe functions" deprecation warnings on MS VS
 #ifdef Q_OS_WIN
@@ -107,7 +107,7 @@ BioStruct3DGLWidget::BioStruct3DGLWidget(BioStruct3DObject* obj, const Annotated
         rotAngle(0), spinAngle(0), rotAxis(), lastPos(),
         backgroundColor(DEFAULT_BACKGROUND_COLOR),
         selectionColor(DEFAULT_SELECTION_COLOR), animationTimer(0),
-        unselectedShadingLevel(DEFAULT_SHADING_LEVEL),
+        unselectedShadingLevel(DEFAULT_SHADING_LEVEL), imageRenderingMode(false),
 
         spinAction(0), settingsAction(0), closeAction(0), exportImageAction(0), selectModelsAction(0), alignWithAction(0),
         resetAlignmentAction(0), colorSchemeActions(0), rendererActions(0), molSurfaceRenderActions(0),
@@ -139,7 +139,7 @@ BioStruct3DGLWidget::BioStruct3DGLWidget(BioStruct3DObject* obj, const Annotated
     loadColorSchemes();
     loadGLRenderers(availableRenders);
 
-    frameManager->addGLFrame(glFrame.get());
+    frameManager->addGLFrame(glFrame.data());
     saveDefaultSettings();
 }
 
@@ -213,9 +213,15 @@ void BioStruct3DGLWidget::initializeGL() {
 
     updateAllRenderers();
 
-    anaglyph->init();
-    if (!anaglyph->isAvailable()) {
+
+    QString videoAdapterString(QLatin1String (reinterpret_cast<const char*>(glGetString(GL_VENDOR))));
+    if(videoAdapterString.contains("intel", Qt::CaseInsensitive)) {
         anaglyphStatus = NOT_AVAILABLE;
+    } else if (!imageRenderingMode) {
+        anaglyph->init();
+        if (!anaglyph->isAvailable()) {
+            anaglyphStatus = NOT_AVAILABLE;
+        }
     }
 }
 
@@ -242,7 +248,7 @@ void BioStruct3DGLWidget::paintGL() {
 
         gluLookAt(0.0, 0.0, glFrame->getCameraPosition().z, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 
-        if (anaglyphStatus == ENABLED) {
+        if (anaglyphStatus == ENABLED && !imageRenderingMode) {
             // draw using anaglyph renderer
             anaglyph->draw();
         }
@@ -273,7 +279,8 @@ void BioStruct3DGLWidget::draw() {
     foreach (const BioStruct3DRendererContext &ctx, contexts) {
         glPushMatrix();
 
-#ifdef GL_VERSION_1_3
+#if defined(GL_VERSION_1_3) && (QT_VERSION < 0x050000)
+        // glMultTransposeMatrixf is deprecated since Qt 5
         glMultTransposeMatrixf(ctx.biostruct->getTransform().data());
 #else
         // on OpenGL versions below 1.3 glMultTransposeMatrix not suported
@@ -287,8 +294,7 @@ void BioStruct3DGLWidget::draw() {
         glPopMatrix();
     }
 
-    if(NULL != molSurface.get())
-    {
+    if(!molSurface.isNull()) {
         glEnable(GL_CULL_FACE);
 
         glCullFace(GL_FRONT);
@@ -319,7 +325,7 @@ Vector3D BioStruct3DGLWidget::getTrackballMapping(int x, int y)
     pos.normalize();
 
     return pos;
-} 
+}
 
 void BioStruct3DGLWidget::contextMenuEvent(QContextMenuEvent *event) {
     QMenu menu;
@@ -341,8 +347,9 @@ void BioStruct3DGLWidget::setLightPosition( const Vector3D& pos )
 }
 
 static int getSequenceChainId(const U2SequenceObject* seqObj) {
-    int id = seqObj->getIntegerAttribute(DNAInfo::CHAIN_ID);
-    return id;
+    QVariantMap info = seqObj->getSequenceInfo();
+    SAFE_POINT(info.contains(DNAInfo::CHAIN_ID), "Sequence does not have the CHAIN_ID attribute", -1);
+    return seqObj->getIntegerAttribute(DNAInfo::CHAIN_ID);
 }
 
 void BioStruct3DGLWidget::sl_onSequenceSelectionChanged(LRegionsSelection *s, const QVector<U2Region> &added, const QVector<U2Region> &removed) {
@@ -482,25 +489,25 @@ void BioStruct3DGLWidget::setBackgroundColor(QColor backgroundColor)
 void BioStruct3DGLWidget::zoom( float delta )
 {
     bool syncLock = isSyncModeOn();
-    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.get(), syncLock);
+    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.data(), syncLock);
     foreach( GLFrame* frame, frames) {
         frame->makeCurrent();
         frame->performZoom(delta);
         frame->updateViewPort();
         frame->updateGL();
-    } 
+    }
 }
 
 void BioStruct3DGLWidget::shift( float deltaX, float deltaY)
 {
     bool syncLock = isSyncModeOn();
-    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.get(), syncLock);
+    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.data(), syncLock);
     foreach( GLFrame* frame, frames) {
         frame->makeCurrent();
         frame->performShift(deltaX, deltaY);
         frame->updateViewPort();
         frame->updateGL();
-    } 
+    }
 }
 
 void BioStruct3DGLWidget::saveDefaultSettings()
@@ -511,16 +518,16 @@ void BioStruct3DGLWidget::saveDefaultSettings()
 }
 
 void BioStruct3DGLWidget::restoreDefaultSettigns()
-{   
+{
     assert(!defaultsSettings.isEmpty());
     bool syncLock = isSyncModeOn();
-    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.get(), syncLock);
+    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.data(), syncLock);
     foreach( GLFrame* frame, frames) {
         frame->makeCurrent();
         frame->setState(defaultsSettings);
         frame->updateViewPort();
         frame->updateGL();
-    } 
+    }
 }
 
 void BioStruct3DGLWidget::showModel(int modelId, bool show) {
@@ -556,10 +563,12 @@ void BioStruct3DGLWidget::showAllModels(bool show) {
 
 void BioStruct3DGLWidget::sl_selectModels() {
     BioStruct3DRendererContext &ctx = contexts.first();
-    SelectModelsDialog dlg(ctx.biostruct->getModelsNames(), ctx.renderer->getShownModelsIndexes(), this);
+    QObjectScopedPointer<SelectModelsDialog> dlg = new SelectModelsDialog(ctx.biostruct->getModelsNames(), ctx.renderer->getShownModelsIndexes(), this);
+    dlg->exec();
+    CHECK(!dlg.isNull(), );
 
-    if (dlg.exec() == QDialog::Accepted) {
-        ctx.renderer->setShownModelsIndexes(dlg.getSelectedModelsIndexes());
+    if (dlg->result() == QDialog::Accepted) {
+        ctx.renderer->setShownModelsIndexes(dlg->getSelectedModelsIndexes());
 
         contexts.first().renderer->updateShownModels();
         updateGL();
@@ -574,16 +583,16 @@ void BioStruct3DGLWidget::writeImage2DToFile( int format, int options, int nbcol
     int state = GL2PS_OVERFLOW, buffsize = 0;
     GLint viewport[4];
     int sort = GL2PS_SIMPLE_SORT;
-        
+
     fp = fopen(fileName, FOPEN_ARGS);
 
     if(!fp){
         QMessageBox::warning(this, tr("Error"),tr("Unable to open file %1 for writing").arg(fileName));
         return;
     }
-    
+
     glGetIntegerv(GL_VIEWPORT,viewport);
-    
+
     if (format == GL2PS_EPS) {
         // hack -> make widget aspect ratio 1:1
         if (width() > height()) {
@@ -601,12 +610,12 @@ void BioStruct3DGLWidget::writeImage2DToFile( int format, int options, int nbcol
     }
 
     fclose(fp);
-    
+
     if (format == GL2PS_EPS) {
-        // restore sizes 
+        // restore sizes
         updateGeometry();
     }
-  
+
 }
 
 void BioStruct3DGLWidget::loadColorSchemes()
@@ -622,7 +631,7 @@ void BioStruct3DGLWidget::loadColorSchemes()
             break;
         }
     }
-    assert(iter != schemeActions.end());    
+    assert(iter != schemeActions.end());
 }
 
 void BioStruct3DGLWidget::loadGLRenderers(const QList<QString> &availableRenderers)
@@ -681,7 +690,7 @@ void BioStruct3DGLWidget::mouseMoveEvent(QMouseEvent *event)
             rotAxis =  vector_cross(lastPos,curPos);
 
             bool syncLock = isSyncModeOn();
-            QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.get(), syncLock);
+            QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.data(), syncLock);
             foreach( GLFrame* frame, frames) {
                 frame->makeCurrent();
 
@@ -718,6 +727,7 @@ void BioStruct3DGLWidget::createActions()
     foreach(const QString &key, BioStruct3DGLRendererRegistry::factoriesNames()) {
         action  = new QAction(key, rendererActions);
         action->setCheckable(true);
+        action->setObjectName(action->text());
     }
 
     colorSchemeActions = new QActionGroup(this);
@@ -725,6 +735,7 @@ void BioStruct3DGLWidget::createActions()
     foreach(const QString &key, BioStruct3DColorSchemeRegistry::factoriesNames()) {
         action = new QAction(key, colorSchemeActions);
         action->setCheckable(true);
+        action->setObjectName(key);
     }
 
     molSurfaceRenderActions = new QActionGroup(this);
@@ -741,6 +752,7 @@ void BioStruct3DGLWidget::createActions()
     foreach(QString key, AppContext::getMolecularSurfaceFactoryRegistry()->getSurfNameList())
     {
         action = new QAction(key, molSurfaceTypeActions);
+        action->setObjectName(key);
         connect(action, SIGNAL(triggered()), this, SLOT(sl_showSurface()));
         action->setCheckable(true);
         bool hasConstraints = AppContext::getMolecularSurfaceFactoryRegistry()->getSurfaceFactory(key)->hasConstraints(*contexts.first().biostruct);
@@ -778,6 +790,7 @@ void BioStruct3DGLWidget::createActions()
 
 void BioStruct3DGLWidget::createStrucluralAlignmentActions() {
     alignWithAction = new QAction(tr("Align With..."), this);
+    alignWithAction->setObjectName("align_with");
     connect(alignWithAction, SIGNAL(triggered()), this, SLOT(sl_alignWith()));
 
     resetAlignmentAction = new QAction(tr("Reset"), this);
@@ -789,17 +802,21 @@ void BioStruct3DGLWidget::createMenus()
     // Renderer selection
     selectRendererMenu = new QMenu(tr("Render Style"));
     selectRendererMenu->addActions(rendererActions->actions());
+    selectRendererMenu->menuAction()->setObjectName("Render Style");
 
     // Color scheme selection
     selectColorSchemeMenu = new QMenu(tr("Coloring Scheme"));
     selectColorSchemeMenu->addActions(colorSchemeActions->actions());
+    selectColorSchemeMenu->menuAction()->setObjectName("Coloring Scheme");
 
     // Molecular surface
     QMenu* surfaceMenu = new QMenu(tr("Molecular Surface Render Style"));
     surfaceMenu->addActions(molSurfaceRenderActions->actions());
+    surfaceMenu->menuAction()->setObjectName("Molecular Surface Render Style");
 
     QMenu *surfaceTypeMenu = new QMenu(tr("Molecular Surface"));
     surfaceTypeMenu->addActions(molSurfaceTypeActions->actions());
+    surfaceTypeMenu->menuAction()->setObjectName("Molecular Surface");
 
     // Display (context) menu
     displayMenu = new QMenu(this);
@@ -823,6 +840,7 @@ void BioStruct3DGLWidget::createMenus()
 
 QMenu* BioStruct3DGLWidget::createStructuralAlignmentMenu() {
     QMenu *saMenu = new QMenu(tr("Structural Alignment"));
+    saMenu->menuAction()->setObjectName("Structural Alignment");
 
     saMenu->addAction(alignWithAction);
     saMenu->addAction(resetAlignmentAction);
@@ -897,7 +915,7 @@ void BioStruct3DGLWidget::sl_updateAnnimation()
     spinAngle = velocity* animationTimer->interval();
     Vector3D rotAxis(0,1,0);
     bool syncLock = isSyncModeOn();
-    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.get(), syncLock);
+    QList<GLFrame*> frames = frameManager->getActiveGLFrameList(glFrame.data(), syncLock);
 
     foreach( GLFrame* frame, frames) {
         frame->makeCurrent();
@@ -920,35 +938,37 @@ void BioStruct3DGLWidget::sl_selectGLRenderer(QAction* action)
 
 void BioStruct3DGLWidget::sl_settings()
 {
-    BioStruct3DSettingsDialog dialog;
+    QObjectScopedPointer<BioStruct3DSettingsDialog> dialog = new BioStruct3DSettingsDialog();
 
-    dialog.setWidget(this);
+    dialog->setWidget(this);
 
-    dialog.setBackgroundColor(backgroundColor);
-    dialog.setSelectionColor(selectionColor);
-    dialog.setRenderDetailLevel(rendererSettings.detailLevel);
-    dialog.setShadingLevel(unselectedShadingLevel);
+    dialog->setBackgroundColor(backgroundColor);
+    dialog->setSelectionColor(selectionColor);
+    dialog->setRenderDetailLevel(rendererSettings.detailLevel);
+    dialog->setShadingLevel(unselectedShadingLevel);
 
-    dialog.setAnaglyphStatus(anaglyphStatus);
-    dialog.setAnaglyphSettings(anaglyph->getSettings());
+    dialog->setAnaglyphStatus(anaglyphStatus);
+    dialog->setAnaglyphSettings(anaglyph->getSettings());
 
     QVariantMap previousState = getState();
 
-    if (QDialog::Accepted == dialog.exec())
-    {
-        backgroundColor = dialog.getBackgroundColor();
-        selectionColor = dialog.getSelectionColor();
-        unselectedShadingLevel = dialog.getShadingLevel();
+    dialog->exec();
+    CHECK(!dialog.isNull(), );
+
+    if (QDialog::Accepted == dialog->result()) {
+        backgroundColor = dialog->getBackgroundColor();
+        selectionColor = dialog->getSelectionColor();
+        unselectedShadingLevel = dialog->getShadingLevel();
 
         foreach (const BioStruct3DRendererContext &ctx, contexts) {
             ctx.colorScheme->setSelectionColor(selectionColor);
         }
         setUnselectedShadingLevel(unselectedShadingLevel);
 
-        rendererSettings.detailLevel = dialog.getRenderDetailLevel();
+        rendererSettings.detailLevel = dialog->getRenderDetailLevel();
 
-        anaglyphStatus = dialog.getAnaglyphStatus();
-        anaglyph->setSettings(dialog.getAnaglyphSettings());
+        anaglyphStatus = dialog->getAnaglyphStatus();
+        anaglyph->setSettings(dialog->getAnaglyphSettings());
 
         this->makeCurrent();
         setBackgroundColor(backgroundColor);
@@ -959,23 +979,21 @@ void BioStruct3DGLWidget::sl_settings()
     {
         setState(previousState);
     }
-
 }
 
 void BioStruct3DGLWidget::sl_exportImage()
 {
-    ExportImage3DGLDialog dialog(this);
-    dialog.exec();
+    BioStruct3DImageExportController factory(this);
+    QObjectScopedPointer<ExportImageDialog> dialog = new ExportImageDialog(&factory, ExportImageDialog::MolView,
+                             ExportImageDialog::SupportScaling);
+    dialog->exec();
 }
 
 void BioStruct3DGLWidget::sl_showSurface()
 {
     QList<SharedAtom> atoms;
-    int index = contexts.first().renderer->getShownModelsIndexes().first();
-    foreach (const SharedMolecule &mol, contexts.first().biostruct->moleculeMap) {
-        const Molecule3DModel& model = mol->models.at(index);
-        atoms += model.atoms;
-    }
+    BioStruct3DRendererContext ctx = contexts.first();
+    atoms = ctx.biostruct->getAllAtoms();
 
     QString surfaceType = qobject_cast<QAction *>( sender() )->text();
     surfaceCalcTask = new MolecularSurfaceCalcTask(surfaceType, atoms);
@@ -1005,9 +1023,8 @@ void BioStruct3DGLWidget::sl_onTaskFinished( Task* task )
         return;
     }
 
-    molSurface.reset();
-    molSurface = surfaceCalcTask->getCalculatedSurface();
-    
+    molSurface.reset(surfaceCalcTask->getCalculatedSurface());
+
     makeCurrent();
     updateGL();
 }
@@ -1024,7 +1041,7 @@ static QList<int> modelIdsToModelIdx(const BioStruct3D &bs, const QList<int> &mo
     return modelsIdx;
 }
 
-void BioStruct3DGLWidget::addBiostruct(const BioStruct3DObject *obj, const QList<int> &shownModels /*= QList<int>()*/) {
+void BioStruct3DGLWidget::addBiostruct(const BioStruct3DObject *obj, const QList<int> &shownModels /* = QList<int>()*/) {
     assert(contexts.size() < 2 && "Multiple models in one view is unsupported now");
     BioStruct3DRendererContext ctx(obj);
 
@@ -1046,6 +1063,7 @@ void BioStruct3DGLWidget::addBiostruct(const BioStruct3DObject *obj, const QList
     ctx.renderer = QSharedPointer<BioStruct3DGLRenderer>(renderer);
 
     contexts.append(ctx);
+    setupRenderer(currentGLRendererName);
 
     setupFrame();
 }
@@ -1054,11 +1072,14 @@ void BioStruct3DGLWidget::sl_alignWith() {
     const BioStruct3DRendererContext &ctx = contexts.first();
     int currentModelId = ctx.biostruct->getModelsNames().at(ctx.renderer->getShownModelsIndexes().first());
 
-    StructuralAlignmentDialog dlg(contexts.first().obj, currentModelId);
-    if (dlg.execIfAlgorithmAvailable() == QDialog::Accepted) {
+    QObjectScopedPointer<StructuralAlignmentDialog> dlg = new StructuralAlignmentDialog(contexts.first().obj, currentModelId);
+    const int dialogResult = dlg->execIfAlgorithmAvailable();
+    CHECK(!dlg.isNull(), );
+
+    if (QDialog::Accepted == dialogResult) {
         sl_resetAlignment();
 
-        Task *task = dlg.getTask();
+        Task *task = dlg->getTask();
         assert(task && "If dialog accepded it must return valid task");
 
         TaskSignalMapper *taskMapper = new TaskSignalMapper(task);

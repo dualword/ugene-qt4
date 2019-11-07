@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,7 @@ class U2TEST_EXPORT GTestFormatRegistry : public QObject {
 public:
     GTestFormatRegistry();
     ~GTestFormatRegistry();
-    
+
     bool registerTestFormat(GTestFormat* f);
 
     bool unregisterTestFormat(GTestFormat* f);
@@ -49,18 +49,18 @@ class U2TEST_EXPORT TestFramework {
 public:
     static const int TEST_TIMEOUT_DEFAULT = 0;
     static const QString TEST_TIMEOUT_CMD_OPTION;
-    
+
 private:
     static bool helpRegistered;
     static void setTRHelpSections();
-    
+
 public:
     TestFramework();
     GTestFormatRegistry* getTestFormatRegistry() {return &formatRegistry;}
 
 private:
     void setTestRunnerSettings();
-    
+
 private:
     GTestFormatRegistry formatRegistry;
 };

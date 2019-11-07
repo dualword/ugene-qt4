@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,9 @@ namespace U2 {
 
 class DocumentSelection;
 class GObjectSelection;
+class GObject;
+class Annotation;
+class GUrl;
 
 class U2GUI_EXPORT ProjectView : public Service {
     Q_OBJECT
@@ -46,10 +49,6 @@ public:
     virtual const DocumentSelection* getDocumentSelection() const = 0;
 
     virtual const GObjectSelection* getGObjectSelection() const = 0;
-
-//    virtual QAction* getAddNewDocumentAction() const = 0;
-
-    virtual QAction* getAddExistingDocumentAction() const = 0;
 
     virtual void highlightItem(Document*) = 0;
 

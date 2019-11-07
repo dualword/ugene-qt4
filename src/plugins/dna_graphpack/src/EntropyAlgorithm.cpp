@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@
 namespace U2 {
 
 static QString nameByType() {
-    return EntropyGraphFactory::tr("informational_entropy");
+    return EntropyGraphFactory::tr("Informational Entropy");
 
 }
 
@@ -52,24 +52,19 @@ EntropyGraphFactory::EntropyGraphFactory(QObject* p)
 #define MAX_CHARS_IN_ALPHABET 7
 #define MAX_INDEX_SIZE 512
 
-bool EntropyGraphFactory::isEnabled(U2SequenceObject* o) const {
-    DNAAlphabet* al = o->getAlphabet();
+bool EntropyGraphFactory::isEnabled(const U2SequenceObject* o) const {
+    const DNAAlphabet* al = o->getAlphabet();
     return al->isNucleic() && al->getAlphabetChars().size() <= MAX_CHARS_IN_ALPHABET;
 }
 
-QList<GSequenceGraphData*> EntropyGraphFactory::createGraphs(GSequenceGraphView* v) {
+QList<QSharedPointer<GSequenceGraphData> > EntropyGraphFactory::createGraphs(GSequenceGraphView* v) {
     Q_UNUSED(v);
-    QList<GSequenceGraphData*> res;
+    QList<QSharedPointer<GSequenceGraphData> > res;
     assert(isEnabled(v->getSequenceObject()));
-    GSequenceGraphData* d = new GSequenceGraphData(getGraphName());
+    QSharedPointer<GSequenceGraphData> d = QSharedPointer<GSequenceGraphData>(new GSequenceGraphData(getGraphName()));
     d->ga = new EntropyGraphAlgorithm;
     res.append(d);
     return res;
-}
-
-GSequenceGraphDrawer* EntropyGraphFactory::getDrawer(GSequenceGraphView* v) {
-    GSequenceGraphWindowData wd(50, 500);
-    return new GSequenceGraphDrawer(v, wd);
 }
 
 
@@ -80,19 +75,19 @@ EntropyGraphAlgorithm::EntropyGraphAlgorithm()
 {
 }
 
-void EntropyGraphAlgorithm::calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& vr, const GSequenceGraphWindowData* d) {
+void EntropyGraphAlgorithm::calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& vr, const GSequenceGraphWindowData* d, U2OpStatus &os) {
     assert(d!=NULL);
     int nSteps = GSequenceGraphUtils::getNumSteps(vr, d->window, d->step);
     res.reserve(nSteps);
 
-    QByteArray seq = o->getWholeSequenceData();
+    const QByteArray& seq = getSequenceData(o);
     const DNAAlphabet* al = o->getAlphabet();
-    
+
     // prepare index -> TODO: make it once and cache!
     IndexedMapping3To1<int> index(al->getAlphabetChars(), 0);
     int* mapData = index.mapData();
     int indexSize = index.getMapSize();
-    
+
     // algorithm
     float log10_2 = log10(2.0);
     const char* seqStr = seq.constData();
@@ -107,6 +102,7 @@ void EntropyGraphAlgorithm::calculate(QVector<float>& res, U2SequenceObject* o, 
         float total = end-start-2;
         float ent = 0;
         for (int j = 0; j < indexSize; j++) {
+            CHECK_OP(os, );
             int ifreq = mapData[j];
             if (ifreq == 0) {
                 continue;

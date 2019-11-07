@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 #include <U2Core/global.h>
 
 #include <U2Lang/Attribute.h>
-#include <U2Lang/IntegralBusModel.h>
+#include <U2Lang/ReadDbObjActorPrototype.h>
 #include <U2Lang/WorkflowUtils.h>
 #include <U2Core/BaseDocumentFormats.h>
 
@@ -34,18 +34,18 @@
 namespace U2 {
 namespace Workflow {
 
-class DocActorProto : public IntegralBusActorPrototype {
+class DocActorProto : public ReadDbObjActorPrototype {
 public:
-    DocActorProto(const DocumentFormatId& _fid, const Descriptor& desc, const QList<PortDescriptor*>& ports, 
+    DocActorProto(const DocumentFormatId& _fid, const Descriptor& desc, const QList<PortDescriptor*>& ports,
         const QList<Attribute*>& attrs = QList<Attribute*>());
-    DocActorProto(const Descriptor& desc, const GObjectType& t, const QList<PortDescriptor*>& ports, 
+    DocActorProto(const Descriptor& desc, const GObjectType& t, const QList<PortDescriptor*>& ports,
         const QList<Attribute*>& attrs = QList<Attribute*>());
-    
+
     virtual bool isAcceptableDrop(const QMimeData*, QVariantMap*) const = 0;
     bool isAcceptableDrop(const QMimeData*, QVariantMap*, const QString & urlAttrId ) const;
 protected:
     QString prepareDocumentFilter();
-    
+
 protected:
     DocumentFormatId fid;
     GObjectType type;
@@ -53,29 +53,27 @@ protected:
 
 class ReadDocActorProto : public DocActorProto {
 public:
-    ReadDocActorProto( const DocumentFormatId& fid, const Descriptor& desc, const QList<PortDescriptor*>& ports, 
+    ReadDocActorProto( const DocumentFormatId& fid, const Descriptor& desc, const QList<PortDescriptor*>& ports,
         const QList<Attribute*>& attrs = QList<Attribute*>() );
     virtual bool isAcceptableDrop(const QMimeData*, QVariantMap*) const;
 };
 
 class WriteDocActorProto : public DocActorProto {
 public:
-    WriteDocActorProto( const DocumentFormatId& fid, const Descriptor& desc, const QList<PortDescriptor*>& ports, 
-        const QString & portId, const QList<Attribute*>& attrs = QList<Attribute*>() );
-    WriteDocActorProto(const Descriptor& desc, const GObjectType & t, const QList<PortDescriptor*>& ports, 
-        const QString & portId, const QList<Attribute*>& attrs = QList<Attribute*>() );
+    WriteDocActorProto(const DocumentFormatId &fid, const Descriptor &desc, const QList<PortDescriptor *> &ports, const QString &portId,
+        const QList<Attribute *> &attrs = QList<Attribute *>(), bool canWriteToSharedDB = true, bool addValidator = true, bool addPortValidator = true );
+    WriteDocActorProto(const Descriptor &desc, const GObjectType &t, const QList<PortDescriptor *> &ports, const QString &portId,
+        const QList<Attribute *> &attrs = QList<Attribute *>(), bool canWriteToSharedDB = true, bool addValidator = true, bool addPortValidator = true );
 
-    URLDelegate *getUrlDelegate();
-    Attribute *getUrlAttr() {return urlAttr;}
+    Attribute * getUrlAttr() {return urlAttr;}
 
 private:
-    void construct();
+    void construct(bool canWriteToSharedDb, bool addValidator, bool addPortValidator);
     virtual bool isAcceptableDrop(const QMimeData*, QVariantMap*) const;
     Attribute *urlAttr;
 
 private:
     QString outPortId;
-    URLDelegate *urlDelegate;
 };
 
 class ReadDocPrompter;
@@ -128,10 +126,10 @@ class WriteFastaPrompter : public PrompterBaseImpl {
     Q_OBJECT
 public:
     WriteFastaPrompter(const QString & formatId, Actor* p = 0) : PrompterBaseImpl(p), format(formatId){}
-    
+
     virtual QString composeRichDoc();
     virtual ActorDocument * createDescription(Actor*);
-    
+
 private:
     QString format;
 };

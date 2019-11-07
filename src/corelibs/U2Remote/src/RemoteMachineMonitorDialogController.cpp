@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,30 +19,33 @@
  * MA 02110-1301, USA.
  */
 
+#include <QMessageBox>
+
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Core/QObjectScopedPointer.h>
+
 #include "RemoteMachineMonitorDialogController.h"
 #include "RemoteMachineMonitorDialogImpl.h"
-
-#include <QtGui/QMessageBox>
-
-/* TRANSLATOR U2::RemoteMachineMonitorDialogImpl */
 
 namespace U2 {
 
 RemoteMachineSettingsPtr RemoteMachineMonitorDialogController::selectRemoteMachine(
-    RemoteMachineMonitor* monitor, bool runTaskMode /*= false */ )
+    RemoteMachineMonitor* monitor, bool runTaskMode /* = false */ )
 {
-    RemoteMachineMonitorDialogImpl dlg( QApplication::activeWindow(), monitor, runTaskMode);
+    QObjectScopedPointer<RemoteMachineMonitorDialogImpl> dlg = new RemoteMachineMonitorDialogImpl(QApplication::activeWindow(), monitor, runTaskMode);
+    const int ret = dlg->exec();
+    CHECK(!dlg.isNull(), RemoteMachineSettingsPtr());
 
-    int ret = dlg.exec();
     if(ret == QDialog::Rejected) {
         return RemoteMachineSettingsPtr();
     }
     assert(ret == QDialog::Accepted);
 
-    RemoteMachineSettingsPtr rms = dlg.getSelectedMachine();
+    RemoteMachineSettingsPtr rms = dlg->getSelectedMachine();
     if (runTaskMode && !rms) {
-        QMessageBox::critical(QApplication::activeWindow(), 
-            RemoteMachineMonitorDialogImpl::tr("Selecting machines error!"), 
+        QMessageBox::critical(QApplication::activeWindow(),
+            RemoteMachineMonitorDialogImpl::tr("Selecting machines error!"),
             RemoteMachineMonitorDialogImpl::tr("You didn't select a machine to run remote task!"));
     }
     return rms;

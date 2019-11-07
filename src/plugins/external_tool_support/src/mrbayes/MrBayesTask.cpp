@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,13 +19,19 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QFile>
+#include <QtCore/QTextStream>
+
 #include "MrBayesTask.h"
 
-#include <U2Core/Counter.h>
-#include <U2Core/U2SafePoints.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/Counter.h>
 #include <U2Core/IOAdapter.h>
+#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Core/DocumentModel.h>
 
 namespace U2 {
 
@@ -39,7 +45,9 @@ MrBayesPrepareDataForCalculation::MrBayesPrepareDataForCalculation(const MAlignm
 }
 void MrBayesPrepareDataForCalculation::prepare(){
     inputFileForMrBayes = tmpDirUrl + "/"+TMPFILENAME;
-    saveDocumentTask=new SaveAlignmentTask(ma, inputFileForMrBayes, BaseDocumentFormats::NEXUS);
+    QVariantMap hints;
+    hints.insert(DocumentWritingMode_SimpleNames, DocumentWritingMode_SimpleNames);
+    saveDocumentTask=new SaveAlignmentTask(ma, inputFileForMrBayes, BaseDocumentFormats::NEXUS, hints);
     saveDocumentTask->setSubtaskProgressWeight(5);
     addSubTask(saveDocumentTask);
 }
@@ -53,7 +61,7 @@ QList<Task*> MrBayesPrepareDataForCalculation::onSubTaskFinished(Task* subTask){
     if(hasError() || isCanceled()) {
         return res;
     }
-    
+
     if(subTask == saveDocumentTask){
         assert(saveDocumentTask->getDocument());
 
@@ -84,7 +92,7 @@ MrBayesSupportTask::MrBayesSupportTask(const MAlignment& _ma, const CreatePhyTre
     setMaxParallelSubtasks(1);
 
     tpm = Task::Progress_SubTasksBased;
-    
+
     prepareDataTask = NULL;
     mrBayesTask = NULL;
     getTreeTask = NULL;
@@ -96,7 +104,7 @@ void MrBayesSupportTask::prepare(){
 
     tmpDirUrl = ExternalToolSupportUtils::createTmpDir(MRBAYES_TMP_DIR, stateInfo);
     CHECK_OP(stateInfo, );
-    
+
     prepareDataTask = new MrBayesPrepareDataForCalculation(inputMA, settings, tmpDirUrl);
     prepareDataTask->setSubtaskProgressWeight(5);
     addSubTask(prepareDataTask);
@@ -123,13 +131,13 @@ QList<Task*> MrBayesSupportTask::onSubTaskFinished(Task* subTask){
         QStringList arguments;
         arguments << tmpNexusFile;
         logParser = new MrBayesLogParser(settings.mb_ngen);
-        mrBayesTask = new ExternalToolRunTask(MRBAYES_TOOL_NAME, arguments, logParser);
+        mrBayesTask = new ExternalToolRunTask(ET_MRBAYES, arguments, logParser);
         mrBayesTask->setSubtaskProgressWeight(95);
         res.append(mrBayesTask);
     }else if(subTask == mrBayesTask){
         getTreeTask = new MrBayesGetCalculatedTreeTask(tmpNexusFile);
         getTreeTask->setSubtaskProgressWeight(5);
-        res.append(getTreeTask);  
+        res.append(getTreeTask);
     }else if(subTask == getTreeTask){
         PhyTreeObject* phyObj = getTreeTask->getPhyObject();
         assert(phyObj);
@@ -141,7 +149,15 @@ QList<Task*> MrBayesSupportTask::onSubTaskFinished(Task* subTask){
 
 MrBayesLogParser::MrBayesLogParser(int _nchains)
 :nchains(_nchains), isMCMCRunning(false), curProgress(0){
-    
+
+}
+void MrBayesLogParser::parseOutput(const QString& partOfLog){
+    lastPartOfLog=partOfLog.split(QChar('\n'));
+    lastPartOfLog.first()=lastLine+lastPartOfLog.first();
+    lastLine=lastPartOfLog.takeLast();
+    foreach(QString buf, lastPartOfLog){
+        ioLog.trace(buf);
+    }
 }
 void MrBayesLogParser::parseErrOutput(const QString& partOfLog){
     lastPartOfLog=partOfLog.split(QRegExp("(\n|\r)"));
@@ -153,7 +169,10 @@ void MrBayesLogParser::parseErrOutput(const QString& partOfLog){
             ||buf.contains(QRegExp("^-\\w"))
             ||buf.contains("No trees are sampled")){
                 algoLog.trace(buf);
+        }else if (buf.contains("lastError")){
+            //
         }else{
+
             algoLog.info(buf);
         }
     }
@@ -183,7 +202,7 @@ int MrBayesLogParser::getProgress(){
 
 MrBayesGetCalculatedTreeTask::MrBayesGetCalculatedTreeTask(const QString& url)
 :Task(tr("Generating output trees from MrBayes"), TaskFlags_NR_FOSCOE), baseFileName(url){
-   loadTmpDocumentTask = NULL; 
+   loadTmpDocumentTask = NULL;
 }
 
 void MrBayesGetCalculatedTreeTask::prepare(){
@@ -228,7 +247,8 @@ QList<Task*> MrBayesGetCalculatedTreeTask::onSubTaskFinished(Task* subTask){
         }
         phyObject = qobject_cast<PhyTreeObject*>( treeList.at(index) );
     }
-    
+
     return res;
 }
+
 }//namespace

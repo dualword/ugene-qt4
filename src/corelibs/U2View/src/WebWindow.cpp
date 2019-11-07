@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,8 +21,13 @@
 
 #include "WebWindow.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QVBoxLayout>
 #include <QtWebKit/QWebView>
+#else
+#include <QtWidgets/QVBoxLayout>
+#include <QtWebKitWidgets/QWebView>
+#endif
 
 namespace U2 {
 
@@ -34,6 +39,7 @@ WebWindow::WebWindow(const QString& title, const QString& content)
     setLayout(l);
 
     QWebView* textEdit = new QWebView(this);
+    textEdit->setContextMenuPolicy(Qt::NoContextMenu);
     textEdit->setHtml(content);
 
     l->addWidget(textEdit);

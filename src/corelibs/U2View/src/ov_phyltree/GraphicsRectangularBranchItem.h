@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,17 +31,19 @@ class PhyNode;
 class PhyBranch;
 class GraphicsButtonItem;
 
-class GraphicsRectangularBranchItem: public GraphicsBranchItem {
+class GraphicsRectangularBranchItem: public QObject, public GraphicsBranchItem {
+    Q_OBJECT
 public:
     static const qreal DEFAULT_WIDTH;
     static const qreal MAXIMUM_WIDTH;
     static const qreal EPSILON;
     static const int DEFAULT_HEIGHT;
-    
-    GraphicsRectangularBranchItem();
+
+
     GraphicsRectangularBranchItem(const QString& name, GraphicsRectangularBranchItem* pitem);
-    GraphicsRectangularBranchItem(qreal d);
-    GraphicsRectangularBranchItem(qreal x, qreal y, const QString& name, qreal d);
+    GraphicsRectangularBranchItem();
+    GraphicsRectangularBranchItem(qreal d, PhyBranch *branch, double nodeValue);
+    GraphicsRectangularBranchItem(qreal x, qreal y, const QString& name, qreal d, PhyBranch *branch);
     GraphicsRectangularBranchItem(qreal x, qreal y, const QString& name);
 
     QRectF boundingRect() const;
@@ -57,20 +59,24 @@ public:
     void setDirection(Direction d);
 
     void collapse();
+    void setCollapsed(bool isCollapsed) {collapsed = isCollapsed;}
     void swapSiblings();
-    void redrawBranches(int& current, qreal& minDistance, qreal& maxDistance, PhyNode* root);
+    void redrawBranches(int& current, qreal& minDistance, qreal& maxDistance, const PhyNode* root);
 
-    void setPhyBranch(PhyBranch* p) {phyBranch = p;}
     const PhyBranch* getPhyBranch() const {return phyBranch;}
+    GraphicsRectangularBranchItem* getChildItemByPhyBranch(const PhyBranch* branch);
+
+    void drawCollapsedRegion();
+    void branchCollapsed(GraphicsRectangularBranchItem* branch) {emit si_branchCollapsed(branch);}
+
+signals:
+    void si_branchCollapsed(GraphicsRectangularBranchItem* collapsedBranch);
 private:
     qreal height;
     int cur_height_coef;
     Direction direction;
     PhyBranch* phyBranch;
-
-    GraphicsRectangularBranchItem* getChildItemByPhyBranch(const PhyBranch* branch);
 };
-
 }//namespace;
 
 #endif

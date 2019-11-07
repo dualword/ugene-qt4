@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,44 +19,47 @@
  * MA 02110-1301, USA.
  */
 
-#include "PWMSearchDialogController.h"
-#include "PWMBuildDialogController.h"
-#include "PWMJASPARDialogController.h"
-#include "ViewMatrixDialogController.h"
-#include "SetParametersDialogController.h"
-#include "WeightMatrixSearchTask.h"
-#include "WeightMatrixAlgorithm.h"
-#include "WeightMatrixIO.h"
+#include <assert.h>
 
-#include <U2View/AnnotatedDNAView.h>
-#include <U2View/ADVSequenceObjectContext.h>
+#include <QFileInfo>
+#include <QListWidgetItem>
+#include <QMessageBox>
+#include <QPushButton>
 
 #include <U2Algorithm/PWMConversionAlgorithmRegistry.h>
 
-#include <U2Gui/CreateAnnotationDialog.h>
-#include <U2Gui/CreateAnnotationWidgetController.h>
-#include <U2Gui/LastUsedDirHelper.h>
-
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectUtils.h>
-
-#include <U2Core/DNATranslation.h>
-#include <U2Core/DNAAlphabet.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/CreateAnnotationTask.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/DNATranslation.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
 #include <U2Core/L10n.h>
-#include <U2Gui/GUIUtils.h>
 #include <U2Core/TextUtils.h>
-#include <U2Core/CreateAnnotationTask.h>
-#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
 
-#include <assert.h>
+#include <U2Gui/CreateAnnotationDialog.h>
+#include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
 
-#include <QtCore/QFileInfo>
-#include <QtGui/QMessageBox>
-#include <QtGui/QListWidgetItem>
-#include <QtGui/QFileDialog>
+#include <U2View/ADVSequenceObjectContext.h>
+#include <U2View/AnnotatedDNAView.h>
+
+#include "PWMBuildDialogController.h"
+#include "PWMJASPARDialogController.h"
+#include "PWMSearchDialogController.h"
+#include "SetParametersDialogController.h"
+#include "ViewMatrixDialogController.h"
+#include "WeightMatrixAlgorithm.h"
+#include "WeightMatrixIO.h"
+#include "WeightMatrixSearchTask.h"
 
 namespace U2 {
 
@@ -68,11 +71,11 @@ public:
         const WeightMatrixResultItem* o = (const WeightMatrixResultItem*)&other;
         int n = treeWidget()->sortColumn();
         switch (n) {
-            case 0 : 
+            case 0 :
                 return res.region.startPos < o->res.region.startPos;
             case 1:
                 return res.modelInfo < o->res.modelInfo;
-            case 2: 
+            case 2:
                 return res.strand != o->res.strand ? res.strand.isCompementary() :  (res.region.startPos < o->res.region.startPos);
             case 3:
                 return res.score < o->res.score;
@@ -89,7 +92,7 @@ public:
         const WeightMatrixQueueItem* o = (const WeightMatrixQueueItem*)&other;
         int n = treeWidget()->sortColumn();
         switch (n) {
-            case 0 : 
+            case 0 :
                 return res.modelName.split("/").last() < o->res.modelName.split("/").last();
             case 1 :
                 return res.minPSUM < o->res.minPSUM;
@@ -101,16 +104,25 @@ public:
 };
 
 
-/* TRANSLATOR U2::PWMSearchDialogController */ 
+/* TRANSLATOR U2::PWMSearchDialogController */
 
 PWMSearchDialogController::PWMSearchDialogController(ADVSequenceObjectContext* _ctx, QWidget *p):QDialog(p) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122386");
+    buttonBox->button(QDialogButtonBox::Yes)->setText(tr("Add to queue"));
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Search"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    pbSearch = buttonBox->button(QDialogButtonBox::Ok);
+    pbClose = buttonBox->button(QDialogButtonBox::Cancel);
+    queueButton = buttonBox->button(QDialogButtonBox::Yes);
+
     model = PWMatrix();
     intermediate = PFMatrix();
-    
+
     ctx = _ctx;
     task = NULL;
-    
+
     initialSelection = ctx->getSequenceSelection()->isEmpty() ? U2Region() : ctx->getSequenceSelection()->getSelectedRegions().first();
     int seqLen = ctx->getSequenceLength();
 
@@ -119,7 +131,7 @@ PWMSearchDialogController::PWMSearchDialogController(ADVSequenceObjectContext* _
 
     connectGUI();
     updateState();
-    
+
     scoreValueLabel->setText(QString("%1%").arg(scoreSlider->value()));
 
     QStringList algo = AppContext::getPWMConversionAlgorithmRegistry()->getAlgorithmIds();
@@ -128,6 +140,7 @@ PWMSearchDialogController::PWMSearchDialogController(ADVSequenceObjectContext* _
     pbSelectModelFile->setFocus();
     timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), SLOT(sl_onTimer()));
+
 }
 
 void PWMSearchDialogController::connectGUI() {
@@ -162,17 +175,17 @@ void PWMSearchDialogController::updateState() {
     bool hasCompl = ctx->getComplementTT()!=NULL;
 
     bool hasResults = resultsTree->topLevelItemCount() > 0;
-    
+
     pbSearch->setEnabled(!hasActiveTask);
-    
+
     pbSaveAnnotations->setEnabled(!hasActiveTask && hasResults);
     pbClear->setEnabled(!hasActiveTask && hasResults);
-    pbClose->setText(hasActiveTask ? tr("Cancel") : tr("Close"));  
+    pbClose->setText(hasActiveTask ? tr("Cancel") : tr("Close"));
 
     rbBoth->setEnabled(!hasActiveTask && hasCompl);
     rbDirect->setEnabled(!hasActiveTask);
     rbComplement->setEnabled(!hasActiveTask && hasCompl);
-    
+
     updateStatus();
 }
 
@@ -200,14 +213,14 @@ bool PWMSearchDialogController::eventFilter(QObject *obj, QEvent *ev) {
 
 void PWMSearchDialogController::sl_selectModelFile() {
     LastUsedDirHelper lod(WeightMatrixIO::WEIGHT_MATRIX_ID);
-    lod.url = QFileDialog::getOpenFileName(this, tr("Select file with frequency or weight matrix"), lod, 
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Select file with frequency or weight matrix"), lod,
          WeightMatrixIO::getAllMatrixFileFilter(false) + ";;" +
          WeightMatrixIO::getPFMFileFilter(false) + ";;" +
          WeightMatrixIO::getPWMFileFilter(true));
     if (lod.url.isEmpty()) {
         return;
     }
-    
+
     loadFile(lod.url);
 }
 
@@ -219,24 +232,29 @@ void PWMSearchDialogController::sl_onSaveAnnotations() {
     if (resultsTree->topLevelItemCount() == 0) {
         return;
     }
-    
+
     CreateAnnotationModel m;
     m.sequenceObjectRef = ctx->getSequenceObject();
     m.hideLocation = true;
+    m.useAminoAnnotationTypes = ctx->getAlphabet()->isAmino();
     m.sequenceLen = ctx->getSequenceObject()->getSequenceLength();
-    CreateAnnotationDialog d(this, m);
-    int rc = d.exec();
+    QObjectScopedPointer<CreateAnnotationDialog> d = new CreateAnnotationDialog(this, m);
+    const int rc = d->exec();
+    CHECK(!d.isNull(), );
+
     if (rc != QDialog::Accepted) {
         return;
     }
     const QString& name = m.data->name;
     QList<SharedAnnotationData> list;
-    for (int i=0, n = resultsTree->topLevelItemCount(); i<n; ++i) {
+    for (int i = 0, n = resultsTree->topLevelItemCount(); i<n; ++i) {
         WeightMatrixResultItem* item = static_cast<WeightMatrixResultItem* >(resultsTree->topLevelItem(i));
-        list.append(item->res.toAnnotation(name));
+        SharedAnnotationData data = item->res.toAnnotation(m.data->type, name);
+        U1AnnotationUtils::addDescriptionQualifier(data, m.description);
+        list.append(data);
     }
 
-    CreateAnnotationsTask* t = new CreateAnnotationsTask(m.getAnnotationObject(), m.groupName, list);
+    CreateAnnotationsTask* t = new CreateAnnotationsTask(m.getAnnotationObject(), list, m.groupName);
     AppContext::getTaskScheduler()->registerTopLevelTask(t);
 }
 
@@ -269,17 +287,18 @@ void PWMSearchDialogController::addToQueue() {
     QPair<PWMatrix, WeightMatrixSearchCfg> queueElement;
     queueElement.first = model;
     queueElement.second = cfg;
-    WeightMatrixQueueItem* item = new WeightMatrixQueueItem(cfg);
-    tasksTree->addTopLevelItem(item);
-    queue.append(queueElement);
-    model = PWMatrix();
-    intermediate = PFMatrix();
+    if(queue.contains(queueElement)){
+        QMessageBox::critical(this, L10N::errorTitle(), tr("Same model with same parameters already in the search queue"));
+    }else{
+        WeightMatrixQueueItem* item = new WeightMatrixQueueItem(cfg);
+        tasksTree->addTopLevelItem(item);
+        queue.append(queueElement);
+    }
 }
 
 void PWMSearchDialogController::reject() {
-    if (task!=NULL) {
+    if (task != NULL) {
         task->cancel();
-        return;
     }
     QDialog::reject();
 }
@@ -295,9 +314,12 @@ void PWMSearchDialogController::sl_onSliderMoved(int value) {
 }
 
 void PWMSearchDialogController::sl_onBuildMatrix() {
-    PWMBuildDialogController bd(this);
-    if (bd.exec() == QDialog::Accepted) {
-        loadFile(bd.outputEdit->text());
+    QObjectScopedPointer<PWMBuildDialogController> bd = new PWMBuildDialogController(this);
+    bd->exec();
+    CHECK(!bd.isNull(), );
+
+    if (bd->result() == QDialog::Accepted) {
+        loadFile(bd->outputEdit->text());
     }
 }
 
@@ -314,21 +336,26 @@ void PWMSearchDialogController::sl_onAlgoChanged(QString newAlgo){
 }
 
 void PWMSearchDialogController::sl_onSearchJaspar() {
-    PWMJASPARDialogController jd(this);
-    if (jd.exec() == QDialog::Accepted) {
-        if (QFile::exists(jd.fileName)) {
-            loadFile(jd.fileName);
+    QObjectScopedPointer<PWMJASPARDialogController> jd = new PWMJASPARDialogController(this);
+    jd->exec();
+    CHECK(!jd.isNull(), );
+
+    if (jd->result() == QDialog::Accepted) {
+        if (QFile::exists(jd->fileName)) {
+            loadFile(jd->fileName);
         }
     }
 }
 
 void PWMSearchDialogController::sl_onViewMatrix() {
     if (intermediate.getLength() != 0) {
-        ViewMatrixDialogController vd(intermediate, this);
-        vd.exec();
+        QObjectScopedPointer<ViewMatrixDialogController> vd = new ViewMatrixDialogController(intermediate, this);
+        vd->exec();
+        CHECK(!vd.isNull(), );
     } else if (model.getLength() != 0) {
-        ViewMatrixDialogController vd(model, this);
-        vd.exec();
+        QObjectScopedPointer<ViewMatrixDialogController> vd = new ViewMatrixDialogController(model, this);
+        vd->exec();
+        CHECK(!vd.isNull(), );
     } else {
         QMessageBox::information(this, L10N::warningTitle(), tr("Model not selected"));
     }
@@ -336,7 +363,7 @@ void PWMSearchDialogController::sl_onViewMatrix() {
 
 void PWMSearchDialogController::sl_onLoadList() {
     LastUsedDirHelper lod(WeightMatrixIO::WEIGHT_MATRIX_ID);
-    lod.url = QFileDialog::getOpenFileName(this, tr("Load file with list of matrices"), lod, tr("CSV files (*.csv)"));
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Load file with list of matrices"), lod, tr("CSV files (*.csv)"));
     if (lod.url.isEmpty()) {
         return;
     }
@@ -376,7 +403,7 @@ void PWMSearchDialogController::sl_onSaveList() {
         return;
     }
     LastUsedDirHelper lod(WeightMatrixIO::WEIGHT_MATRIX_ID);
-    lod.url = QFileDialog::getSaveFileName(this, tr("Save file with list of matrices"), lod, tr("CSV files (*.csv)"));
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Save file with list of matrices"), lod, tr("CSV files (*.csv)"));
     if (lod.url.isEmpty()) {
         return;
     }
@@ -403,7 +430,7 @@ void PWMSearchDialogController::sl_onClearQueue() {
 
 void PWMSearchDialogController::sl_onLoadFolder() {
     LastUsedDirHelper lod(WeightMatrixIO::WEIGHT_MATRIX_ID);
-    lod.dir = QFileDialog::getExistingDirectory(this, tr("Select directory with frequency or weight matrices"), lod);
+    lod.dir = U2FileDialog::getExistingDirectory(this, tr("Select directory with frequency or weight matrices"), lod);
     if (lod.dir.isEmpty()) {
         return;
     }
@@ -417,10 +444,13 @@ void PWMSearchDialogController::sl_onLoadFolder() {
     filter << "*." + WeightMatrixIO::FREQUENCY_MATRIX_EXT + ".gz";
     QStringList filelist = dir.entryList(filter, QDir::Files);
     if (filelist.size() > 0) {
-        SetParametersDialogController spc;
-        if (spc.exec() == QDialog::Accepted) {
-            scoreSlider->setSliderPosition(spc.scoreSlider->sliderPosition());
-            int index = algorithmCombo->findText(spc.algorithmComboBox->currentText());
+        QObjectScopedPointer<SetParametersDialogController> spc = new SetParametersDialogController;
+        spc->exec();
+        CHECK(!spc.isNull(), );
+
+        if (spc->result() == QDialog::Accepted) {
+            scoreSlider->setSliderPosition(spc->scoreSlider->sliderPosition());
+            int index = algorithmCombo->findText(spc->algorithmComboBox->currentText());
             if (index == -1) index = 0;
             algorithmCombo->setCurrentIndex(index);
         }
@@ -452,7 +482,7 @@ void PWMSearchDialogController::runTask() {
         return;
     }
 
-    
+
     DNATranslation* complTT = rbBoth->isChecked() || rbComplement->isChecked() ? ctx->getComplementTT() : NULL;
     bool complOnly = rbComplement->isChecked();
 
@@ -461,11 +491,11 @@ void PWMSearchDialogController::runTask() {
         queue[i].second.complOnly = complOnly;
     }
 
-    int len = reg.length;
-
     sl_onClearList();
 
-    QByteArray seq = ctx->getSequenceData(reg);
+    U2OpStatusImpl os;
+    QByteArray seq = ctx->getSequenceData(reg, os);
+    CHECK_OP_EXT(os, QMessageBox::warning(NULL, L10N::errorTitle(), os.getError()), );
 
     task = new WeightMatrixSearchTask(queue, seq, reg.startPos);
     connect(task, SIGNAL(si_stateChanged()), SLOT(sl_onTaskFinished()));
@@ -491,14 +521,14 @@ void PWMSearchDialogController::sl_onTimer() {
 
 void PWMSearchDialogController::importResults() {
     resultsTree->setSortingEnabled(false);
-    
+
     QList<WeightMatrixSearchResult> newResults = task->takeResults();
     foreach(const WeightMatrixSearchResult& r, newResults) {
         WeightMatrixResultItem* item  = new WeightMatrixResultItem(r);
         resultsTree->addTopLevelItem(item);
     }
     updateStatus();
-    
+
     resultsTree->setSortingEnabled(true);
 }
 
@@ -506,9 +536,8 @@ void PWMSearchDialogController::sl_onResultActivated(QTreeWidgetItem* i, int col
     Q_UNUSED(col);
     assert(i);
     WeightMatrixResultItem* item = static_cast<WeightMatrixResultItem*>(i);
-    DNASequenceSelection* sel = ctx->getSequenceSelection();
-    sel->clear();
-    sel->addRegion(item->res.region);
+
+    ctx->getSequenceSelection()->setRegion(item->res.region);
 }
 
 void PWMSearchDialogController::loadFile(QString filename) {
@@ -517,7 +546,7 @@ void PWMSearchDialogController::loadFile(QString filename) {
     PWMatrix m;
     intermediate = WeightMatrixIO::readPFMatrix(iof, filename, siPFM);
     if (siPFM.hasError()) {
-        TaskStateInfo siPWM;    
+        TaskStateInfo siPWM;
         m = WeightMatrixIO::readPWMatrix(iof, filename, siPWM);
         if (siPWM.hasError()) {
             QMessageBox::critical(this, L10N::errorTitle(), siPWM.getError());
@@ -544,7 +573,7 @@ void PWMSearchDialogController::loadFile(QString filename) {
 //////////////////////////////////////////////////////////////////////////
 /// tree
 
-WeightMatrixResultItem::WeightMatrixResultItem(const WeightMatrixSearchResult& r) : res(r) 
+WeightMatrixResultItem::WeightMatrixResultItem(const WeightMatrixSearchResult& r) : res(r)
 {
     setTextAlignment(0, Qt::AlignRight);
     setTextAlignment(1, Qt::AlignLeft);
@@ -553,17 +582,17 @@ WeightMatrixResultItem::WeightMatrixResultItem(const WeightMatrixSearchResult& r
     QString range = QString("%1..%2").arg(r.region.startPos + 1).arg(r.region.endPos());
     setText(0, range);
     setText(1, r.modelInfo);
-    QString strand = res.strand.isCompementary()? PWMSearchDialogController::tr("Complementary strand") : PWMSearchDialogController::tr("Direct strand") ;
+    QString strand = res.strand.isCompementary()? PWMSearchDialogController::tr("Reverse complement strand") : PWMSearchDialogController::tr("Direct strand") ;
     setText(2, strand);
     setText(3, QString::number(res.score, 'f', 2)+"%");
 }
 
-WeightMatrixQueueItem::WeightMatrixQueueItem(const WeightMatrixSearchCfg& r) : res(r) 
+WeightMatrixQueueItem::WeightMatrixQueueItem(const WeightMatrixSearchCfg& r) : res(r)
 {
     setTextAlignment(0, Qt::AlignLeft);
     setTextAlignment(1, Qt::AlignRight);
     setTextAlignment(2, Qt::AlignLeft);
-    
+
     setText(0, r.modelName.split("/").last());
     setText(1, QString::number(res.minPSUM)+"%");
     setText(2, r.algo);

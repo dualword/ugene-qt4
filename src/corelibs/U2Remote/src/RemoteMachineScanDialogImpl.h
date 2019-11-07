@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,12 @@
 #define _U2_REMOTE_MACHINE_SCAN_DIALOG_IMPL_H_
 
 #include <QtCore/QTimer>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 #include <U2Remote/RemoteMachine.h>
 #include <ui/ui_RemoteMachineScanDialog.h>
@@ -36,13 +41,13 @@ class RemoteMachineScanDialogImpl : public QDialog, public Ui::RemoteMachineScan
     Q_OBJECT
 public:
     static const int SCAN_UPDATE_TIME = 500; /* 0.5 seconds */
-    
+
 public:
     RemoteMachineScanDialogImpl();
     ~RemoteMachineScanDialogImpl();
-    
+
     RemoteMachineScanDialogModel getModel() const;
-    
+
 private:
     void addMachines( const QList< RemoteMachineSettings* > newMachines );
     void addMachine( RemoteMachineSettings * machine );
@@ -50,18 +55,18 @@ private:
     void cleanup();
     bool hasSameMachineInTheList( RemoteMachineSettings* ) const;
     void resizeTable();
-    
+
 private slots:
     void sl_cancelPushButtonClicked();
     void sl_okPushButtonClicked();
     void sl_startScan( const QString & protoId );
     void sl_updatePushButtonClicked();
-    
+
 private:
     RemoteMachineScanDialogModel        model; /* machines by order as in the table */
     QList< RemoteMachineScanner * >     runningScanners;
     QTimer                              updateTimer;
-    
+
 }; // RemoteMachineScanDialogImpl
 
 } // U2

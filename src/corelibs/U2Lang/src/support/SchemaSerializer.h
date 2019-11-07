@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,24 +42,22 @@ public:
     // old schemas support
     static const QMap<QString, QString> ELEM_TYPES_MAP;
     static QString getElemType(const QString & t);
-    
+
     static const QString WORKFLOW_DOC;
     static void readConfiguration(Configuration*, const QDomElement& );
     static void readParamAliases( QMap<QString, QString> &, const QDomElement& );
-    static void saveIterations(const QList<Iteration>&, QDomElement& );
-    static void readIterations(QList<Iteration>&, const QDomElement&,const QMap<ActorId, ActorId>&);
     static QDomElement saveActor(const Actor*, QDomElement&);
     static QDomElement savePort(const Port*, QDomElement&);
     static QDomElement saveLink(const Link*, QDomElement&);
     static QString readMeta(Metadata* meta, const QDomElement& proj);
     static void updatePortBindings(const QList<Actor*> & procs);
-    
+
     static void schema2xml(const Schema& scema, QDomDocument& xml);
-    static QString xml2schema(const QDomElement& projectElement, Schema* schema, QMap<ActorId, ActorId>& remapping, bool stopOnErrors = true); 
-    
+    static QString xml2schema(const QDomElement& projectElement, Schema* schema, QMap<ActorId, ActorId>& remapping, bool stopOnErrors = true);
+
 private:
     static QMap<QString, QString> initElemTypesMap();
-    
+
 }; // SchemaSerializer
 
 } //namespace Workflow

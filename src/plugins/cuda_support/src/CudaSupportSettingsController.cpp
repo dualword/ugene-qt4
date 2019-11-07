@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,16 @@
  * MA 02110-1301, USA.
  */
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
 #include <QtGui/QLayout>
 #include <QtGui/QCheckBox>
+#else
+#include <QtWidgets/QLabel>
+#include <QtGui/QLayout>
+#include <QtGui/QCheckBox>
+#endif
 
 #include <U2Core/AppContext.h>
 #include <U2Algorithm/CudaGpuRegistry.h>
@@ -34,6 +41,8 @@ namespace U2 {
 CudaSupportSettingsPageController::CudaSupportSettingsPageController( const QString & _displayMsg, QObject * p /* = 0 */ ) :
 AppSettingsGUIPageController( tr("CUDA"), CudaSupportSettingsPageId, p ), displayMsg(_displayMsg) {}
 
+const QString CudaSupportSettingsPageController::helpPageId = QString("444");
+
 AppSettingsGUIPageState * CudaSupportSettingsPageController::getSavedState() {
     QList<CudaGpuModel *> registeredGpus = AppContext::getCudaGpuRegistry()->getRegisteredGpus();
     CudaSupportSettingsPageState * s = new CudaSupportSettingsPageState( registeredGpus.size() );
@@ -41,7 +50,7 @@ AppSettingsGUIPageState * CudaSupportSettingsPageController::getSavedState() {
         s->enabledGpus[i] = registeredGpus.at(i)->isEnabled();
     }
 
-    return s;    
+    return s;
 }
 
 void CudaSupportSettingsPageController::saveState( AppSettingsGUIPageState * _s ) {
@@ -55,9 +64,9 @@ void CudaSupportSettingsPageController::saveState( AppSettingsGUIPageState * _s 
 
     //increasing/decreasing maxuse of according resource
     int totalEnabled = s->enabledGpus.count(true);
-    AppResource * gpuResource = AppResourcePool::instance()->getResource( RESOURCE_CUDA_GPU );
+    AppResourceSemaphore* gpuResource = dynamic_cast<AppResourceSemaphore*>(AppResourcePool::instance()->getResource( RESOURCE_CUDA_GPU ));
     if( gpuResource ) {
-        gpuResource->maxUse = totalEnabled;
+        gpuResource->setMaxUse(totalEnabled);
     } //else - resource was not registered, nothing to do.
 }
 
@@ -72,14 +81,14 @@ CudaSupportSettingsPageState::CudaSupportSettingsPageState( int num_gpus ) {
     enabledGpus.resize( num_gpus );
 }
 
-const static char * gpusDiscoveredText = 
+const static char * gpusDiscoveredText =
     "The following CUDA-enabled GPUs are detected.<br>\
     Check the GPUs to use for accelerating algorithms computations.";
 
 const static char * noGpusDiscoveredText = "No CUDA-enabled GPU detected.";
 
 CudaSupportSettingsPageWidget::CudaSupportSettingsPageWidget( const QString & _msg, CudaSupportSettingsPageController * /*ctrl*/ ) :
-onlyMsg(_msg){    
+onlyMsg(_msg){
 
     if( !onlyMsg.isEmpty() ) {
         //just display the centered warning message
@@ -95,7 +104,7 @@ onlyMsg(_msg){
         //everything is OK - adding info about all available GPUs
 
         QVBoxLayout * vLayout = new QVBoxLayout(this);
-                    
+
         QList<CudaGpuModel *> gpus = AppContext::getCudaGpuRegistry()->getRegisteredGpus();
         const QString & actualText = gpus.empty() ? tr(noGpusDiscoveredText) : tr(gpusDiscoveredText);
         QLabel * gpusDiscoveredLabel = new QLabel( actualText, this );
@@ -105,7 +114,7 @@ onlyMsg(_msg){
             vLayout->setAlignment( Qt::AlignLeft | Qt::AlignTop );
             QHBoxLayout * hLayout = new QHBoxLayout(this);
 
-            QString gpuText = m->getName() + " " + QString::number(m->getGlobalMemorySizeBytes() / (1024*1024)) + " Mb"; 
+            QString gpuText = m->getName() + " " + QString::number(m->getGlobalMemorySizeBytes() / (1024*1024)) + " Mb";
             QCheckBox * check = new QCheckBox( gpuText, this );
 
             check->setChecked(true);
@@ -115,7 +124,7 @@ onlyMsg(_msg){
             vLayout->addLayout( hLayout );
         }
         setLayout(vLayout);
-    }    
+    }
 }
 
 void CudaSupportSettingsPageWidget::setState( AppSettingsGUIPageState * _state ) {

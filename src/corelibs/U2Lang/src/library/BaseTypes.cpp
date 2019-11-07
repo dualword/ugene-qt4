@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,10 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Lang/Dataset.h>
+#include <U2Lang/URLContainer.h>
 #include <U2Lang/WorkflowEnv.h>
+#include <U2Lang/WorkflowUtils.h>
 
 #include "BaseTypes.h"
 
@@ -29,9 +32,13 @@ static const QString DNA_SEQUENCE_TYPE_ID("seq");
 static const QString ANNOTATION_TABLE_LIST_TYPE_ID("ann-table-list");
 static const QString ANNOTATION_TABLE_TYPE_ID("ann_table");
 static const QString MULTIPLE_ALIGNMENT_TYPE_ID("malignment");
+static const QString VARIATION_TRACK_TYPE_ID("variation");
+static const QString ASSEMBLY_TYPE_ID("assembly");
 static const QString STRING_TYPE_ID("string");
+static const QString STRING_LIST_TYPE_ID("string-list");
 static const QString BOOL_TYPE_ID("bool");
 static const QString NUM_TYPE_ID("number");
+static const QString URL_DATASETS_TYPE_ID("url-datasets");
 static const QString ANY_TYPE_ID("void");
 
 using namespace Workflow;
@@ -82,6 +89,28 @@ DataTypePtr BaseTypes::MULTIPLE_ALIGNMENT_TYPE() {
     return dtr->getById(MULTIPLE_ALIGNMENT_TYPE_ID);
 }
 
+DataTypePtr BaseTypes::VARIATION_TRACK_TYPE() {
+    DataTypeRegistry* dtr = WorkflowEnv::getDataTypeRegistry();
+    assert(dtr);
+    static bool startup = true;
+    if (startup) {
+        dtr->registerEntry(DataTypePtr(new DataType(VARIATION_TRACK_TYPE_ID, tr("Variation track"), tr("Set of variations"))));
+        startup = false;
+    }
+    return dtr->getById(VARIATION_TRACK_TYPE_ID);
+}
+
+DataTypePtr BaseTypes::ASSEMBLY_TYPE() {
+    DataTypeRegistry* dtr = WorkflowEnv::getDataTypeRegistry();
+    assert(dtr);
+    static bool startup = true;
+    if (startup) {
+        dtr->registerEntry(DataTypePtr(new DataType(ASSEMBLY_TYPE_ID, tr("Assembly data"), tr("Assembly data"))));
+        startup = false;
+    }
+    return dtr->getById(ASSEMBLY_TYPE_ID);
+}
+
 DataTypePtr BaseTypes::STRING_TYPE() {
     DataTypeRegistry* dtr = WorkflowEnv::getDataTypeRegistry();
     assert(dtr);
@@ -92,6 +121,18 @@ DataTypePtr BaseTypes::STRING_TYPE() {
         startup = false;
     }
     return dtr->getById(STRING_TYPE_ID);
+}
+
+DataTypePtr BaseTypes::STRING_LIST_TYPE() {
+    DataTypeRegistry* dtr = WorkflowEnv::getDataTypeRegistry();
+    assert(dtr);
+    static bool startup = true;
+    if (startup)
+    {
+        dtr->registerEntry(DataTypePtr(new ListDataType(STRING_LIST_TYPE_ID, BaseTypes::STRING_TYPE())));
+        startup = false;
+    }
+    return dtr->getById(STRING_LIST_TYPE_ID);
 }
 
 DataTypePtr BaseTypes::BOOL_TYPE() {
@@ -128,6 +169,55 @@ DataTypePtr BaseTypes::ANY_TYPE() {
         startup = false;
     }
     return dtr->getById(ANY_TYPE_ID);
+}
+
+DataTypePtr BaseTypes::URL_DATASETS_TYPE() {
+    DataTypeRegistry* dtr = WorkflowEnv::getDataTypeRegistry();
+    assert(dtr);
+    static bool startup = true;
+    if (startup)
+    {
+        dtr->registerEntry(DataTypePtr(new DataType(URL_DATASETS_TYPE_ID, tr("Url datasets"), tr("A list of urls grouped into datasets"))));
+        startup = false;
+    }
+    return dtr->getById(URL_DATASETS_TYPE_ID);
+}
+
+U2DataType BaseTypes::toDataType(const QString &typeId) {
+    if (typeId == DNA_SEQUENCE_TYPE()->getId()) {
+        return U2Type::Sequence;
+    } else if (typeId == ANNOTATION_TABLE_TYPE()->getId()) {
+        return U2Type::AnnotationTable;
+    } else if (typeId == MULTIPLE_ALIGNMENT_TYPE()->getId()) {
+        return U2Type::Msa;
+    } else if (typeId == VARIATION_TRACK_TYPE()->getId()) {
+        return U2Type::VariantTrack;
+    } else if (typeId == ASSEMBLY_TYPE()->getId()) {
+        return U2Type::Assembly;
+    } else if (typeId == STRING_TYPE()->getId()) {
+        return U2Type::Text;
+    } else {
+        return U2Type::Unknown;
+    }
+}
+
+QString BaseTypes::toTypeId(const U2DataType &dataType) {
+    switch (dataType) {
+    case U2Type::Sequence :
+        return DNA_SEQUENCE_TYPE()->getId();
+    case U2Type::AnnotationTable :
+        return ANNOTATION_TABLE_TYPE()->getId();
+    case U2Type::Msa :
+        return MULTIPLE_ALIGNMENT_TYPE()->getId();
+    case U2Type::VariantTrack :
+        return VARIATION_TRACK_TYPE()->getId();
+    case U2Type::Assembly :
+        return ASSEMBLY_TYPE()->getId();
+    case U2Type::Text :
+        return STRING_TYPE()->getId();
+    default:
+        return ANY_TYPE()->getId();
+    }
 }
 
 static void setIfNotNull( bool * to, bool val ) {
@@ -173,6 +263,13 @@ QVariant BoolTypeValueFactory::getValueFromString( const QString & s, bool * ok 
 ****************************************/
 QVariant NumTypeValueFactory::getValueFromString( const QString & str, bool * okArg ) const {
     bool ok = false;
+
+    qint64 longIntCandidate = str.toLongLong(&ok);
+    if(ok) {
+        setIfNotNull(okArg, true);
+        return qVariantFromValue(longIntCandidate);
+    }
+
     int intCandidate = str.toInt(&ok);
     if(ok) {
         setIfNotNull(okArg, true);
@@ -187,6 +284,31 @@ QVariant NumTypeValueFactory::getValueFromString( const QString & str, bool * ok
 
     setIfNotNull(okArg, false);
     return QVariant();
+}
+
+/************************************************************************/
+/* UrlTypeValueFactory */
+/************************************************************************/
+QVariant UrlTypeValueFactory::getValueFromString(const QString &str, bool *ok) const {
+    const QString splitter = WorkflowUtils::getDatasetSplitter(str);
+    QStringList datasetStrs = str.split(splitter+splitter, QString::SkipEmptyParts);
+    QList<Dataset> sets;
+    int count = 0;
+    foreach (const QString &datasetStr, datasetStrs) {
+        QStringList urls = datasetStr.split(splitter, QString::SkipEmptyParts);
+        count++;
+        Dataset dSet(QString("Dataset %1").arg(count));
+        foreach (const QString url, urls) {
+            dSet.addUrl(URLContainerFactory::createUrlContainer(url));
+        }
+        sets << dSet;
+    }
+    *ok = true;
+    return qVariantFromValue< QList<Dataset> >(sets);
+}
+
+QString UrlTypeValueFactory::getId() const {
+    return BaseTypes::URL_DATASETS_TYPE()->getId();
 }
 
 } // U2

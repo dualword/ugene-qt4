@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,11 @@
 
 #include <U2Core/global.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 #include <ui/ui_ExportSequencesDialog.h>
 
 namespace U2 {
@@ -34,13 +38,16 @@ class SaveDocumentGroupController;
 class ExportSequencesDialog : public QDialog, Ui_ExportSequencesDialog {
     Q_OBJECT
 public:
-    ExportSequencesDialog(bool multiMode, bool allowComplement, bool allowTranslation, bool allowBackTranslation, const QString& defaultFileName, const DocumentFormatId& f, QWidget* p);
+    ExportSequencesDialog(bool multiMode, bool allowComplement, bool allowTranslation,
+        bool allowBackTranslation, const QString &defaultFileName, const QString &sourceFileBaseName,
+        const DocumentFormatId &f, QWidget *p);
 
     void updateModel();
     bool multiMode;
     DocumentFormatId formatId;
     QString file;
-    
+    QString sequenceName;
+
     TriState strand;//Yes-> direct, No->complement, Unkn -> both
     bool translate;
     bool translateAllFrames;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ namespace U2 {
 class BlastAllSupportRunDialog : public BlastRunCommonDialog {
     Q_OBJECT
 public:
-    BlastAllSupportRunDialog(U2SequenceObject* dnaso, QString &_lastDBPath, QString &_lastDBName, QWidget* parent);
+    BlastAllSupportRunDialog(U2SequenceObject *dnaso, QString &lastDBPath, QString &lastDBName, QWidget *parent);
 protected slots:
     virtual void sl_runQuery();
     virtual void sl_lineEditChanged();
@@ -44,12 +44,14 @@ private:
     U2SequenceObject*  dnaso;
     QString &lastDBPath;
     QString &lastDBName;
+    QPushButton* okButton;
+    QPushButton* cancelButton;
 };
 
 class BlastAllWithExtFileSpecifySupportRunDialog : public BlastRunCommonDialog {
     Q_OBJECT
 public:
-    BlastAllWithExtFileSpecifySupportRunDialog(QString &_lastDBPath, QString &_lastDBName, QWidget* parent);
+    BlastAllWithExtFileSpecifySupportRunDialog(QString &lastDBPath, QString &lastDBName, QWidget *parent);
     const QList<BlastTaskSettings> &getSettingsList() const;
 protected slots:
     void sl_runQuery();
@@ -58,8 +60,12 @@ private slots:
     void sl_cancel();
 
     void sl_inputFileLineEditChanged(const QString& str);
-    void sl_inputFileLoadTaskStateChanged();
+    void sl_inputFileOpened();
 private:
+    void tryApplyDoc(Document *doc);
+    void onFormatError();
+    void loadDoc(const QString &url);
+
     FileLineEdit*   inputFileLineEdit;
     bool            wasNoOpenProject;
 
@@ -67,6 +73,9 @@ private:
     QList<GObjectReference>     sequencesRefList;
     QString &lastDBPath;
     QString &lastDBName;
+    QPushButton* okButton;
+    QPushButton* cancelButton;
+    bool hasValidInput;
 };
 }//namespace
 #endif // _U2_BLASTALL_SUPPORT_RUN_DIALOG_H

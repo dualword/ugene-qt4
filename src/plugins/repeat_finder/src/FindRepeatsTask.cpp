@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,27 +19,26 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/AppContext.h>
+#include <U2Core/Counter.h>
+#include <U2Core/CreateAnnotationTask.h>
+#include <U2Core/DNATranslation.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/TextUtils.h>
+#include <U2Core/Timer.h>
+#include <U2Core/U1AnnotationUtils.h>
+
 #include "FindRepeatsTask.h"
 #include "RFBase.h"
-#include "RFDiagonal.h"
 #include "RFConstants.h"
+#include "RFDiagonal.h"
 #include "RF_SArray_TandemFinder.h"
-
-#include <U2Core/AppContext.h>
-#include <U2Core/DNATranslation.h>
-#include <U2Core/Log.h>
-#include <U2Core/Timer.h>
-#include <U2Core/Counter.h>
-
-#include <U2Core/GObjectUtils.h>
-
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/CreateAnnotationTask.h>
-#include <U2Core/TextUtils.h>
 
 namespace U2 {
 
-RevComplSequenceTask::RevComplSequenceTask(const DNASequence& s, const U2Region& reg) 
+RevComplSequenceTask::RevComplSequenceTask(const DNASequence& s, const U2Region& reg)
 : Task(tr("Reverse complement sequence"), TaskFlag_None), sequence(s), region(reg)
 {
 }
@@ -54,7 +53,7 @@ void RevComplSequenceTask::run() {
     complementSequence.seq.resize(region.length);
     const char* src = sequence.constData();
     char* dst = complementSequence.seq.data();
-    
+
     complT->translate(src + region.startPos, region.length, dst, region.length);
     TextUtils::reverse(dst, region.length);
 }
@@ -64,11 +63,11 @@ void RevComplSequenceTask::cleanup() {
     complementSequence.seq.clear();
 }
 
-FindRepeatsTask::FindRepeatsTask(const FindRepeatsTaskSettings& s, const DNASequence& seq, const DNASequence& seq2) 
+FindRepeatsTask::FindRepeatsTask(const FindRepeatsTaskSettings& s, const DNASequence& seq, const DNASequence& seq2)
 : Task(tr("Find repeats in a single sequence"), TaskFlags_FOSCOE), settings(s),
 seq1(seq), seq2(seq2), tandemTask1(NULL), tandemTask2(NULL)
 {
-    GCOUNTER( cvar, tvar, "FindRepeatsTask" );
+    GCOUNTER(cvar, tvar, "FindRepeatsTask");
     if (settings.seqRegion.length == 0) {
         settings.seqRegion= U2Region(0, seq1.length());
     }
@@ -107,7 +106,7 @@ void FindRepeatsTask::prepare() {
 Task *FindRepeatsTask::createRepeatFinderTask() {
     if (settings.inverted) {
         stateInfo.setDescription(tr("Rev-complementing sequence"));
-        assert(seq1.alphabet->isNucleic());
+        assert(seq1.alphabet && seq1.alphabet->isNucleic());
         revComplTask = new RevComplSequenceTask(seq1, settings.seqRegion);
         revComplTask->setSubtaskProgressWeight(0);
         return revComplTask;
@@ -170,10 +169,20 @@ RFAlgorithmBase* FindRepeatsTask::createRFTask() {
     return t;
 }
 
-void FindRepeatsTask::run() {
-    if (settings.filterNested) {
-        stateInfo.setDescription(tr("Filtering nested results"));
-        filterNestedRepeats();
+void FindRepeatsTask::run()
+{
+    if (settings.filter != NoFiltering)
+    {
+        if (settings.filter == UniqueRepeats)
+        {
+            stateInfo.setDescription(tr("Filtering unique results"));
+            filterUniqueRepeats();
+        }
+        if (settings.filter == DisjointRepeats)
+        {
+            stateInfo.setDescription(tr("Filtering nested results"));
+            filterNestedRepeats();
+        }
     }
 }
 
@@ -187,11 +196,58 @@ Task::ReportResult FindRepeatsTask::report() {
     return ReportResult_Finished;
 }
 
+bool CompareResultLen(RFResult r1, RFResult r2)
+{
+    return r1.l < r2.l;
+}
+
+void FindRepeatsTask::filterUniqueRepeats()
+{
+    quint64 t1 = GTimer::currentTimeMicros();
+
+    qSort(results.begin(), results.end(), CompareResultLen);
+
+    bool changed = false;
+    for (int i=0, n = results.size(); i < n; i++)
+    {
+        RFResult& ri = results[i];
+
+        for (int j = i+1; j < results.size(); j++)
+        {
+            int Index = results[j].fragment.indexOf(ri.fragment);
+            if (Index != -1)
+            {
+                changed = true;
+                ri.l = -1;
+                break;
+            }
+        }
+    }
+    int nBefore = results.size();
+    if (changed)
+    {
+        QVector<RFResult> prev = results;
+        results.clear();
+        foreach(const RFResult& r, prev)
+        {
+            if (r.l!=-1)
+            {
+                results.append(r);
+            }
+        }
+    }
+    int nAfter = results.size();
+    quint64 t2 = GTimer::currentTimeMicros();
+    perfLog.details(tr("Unique repeats filtering time %1 sec, results before: %2, filtered: %3, after %4")
+        .arg(double((t2-t1))/(1000*1000)).arg(nBefore).arg(nBefore - nAfter).arg(nAfter));
+}
+
 void FindRepeatsTask::filterNestedRepeats() {
     //if one repeats fits into another repeat -> filter it
     quint64 t1 = GTimer::currentTimeMicros();
 
     qSort(results);
+
     bool changed = false;
     int extraLen = settings.mismatches; //extra len added to repeat region to search for duplicates
     for (int i=0, n = results.size(); i < n; i++) {
@@ -202,7 +258,7 @@ void FindRepeatsTask::filterNestedRepeats() {
         for (int j=i+1; j < n; j++) {
             RFResult& rj = results[j];
             assert(rj.x >= ri.x);
-            if (rj.l == -1) {//was filtered 
+            if (rj.l == -1) {//was filtered
                 continue;
             }
             if (rj.x > ri.x + ri.l) { //no more intersection will found with later repeats in first region
@@ -252,7 +308,8 @@ void FindRepeatsTask::cleanup() {
     results.clear();
 }
 
-void FindRepeatsTask::addResult(const RFResult& r) {
+void FindRepeatsTask::addResult(const RFResult& r)
+{
     int x = r.x + settings.seqRegion.startPos;
     int y = settings.inverted ? settings.seqRegion.endPos() - r.y - r.l : r.y + settings.seq2Region.startPos;
     int l = r.l;
@@ -261,18 +318,30 @@ void FindRepeatsTask::addResult(const RFResult& r) {
     assert(y >= settings.seq2Region.startPos && y + r.l <= settings.seq2Region.endPos());
 
     int dist = qAbs(x - y) - l;
-    if (dist < settings.minDist || dist > settings.maxDist) {
-        // dist < 0 -> overlapping repeat. Try to reduce its length to fit min/max constraints if possible
-        if (dist < 0) { 
-            // match if prefixes fits dist
-            int plen = qAbs(x - y) - settings.minDist;
-            if (plen  >= settings.minLen) {
-                _addResult(x, y, plen, plen);
+    if (dist < settings.minDist || dist > settings.maxDist)
+    {
+        if (dist < 0)
+        {
+            if (settings.filter == DisjointRepeats)
+            {
+                // dist < 0 -> overlapping repeat. Try to reduce its length to fit min/max constraints if possible
+
+                // match if prefixes fits dist
+                int plen = qAbs(x - y) - settings.minDist;
+                if (plen  >= settings.minLen)
+                {
+                    _addResult(x, y, plen, plen);
+                }
+                // match if suffixes fits dist
+                int dlen = settings.minDist - dist;
+                if (l - dlen >= settings.minLen)
+                {
+                    _addResult(x + dlen, y + dlen, l - dlen, l - dlen);
+                }
             }
-            // match if suffixes fits dist
-            int dlen = settings.minDist - dist;
-            if (l - dlen >= settings.minLen) {
-                _addResult(x + dlen, y + dlen, l - dlen, l - dlen);
+            else
+            {
+                _addResult(x, y, l, c);
             }
         }
         return;
@@ -280,11 +349,19 @@ void FindRepeatsTask::addResult(const RFResult& r) {
     _addResult(x, y, l, c);
 }
 
-void FindRepeatsTask::_addResult(int x, int y, int l, int c) {
-    if (settings.reportReflected || x <= y) {
-        results.append(RFResult(x, y, l, c));
-    } else {
-        results.append(RFResult(y, x, l, c));
+void FindRepeatsTask::_addResult(int x, int y, int l, int c)
+{
+    const QByteArray& locDNA = seq1.constSequence();
+
+    if (settings.reportReflected || x <= y)
+    {
+        QString locFragment = QString(locDNA.mid(x,l));
+        results.append(RFResult(x, y, l, c, locFragment));
+    }
+    else
+    {
+        QString locFragment = QString(locDNA.mid(y,l));
+        results.append(RFResult(y, x, l, c, locFragment));
     }
 }
 
@@ -315,7 +392,10 @@ void FindRepeatsTask::onResults(const QVector<RFResult>& results) {
 bool FindRepeatsTask::isFilteredByRegions(const RFResult& r) {
     int x1 = r.x + settings.seqRegion.startPos;
     int y1 = settings.inverted ? settings.seqRegion.endPos() - r.y - 1 : r.y + settings.seqRegion.startPos;
-    
+
+    x1 += settings.reportSeqShift;
+    y1 += settings.reportSeq2Shift;
+
     if (x1 > y1) {
         qSwap(x1, y1);
     }
@@ -335,7 +415,7 @@ bool FindRepeatsTask::isFilteredByRegions(const RFResult& r) {
             return true;
         }
     }
-    
+
     //check mid range excludes
     if (!settings.midRegionsToExclude.isEmpty()) {
         foreach(const U2Region& r, settings.midRegionsToExclude) {
@@ -344,8 +424,8 @@ bool FindRepeatsTask::isFilteredByRegions(const RFResult& r) {
             }
         }
     }
-    
-    //check allowed regions 
+
+    //check allowed regions
     if (!settings.allowedRegions.isEmpty()) {
         bool checkOk = false;
         foreach(const U2Region& r, settings.allowedRegions) {
@@ -361,13 +441,13 @@ bool FindRepeatsTask::isFilteredByRegions(const RFResult& r) {
     return false;
 }
 
-FindRepeatsToAnnotationsTask::FindRepeatsToAnnotationsTask(const FindRepeatsTaskSettings& s, const DNASequence& seq, 
-                             const QString& _an, const QString& _gn, const GObjectReference& _aor)
-: Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), annName(_an), annGroup(_gn), annObjRef(_aor), findTask(NULL), settings(s)
+FindRepeatsToAnnotationsTask::FindRepeatsToAnnotationsTask(const FindRepeatsTaskSettings& s, const DNASequence& seq,
+                             const QString& _an, const QString& _gn, const QString &annDescription, const GObjectReference& _aor)
+: Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), annName(_an), annGroup(_gn), annDescription(annDescription), annObjRef(_aor), findTask(NULL), settings(s)
 {
     setVerboseLogMode(true);
     if (annObjRef.isValid()) {
-        LoadUnloadedDocumentTask::addLoadingSubtask(this, 
+        LoadUnloadedDocumentTask::addLoadingSubtask(this,
             LoadDocumentTaskConfig(true, annObjRef, new LDTObjectFactory(this)));
     }
     findTask = new FindRepeatsTask(s, seq, seq);
@@ -384,7 +464,7 @@ QList<Task*> FindRepeatsToAnnotationsTask::onSubTaskFinished(Task* subTask) {
         QList<SharedAnnotationData> annotations = importAnnotations();
         if (!annotations.isEmpty()) {
             algoLog.info(tr("Found %1 repeat regions").arg(annotations.size()));
-            Task* createTask = new CreateAnnotationsTask(annObjRef, annGroup, annotations);
+            Task* createTask = new CreateAnnotationsTask(annObjRef, annotations, annGroup);
             createTask->setSubtaskProgressWeight(0);
             res.append(createTask);
         }
@@ -394,11 +474,12 @@ QList<Task*> FindRepeatsToAnnotationsTask::onSubTaskFinished(Task* subTask) {
 
 QList<SharedAnnotationData> FindRepeatsToAnnotationsTask::importAnnotations() {
     QList<SharedAnnotationData> res;
-    foreach(const RFResult& r, findTask->getResults()) {
-        SharedAnnotationData ad(new AnnotationData());
+    foreach (const RFResult &r, findTask->getResults()) {
+        SharedAnnotationData ad(new AnnotationData);
+        ad->type = U2FeatureTypes::RepeatRegion;
         ad->name = annName;
-        U2Region l1(r.x, r.l);
-        U2Region l2(r.y, r.l);
+        U2Region l1(r.x + settings.reportSeqShift, r.l);
+        U2Region l2(r.y + settings.reportSeq2Shift, r.l);
         if (l1.startPos <= l2.startPos) {
             ad->location->regions << l1 << l2;
         } else {
@@ -409,9 +490,10 @@ QList<SharedAnnotationData> FindRepeatsToAnnotationsTask::importAnnotations() {
             ad->qualifiers.append(U2Qualifier("rpt_type", "inverted"));
         }
         ad->qualifiers.append(U2Qualifier("repeat_len", QString::number(r.l)));
-            ad->qualifiers.append(U2Qualifier("repeat_dist", QString::number(dist)));
-            ad->qualifiers.append(U2Qualifier("repeat_homology(%)", QString::number(settings.getIdentity(r.l - r.c))));
-        
+        ad->qualifiers.append(U2Qualifier("repeat_dist", QString::number(dist)));
+        ad->qualifiers.append(U2Qualifier("repeat_homology(%)", QString::number(settings.getIdentity(r.l - r.c, r.l))));
+        U1AnnotationUtils::addDescriptionQualifier(ad, annDescription);
+
         res.append(ad);
     }
     return res;

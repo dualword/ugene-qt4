@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ VirtualOffset Index::ReferenceIndex::Chunk::getEnd()const {
     return end;
 }
 
-// Index::ReferenceIndex::Bin 
+// Index::ReferenceIndex::Bin
 
 Index::ReferenceIndex::Bin::Bin(unsigned int _bin, QList<Chunk> _chunks) : bin(_bin), chunks(_chunks) {}
 

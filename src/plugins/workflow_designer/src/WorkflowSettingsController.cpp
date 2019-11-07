@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,21 +19,22 @@
  * MA 02110-1301, USA.
  */
 
+#include <QColorDialog>
+#include <QFileDialog>
+#include <QMouseEvent>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/Version.h>
+
+#include <U2Lang/WorkflowSettings.h>
+
 #include "WorkflowSettingsController.h"
 #include "WorkflowViewController.h"
 #include "WorkflowViewItems.h"
 
-#include <U2Lang/WorkflowSettings.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/Version.h>
-
-#include <QtGui/QMouseEvent>
-#include <QtGui/QFileDialog>
-#include <QtGui/QColorDialog>
-
 namespace U2 {
 
-WorkflowSettingsPageController::WorkflowSettingsPageController(QObject* p) 
+WorkflowSettingsPageController::WorkflowSettingsPageController(QObject* p)
 : AppSettingsGUIPageController(tr("Workflow Designer"), WorkflowSettingsPageId, p) {}
 
 
@@ -42,13 +43,14 @@ AppSettingsGUIPageState* WorkflowSettingsPageController::getSavedState() {
     state->showGrid = WorkflowSettings::showGrid();
     state->snap2grid = WorkflowSettings::snap2Grid();
     state->lockRun = WorkflowSettings::monitorRun();
-    //state->failFast = WorkflowSettings::failFast();
+    state->enableDebugger = WorkflowSettings::isDebuggerEnabled();
     state->style = WorkflowSettings::defaultStyle();
     state->font = WorkflowSettings::defaultFont();
     state->path = WorkflowSettings::getUserDirectory();
     state->color = WorkflowSettings::getBGColor();
-    state->runSchemaInSeparateProcess = WorkflowSettings::runInSeparateProcess();
     state->externalToolCfgDir = WorkflowSettings::getExternalToolDirectory();
+    state->includedElementsDir = WorkflowSettings::getIncludedElementsDirectory();
+    state->workflowOutputDir = WorkflowSettings::getWorkflowOutputDirectory();
     return state;
 }
 
@@ -57,13 +59,14 @@ void WorkflowSettingsPageController::saveState(AppSettingsGUIPageState* s) {
     WorkflowSettings::setShowGrid(state->showGrid);
     WorkflowSettings::setSnap2Grid(state->snap2grid);
     WorkflowSettings::setMonitorRun(state->lockRun);
-    //WorkflowSettings::setFailFast(state->failFast);
+    WorkflowSettings::setDebuggerEnabled(state->enableDebugger);
     WorkflowSettings::setDefaultStyle(state->style);
     WorkflowSettings::setDefaultFont(state->font);
     WorkflowSettings::setUserDirectory(state->path);
     WorkflowSettings::setBGColor(state->color);
-    WorkflowSettings::setRunInSeparateProcess(state->runSchemaInSeparateProcess);
     WorkflowSettings::setExternalToolDirectory(state->externalToolCfgDir);
+    WorkflowSettings::setIncludedElementsDirectory(state->includedElementsDir);
+    WorkflowSettings::setWorkflowOutputDirectory(state->workflowOutputDir);
 }
 
 AppSettingsGUIPageWidget* WorkflowSettingsPageController::createWidget(AppSettingsGUIPageState* state) {
@@ -72,19 +75,18 @@ AppSettingsGUIPageWidget* WorkflowSettingsPageController::createWidget(AppSettin
     return r;
 }
 
+const QString WorkflowSettingsPageController::helpPageId = QString("4227274");
+
 WorkflowSettingsPageWidget::WorkflowSettingsPageWidget(WorkflowSettingsPageController* ) {
     setupUi(this);
     styleCombo->addItem(U2::WorkflowView::tr("Minimal"), ItemStyles::SIMPLE);
     styleCombo->addItem(U2::WorkflowView::tr("Extended"), ItemStyles::EXTENDED);
     connect(dirButton, SIGNAL(clicked()), SLOT(sl_getDirectory()));
     connect(extToolDirButton, SIGNAL(clicked()), SLOT(sl_getExternalToolCfgDir()));
+    connect(includedDirButton, SIGNAL(clicked()), SLOT(sl_getIncludedElementsDir()));
+    connect(workflowOutputButton, SIGNAL(clicked()), SLOT(sl_getWorkflowOutputDir()));
     colorWidget->setMinimumHeight(label->height());
     colorWidget->installEventFilter(this);
-#ifdef RUN_WORKFLOW_IN_THREADS
-    runInSeparateProcessBox->setVisible(false);
-#else
-    runInSeparateProcessBox->setVisible(Version::appVersion().isDevVersion);
-#endif // RUN_WORKFLOW_IN_THREADS
 }
 
 void WorkflowSettingsPageWidget::sl_getDirectory() {
@@ -125,9 +127,9 @@ void WorkflowSettingsPageWidget::setState(AppSettingsGUIPageState* s) {
     gridBox->setChecked(state->showGrid);
     snapBox->setChecked(state->snap2grid);
     lockBox->setChecked(state->lockRun);
-    //failBox->setChecked(state->failFast);
+    debuggerBox->setChecked(state->enableDebugger);
     int idx = styleCombo->findData(state->style);
-    if (idx < 0) idx = 1; 
+    if (idx < 0) idx = 1;
     styleCombo->setCurrentIndex(idx);
     fontCombo->setCurrentFont(state->font);
     dirEdit->setText(state->path);
@@ -135,8 +137,9 @@ void WorkflowSettingsPageWidget::setState(AppSettingsGUIPageState* s) {
     QPalette pal = colorWidget->palette();
     pal.setColor(colorWidget->backgroundRole(), state->color);
     colorWidget->setPalette(pal);
-    runInSeparateProcessBox->setChecked(state->runSchemaInSeparateProcess);
     extToolDirEdit->setText(state->externalToolCfgDir);
+    includedlDirEdit->setText(state->includedElementsDir);
+    workflowOutputEdit->setText(state->workflowOutputDir);
 }
 
 AppSettingsGUIPageState* WorkflowSettingsPageWidget::getState(QString& ) const {
@@ -144,27 +147,39 @@ AppSettingsGUIPageState* WorkflowSettingsPageWidget::getState(QString& ) const {
     state->showGrid = gridBox->isChecked();
     state->snap2grid = snapBox->isChecked();
     state->lockRun = lockBox->isChecked();
-    //state->failFast = failBox->isChecked();
+    state->enableDebugger = debuggerBox->isChecked();
     state->style = styleCombo->itemData(styleCombo->currentIndex()).toString();
     state->font = fontCombo->currentFont();
     state->path = dirEdit->text();
     state->color = colorWidget->palette().color(colorWidget->backgroundRole());
-    state->runSchemaInSeparateProcess = runInSeparateProcessBox->isChecked();
     state->externalToolCfgDir = extToolDirEdit->text();
+    state->includedElementsDir = includedlDirEdit->text();
+    state->workflowOutputDir = workflowOutputEdit->text();
     return state;
 }
 
-void WorkflowSettingsPageWidget::sl_getExternalToolCfgDir() {
-    QString url = WorkflowSettings::getExternalToolDirectory();
-
-    QFileDialog dialog(this);
+static void chooseDir(const QString &current, QLineEdit *edit,  QWidget *parent) {
+    QFileDialog dialog(parent);
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setViewMode(QFileDialog::List);
-    dialog.setDirectory(url);
-    if(dialog.exec() == QDialog::Accepted) {
+    dialog.setDirectory(current);
+    bool chosen = (dialog.exec() == QDialog::Accepted);
+    if(chosen) {
         QString dir = dialog.selectedFiles().first();
-        extToolDirEdit->setText(dir + "/");
+        edit->setText(dir + "/");
     }
+}
+
+void WorkflowSettingsPageWidget::sl_getExternalToolCfgDir() {
+    chooseDir(WorkflowSettings::getExternalToolDirectory(), extToolDirEdit, this);
+}
+
+void WorkflowSettingsPageWidget::sl_getIncludedElementsDir() {
+    chooseDir(WorkflowSettings::getIncludedElementsDirectory(), includedlDirEdit, this);
+}
+
+void WorkflowSettingsPageWidget::sl_getWorkflowOutputDir() {
+    chooseDir(WorkflowSettings::getWorkflowOutputDirectory(), workflowOutputEdit, this);
 }
 
 } //namespace

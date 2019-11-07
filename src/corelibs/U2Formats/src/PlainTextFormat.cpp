@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,19 +19,19 @@
  * MA 02110-1301, USA.
  */
 
-#include "PlainTextFormat.h"
-
 #include <U2Core/IOAdapter.h>
 #include <U2Core/L10n.h>
-#include <U2Core/U2OpStatusUtils.h>
-#include <U2Core/U2SafePoints.h>
 #include <U2Core/TextObject.h>
 #include <U2Core/TextUtils.h>
 #include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2SafePoints.h>
+
+#include "PlainTextFormat.h"
 
 namespace U2 {
 
-/* TRANSLATOR U2::IOAdapter */    
+/* TRANSLATOR U2::IOAdapter */
 
 PlainTextFormat::PlainTextFormat(QObject* p) : DocumentFormat(p, DocumentFormatFlags_W1, QStringList("txt")) {
     formatName = tr("Plain text");
@@ -39,18 +39,13 @@ PlainTextFormat::PlainTextFormat(QObject* p) : DocumentFormat(p, DocumentFormatF
     formatDescription = tr("A simple plain text file.");
 }
 
-
-Document* PlainTextFormat::createNewLoadedDocument(IOAdapterFactory* io, const QString& url, const QVariantMap& fs) {
-    U2OpStatus2Log os;
-    Document* d = DocumentFormat::createNewLoadedDocument(io, url, os, fs);
-    GObject* o = new TextObject("", "Text");
-    d->addObject(o);
-    return d;
-}
-
 #define BUFF_SIZE 1024
 
 Document* PlainTextFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os){
+    DbiOperationsBlock opBlock(dbiRef, os);
+    CHECK_OP(os, NULL);
+    Q_UNUSED(opBlock);
+
     QString text;
     int size = io->left();
     if (size > 0) {
@@ -68,12 +63,16 @@ Document* PlainTextFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, c
         }
         os.setProgress(io->getProgress());
     }
-    
+
     CHECK_OP(os, NULL);
-    
+
     //todo: check file-readonly status?
 
-    TextObject* to = new TextObject(text, "Text");
+    QVariantMap hints;
+    hints.insert(DBI_FOLDER_HINT, fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER));
+
+    TextObject* to = TextObject::createInstance(text, io->getURL().baseFileName(), dbiRef, os, hints);
+    CHECK_OP(os, NULL);
     QList<GObject*> objects;
     objects.append(to);
     Document* d = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs);
@@ -81,10 +80,10 @@ Document* PlainTextFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, c
 }
 
 void PlainTextFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
-    assert(d->getObjects().size() == 1);
+    CHECK(d->getObjects().size() == 1, );
     GObject* obj = d->getObjects().first();
     TextObject* to = qobject_cast<TextObject*>(obj);
-    assert(to!=NULL);
+    SAFE_POINT(NULL != to, L10N::nullPointerError("Text object"), );
     const QString& text = to->getText();
 
     QByteArray local8bit = text.toLocal8Bit();

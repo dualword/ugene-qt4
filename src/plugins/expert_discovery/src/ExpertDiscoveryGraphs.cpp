@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,12 +55,10 @@ void ExpertDiscoveryScoreGraphAlgorithm::calculate(
     QVector<float>& result,
     U2SequenceObject* sequenceObject,
     const U2Region& region,
-    const GSequenceGraphWindowData* windowData)
+    const GSequenceGraphWindowData* windowData,
+    U2OpStatus &os)
 {
     assert(windowData !=NULL);
-
-    
-    QByteArray sequence = sequenceObject->getWholeSequenceData();
 
     int windowSize = windowData->window;
     int windowStep = windowData->step;
@@ -82,6 +80,7 @@ void ExpertDiscoveryScoreGraphAlgorithm::calculate(
         windowThreshold = 0;
         for (int j = windowLeft; j < windowLeft + windowSize - 1; ++j)
         {
+            CHECK_OP(os, );
             if(j < recData.size()){
                 windowThreshold+=recData[j];
             }
@@ -122,8 +121,8 @@ ExpertDiscoveryScoreGraphFactory::ExpertDiscoveryScoreGraphFactory(QObject* pare
 /**
  * Verification
  */
-bool ExpertDiscoveryScoreGraphFactory::isEnabled(U2SequenceObject* sequenceObject) const {
-    DNAAlphabet* alphabet = sequenceObject->getAlphabet();
+bool ExpertDiscoveryScoreGraphFactory::isEnabled(const U2SequenceObject* sequenceObject) const {
+    const DNAAlphabet* alphabet = sequenceObject->getAlphabet();
     return alphabet->getId() == BaseDNAAlphabetIds::NUCL_DNA_DEFAULT();
 }
 
@@ -131,13 +130,13 @@ bool ExpertDiscoveryScoreGraphFactory::isEnabled(U2SequenceObject* sequenceObjec
 /**
  * Initializes graph data
  */
-QList<GSequenceGraphData*> ExpertDiscoveryScoreGraphFactory::createGraphs(GSequenceGraphView* view)
+QList<QSharedPointer<GSequenceGraphData> > ExpertDiscoveryScoreGraphFactory::createGraphs(GSequenceGraphView* view)
 {
     Q_UNUSED(view);
-    QList<GSequenceGraphData*> res;
+    QList<QSharedPointer<GSequenceGraphData> > res;
     assert(isEnabled(view->getSequenceObject()));
     assert(edSeqType!=UNKNOWN_SEQUENCE);
-    GSequenceGraphData* data = new GSequenceGraphData(getGraphName());
+    QSharedPointer<GSequenceGraphData> data = QSharedPointer<GSequenceGraphData>(new GSequenceGraphData(getGraphName()));
     data->ga = new ExpertDiscoveryScoreGraphAlgorithm(edData, edSeqNumber, edSeqType);
     res.append(data);
     return res;
@@ -199,8 +198,8 @@ void ExpertDiscoveryRecognitionErrorGraphWidget::drawAll(){
     if(redraw){
         pixmap.fill(Qt::transparent);
         QPainter p(&pixmap);
-        
-        if(errorsTask.isFinished()){
+
+        if(errorsTask.isIdle()){
             QPixmap graphPixmap = QPixmap(w, h);
             graphPixmap.fill(Qt::white);
             QPainter grP(&graphPixmap);
@@ -223,7 +222,6 @@ void ExpertDiscoveryRecognitionErrorGraphWidget::drawGraph(QPainter& p){
     int regLen = calcualteSettings.scoreReg.length;
     int stepsNum = regLen/step;
 
-    int offset = 2;
     int scoreWidthPoint = 0;
     const ErrorsInfo& errorsInfo = errorsTask.getResult();
     QPainterPath erFirstTypePath;
@@ -233,7 +231,7 @@ void ExpertDiscoveryRecognitionErrorGraphWidget::drawGraph(QPainter& p){
 
         double pixelStep = double(w)/stepsNum;
         double ratioY = double(errorsInfo.maxErrorVal)/(h);
-        
+
         int hPixels = 0;
         if(stepsNum!=0){
             hPixels = qint64(double(errorsInfo.errorFirstType[0])/ratioY +0.5);

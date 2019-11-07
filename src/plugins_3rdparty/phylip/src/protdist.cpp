@@ -58,12 +58,18 @@ void protdist_uppercase(Phylip_Char *ch)
 }  /* protdist_uppercase */
 
 
-void protdist_inputnumbers()
+void protdist_inputnumbers(U2::MemoryLocker& memLocker)
 {
   /* input the numbers of species and of characters */
   long i;
 
 //  fscanf(infile, "%ld%ld", &spp, &chars);
+
+  qint64 memSize = spp * (sizeof(aas *) + chars * sizeof(aas ));
+  memSize += chars * sizeof(long) * 3 + spp * (sizeof(double) + sizeof(naym) + spp*sizeof(double));
+  if(!memLocker.tryAcquire(memSize)) {
+      return;
+  }
 
   if (printdata)
     fprintf(outfile, "%2ld species, %3ld  positions\n\n", spp, chars);
@@ -92,7 +98,7 @@ void prot_getoptions(const QString& matrixModel)
   boolean done;
 
   if (printdata)
-    fprintf(outfile, "\nProtein distance algorithm, version %s\n\n",VERSION);
+    fprintf(outfile, "\nProtein distance algorithm, version %s\n\n",PHY_VERSION);
   putchar('\n');
   weights = false;
   printdata = false;
@@ -142,7 +148,7 @@ void prot_getoptions(const QString& matrixModel)
 
   /*do {
     cleerhome();
-    printf("\nProtein distance algorithm, version %s\n\n",VERSION);
+    printf("\nProtein distance algorithm, version %s\n\n",PHY_VERSION);
     printf("Settings for this run:\n");
     printf("  P  Use JTT, PMB, PAM, Kimura, categories model?  %s\n",
            usejtt ? "Jones-Taylor-Thornton matrix" :
@@ -501,10 +507,13 @@ void transition()
 }  /* transition */
 
 
-void prot_doinit(const U2::CreatePhyTreeSettings& settings)
+void prot_doinit(const U2::CreatePhyTreeSettings& settings, U2::MemoryLocker& memLocker)
 {
   /* initializes variables */
-  protdist_inputnumbers();
+  protdist_inputnumbers(memLocker);
+  if(memLocker.hasError()) {
+      return;
+  }
   prot_getoptions(settings.matrixId);
   transition();
 }  /* doinit*/

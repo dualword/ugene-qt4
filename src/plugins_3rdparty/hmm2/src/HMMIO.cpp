@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,13 +34,12 @@
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Gui/DialogUtils.h>
 
-#include <memory>
 #include <QtCore/QtAlgorithms>
 #include <QtCore/QFileInfo>
 
 namespace U2 {
 
-/* TRANSLATOR U2::IOAdapter */    
+/* TRANSLATOR U2::IOAdapter */
 
 static const char * prob2ascii(float p, float null) {
   HMMERTaskLocalData *tld = getHMMERTaskLocalData();
@@ -70,7 +69,7 @@ static void multiline(QString& res, const QString& prefix, const char* s) {
 void HMMIO::writeHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& si, plan7_s *hmm)
 {	
     if (hmm->atype == hmmNOTSETYET) {
-        si.setError(  tr("alphabet_not_set") );
+        si.setError(  tr("Alphabet is not set") );
         return;
     }
     //get HMMERTaskLocalData
@@ -174,12 +173,12 @@ void HMMIO::writeHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& 
         res+="\n";
     }
     res+="//\n";
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Write)) {
         si.setError(L10N::errorOpeningFileWrite(url));
         return;
     }
-    int len = io->writeBlock(res.toAscii());
+    int len = io->writeBlock(res.toLatin1());
     if (len != res.length()) {
         si.setError(L10N::errorWritingFile(url));
         return;
@@ -202,7 +201,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
 	alphabet_s &al = tld->al;
     
     struct plan7_s *hmm = NULL;
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Read)) {
         si.setError(L10N::errorOpeningFileRead(url));
         return;
@@ -213,11 +212,11 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
         bool lineOk = true;
         int len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
         if (!lineOk) {
-            si.setError(  tr("illegal line") );
+            si.setError(  tr("Illegal line") );
             break;
         }
         if (strncmp(buffer, "HMMER2.0", 8) != 0) {
-            si.setError(  tr("file_format_is_not_supported") );
+            si.setError(  tr("File format is not supported") );
             break;
         }
 
@@ -229,7 +228,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
         char* next = NULL;
         while ((len  = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk)) != 0) {
             if (!lineOk) {
-                si.setError(  tr("illegal line") );
+                si.setError(  tr("Illegal line") );
                 break;
             }
             next = NULL;
@@ -246,7 +245,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
                 if      (strncmp(buffer+6, "AMINO",   5) == 0) atype = hmmAMINO;
                 else if (strncmp(buffer+6, "NUCLEIC", 7) == 0) atype = hmmNUCLEIC;
                 else {
-                    si.setError(  tr("value is illegal %1").arg("ALPH") );
+                    si.setError(  tr("Value is illegal: %1").arg("ALPH") );
                     break;
                 };
                 SetAlphabet(atype);
@@ -275,49 +274,49 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
                     hmm->ctime= Strdup(buffer+6); 
             } else if (strncmp(buffer, "GA   ", 5) == 0) {
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("GA") );
+                    si.setError(  tr("Invalid file structure near %1").arg("GA") );
                     break;
                 }
                 hmm->ga1 = atof(s);
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("GA") );
+                    si.setError(  tr("Invalid file structure near %1").arg("GA") );
                     break;
                 }
                 hmm->ga2 = atof(s);
                 hmm->flags |= PLAN7_GA;
             } else if (strncmp(buffer, "TC   ", 5) == 0) {
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("TC") );
+                    si.setError(  tr("Invalid file structure near %1").arg("TC") );
                     break;
                 }
                 hmm->tc1 = atof(s);
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("TC") );
+                    si.setError(  tr("Invalid file structure near %1").arg("TC") );
                     break;
                 }
                 hmm->tc2 = atof(s);
                 hmm->flags |= PLAN7_TC;
             } else if (strncmp(buffer, "NC   ", 5) == 0) {
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("NC") );
+                    si.setError(  tr("Invalid file structure near %1").arg("NC") );
                     break;
                 }
                 hmm->nc1 = atof(s);
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("NC") );
+                    si.setError(  tr("Invalid file structure near %1").arg("NC") );
                     break;
                 }
                 hmm->nc2 = atof(s);
                 hmm->flags |= PLAN7_NC;
             } else if (strncmp(buffer, "XT   ", 5) == 0)  { // Special transition section
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("XT") );
+                    si.setError(  tr("Invalid file structure near %1").arg("XT") );
                     break;
                 }
                 for (k = 0; k < 4; k++) {
                     for (x = 0; x < 2; x++) {
                         if (s == NULL) {
-                            si.setError(  tr("invalid_file_structure_near_%1").arg("XT") );
+                            si.setError(  tr("Invalid file structure near %1").arg("XT") );
                             break;
                         }
                         hmm->xt[k][x] = ascii2prob(s, 1.0);
@@ -326,12 +325,12 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
                 }
             } else if (strncmp(buffer, "NULT ", 5) == 0) { // Null model transitions
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("NULT") );
+                    si.setError(  tr("Invalid file structure near %1").arg("NULT") );
                     break;
                 }
                 hmm->p1 = ascii2prob(s, 1.);
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("NULT") );
+                    si.setError(  tr("Invalid file structure near %1").arg("NULT") );
                     break;
                 }
                 hmm->p1 = hmm->p1 / (hmm->p1 + ascii2prob(s, 1.0));
@@ -343,7 +342,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
                 s = strtok_r(buffer+6, " \t\n", &next);
                 for (x = 0; x < al.Alphabet_size; x++) {
                     if (s == NULL)  {
-                        si.setError(  tr("invalid_file_structure_near_%1").arg("NULE") );
+                        si.setError(  tr("Invalid file structure near %1").arg("NULE") );
                         break;
                     }
                     hmm->null[x] = ascii2prob(s, 1./(float)al.Alphabet_size);    
@@ -352,12 +351,12 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             } else if (strncmp(buffer, "EVD  ", 5) == 0) { // EVD parameters
                 hmm->flags |= PLAN7_STATS;
                 if ((s = strtok_r(buffer+6, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("EVD - mu") );
+                    si.setError(  tr("Invalid file structure near %1").arg("EVD - mu") );
                     break;
                 }
                 hmm->mu = atof(s);
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("EVD - lambda") );
+                    si.setError(  tr("Invalid file structure near %1").arg("EVD - lambda") );
                     break;
                 }
                 hmm->lambda = atof(s);
@@ -372,15 +371,15 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
         }
         // partial check for mandatory fields
         if (M < 1)   {
-            si.setError(  tr("value is illegal %1").arg("M") );
+            si.setError(  tr("Value is illegal: %1").arg("M") );
             break;
         }
         if (hmm->name == NULL) {
-            si.setError(  tr("value is illegal %1").arg("name") );
+            si.setError(  tr("Value is illegal: %1").arg("name") );
             break;
         }
         if (al.Alphabet_type == hmmNOTSETYET) {
-            si.setError(  tr("value is not set for %1").arg("ALPH") );
+            si.setError(  tr("Value is not set for '%1'").arg("ALPH") );
             break;
         }
 
@@ -389,28 +388,28 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
         // skip an annotation line
         len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
         if (!lineOk) {
-            si.setError(  tr("illegal line") );
+            si.setError(  tr("Illegal line") );
             break;
         }
         // parse tbd1 line
         len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
         if (!lineOk) {
-            si.setError(  tr("illegal line") );
+            si.setError(  tr("Illegal line") );
             break;
         }
         buffer[len] = '\0';
         next = NULL;
         if ((s = strtok_r(buffer, " \t\n", &next)) == NULL) {
-            si.setError(  tr("invalid_file_structure_near_%1").arg("tbd1") );
+            si.setError(  tr("Invalid file structure near %1").arg("tbd1") );
             break;
         }
         p = ascii2prob(s, 1.0);
         if ((s = strtok_r(NULL,   " \t\n", &next)) == NULL) {
-            si.setError(  tr("invalid_file_structure_near_%1").arg("tbd1") );
+            si.setError(  tr("Invalid file structure near %1").arg("tbd1") );
             break;
         }
         if ((s = strtok_r(NULL,   " \t\n", &next)) == NULL) {
-            si.setError(  tr("invalid_file_structure_near_%1").arg("tbd1") );
+            si.setError(  tr("Invalid file structure near %1").arg("tbd1") );
             break;
         }
         hmm->tbd1 = ascii2prob(s, 1.0);
@@ -421,29 +420,29 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             // Line 1: k, match emissions, map
             len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
             if (!lineOk) {
-                si.setError(  tr("illegal line") );
+                si.setError(  tr("Illegal line") );
                 break;
             }   
             next = NULL;
             buffer[len] = '\0';
             if ((s = strtok_r(buffer, " \t\n", &next)) == NULL) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model 1") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model 1") );
                 break;
             }
             if (atoi(s) != k) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model (k)") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model (k)") );
                 break;
             }
             for (x = 0; x < al.Alphabet_size; x++) {
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("main model (mat)") );
+                    si.setError(  tr("Invalid file structure near %1").arg("main model (mat)") );
                     break;
                 }
                 hmm->mat[k][x] = ascii2prob(s, hmm->null[x]);
             }
             if (hmm->flags & PLAN7_MAP) {
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("main model (map)") );
+                    si.setError(  tr("Invalid file structure near %1").arg("main model (map)") );
                     break;
                 }
                 hmm->map[k] = atoi(s);
@@ -452,13 +451,13 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             // Line 2:  RF and insert emissions
             len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
             if (!lineOk) {
-                si.setError(  tr("illegal line") );
+                si.setError(  tr("Illegal line") );
                 break;
             }   
             buffer[len] = '\0';
             next = NULL;
             if ((s = strtok_r(buffer, " \t\n", &next)) == NULL) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model 2") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model 2") );
                 break;
             }
             if (hmm->flags & PLAN7_RF) {
@@ -467,7 +466,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             if (k < hmm->M) {
                 for (x = 0; x < al.Alphabet_size; x++) {
                     if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                        si.setError(  tr("invalid_file_structure_near_%1").arg("main model (ins)") );
+                        si.setError(  tr("Invalid file structure near %1").arg("main model (ins)") );
                         break;
                     }
                     hmm->ins[k][x] = ascii2prob(s, hmm->null[x]);
@@ -477,13 +476,13 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             // Line 3: CS and transitions
             len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
             if (!lineOk) {
-                si.setError(  tr("illegal line") );
+                si.setError(  tr("Illegal line") );
                 break;
             }   
             buffer[len] = '\0';
             next = NULL;
             if ((s = strtok_r(buffer, " \t\n", &next)) == NULL) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model 3") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model 3") );
                 break;
             }
             if (hmm->flags & PLAN7_CS) {
@@ -491,18 +490,18 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
             }
             for (x = 0; x < 7; x++) {
                 if ((s = strtok_r(NULL, " \t\n", &next)) == NULL)  {
-                    si.setError(  tr("invalid_file_structure_near_%1").arg("main model (t)") );
+                    si.setError(  tr("Invalid file structure near %1").arg("main model (t)") );
                     break;
                 }
                 if (k < hmm->M) hmm->t[k][x] = ascii2prob(s, 1.0);
             }
             if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model (begin)") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model (begin)") );
                 break;
             }
             hmm->begin[k] = ascii2prob(s, 1.0);
             if ((s = strtok_r(NULL, " \t\n", &next)) == NULL) {
-                si.setError(  tr("invalid_file_structure_near_%1").arg("main model (end)") );
+                si.setError(  tr("Invalid file structure near %1").arg("main model (end)") );
                 break;
             }
             hmm->end[k] = ascii2prob(s, 1.0);
@@ -516,7 +515,7 @@ void HMMIO::readHMM2(IOAdapterFactory* iof, const QString& url, TaskStateInfo& s
         do {
             len = io->readUntil(buffer, BUFF_SIZE, lineBreaks, IOAdapter::Term_Include, &lineOk);
             if (!lineOk) {
-                si.setError(  tr("no // symbol found") );
+                si.setError(  tr("No '//' symbol found") );
                 break;
             }
         } while (strncmp(buffer, "//", 2) != 0);
@@ -649,7 +648,7 @@ DNAAlphabetType HMMIO::convertHMMAlphabet(int atype) {
 HMMReadTask::HMMReadTask(const QString& _url) 
 : Task("", TaskFlag_None), hmm(NULL), url(_url) 
 {
-    QString tn = tr("Read HMM profile '%1'").arg(QFileInfo(url).fileName());
+    QString tn = tr("Read HMM profile '%1'.").arg(QFileInfo(url).fileName());
     setTaskName(tn);
 }
 

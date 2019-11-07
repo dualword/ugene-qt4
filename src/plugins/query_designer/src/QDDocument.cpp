@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ static const QString BLOCK_START = "{";
 static const QString BLOCK_END = "}";
 static const QString META_KEYWORD = ".meta";
 static const QString VISUAL_KEYWORD = "visual";
-    
+
 QString QDDocStatement::getAttribute(const QString& name) const {
     foreach(const StringAttribute& attr, attributes) {
         if (attr.first==name) {
@@ -47,7 +47,7 @@ QString QDDocStatement::getAttribute(const QString& name) const {
     }
     return QString();
 }
-    
+
 void QDDocStatement::setAttribute(const QString& name, const QString& value) {
     assert(!name.contains(' '));
     for (int i=0; i<attributes.size(); i++) {
@@ -60,7 +60,7 @@ void QDDocStatement::setAttribute(const QString& name, const QString& value) {
     QPair<QString,QString> newAttr = qMakePair(name, value);
     attributes.append(newAttr);
 }
-    
+
 QString QDDocStatement::toString() const {
     int strLen = evalStringLen();
     QString res;
@@ -101,7 +101,7 @@ QString QDElementStatement::toString() const {
     else {
         res = BLOCK_START + res + " " + BLOCK_END +" ";
     }
-    
+
     res = TEXT_OFFSET + id + " " + res;
     return res;
 }
@@ -143,7 +143,8 @@ static const QString ORDER_PATTERN = ORDER_KEYWORD + "\\{{1,1}([^\\{\\}]*)\\}{1,
 static const QString SCHEMA_STRAND_ATTR = "schema-strand";
 static const QString SCHEMA_STRAND_PATTERN = SCHEMA_STRAND_ATTR + "\\s*:\\s*(direct|complement|both)\\s*;";
 
-const QString QDDocument::HEADER_LINE("#!UGENE_QUERY");
+const QString QDDocument::HEADER_LINE("#@UGENE_QUERY");
+const QString QDDocument::DEPRECATED_HEADER_LINE("#!UGENE_QUERY");
 const QString QDDocument::GROUPS_SECTION("groups");
 
 QDDocument::~QDDocument() {
@@ -336,7 +337,7 @@ bool QDDocument::findLinkStatements(const QString& str) {
             const QString& elemS = reg.cap(1);
             const QList<QString>& elIds = idsFromString(elemS);
             QDLinkStatement* link = new QDLinkStatement(elIds);
-            int capCount = reg.numCaptures();
+            int capCount = reg.captureCount();
             const QString& attrs = reg.cap(capCount);
             const QMap<QString, QString>& attrsMap = string2attributesMap(attrs);
             foreach(const QString& attrName, attrsMap.keys()) {
@@ -399,6 +400,11 @@ void QDDocument::saveOrder(const QList<QDActor*>& actors) {
     foreach(QDActor* a, actors) {
         order.append(a->getParameters()->getLabel());
     }
+}
+
+bool QDDocument::isHeaderLine(const QString &line) {
+    return (line.startsWith(HEADER_LINE) ||
+            line.startsWith(DEPRECATED_HEADER_LINE));
 }
 
 //Mapper

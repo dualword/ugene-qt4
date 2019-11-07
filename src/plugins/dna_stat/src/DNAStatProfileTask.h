@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,26 +28,34 @@
 namespace U2 {
 
 class ADVSequenceObjectContext;
+class CharOccurTask;
+class DinuclOccurTask;
+class DNAStatisticsTask;
 
 class DNAStatProfileTask : public Task {
     Q_OBJECT
 public:
     DNAStatProfileTask(ADVSequenceObjectContext *context);
-    void run();
-    ReportResult report();
-	const QString& getResult() const { return resultText; }
+
+    QList <Task*> onSubTaskFinished(Task *subTask);
+
+    QString getResult() const;
 
 private:
-    void computeStats();
-
     ADVSequenceObjectContext* ctx;
     qint64 seqLen;
-    QVector<qint64>         contentCounter;
-    //TODO: optimize
-    QMap<QByteArray, int>   diNuclCounter;
-	int nA, nT, nC, nG;
 
-    QString resultText;
+    QString charResult;
+    QString dinucResult;
+    QString statResult;
+
+    CharOccurTask*         charTask;
+    DinuclOccurTask*       dinucTask;
+    DNAStatisticsTask*    statTask;
+
+    QString formCharResultString() const;
+    QString formDinucResultString() const;
+    QString formStatResultString() const;
 };
 
 }// namespace

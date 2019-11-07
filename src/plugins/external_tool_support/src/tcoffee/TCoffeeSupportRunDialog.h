@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,14 @@
 #ifndef _U2_TCOFFEE_SUPPORT_RUN_DIALOG_H
 #define _U2_TCOFFEE_SUPPORT_RUN_DIALOG_H
 
-#include <QtGui/QDialog>
 #include <U2Gui/DialogUtils.h>
 #include <ui/ui_TCoffeeSupportRunDialog.h>
 #include "TCoffeeSupportTask.h"
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -45,10 +49,11 @@ public:
     TCoffeeWithExtFileSpecifySupportRunDialog(TCoffeeSupportTaskSettings& settings, QWidget* parent);
 private slots:
     void sl_align();
-    void sl_inputFileLineEditChanged(const QString& str);
+    void sl_inputPathButtonClicked();
+    void sl_outputPathButtonClicked();
 private:
     TCoffeeSupportTaskSettings&     settings;
-    FileLineEdit*                   inputFileLineEdit;
+    void buildMultipleAlignmentUrl(const GUrl &alnUrl);
 };
 
 }//namespace

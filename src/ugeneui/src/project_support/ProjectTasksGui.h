@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,14 +30,13 @@
 #include <U2Core/GAutoDeleteList.h>
 #include <U2Core/AppResources.h>
 #include <U2Core/MultiTask.h>
-#include <U2Core/LoadDocumentTask.h>
-
 
 class QDomDocument;
 
-
 namespace U2 {
 
+class LoadDocumentTask;
+class LoadUnloadedDocumentTask;
 class Project;
 class StateLock;
 
@@ -85,7 +84,7 @@ class SaveProjectTask : public Task {
     Q_OBJECT
 
 public:
-    SaveProjectTask(SaveProjectTaskKind k, Project* p = NULL, const QString& url = QString::null);
+    SaveProjectTask(SaveProjectTaskKind k, Project* p = NULL, const QString& url = QString::null, bool silentSave_ = false);
     ~SaveProjectTask();
 
     virtual void prepare();
@@ -95,6 +94,7 @@ private:
     SaveProjectTaskKind k;
     Project* proj;
     QString url;
+    bool silentSave;
 };
 
 class SaveOnlyProjectTask : public Task {

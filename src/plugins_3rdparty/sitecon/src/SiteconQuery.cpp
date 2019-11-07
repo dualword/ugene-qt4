@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,11 @@
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/FailTask.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
+#else
+#include <QtWidgets/QApplication>
+#endif
 
 #include <QtCore/QFileInfo>
 
@@ -130,10 +134,10 @@ Task* QDSiteconActor::getAlgorithmTask(const QVector<U2Region>& location) {
     const DNASequence& dnaSeq = scheme->getSequence();
     QDStrandOption stOp = getStrandToRun();
     if (stOp == QDStrand_ComplementOnly || stOp == QDStrand_Both) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-            lookupTranslation(dnaSeq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!compTTs.isEmpty()) {
-            settings.complTT = compTTs.first();
+        DNATranslation* compTT = AppContext::getDNATranslationRegistry()->
+            lookupComplementTranslation(dnaSeq.alphabet);
+        if (compTT != NULL) {
+            settings.complTT = compTT;
         }
     }
     
@@ -146,7 +150,7 @@ void QDSiteconActor::sl_onAlgorithmTaskFinished(Task* t) {
     QDSiteconTask* st = qobject_cast<QDSiteconTask*>(t);
     assert(st);
     foreach(const SiteconSearchResult& res, st->getResults()) {
-        const SharedAnnotationData& ad = res.toAnnotation("");
+        const SharedAnnotationData ad = res.toAnnotation("");
         QDResultUnit ru(new QDResultUnitData);
         ru->strand = ad->getStrand();
         ru->quals = ad->qualifiers;
@@ -164,7 +168,7 @@ QDSiteconActorPrototype::QDSiteconActorPrototype() {
 
     {
         Descriptor scd(SCORE_ATTR, QDSiteconActor::tr("Min score"),
-            QApplication::translate("SiteconSearchDialog", "min_err_tip", 0, QApplication::UnicodeUTF8));
+            QApplication::translate("SiteconSearchDialog", "Recognition quality percentage threshold. If you need to switch off this filter choose <b>the lowest</b> value</i></p>.", 0));
         Descriptor e1d(E1_ATTR, QDSiteconActor::tr("Min Err1"),
             QDSiteconActor::tr("Alternative setting for filtering results, minimal value of Error type I."
             "<br>Note that all thresholds (by score, by err1 and by err2) are applied when filtering results."));

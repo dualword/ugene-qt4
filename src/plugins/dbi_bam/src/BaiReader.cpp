@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -91,7 +91,7 @@ Index BaiReader::readIndex() {
 void BaiReader::readBytes(char *buff, qint64 size) {
     qint64 returnedValue = ioAdapter.readBlock(buff, size);
     if(-1 == returnedValue) {
-        throw IOException(BAMDbiPlugin::tr("Can't read input"));
+        throw IOException(BAMDbiPlugin::tr("Can't read input. %1").arg(ioAdapter.errorString()));
     } else if(returnedValue < size) {
         throw InvalidFormatException(BAMDbiPlugin::tr("Unexpected end of file"));
     }

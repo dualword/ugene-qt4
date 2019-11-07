@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -46,7 +46,7 @@ struct U2ALGORITHM_EXPORT SArrayBasedSearchSettings {
     int ptMismatches;
     int nMismatches;
     bool absMismatches;
-}; 
+};
 
 class U2ALGORITHM_EXPORT SArrayBasedFindTask : public Task {
     Q_OBJECT
@@ -54,7 +54,8 @@ public:
     SArrayBasedFindTask(SArrayIndex* i, const SArrayBasedSearchSettings& s, bool onlyFirstMatch = false);
     virtual void run();
     virtual void cleanup();
-    const QList<int> getResults() const { return results; }
+    const QList<int>& getResults() const { return results; }
+    const QByteArray& getQuery() const { return config->query; }
 
 private:
     void runSearch();

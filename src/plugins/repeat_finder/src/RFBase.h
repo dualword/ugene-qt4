@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -66,30 +66,30 @@ public:
 class RFAlgorithmBase : public Task {
     Q_OBJECT
 public:
-    RFAlgorithmBase(RFResultsListener* l, 
+    RFAlgorithmBase(RFResultsListener* l,
                     const char* seqX, int sizeX,
-                    const char* seqY, int sizeY, DNAAlphabetType seqType, 
+                    const char* seqY, int sizeY, DNAAlphabetType seqType,
                     int w, int k, TaskFlags flags = TaskFlags_NR_FOSCOE);
 
     void setReportReflected(bool v) {reportReflected = v;}
-    
+
     void setRFResultsListener(RFResultsListener*);
-    
+
     void prepare();
-    
+
     static RFAlgorithmBase* createTask(RFResultsListener* l,
                                         const char *seqx, int sizeX,
                                         const char *seqY, int sizeY,
-                                        DNAAlphabet *al, int w,
+                                        const DNAAlphabet *al, int w,
                                         int mismatches = 0, RFAlgorithm alg = RFAlgorithm_Auto,
                                         int nThreads = MAX_PARALLEL_SUBTASKS_AUTO);
     static char getUnknownChar(const DNAAlphabetType &type);
 
 protected:
-    // adds single result to global results 
+    // adds single result to global results
     void addToResults(const RFResult& r);
 
-    // adds multiple results to global results 
+    // adds multiple results to global results
     void addToResults(const QVector<RFResult>& newResults);
 
     //always return true. bool -> to use in assertions

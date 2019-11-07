@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,7 +48,7 @@ const QString RemoteServiceCommon::WEB_TRANSPORT_PROTOCOL_ID = "Web transport pr
 static void cleanupRemoteMachineMonitor() {
     RemoteMachineMonitor* rmm = AppContext::getRemoteMachineMonitor();
     QList<RemoteMachineSettingsPtr> items = rmm->getRemoteMachineMonitorItems();
-    
+
     foreach (const RemoteMachineSettingsPtr& item, items) {
         rmm->removeMachineConfiguration(item);
     }
@@ -59,7 +59,7 @@ RemoteServicePlugin::RemoteServicePlugin():
     Plugin(tr("UGENE Remote Service Support"),
         tr("Launching remote tasks via UGENE Remote Service")),
     protocolUI((NULL == AppContext::getMainWindow())? NULL:(new RemoteServiceSettingsUI())),
-    protocolInfo( RemoteServiceCommon::WEB_TRANSPORT_PROTOCOL_ID , protocolUI.get(),
+    protocolInfo( RemoteServiceCommon::WEB_TRANSPORT_PROTOCOL_ID , protocolUI.data(),
                   &remoteMachineFactory )
 {
     AppContext::getProtocolInfoRegistry()->registerProtocolInfo(&protocolInfo);
@@ -81,7 +81,7 @@ RemoteServicePlugin::~RemoteServicePlugin()
 
 void RemoteServicePlugin::registerCMDLineHelp()
 {
-    
+
 }
 
 void RemoteServicePlugin::processCMDLineOptions()

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ PWMatrix::PWMatrix(const QVarLengthArray<float>& matrix, const PWMatrixType& _ty
 {
     length = (type == PWM_MONONUCLEOTIDE) ? (matrix.size() / 4) : (matrix.size() / 16);
     minSum = 0, maxSum = 0;
-    
+
     for (int i = 0; i < length; i++) {
         float min = 1e6;
         float max = -1e6;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,7 @@
 #ifndef _U2_PROJECT_TREE_ITEM_SELECTOR_DIALOG_IMPL_H_
 #define _U2_PROJECT_TREE_ITEM_SELECTOR_DIALOG_IMPL_H_
 
-#include <ui/ui_ProjectTreeItemSelectorDialogBase.h>
-#include <QtGui/QDialog>
+#include "ui/ui_ProjectTreeItemSelectorDialogBase.h"
 
 namespace U2 {
 
@@ -35,6 +34,7 @@ class GObject;
 class ProjectTreeItemSelectorDialogImpl: public QDialog, public Ui::ProjectTreeItemSelectorDialogBase {
     Q_OBJECT
 public:
+    ~ProjectTreeItemSelectorDialogImpl();
 
     bool acceptByDoubleClick;
 
@@ -44,9 +44,9 @@ private slots:
 private:
     friend class ProjectTreeItemSelectorDialog;
     ProjectTreeItemSelectorDialogImpl(QWidget* p, const ProjectTreeControllerModeSettings& s);
-    ~ProjectTreeItemSelectorDialogImpl();
     ProjectTreeController* controller;
 };
 
-}//namespace
+} // namespace U2
+
 #endif

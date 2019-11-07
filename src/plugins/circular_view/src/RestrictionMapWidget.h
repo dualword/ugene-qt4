@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,48 +22,44 @@
 #ifndef _U2_RESTRICTION_MAP_WIDGET_H_
 #define _U2_RESTRICTION_MAP_WIDGET_H_
 
-
-#include <QtGui/QTreeWidget>
+#include <QTreeWidget>
 
 namespace U2 {
 
-class ADVSequenceObjectContext;
-class AnnotationTableObject;
-class AnnotationGroup;
 class Annotation;
+class AnnotationGroup;
+class ADVSequenceObjectContext;
 
 class EnzymeItem : public QTreeWidgetItem
 {
 public:
-    EnzymeItem(const QString& locationStr, Annotation* a);
-    Annotation* getEnzymeAnnotation() const {return annotation; }
+    EnzymeItem(const QString& locationStr, Annotation *a);
+    Annotation * getEnzymeAnnotation() const {return annotation; }
 private:
-    Annotation* annotation;
+    Annotation *annotation;
 };
-
 
 class EnzymeFolderItem : public QTreeWidgetItem
 {
     QString enzymeName;
 public:
     EnzymeFolderItem(const QString& name);
-    void addEnzymeItem(Annotation* enzAnn);
-    void removeEnzymeItem(Annotation* enzAnn);
-    const QString& getName() const { return enzymeName; } 
+    void addEnzymeItem(Annotation *enzAnn);
+    void removeEnzymeItem(Annotation *enzAnn);
+    const QString& getName() const { return enzymeName; }
 };
-
 
 class RestrctionMapWidget : public QWidget
 {
     Q_OBJECT
 public:
     RestrctionMapWidget(ADVSequenceObjectContext* ctx, QWidget *p);
-    
+
 private slots:
-    void sl_onAnnotationsAdded(const QList<Annotation*>& anns);
-    void sl_onAnnotationsRemoved(const QList<Annotation*>& anns);
-    void sl_onAnnotationsInGroupRemoved(const QList<Annotation*>& anns, AnnotationGroup* group);
-    void sl_onAnnotationsGroupCreated(AnnotationGroup* g);
+    void sl_onAnnotationsAdded(const QList<Annotation *> &anns);
+    void sl_onAnnotationsRemoved(const QList<Annotation *> &anns);
+    void sl_onAnnotationsInGroupRemoved(const QList<Annotation *> &anns, AnnotationGroup *group);
+    void sl_onAnnotationsGroupCreated(AnnotationGroup *g);
     void sl_itemSelectionChanged();
 private:
     ADVSequenceObjectContext* ctx;
@@ -72,11 +68,8 @@ private:
     void registerAnnotationObjects();
     void updateTreeWidget();
     void initTreeWidget();
-
 };
 
-
-} //namespace
-
+} //namespace U2
 
 #endif //  _U2_RESTRICTION_MAP_WIDGET_H_

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,9 +28,37 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QVector>
 #include <QtCore/QPair>
+#include <U2Core/U2Region.h>
+#include <U2Core/U2Range.h>
 #include "primer3.h"
 
 namespace U2 {
+
+
+struct SpanIntronExonBoundarySettings {
+
+    SpanIntronExonBoundarySettings() {
+        enabled = false;
+        minLeftOverlap = 7;
+        minRightOverlap = 7;
+        maxPairsToQuery = 1000;
+        spanIntron = false;
+        overlapExonExonBoundary = false;
+        exonAnnotationName = "exon";
+
+    }
+
+    bool enabled;
+    QString exonAnnotationName;
+    bool overlapExonExonBoundary;
+    int maxPairsToQuery;
+    int minLeftOverlap, minRightOverlap;
+    bool spanIntron;
+    QList<U2Region> regionList;
+    U2Range<int> exonRange;
+
+};
+
 
 class Primer3TaskSettings
 {
@@ -54,31 +82,35 @@ public:
 
     QByteArray getSequenceName()const;
     QByteArray getSequence()const;
-    QList<QPair<int, int> > getTarget()const;
-    QList<QPair<int, int> > getProductSizeRange()const;
+    int getSequenceSize() const;
+    QList< U2Region > getTarget()const;
+    QList< U2Region > getProductSizeRange()const;
+    int getMinProductSize() const;
     task getTask()const;
-    QList<QPair<int, int> > getInternalOligoExcludedRegion()const;
+    QList< U2Region > getInternalOligoExcludedRegion()const;
     QByteArray getLeftInput()const;
     QByteArray getRightInput()const;
     QByteArray getInternalInput()const;
-    QList<QPair<int, int> > getExcludedRegion()const;
-    QPair<int, int> getIncludedRegion()const;
+    QList< U2Region > getExcludedRegion()const;
+    U2Region getIncludedRegion()const;
     QVector<int> getSequenceQuality()const;
 
     QByteArray getError()const;
     int getFirstBaseIndex()const;
 
     void setSequenceName(const QByteArray &value);
-    void setSequence(const QByteArray &value);
-    void setTarget(const QList<QPair<int, int> > &value);
-    void setProductSizeRange(const QList<QPair<int, int> > &value);
+    void setSequence(const QByteArray &value, bool isCircular = false);
+    void setCircularity(bool isCircular);
+    void setTarget(const QList< U2Region > &value);
+    void setProductSizeRange(const QList< U2Region > &value);
     void setTask(const task &value);
-    void setInternalOligoExcludedRegion(const QList<QPair<int, int> > &value);
+    void setInternalOligoExcludedRegion(const QList< U2Region > &value);
     void setLeftInput(const QByteArray &value);
     void setRightInput(const QByteArray &value);
     void setInternalInput(const QByteArray &value);
-    void setExcludedRegion(const QList<QPair<int, int> > &value);
-    void setIncludedRegion(QPair<int, int> value);
+    void setExcludedRegion(const QList< U2Region > &value);
+    void setIncludedRegion(const U2Region &value);
+    void setIncludedRegion(const qint64 &startPos, const qint64 &length);
     void setSequenceQuality(const QVector<int> &value);
 
     void setRepeatLibrary(const QByteArray &value);
@@ -89,6 +121,33 @@ public:
 
     primer_args *getPrimerArgs();
     seq_args *getSeqArgs();
+
+    // span intron/exon boundary settings
+
+    const SpanIntronExonBoundarySettings& getSpanIntronExonBoundarySettings() const {
+        return spanIntronExonBoundarySettings;
+    }
+
+    void setSpanIntronExonBoundarySettings(const SpanIntronExonBoundarySettings& settings) {
+        spanIntronExonBoundarySettings = settings;
+    }
+
+
+    const QList<U2Region>& getExonRegions() const {
+        return spanIntronExonBoundarySettings.regionList;
+    }
+
+    void setExonRegions(const QList<U2Region>& regions) {
+        spanIntronExonBoundarySettings.regionList = regions;
+    }
+
+
+    bool spanIntronExonBoundaryIsEnabled() const { return spanIntronExonBoundarySettings.enabled; }
+
+    bool isSequenceCircular() const { return isCircular; }
+
+    bool checkIncludedRegion(const U2Region &r) const;
+
 private:
     void initMaps();
 
@@ -100,6 +159,7 @@ private:
     // don't forget to change copy constructor and assignment operator when changing this!
     QByteArray sequenceName;
     QByteArray sequence;
+    bool isCircular;
     QByteArray leftInput;
     QByteArray rightInput;
     QByteArray internalInput;
@@ -107,6 +167,7 @@ private:
 
     QByteArray repeatLibrary;
     QByteArray mishybLibrary;
+    SpanIntronExonBoundarySettings spanIntronExonBoundarySettings;
 
     primer_args primerArgs;
     seq_args seqArgs;

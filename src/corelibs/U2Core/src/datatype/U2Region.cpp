@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,52 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/U2Region.h>
+#include <QDataStream>
+
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/FormatUtils.h>
+
+#include "U2Region.h"
 
 namespace U2 {
+
+QString U2Region::toString(Format format) const {
+    QString start       = FormatUtils::splitThousands(startPos);
+    QString end         = FormatUtils::splitThousands(endPos());
+    QString middle      = FormatUtils::splitThousands(center());
+    QString halfLength  = FormatUtils::splitThousands(length/2);
+
+    switch(format) {
+    case FormatDash:
+        return QString("%1 - %2").arg(start, end);
+    case FormatPlusMinus:
+        return QString("%1 &plusmn; %2").arg(middle, halfLength);
+    case FormatBrackets:
+    default:
+        return QString("[%1, %2)").arg(start, end);
+    }
+}
+
+QVector<U2Region> U2Region::circularContainingRegion(QVector<U2Region> &_regions, int seqLen) {
+    CHECK(_regions.size() >= 2, _regions);
+
+    QVector<U2Region> regions = join(_regions);
+    CHECK(regions.size() >= 2, regions);
+    U2Region maxInterval(regions[0].endPos(), regions[1].startPos - regions[0].endPos());
+    for (int i = 1; i < regions.size() - 1; i++) {
+        const U2Region& r0 = regions[i];
+        const U2Region& r1 = regions[i+1];
+        if (maxInterval.length < r1.startPos - r0.endPos()) {
+            maxInterval = U2Region(r0.endPos(), r1.startPos - r0.endPos());
+        }
+    }
+    if (maxInterval.length > regions.first().startPos + seqLen - regions.last().endPos()) {
+        return QVector<U2Region>() << U2Region(0, maxInterval.startPos)
+                                   << U2Region(maxInterval.endPos(), seqLen - maxInterval.endPos());
+    } else {
+        return QVector<U2Region>() << U2Region(regions.first().startPos, regions.last().endPos() - regions.first().startPos);
+    }
+}
 
 QVector<U2Region> U2Region::join(QVector<U2Region>& regions)  {
     QVector<U2Region> result = regions;
@@ -80,7 +123,7 @@ void U2Region::reverse(QVector<U2Region>& regions) {
     }
 }
 
-void U2Region::shift(int offset, QVector<U2Region>& regions) {
+void U2Region::shift(qint64 offset, QVector<U2Region>& regions) {
     QVector<U2Region> res;
     for (int i = 0, n = regions.size(); i < n; i++) {
         U2Region& r = regions[i];
@@ -109,18 +152,6 @@ int U2Region::findOverlappingRegion(const QVector<U2Region>& rs) const {
     return -1;
 }
 
-void U2Region::removeAll(QVector<U2Region>& regionsToProcess, const QVector<U2Region>& regionsToRemove) {
-    QVector<U2Region> result;
-    foreach(const U2Region& pr, regionsToProcess) {
-        if (regionsToRemove.indexOf(pr) == -1) {
-            result.append(pr);
-        }
-    }
-    regionsToProcess = result;
-}
-
-
-
 static bool _registerMeta() {
     qRegisterMetaType<U2Region>("U2Region");
     qRegisterMetaTypeStreamOperators<U2Region>("U2::U2Region");
@@ -133,7 +164,9 @@ static bool _registerMeta() {
 bool U2Region::registerMeta = _registerMeta();
 
 QDataStream &operator<<(QDataStream &out, const U2Region &myObj) {
-    out << myObj.startPos << myObj.length;
+    qint64 startPos=myObj.startPos;
+    qint64 length=myObj.length;
+    out << startPos << length;
     return out;
 }
 
@@ -142,6 +175,5 @@ QDataStream &operator>>(QDataStream &in, U2Region &myObj) {
     in >> myObj.length;
     return in;
 }
-
 
 } //ns

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,35 +25,34 @@
 
 namespace U2 {
 
-DocumentFormatComboboxController::DocumentFormatComboboxController(QObject* p, QComboBox* cb, 
-																   const DocumentFormatConstraints& _c, 
-																   DocumentFormatId active)
-: QObject(p), combo(cb), c(_c)
+DocumentFormatComboboxController::DocumentFormatComboboxController(QObject* p, QComboBox* cb,
+    const DocumentFormatConstraints& _c, DocumentFormatId active)
+    : QObject(p), combo(cb), c(_c)
 {
-	assert(combo->count()==0);
-	
-	DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
-	connect(fr, SIGNAL(si_documentFormatRegistered(DocumentFormat*)), SLOT(sl_onDocumentFormatRegistered(DocumentFormat*)));
-	connect(fr, SIGNAL(si_documentFormatUnregistered(DocumentFormat*)), SLOT(sl_onDocumentFormatUnregistered(DocumentFormat*)));
+    assert(combo->count()==0);
 
-	updateCombo(active);
+    DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
+    connect(fr, SIGNAL(si_documentFormatRegistered(DocumentFormat*)), SLOT(sl_onDocumentFormatRegistered(DocumentFormat*)));
+    connect(fr, SIGNAL(si_documentFormatUnregistered(DocumentFormat*)), SLOT(sl_onDocumentFormatUnregistered(DocumentFormat*)));
+
+    updateCombo(active);
 }
 
 void DocumentFormatComboboxController::sl_onDocumentFormatRegistered(DocumentFormat* f) {
-	if (!f->checkConstraints(c)) {
-		return;
-	}
-	combo->addItem(QIcon(), f->getFormatName(), f->getFormatId());
+    if (!f->checkConstraints(c)) {
+        return;
+    }
+    combo->addItem(QIcon(), f->getFormatName(), f->getFormatId());
 }
 
 void DocumentFormatComboboxController::sl_onDocumentFormatUnregistered(DocumentFormat* f) {
-	for (int i=0;i<combo->count();i++) {
-		DocumentFormatId id = combo->itemData(i).toString();
-		if (id == f->getFormatId()) {
-			combo->removeItem(i);
-			return;
-		}
-	}
+    for (int i=0;i<combo->count();i++) {
+        DocumentFormatId id = combo->itemData(i).toString();
+        if (id == f->getFormatId()) {
+            combo->removeItem(i);
+            return;
+        }
+    }
 }
 
 DocumentFormatId DocumentFormatComboboxController::getActiveFormatId() const {
@@ -61,14 +60,14 @@ DocumentFormatId DocumentFormatComboboxController::getActiveFormatId() const {
 }
 
 void DocumentFormatComboboxController::setActiveFormatId(DocumentFormatId id) {
-	for (int i=0, n=combo->count(); i<n; i++) {
-		DocumentFormatId tmpId = combo->itemData(i).toString();
-		if (id == tmpId) {
-			combo->setCurrentIndex(i);
-			return;
-		}
-	}
-	assert(0);
+    for (int i=0, n=combo->count(); i<n; i++) {
+        DocumentFormatId tmpId = combo->itemData(i).toString();
+        if (id == tmpId) {
+            combo->setCurrentIndex(i);
+            return;
+        }
+    }
+    assert(0);
 }
 
 QList<DocumentFormatId> DocumentFormatComboboxController::getFormatsInCombo() {
@@ -76,19 +75,13 @@ QList<DocumentFormatId> DocumentFormatComboboxController::getFormatsInCombo() {
 }
 
 void DocumentFormatComboboxController::updateConstraints(const DocumentFormatConstraints& _c) {
-	c = _c;
-	updateCombo(getActiveFormatId());
+    c = _c;
+    updateCombo(getActiveFormatId());
 }
 
 void DocumentFormatComboboxController::updateCombo(DocumentFormatId active) {
-	DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
-	QList<DocumentFormatId> selectedFormats;
-	foreach(DocumentFormatId id, fr->getRegisteredFormats()) {
-		DocumentFormat* f = fr->getFormatById(id);
-	    if (f->checkConstraints(c)) {
-            selectedFormats.append(id);
-        }
-	}
+    DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
+    QList<DocumentFormatId> selectedFormats = fr->selectFormats(c);
     fill(combo, selectedFormats, active);
 }
 
@@ -96,9 +89,8 @@ void DocumentFormatComboboxController::fill(QComboBox* combo, QList<DocumentForm
     combo->clear();
     DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
     foreach(DocumentFormatId id, formatIds) {
-        DocumentFormat* f = fr->getFormatById(id);
-        combo->addItem(QIcon(), f->getFormatName(), f->getFormatId());
-        if (f->getFormatId () == active) {
+        combo->addItem(QIcon(), fr->getFormatById(id)->getFormatName(), id);
+        if (id == active) {
             combo->setCurrentIndex(combo->count()-1);
         }
     }

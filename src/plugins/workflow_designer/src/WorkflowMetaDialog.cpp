@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include "WorkflowMetaDialog.h"
-
-#include <U2Lang/WorkflowUtils.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
+
 #include <U2Designer/DesignerUtils.h>
-#include <QtGui/QFileDialog>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include <U2Lang/WorkflowUtils.h>
+
+#include "WorkflowMetaDialog.h"
 
 namespace U2 {
 
 WorkflowMetaDialog::WorkflowMetaDialog(QWidget * p, const Metadata& meta): QDialog(p), meta(meta) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122510");
+
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
+    okButton = buttonBox->button(QDialogButtonBox::Ok);
 
     connect(browseButton, SIGNAL(clicked()), SLOT(sl_onBrowse()));
     connect(cancelButton, SIGNAL(clicked()), SLOT(reject()));
@@ -75,7 +83,7 @@ void WorkflowMetaDialog::sl_onBrowse() {
         url = AppContext::getSettings()->getValue(LAST_DIR, QString("")).toString();
     }
     QString filter = DesignerUtils::getSchemaFileFilter(false);
-    url = QFileDialog::getSaveFileName(0, tr("Save workflow schema to file"), url, filter);
+    url = U2FileDialog::getSaveFileName(0, tr("Save workflow to file"), url, filter);
     if (!url.isEmpty()) {
         AppContext::getSettings()->setValue(LAST_DIR, QFileInfo(url).absoluteDir().absolutePath());
         urlEdit->setText(url);

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <U2Core/DocumentModel.h>
 #include <U2Core/GObjectReference.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QComboBox>
+#else
+#include <QtWidgets/QComboBox>
+#endif
 
 namespace U2 {
 
@@ -52,7 +56,13 @@ public:
     bool setSelectedObject(GObject* obj) {return setSelectedObject(GObjectReference(obj));}
     bool setSelectedObject(const GObjectReference& ref);
 
+    GObjectReference getSelectedObjectReference() const;
     GObject* getSelectedObject() const;
+
+    void updateConstrains(const GObjectComboBoxControllerConstraints& c);
+
+signals:
+    void si_comboBoxChanged();
 
 private slots:
     void sl_onDocumentAdded(Document* d);
@@ -63,6 +73,7 @@ private slots:
 
 private:
     void updateCombo();
+    void connectDocument(Document *document);
     void addObject(GObject*);
     void removeObject(const GObjectReference& ref);
     void addDocumentObjects(Document* d);

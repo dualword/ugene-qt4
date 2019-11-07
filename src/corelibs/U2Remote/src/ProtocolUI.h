@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include <cassert>
 
 #include <QtCore/QList>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QWidget>
+#endif
 #include "RemoteMachine.h"
 
 namespace U2 {
@@ -38,18 +42,18 @@ class U2REMOTE_EXPORT ProtocolUI : public QWidget {
 public:
     ProtocolUI();
     virtual ~ProtocolUI();
-    
+
     // after user clicks 'ok', creates remote machine settings based on the info in the form. Caller should delete it
     virtual RemoteMachineSettingsPtr createMachine() const = 0;
     virtual void initializeWidget( const RemoteMachineSettingsPtr& settings ) = 0;
     virtual void clearWidget() = 0;
     virtual QString validate() const = 0;
     virtual QDialog* createUserTasksDialog(const RemoteMachineSettingsPtr& settings, QWidget* parent) = 0;
-    
+
 private:
     ProtocolUI( const ProtocolUI & );
     ProtocolUI & operator=( const ProtocolUI & );
-    
+
 }; // ProtocolUI
 
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #include <U2Designer/EditMarkerGroupDialog.h>
 #include <U2Designer/MarkerEditor.h>
 
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2Lang/Marker.h>
 #include <U2Lang/MarkerUtils.h>
 
@@ -34,63 +36,96 @@ MarkerEditorWidget::MarkerEditorWidget(QAbstractTableModel *markerModel, QWidget
 {
     setupUi(this);
     {
-        table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-        table->horizontalHeader()->setStretchLastSection(true);
-        table->horizontalHeader()->setClickable(false);
-        table->verticalHeader()->hide();
-        table->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 6);
+#if (QT_VERSION < 0x050000) //Qt 5
+        markerTable->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
+        markerTable->horizontalHeader()->setClickable(false);
+#else
+        markerTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+        markerTable->horizontalHeader()->setSectionsClickable(false);
+#endif
+        markerTable->horizontalHeader()->setStretchLastSection(true);
+        markerTable->verticalHeader()->hide();
+        markerTable->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 6);
     }
 
-    table->setModel(markerModel);
+    markerTable->setModel(markerModel);
+
+    editButton->setEnabled(false);
+    removeButton->setEnabled(false);
 
     connect(addButton, SIGNAL(clicked()), SLOT(sl_onAddButtonClicked()));
     connect(editButton, SIGNAL(clicked()), SLOT(sl_onEditButtonClicked()));
     connect(removeButton, SIGNAL(clicked()), SLOT(sl_onRemoveButtonClicked()));
+    connect(markerTable, SIGNAL(entered(const QModelIndex &)), SLOT(sl_onItemEntered(const QModelIndex &)));
+    connect(markerTable, SIGNAL(pressed(const QModelIndex &)), SLOT(sl_onItemSelected(const QModelIndex &)));
+
 }
 
 void MarkerEditorWidget::sl_onAddButtonClicked() {
-    EditMarkerGroupDialog dlg(true, NULL, this);
+    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(markerTable->model());
+    QObjectScopedPointer<EditMarkerGroupDialog> dlg = new EditMarkerGroupDialog(true, NULL, model, this);
+    const int dialogResult = dlg->exec();
+    CHECK(!dlg.isNull(), );
 
-    if (dlg.exec()) {
-        Marker *newMarker = dlg.getMarker();
-        Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(table->model());
+    if (QDialog::Accepted == dialogResult) {
+        Marker *newMarker = dlg->getMarker();
         model->addMarker(newMarker);
     }
 }
 
 void MarkerEditorWidget::sl_onEditButtonClicked() {
-    QItemSelectionModel *m = table->selectionModel();
+    QItemSelectionModel *m = markerTable->selectionModel();
     QModelIndexList selected = m->selectedRows();
     if (1 != selected.size()) {
         return;
     }
 
-    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(table->model());
-    EditMarkerGroupDialog dlg(false, model->getMarker(selected.first().row()), this);
+    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(markerTable->model());
+    QObjectScopedPointer<EditMarkerGroupDialog> dlg = new EditMarkerGroupDialog(false, model->getMarker(selected.first().row()), model, this);
+    const int dialogResult = dlg->exec();
+    CHECK(!dlg.isNull(), );
 
-    if (dlg.exec()) {
-        Marker *newMarker = dlg.getMarker();
+    if (QDialog::Accepted == dialogResult) {
+        Marker *newMarker = dlg->getMarker();
         model->replaceMarker(selected.first().row(), newMarker);
     }
 }
 
 void MarkerEditorWidget::sl_onRemoveButtonClicked() {
-    QItemSelectionModel *m = table->selectionModel();
+    QItemSelectionModel *m = markerTable->selectionModel();
     QModelIndexList selected = m->selectedRows();
     if (1 != selected.size()) {
         return;
     }
 
     markerModel->removeRows(selected.first().row(), 1, selected.first());
+
+    SAFE_POINT(markerTable->model(), "cant retrieve table model count", );
+    if(markerTable->model()->rowCount() == 0){
+        editButton->setEnabled(false);
+        removeButton->setEnabled(false);
+    }
+}
+
+void MarkerEditorWidget::sl_onItemEntered(const QModelIndex &idx) {
+    Qt::MouseButtons bs = QApplication::mouseButtons();
+    if (bs.testFlag(Qt::LeftButton)) {
+        sl_onItemSelected(idx);
+    }
+}
+
+void MarkerEditorWidget::sl_onItemSelected(const QModelIndex &) {
+    editButton->setEnabled(true);
+    removeButton->setEnabled(true);
 }
 
 bool MarkerEditorWidget::checkEditMarkerGroupResult(const QString &oldName, Marker *newMarker, QString &message) {
-    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(table->model());
-    QMap<QString, Marker*> &markers = model->getMarkers();
+    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(markerTable->model());
+    QList<Marker*> &markers = model->getMarkers();
 
 
     if (oldName != newMarker->getName()) {
-        foreach (Marker *m, markers.values()) {
+        foreach (Marker *m, markers) {
             if (m->getName() == newMarker->getName()) {
                 message.append(tr("Duplicate marker's name: %1").arg(newMarker->getName()));
                 return false;
@@ -102,10 +137,10 @@ bool MarkerEditorWidget::checkEditMarkerGroupResult(const QString &oldName, Mark
 }
 
 bool MarkerEditorWidget::checkAddMarkerGroupResult(Marker *newMarker, QString &message) {
-    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(table->model());
-    QMap<QString, Marker*> &markers = model->getMarkers();
+    Workflow::MarkerGroupListCfgModel *model = dynamic_cast<Workflow::MarkerGroupListCfgModel*>(markerTable->model());
+    QList<Marker*> &markers = model->getMarkers();
 
-    foreach (Marker *m, markers.values()) {
+    foreach (Marker *m, markers) {
         if (m->getName() == newMarker->getName()) {
             message.append(tr("Duplicate marker's name: %1").arg(newMarker->getName()));
             return false;

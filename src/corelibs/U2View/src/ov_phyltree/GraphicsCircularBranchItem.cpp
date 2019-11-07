@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 #include <QtGui/QPainter>
 #include <QtGui/QPen>
 #include <QtCore/QStack>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsScene>
 #include <QtGui/QGraphicsView>
+#else
+#include <QtWidgets/QGraphicsScene>
+#include <QtWidgets/QGraphicsView>
+#endif
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/AppContext.h>
 #include <qmath.h>
@@ -39,10 +44,10 @@ namespace U2 {
 #define M_PI 3.14159265358979323846
 #endif
 
-GraphicsCircularBranchItem::GraphicsCircularBranchItem(QGraphicsItem* parent, qreal h, GraphicsRectangularBranchItem* from)
-: GraphicsBranchItem(true), height(h), direction(from->getDirection()), visible(true) {
+GraphicsCircularBranchItem::GraphicsCircularBranchItem(QGraphicsItem* parent, qreal h, GraphicsRectangularBranchItem* from, double nodeValue)
+: GraphicsBranchItem(true, nodeValue), height(h), direction(from->getDirection()), visible(true) {
     setParentItem(parent);
-    settings = from->settings;
+    settings = from->getSettings();
     qreal w = from->getWidth();
     setWidthW(w);
     setDist(from->getDist());
@@ -50,37 +55,20 @@ GraphicsCircularBranchItem::GraphicsCircularBranchItem(QGraphicsItem* parent, qr
     QPointF p = mapFromScene(0, 0);
     setTransform(QTransform().translate(p.x(), p.y()).rotate((direction == GraphicsBranchItem::up ? -1 : 1) * h / M_PI * 180).translate(-p.x(), -p.y()));
 
-    //QPen pen1;
-    //pen1.setCosmetic(true);
     if (from->getNameText() != NULL) {
         nameText = new QGraphicsSimpleTextItem(from->getNameText()->text(), this);
         nameText->setFont(from->getNameText()->font());
-        QRectF rect = nameText->boundingRect();
-        qreal h = rect.height();
-        nameText->setPos(GraphicsBranchItem::TextSpace, -h * 0.5);
-        if (nameText->scenePos().x() < 0.0) {
-            QPointF p = rect.center();
-            nameText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
-        }
 
-//         pen1.setStyle(Qt::DotLine);
-//         pen1.setColor(Qt::darkGray);
         nameText->setBrush(from->getNameText()->brush());
     }
     if (from->getDistanceText() != NULL) {
         distanceText = new QGraphicsSimpleTextItem(from->getDistanceText()->text(), this);
         distanceText->setFont(from->getDistanceText()->font());
-        QRectF rect = distanceText->boundingRect();
-        if (distanceText->scenePos().x() < 0) {
-            QPointF p(rect.center().x(), rect.height());
-            distanceText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
-        }
-        distanceText->setPos(-0.5 * (w + rect.width()), -rect.height());
-
         distanceText->setBrush(from->getDistanceText()->brush());
     }
+    setLabelPositions();
     setPen(from->pen());
-    
+
 }
 
 QRectF GraphicsCircularBranchItem::boundingRect() const {
@@ -113,6 +101,26 @@ QPainterPath GraphicsCircularBranchItem::shape() const {
     path.arcTo(rect, 0, (direction == GraphicsBranchItem::up ? -1 : 1) * height * 16 * 180 / M_PI);
 
     return path;
+}
+
+void GraphicsCircularBranchItem::setLabelPositions() {
+    if(nameText != NULL) {
+        QRectF rect = nameText->boundingRect();
+        qreal h = rect.height();
+        nameText->setPos(GraphicsBranchItem::TextSpace, -h * 0.5);
+        if (nameText->scenePos().x() < 0.0) {
+            QPointF p = rect.center();
+            nameText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
+        }
+    }
+    if(distanceText != NULL) {
+        QRectF rect = distanceText->boundingRect();
+        if (distanceText->scenePos().x() < 0) {
+            QPointF p(rect.center().x(), rect.height());
+            distanceText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
+        }
+        distanceText->setPos(-0.5 * (width + rect.width()), -rect.height());
+    }
 }
 
 }//namespace

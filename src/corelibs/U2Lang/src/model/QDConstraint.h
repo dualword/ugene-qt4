@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -84,7 +84,7 @@ public:
     static U2Region matchLocation(QDDistanceConstraint* dc, const QDResultUnit& r, bool complement = false);
     static QDDistanceType getInvertedType(QDDistanceType type);
 private:
-    static bool match(const U2Region& srcReg, const U2Region& dstReg, QDDistanceType type, int min, int max);
+    static bool match(const U2Region& srcReg, const U2Region& dstReg, const QDDistanceType& type, int min, int max);
 };
 
 }//namespace

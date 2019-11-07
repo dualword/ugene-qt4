@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,9 +27,6 @@
 
 namespace U2 {
 
-#define SEQUENCE_TAG " sequence"    //tag for sequence object
-#define FEATURES_TAG " features"    //tag for annotation table
-
 class IOAdapter;
 
 class U2FORMATS_EXPORT  GFFFormat : public DocumentFormat {
@@ -51,7 +48,9 @@ protected:
 private:
     void load(IOAdapter* io, const U2DbiRef& dbiRef, QList<GObject*>& objects, const QVariantMap& hints, U2OpStatus& si);
 
-    QStringList parseLine(QString line) const;
+    static QString extractSeqObjectName( QString &fastaHeaderName, const QStringList &words, QSet<QString> &names);
+
+    QStringList parseLine(const QString& line) const;
 
     QString formatName;
 };

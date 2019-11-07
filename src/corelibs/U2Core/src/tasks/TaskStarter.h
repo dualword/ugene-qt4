@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,13 +32,19 @@ namespace U2
 class U2CORE_EXPORT TaskStarter : public QObject {
     Q_OBJECT
 public:
-    TaskStarter(Task* t) : QObject(t), t(t) {}
+    enum StartCondition {
+        NoCondition,
+        NoProject
+    };
+
+    TaskStarter(Task* t, StartCondition condition = NoCondition) : QObject(t), t(t), condition(condition) {}
 public slots:
     void registerTask();
 private:
     Task* t;
+    StartCondition condition;
 };
 
 } //namespace
 
-#endif 
+#endif

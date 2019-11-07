@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 
 namespace U2 {
 
-/* TRANSLATOR U2::DNAAlphabetRegistryImpl */    
+/* TRANSLATOR U2::DNAAlphabetRegistryImpl */
 
 DNAAlphabetRegistryImpl::DNAAlphabetRegistryImpl(DNATranslationRegistry* _tr) {
     treg = _tr;
@@ -36,9 +36,10 @@ DNAAlphabetRegistryImpl::DNAAlphabetRegistryImpl(DNATranslationRegistry* _tr) {
 }
 
 DNAAlphabetRegistryImpl::~DNAAlphabetRegistryImpl() {
-    foreach(DNAAlphabet* a, alphabets) {
+    foreach(const DNAAlphabet* a, alphabets) {
         delete a;
     }
+    alphabets.clear();
 }
 
 static bool alphabetComplexityComparator(const DNAAlphabet* a1, const DNAAlphabet* a2) {
@@ -48,23 +49,23 @@ static bool alphabetComplexityComparator(const DNAAlphabet* a1, const DNAAlphabe
 }
 
 
-bool DNAAlphabetRegistryImpl::registerAlphabet(DNAAlphabet* a) {
+bool DNAAlphabetRegistryImpl::registerAlphabet(const DNAAlphabet* a) {
     if (findById(a->getId())!=NULL) {
         return false;
     }
     alphabets.push_back(a);
     //WARN: original order for equal alphabets must not be changed (DNA must be before RNA)
-    qStableSort(alphabets.begin(), alphabets.end(), alphabetComplexityComparator); 
+    qStableSort(alphabets.begin(), alphabets.end(), alphabetComplexityComparator);
     return true;
 }
 
-void DNAAlphabetRegistryImpl::unregisterAlphabet(DNAAlphabet* a) {
+void DNAAlphabetRegistryImpl::unregisterAlphabet(const DNAAlphabet* a) {
     int n = alphabets.removeAll(a);
     assert(n==1); Q_UNUSED(n);
 }
 
-DNAAlphabet* DNAAlphabetRegistryImpl::findById(const QString& id) const {
-    foreach(DNAAlphabet* al, alphabets) {
+const DNAAlphabet* DNAAlphabetRegistryImpl::findById(const QString& id) const {
+    foreach(const DNAAlphabet* al, alphabets) {
         if (al->getId() == id) {
             return al;
         }

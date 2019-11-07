@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,12 +32,10 @@
 
 #include <QPointer>
 
-
 namespace U2 {
 
 class AnnotationTableObject;
 class DNASequence;
-
 
 /**
  * The main DNA Flexibility task: launches a task to search for high
@@ -46,12 +44,12 @@ class DNASequence;
 class DNAFlexTask : public Task
 {
     Q_OBJECT
-
 public:
     DNAFlexTask(const HighFlexSettings& settings,
-        AnnotationTableObject* annotObject,
+        AnnotationTableObject *annotObject,
         const QString& annotName,
         const QString& annotGroup,
+        const QString &annDescription,
         const DNASequence& sequence);
 
     QList<Task*> onSubTaskFinished(Task* subTask);
@@ -60,8 +58,10 @@ public:
 private:
     HighFlexSettings                    settings;
     QPointer<AnnotationTableObject>     annotObject;
+    U2FeatureType                       annotType;
     QString                             annotName;
     QString                             annotGroup;
+    const QString                       annDescription;
     DNASequence                         sequence;
     FindHighFlexRegions*                findHighFlexTask;
 };

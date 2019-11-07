@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,6 +32,7 @@ namespace U2 {
 #define BLAST_DESCRIPTION "Basic Local Alignment Search Tool, or BLAST, is an algorithm for comparing primary biological sequence information, such as the amino-acid sequences of different proteins or the nucleotides of DNA sequences. A BLAST search enables a researcher to compare a query sequence with a library or database of sequences, and identify library sequences that resemble the query sequence above a certain threshold."
 
 #define EXPECTED_ATTR "expected_results"
+#define SIMPLE_ATTR "simple"
 #define MIN_LEN_ATTR "min_length"
 #define MAX_LEN_ATTR "max_length"
 #define TRANSL_ATTR "transl"
@@ -41,7 +42,7 @@ namespace U2 {
 #define SEQUENCE_ATTR "seq"
 #define SHORTSEQ_ATTR "short_seq"
 #define HITS_ATTR "hits"
-#define ALG_ATTR "alg" 
+#define ALG_ATTR "alg"
 #define FILTERS_ATTR "filters"
 #define GAP_ATTR "gap_costs"
 #define MATCHSCORE_ATTR "match_scores"
@@ -51,6 +52,7 @@ namespace U2 {
 #define ALPH_ATTR "alph"
 #define SERVICE_ATTR "service"
 #define PATTERN_ATTR "phi-pattern"
+#define ENTREZ_QUERY_ATTR "entrez_query"
 
 class ParametersLists {
 public:
@@ -87,6 +89,7 @@ public:
     static const QString sequence;
     static const QString service;
     static const QString phiPattern;
+    static const QString entrezQuery;
 
     static const QString cdd_eValue;
     static const QString cdd_hits;

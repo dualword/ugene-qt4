@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -90,7 +90,7 @@ namespace U2 {
                 }
                 expectedFile.close(), actualFile.close();
             }
-            return ReportResult_Finished;		
+            return ReportResult_Finished;
         }
         return ReportResult_Finished;
     }

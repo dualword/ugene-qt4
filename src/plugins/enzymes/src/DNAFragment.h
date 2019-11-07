@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,24 +24,32 @@
 
 #include <QtCore/QList>
 
-
+#include <U2Core/AnnotationData.h>
 #include <U2Core/U2Region.h>
-
 
 namespace U2 {
 
-class U2SequenceObject;
-class DNAAlphabet;
 class AnnotationTableObject;
 class Annotation;
+class DNAAlphabet;
 class GObject;
-
+class U2SequenceObject;
+class U2OpStatus;
 
 struct DNAFragmentTerm {
-    DNAFragmentTerm(const QString& eId, const QByteArray& seq, bool directStrand) 
-        : enzymeId(eId.toAscii()), overhang(seq), isDirect(directStrand) {}
-    DNAFragmentTerm() : isDirect(true) {}
-    QByteArray enzymeId; 
+    DNAFragmentTerm(const QString& eId, const QByteArray& seq, bool directStrand)
+        : enzymeId(eId.toLatin1()), overhang(seq), isDirect(directStrand)
+    {
+
+    }
+
+    DNAFragmentTerm()
+        : isDirect(true)
+    {
+
+    }
+
+    QByteArray enzymeId;
     QByteArray overhang;
     QByteArray type;
     bool isDirect; // overhang strand
@@ -50,12 +58,12 @@ struct DNAFragmentTerm {
 class DNAFragment {
 private:
     // Contains fragment region and cuts info
-    Annotation* annotatedFragment;
+    SharedAnnotationData annotatedFragment;
     // Parent sequence of the fragment
-    U2SequenceObject* dnaObj;
+    U2SequenceObject *dnaObj;
     // Annotations associated with parent sequence
     // When ligate or export fragments they must be saved
-    QList<AnnotationTableObject*> relatedAnnotations;
+    QList<AnnotationTableObject *> relatedAnnotations;
     // reverse complement
     bool reverseCompl;
     void updateTerms();
@@ -68,38 +76,36 @@ private:
 
 public:
     DNAFragment() : annotatedFragment(NULL), dnaObj(NULL), reverseCompl(false) {}
-    DNAFragment(Annotation* fragment, U2SequenceObject* sObj, const QList<AnnotationTableObject*> relatedAnns);
-    DNAFragment( const DNAFragment& other );
+    DNAFragment(const SharedAnnotationData &fragment, U2SequenceObject* sObj, const QList<AnnotationTableObject *> relatedAnns);
+    DNAFragment(const DNAFragment& other);
     DNAFragment& operator=(const DNAFragment& other);
-    bool isEmpty() const { return annotatedFragment == NULL || dnaObj == NULL; }
+    bool isEmpty() const { return annotatedFragment.data() == NULL || dnaObj == NULL; }
     QString getName() const;
     QString getSequenceName() const;
     QString getSequenceDocName() const;
-    QVector<U2Region> getFragmentRegions() const; 
-    QByteArray getSequence() const;
+    QVector<U2Region> getFragmentRegions() const;
+    QByteArray getSequence(U2OpStatus &os) const;
     int getLength() const;
     bool isInverted() const { return reverseCompl; }
-    DNAAlphabet* getAlphabet() const;
-    QByteArray getSourceSequence() const;
+    const DNAAlphabet* getAlphabet() const;
+    QByteArray getSourceSequence(U2OpStatus &os) const;
+    QByteArray getSourceSequenceRegion(const U2Region region, U2OpStatus& os) const;
     const DNAFragmentTerm& getLeftTerminus() const;
     const DNAFragmentTerm& getRightTerminus() const;
     void setInverted(bool inverted = true);
-    void setRightTermType( const QByteArray& termType );
-    void setLeftTermType( const QByteArray& termType );
-    void setLeftOverhang( const QByteArray& overhang );
-    void setRightOverhang( const QByteArray& overhang );
-    void setLeftOverhangStrand( bool direct);
+    void setRightTermType(const QByteArray& termType);
+    void setLeftTermType(const QByteArray& termType);
+    void setLeftOverhang(const QByteArray& overhang);
+    void setRightOverhang(const QByteArray& overhang);
+    void setLeftOverhangStrand(bool direct);
     void setRightOverhangStrand(bool direct);
 
-    const QList<AnnotationTableObject*>& getRelatedAnnotations() const { return relatedAnnotations; }
-    
+    const QList<AnnotationTableObject *> & getRelatedAnnotations() const { return relatedAnnotations; }
+
     static QList<DNAFragment> findAvailableFragments();
     static QList<DNAFragment> findAvailableFragments(const QList<GObject*>& aObjects, const QList<GObject*>& sObjects);
-   
 };
 
-
-
-} //namespace
+} //namespace U2o
 
 #endif // _U2_DNA_FRAGMENT_H_

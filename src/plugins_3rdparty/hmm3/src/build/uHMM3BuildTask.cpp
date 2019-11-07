@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
 #include <U2Core/Counter.h>
+#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/Log.h>
 #include <U2Core/GObjectTypes.h>
 #include <U2Core/MAlignmentObject.h>
@@ -34,6 +35,7 @@
 #include <U2Core/U2SafePoints.h>
 
 #include <gobject/uHMMObject.h>
+#include <util/uhmm3Utilities.h>
 
 #include "uhmm3build.h"
 #include "uHMM3BuildTask.h"
@@ -42,32 +44,6 @@
 
 using namespace U2;
 
-static QList< GObject* > getDocObjects( const QList< P7_HMM* >& hmms ) {
-    QList< GObject* > res;
-    foreach( P7_HMM* hmm, hmms ) {
-        res.append( new UHMMObject( hmm, QString( hmm->name ) ) );
-    }
-    return res;
-}
-
-static Document * getSavingDocument( const QList< P7_HMM* >& hmms, const QString & outfile ) {
-    assert( !hmms.isEmpty() );
-    QList< GObject* > docObjects = getDocObjects( hmms );
-    UHMMFormat* hmmFrmt = qobject_cast< UHMMFormat* >
-        ( AppContext::getDocumentFormatRegistry()->getFormatById( UHMMFormat::UHHMER_FORMAT_ID ) );
-    assert( NULL != hmmFrmt );
-    
-    IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById( IOAdapterUtils::url2io( outfile ) );
-    assert( NULL != iof );
-    
-    U2OpStatus2Log os;
-    Document* doc = hmmFrmt->createNewLoadedDocument(iof, outfile, os, QVariantMap());
-    CHECK_OP(os, NULL);
-    foreach(GObject* obj, docObjects) {
-        doc->addObject(obj);
-    }
-    return doc;
-}
 
 namespace U2 {
 
@@ -92,10 +68,10 @@ UHMM3BuildTask::UHMM3BuildTask( const UHMM3BuildSettings& aset, const MAlignment
 
 bool UHMM3BuildTask::checkMsa() {
     if( msa.getNumRows() == 0 ) {
-        stateInfo.setError( tr("multiple_alignment_is_empty") );
+        stateInfo.setError( tr("Given multiple alignment has no sequences") );
         return false;
     } else if ( msa.getLength() == 0 ) {
-        stateInfo.setError(  tr("multiple_alignment_is_0_len") );
+        stateInfo.setError(  tr("Given multiple alignment is empty") );
         return false;
     }
     return true;
@@ -150,12 +126,12 @@ UHMM3BuildToFileTask::UHMM3BuildToFileTask( const UHMM3BuildTaskSettings& s, con
     setTaskName( tr( "Build HMM profile to '%1'" ).arg( QFileInfo( settings.outFile ).fileName() ) );
     
     if( settings.outFile.isEmpty() ) {
-        stateInfo.setError( tr( "no_output_file_given" ) );
+        stateInfo.setError( tr( "Output file is not given" ) );
         return;
     }
     
     if( msas.isEmpty() ) {
-        stateInfo.setError( tr( "empty_msa_list_given" ) );
+        stateInfo.setError( tr( "No multiple alignments given" ) );
         return;
     }
     
@@ -170,7 +146,7 @@ UHMM3BuildToFileTask::UHMM3BuildToFileTask( const UHMM3BuildTaskSettings& set, c
     setTaskName( tr( "Build HMM profile to '%1'" ).arg( QFileInfo( settings.outFile ).fileName() ) );
     
     if( settings.outFile.isEmpty() ) {
-        stateInfo.setError( tr( "no_output_file_given" ) );
+        stateInfo.setError( tr( "Output file is not given" ) );
         return;
     }
 
@@ -187,28 +163,29 @@ settings( set ), inFile( _inFile ), loadTask( NULL ), saveHmmFileTask( NULL ), s
     setTaskName( tr( "Build HMM profile '%1' -> '%2'" ).arg( QFileInfo( inFile ).fileName() ).arg( QFileInfo( settings.outFile ).fileName() ) );
 
     if( inFile.isEmpty() ) {
-        stateInfo.setError( tr( "no_input_file_given" ) );
+        stateInfo.setError( tr( "Input file is not given" ) );
         return;
     }
     if( settings.outFile.isEmpty() ) {
-        stateInfo.setError( tr( "no_output_file_given" ) );
+        stateInfo.setError( tr( "Output file is not given" ) );
         return;
     }
 
     DocumentFormatConstraints constr;
-	constr.supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
-	constr.checkRawData = true;
+    constr.supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
+    constr.checkRawData = true;
     constr.rawData = IOAdapterUtils::readFileHeader( inFile );
+    constr.addFlagToExclude(DocumentFormatFlag_CannotBeCreated);
     QList<DocumentFormatId> formats = AppContext::getDocumentFormatRegistry()->selectFormats( constr );
     if( formats.isEmpty() ) {
-        stateInfo.setError( tr( "input_format_error" ) );
+        stateInfo.setError( tr( "Unrecognized input alignment file format" ) );
         return;
     }
     DocumentFormatId alnFormat = formats.first();
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById( IOAdapterUtils::url2io( inFile ) );
 
     if( NULL == iof ) {
-        stateInfo.setError( tr( "cannot_create_io_adapter_for_%1_file" ).arg( inFile ) );
+        stateInfo.setError( tr( "Error opening '%1' file" ).arg( inFile ) );
         return;
     }
 
@@ -249,7 +226,7 @@ QList< Task* > UHMM3BuildToFileTask::onSubTaskFinished( Task* sub ) {
         Document* doc = loadTask->getDocument();
         QList< GObject* > msaObjs = doc->findGObjectByType( GObjectTypes::MULTIPLE_ALIGNMENT );
         if( msaObjs.isEmpty() ) {
-            stateInfo.setError( tr( "alignment_objects_not_found_in_document" ) );
+            stateInfo.setError( tr( "No multiple alignments found in input file" ) );
             return res;
         }
         
@@ -276,7 +253,7 @@ QList< Task* > UHMM3BuildToFileTask::onSubTaskFinished( Task* sub ) {
         
         if( buildTasks.isEmpty() ) { /* all build tasks had finished */
             assert( !hmms.isEmpty() );
-            savingDocument = getSavingDocument( hmms, settings.outFile );
+            savingDocument = UHMM3Utilities::getSavingDocument( hmms, settings.outFile );
             saveHmmFileTask = new SaveDocumentTask( savingDocument );    
             res << saveHmmFileTask;
         }

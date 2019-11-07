@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ class SMatrix;
 class U2ALGORITHM_EXPORT SmithWatermanUtil {
 public:
     static float calcScoreItSelf(const SMatrix& m,
-                                 const char* pattern, 
+                                 const char* pattern,
                                  int patternLen);
 
     static int calcWindowLen(bool transl,
@@ -43,13 +43,13 @@ public:
                              float scoreGapOpen,
                              float scoreGapExtd);
 
-    static float calcScoreThreshold(float percent, 
+    static float calcScoreThreshold(float percent,
                                     float scoreItSelf);
 
     static int calcOverlapSize(bool transl,
                                int windowLen,
                                float scoreItSelf,
-                               float scoreGapOpen, 
+                               float scoreGapOpen,
                                float scoreGapExtd);
 
     static bool removeIdenticalResults(QList<SmithWatermanResult>* lst);

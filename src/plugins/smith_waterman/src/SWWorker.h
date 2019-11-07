@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -54,26 +54,22 @@ class SWWorker : public BaseWorker {
     Q_OBJECT
 public:
     SWWorker(Actor* a);
-    
+
     virtual void init();
-    virtual bool isReady();
+    virtual bool isReady() const;
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
 
 private slots:
     void sl_taskFinished(Task*);
 
 private:
-    QString readPatternsFromFile(const QString url);
-
-private:
-    CommunicationChannel *input, *output;
-    QMap<Task*, SmithWatermanReportCallbackImpl*> callbacks;
+    IntegralBus *input, *patternPort, *output;
+    QMap<Task*, SmithWatermanReportCallbackAnnotImpl*> callbacks;
+    QList<QByteArray> patternList;
     QMap<Task*, QByteArray> patterns;
     QMap<QString, QString> patternNames;
-    QMap<QString, QString> fastaHeaders;
-}; 
+};
 
 class SWWorkerFactory : public DomainFactory {
 public:

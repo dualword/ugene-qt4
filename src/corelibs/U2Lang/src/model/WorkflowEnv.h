@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <U2Lang/Datatype.h>
 #include <U2Lang/ExternalToolCfg.h>
+#include <U2Lang/SchemaActorsRegistry.h>
 #include "Descriptor.h"
 
 namespace U2 {
@@ -35,46 +36,57 @@ namespace Workflow {
 
 class DomainFactoryRegistry;
 class ActorPrototypeRegistry;
+class ActorValidatorRegistry;
+class WorkflowTasksRegistry;
 
 /**
  * base class for workflow environment
  * has one instance
  * same as AppContext only for workflow
- * 
+ *
  * see WorkflowEnvImpl for realization
  */
 class U2LANG_EXPORT WorkflowEnv {
 public:
     static bool init(WorkflowEnv* instance);
     static void shutdown() { delete instance; instance = NULL;}
-    
+
     static DataTypeRegistry* getDataTypeRegistry() {return getInstance()->data;}
     static ActorPrototypeRegistry* getProtoRegistry() {return getInstance()->proto;}
     static DomainFactoryRegistry* getDomainRegistry() {return getInstance()->domain;}
     static DataTypeValueFactoryRegistry* getDataTypeValueFactoryRegistry() { return getInstance()->dvfReg; }
     static ExternalToolCfgRegistry* getExternalCfgRegistry() {return getInstance()->ecfgReg;}
-    
+    static SchemaActorsRegistry *getSchemaActorsRegistry() {return getInstance()->schemaActorsReg;}
+    static WorkflowTasksRegistry *getWorkflowTasksRegistry() {return getInstance()->workflowTasksRegistry;}
+    static ActorValidatorRegistry *getActorValidatorRegistry() {return getInstance()->actorValidatorRegistry;}
+
 protected:
     static WorkflowEnv* instance;
-    static WorkflowEnv* getInstance() {assert(instance); return instance;}
-    
+    static WorkflowEnv* getInstance();
+
 public:
     virtual ~WorkflowEnv() {}
-    
+
 protected:
-    virtual DataTypeRegistry* initDataRegistry() = 0;
-    virtual ActorPrototypeRegistry* initProtoRegistry() = 0;
-    virtual DomainFactoryRegistry* initDomainRegistry() = 0;
-    virtual DataTypeValueFactoryRegistry* initDataTypeValueFactoryRegistry() = 0;
-    virtual ExternalToolCfgRegistry* initExternalToolCfgRegistry() = 0;
-    
+    virtual DataTypeRegistry * initDataRegistry() = 0;
+    virtual ActorPrototypeRegistry * initProtoRegistry() = 0;
+    virtual DomainFactoryRegistry * initDomainRegistry() = 0;
+    virtual DataTypeValueFactoryRegistry * initDataTypeValueFactoryRegistry() = 0;
+    virtual ExternalToolCfgRegistry * initExternalToolCfgRegistry() = 0;
+    virtual SchemaActorsRegistry * initSchemaActorsRegistry() = 0;
+    virtual WorkflowTasksRegistry * initWorkflowTasksRegistry() = 0;
+    virtual ActorValidatorRegistry * initActorValidatorRegistry() = 0;
+
 protected:
-    DataTypeRegistry* data;
-    ActorPrototypeRegistry* proto;
-    DomainFactoryRegistry* domain;
-    DataTypeValueFactoryRegistry* dvfReg;
+    DataTypeRegistry *data;
+    ActorPrototypeRegistry *proto;
+    DomainFactoryRegistry *domain;
+    DataTypeValueFactoryRegistry *dvfReg;
     ExternalToolCfgRegistry *ecfgReg;
-    
+    SchemaActorsRegistry *schemaActorsReg;
+    WorkflowTasksRegistry *workflowTasksRegistry;
+    ActorValidatorRegistry *actorValidatorRegistry;
+
 }; // WorkflowEnv
 
 } //namespace Workflow

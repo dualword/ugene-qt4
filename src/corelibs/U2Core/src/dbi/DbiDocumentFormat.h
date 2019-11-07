@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,8 +32,8 @@ namespace U2 {
 class U2CORE_EXPORT DbiDocumentFormat: public DocumentFormat {
     Q_OBJECT
 public:
-    DbiDocumentFormat(const U2DbiFactoryId& id, const DocumentFormatId& formatId, 
-        const QString& formatName, const QStringList& exits, QObject* p = NULL);
+    DbiDocumentFormat(const U2DbiFactoryId& id, const DocumentFormatId& formatId,
+        const QString& formatName, const QStringList& exits, DocumentFormatFlags flags, QObject* p = NULL);
 
     virtual DocumentFormatId getFormatId() const {return formatId;}
 
@@ -45,6 +45,9 @@ public:
 
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
+
+    QList<GObject *> prepareObjects(DbiConnection &handle, const QList<U2DataId> &objectIds);
+    QList<GObject *> cloneObjects(const QList<GObject *> &srcObjects, const U2DbiRef &dstDbiRef, const QVariantMap &hints, U2OpStatus &os);
 
 private:
     QString             formatName;

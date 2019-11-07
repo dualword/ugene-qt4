@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,6 +19,8 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QScopedPointer>
+
 #include <U2Designer/DelegateEditors.h>
 #include <U2Designer/MarkerEditor.h>
 
@@ -31,10 +33,13 @@
 #include <U2Lang/Marker.h>
 #include <U2Lang/MarkerAttribute.h>
 #include <U2Lang/WorkflowEnv.h>
-#include <U2Core/Log.h>
 
-#include <U2Core/QVariantUtils.h>
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/DNASequence.h>
+#include <U2Core/FailTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/QVariantUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include "MarkSequenceWorker.h"
 
@@ -42,14 +47,17 @@ namespace U2 {
 namespace LocalWorkflow {
 
 const QString MarkSequenceWorkerFactory::ACTOR_ID("mark-sequence");
-static const QString SEQ_TYPESET_ID("seq.content");
-static const QString MARKED_SEQ_TYPESET_ID("marker.seq.content");
+namespace {
+    const QString SEQ_TYPESET_ID("seq.content");
+    const QString MARKED_SEQ_TYPESET_ID("marker.seq.content");
+    const QString MARKER_ATTR_ID("marker");
+}
 
 /*******************************
  * MarkSequenceWorker
  *******************************/
 MarkSequenceWorker::MarkSequenceWorker(Actor *p)
-: BaseWorker(p), inChannel(NULL), outChannel(NULL), done(false)
+: BaseWorker(p), inChannel(NULL), outChannel(NULL)
 {
 }
 
@@ -59,34 +67,39 @@ void MarkSequenceWorker::init() {
     mtype = ports.value(MarkerPorts::OUT_MARKER_SEQ_PORT())->getBusType();
 }
 
-bool MarkSequenceWorker::isReady() {
-    int hasMsg = inChannel->hasMessage();
-    bool ended = inChannel->isEnded();
-    return hasMsg || (ended && !done);
-}
-
 Task *MarkSequenceWorker::tick() {
     while (inChannel->hasMessage()) {
         Message inputMessage = getMessageAndSetupScriptValues(inChannel);
+        if (inputMessage.isEmpty()) {
+            outChannel->transit();
+            continue;
+        }
         QVariantMap data = inputMessage.getData().toMap();
-        U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-        std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-        if (NULL == seqObj.get()) {
+        SharedDbiDataHandler seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        if (NULL == seqObj.data()) {
             return NULL;
         }
-        DNASequence seq = seqObj->getWholeSequence();
-        QList<SharedAnnotationData> anns = QVariantUtils::var2ftl(data.value(BaseSlots::ANNOTATION_TABLE_SLOT().getId()).toList());
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        CHECK_OP(os, new FailTask(os.getError()));
 
-        MarkerAttribute *attr = dynamic_cast<MarkerAttribute*>(actor->getParameter("markers"));
+        const QList<SharedAnnotationData> inputAnns = StorageUtils::getAnnotationTable(context->getDataStorage(),
+            data[BaseSlots::ANNOTATION_TABLE_SLOT().getId()]);
+
+        QVariantList anns;
+        foreach (const SharedAnnotationData &ad, inputAnns) {
+            anns << QVariant::fromValue(ad);
+        }
+
+        MarkerAttribute *attr = dynamic_cast<MarkerAttribute*>(actor->getParameter(MARKER_ATTR_ID));
         QVariantMap m;
-        foreach (QString markerId, attr->getMarkers().keys()) {
-            Marker *marker = attr->getMarkers().value(markerId);
-
+        foreach (Marker *marker, attr->getMarkers()) {
             QString res;
             if (SEQUENCE == marker->getGroup()) {
                 res = marker->getMarkingResult(qVariantFromValue<DNASequence>(seq));
             } else if (QUALIFIER == marker->getGroup() || ANNOTATION == marker->getGroup()) {
-                res = marker->getMarkingResult(data.value(BaseSlots::ANNOTATION_TABLE_SLOT().getId()));
+                res = marker->getMarkingResult(QVariant(anns));
             } else if (TEXT == marker->getGroup()) {
                 res = marker->getMarkingResult(data.value(BaseSlots::URL_SLOT().getId()));
             }
@@ -96,17 +109,10 @@ Task *MarkSequenceWorker::tick() {
         outChannel->put(mes);
     }
     if (inChannel->isEnded()) {
-        done = true;
+        setDone();
         outChannel->setEnded();
     }
     return NULL;
-}
-
-bool MarkSequenceWorker::isDone() {
-    return done;
-}
-
-void MarkSequenceWorker::cleanup() {
 }
 
 /*******************************
@@ -134,19 +140,20 @@ void MarkSequenceWorkerFactory::init() {
     Descriptor outPd(MarkerPorts::OUT_MARKER_SEQ_PORT(), MarkSequenceWorker::tr("Marked sequence"), MarkSequenceWorker::tr("Marked sequence"));
     portDescs << new PortDescriptor(outPd, outTypeSet, false, true);
 
-   
+
     Descriptor protoDesc(MarkSequenceWorkerFactory::ACTOR_ID,
         MarkSequenceWorker::tr("Sequence Marker"),
         MarkSequenceWorker::tr("Adds one or several marks to the input sequence depending on the sequence properties. "
                                "Use this element, for example, in conjunction with the Filter element."));
-    attrs << new MarkerAttribute(Descriptor("markers", MarkSequenceWorker::tr("Markers"), MarkSequenceWorker::tr("Markers.")), BaseTypes::STRING_TYPE(), false);
+    Descriptor markerDesc(MARKER_ATTR_ID, MarkSequenceWorker::tr("Markers"), MarkSequenceWorker::tr("Markers."));
+    attrs << new MarkerAttribute(markerDesc, BaseTypes::STRING_TYPE(), false);
 
     ActorPrototype *proto = new IntegralBusActorPrototype(protoDesc, portDescs, attrs);
 
     proto->setEditor(new MarkerEditor());
     proto->setPrompter(new MarkSequencePrompter());
     proto->setPortValidator(inPd.getId(), new ScreenedSlotValidator(BaseSlots::URL_SLOT().getId()));
-    
+
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_DATAFLOW(), proto);
     WorkflowEnv::getDomainRegistry()->getById(LocalDomainFactory::ID)->registerEntry(new MarkSequenceWorkerFactory());
 }

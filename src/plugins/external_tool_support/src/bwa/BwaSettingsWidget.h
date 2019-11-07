@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,8 +23,27 @@
 #define _U2_BWA_SETTINGS_WIDGET_H_
 
 #include "ui/ui_BwaSettings.h"
+#include "ui/ui_BwaMemSettings.h"
+#include "ui/ui_BwaSwSettings.h"
 #include "ui/ui_BwaBuildSettings.h"
 #include "U2View/DnaAssemblyGUIExtension.h"
+
+class BwaIndexAlgorithmWarningReporter : public QObject {
+    Q_OBJECT
+public:
+    BwaIndexAlgorithmWarningReporter( QObject *parent );
+    void setReportingLabel( QLabel *reportLabel );
+    void setRefSequencePath( const U2::GUrl &path );
+
+public slots:
+    void sl_IndexAlgorithmChanged( int index );
+
+private:
+    void setReportLabelStyle( );
+
+    QLabel *reportLabel;
+    U2::GUrl referenceSequencePath;
+};
 
 namespace U2 {
 
@@ -32,9 +51,31 @@ class BwaSettingsWidget : public DnaAssemblyAlgorithmMainWidget, Ui_BwaSettings 
     Q_OBJECT
 public:
     BwaSettingsWidget(QWidget *parent);
-    QMap<QString, QVariant> getDnaAssemblyCustomSettings();
-    void buildIndexUrl(const GUrl &url);
-    bool isParametersOk(QString &);
+    QMap<QString, QVariant> getDnaAssemblyCustomSettings() const;
+    void validateReferenceSequence(const GUrl &url) const;
+
+private:
+    BwaIndexAlgorithmWarningReporter *warningReporter;
+};
+
+class BwaSwSettingsWidget : public DnaAssemblyAlgorithmMainWidget, Ui_BwaSwSettings {
+    Q_OBJECT
+public:
+    BwaSwSettingsWidget(QWidget *parent);
+    QMap<QString, QVariant> getDnaAssemblyCustomSettings() const;
+    void validateReferenceSequence(const GUrl &url) const;
+private:
+    BwaIndexAlgorithmWarningReporter *warningReporter;
+};
+
+class BwaMemSettingsWidget : public DnaAssemblyAlgorithmMainWidget, Ui_BwaMemSettings {
+    Q_OBJECT
+public:
+    BwaMemSettingsWidget(QWidget *parent);
+    QMap<QString, QVariant> getDnaAssemblyCustomSettings() const;
+    void validateReferenceSequence(const GUrl &url) const;
+private:
+    BwaIndexAlgorithmWarningReporter *warningReporter;
 };
 
 class BwaBuildSettingsWidget : public DnaAssemblyAlgorithmBuildIndexWidget, Ui_BwaBuildSettings {
@@ -43,7 +84,11 @@ public:
     BwaBuildSettingsWidget(QWidget *parent);
     virtual QMap<QString,QVariant> getBuildIndexCustomSettings();
     virtual QString getIndexFileExtension();
-    virtual void buildIndexUrl(const GUrl& url);
+    virtual GUrl buildIndexUrl(const GUrl& url);
+    void validateReferenceSequence( const GUrl &url );
+
+private:
+    BwaIndexAlgorithmWarningReporter *warningReporter;
 };
 
 class BwaGUIExtensionsFactory : public DnaAssemblyGUIExtensionsFactory {
@@ -52,6 +97,22 @@ class BwaGUIExtensionsFactory : public DnaAssemblyGUIExtensionsFactory {
     bool hasMainWidget();
     bool hasBuildIndexWidget();
 };
+
+class BwaSwGUIExtensionsFactory : public DnaAssemblyGUIExtensionsFactory {
+    DnaAssemblyAlgorithmMainWidget *createMainWidget(QWidget *parent);
+    DnaAssemblyAlgorithmBuildIndexWidget *createBuildIndexWidget(QWidget *parent);
+    bool hasMainWidget();
+    bool hasBuildIndexWidget();
+};
+
+class BwaMemGUIExtensionsFactory : public DnaAssemblyGUIExtensionsFactory {
+    DnaAssemblyAlgorithmMainWidget *createMainWidget(QWidget *parent);
+    DnaAssemblyAlgorithmBuildIndexWidget *createBuildIndexWidget(QWidget *parent);
+    bool hasMainWidget();
+    bool hasBuildIndexWidget();
+};
+
+
 
 } // namespace U2
 

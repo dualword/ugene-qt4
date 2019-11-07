@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -56,10 +56,10 @@ void ModTrackHints::set(const QString& key, const QVariant& val) {
     if (oldVal == val) {
         return;
     }
-    
+
 //     QString newV = val.toString();
 //     QString oldV = oldVal.toString();
- 
+
     map[key] = val;
     setModified();
 }

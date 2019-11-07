@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,10 @@
 namespace U2 {
 
 static QList<GObject*> emptyObjs;
+GObjectSelection::GObjectSelection(QObject *p) : GSelection(GSelectionTypes::GOBJECTS, p) {
+    connect(this, SIGNAL(si_selectionChanged(GObjectSelection*,QList<GObject*>,QList<GObject*>)), SLOT(sl_selectionChanged()));
+}
+
 void GObjectSelection::clear() {
     QList<GObject*> tmpRemoved = selectedObjects;
     selectedObjects.clear();

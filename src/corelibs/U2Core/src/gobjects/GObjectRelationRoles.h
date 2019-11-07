@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,19 @@
 
 namespace U2 {
 
-class U2CORE_EXPORT GObjectRelationRole {
+enum GObjectRelationRole {
+    ObjectRole_Sequence = 1,
+    ObjectRole_AnnotationTable,
+    ObjectRole_PhylogeneticTree
+};
+
+/**
+ * The class for supporting of old relation roles
+ */
+class GObjectRelationRoleCompatibility {
 public:
-    static const QString SEQUENCE;
-    static const QString ANNOTATION_TABLE;
+    static QString toString(GObjectRelationRole role);
+    static GObjectRelationRole fromString(const QString &str);
 };
 
 }//namespace

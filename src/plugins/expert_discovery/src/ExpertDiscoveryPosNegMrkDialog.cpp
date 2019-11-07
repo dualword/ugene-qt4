@@ -1,11 +1,36 @@
-#include "ExpertDiscoveryPosNegMrkDialog.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
+#include <QMessageBox>
 
 #include <U2Core/GObjectTypes.h>
-#include <U2Gui/LastUsedDirHelper.h>
-#include <U2Gui/DialogUtils.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include "ExpertDiscoveryPosNegMrkDialog.h"
 
 namespace U2 {
 
@@ -13,6 +38,7 @@ ExpertDiscoveryPosNegMrkDialog::ExpertDiscoveryPosNegMrkDialog(QWidget *parent)
 : QDialog(parent), generateDescr(true){
 
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122414");
 
     connect(openFirstButton, SIGNAL(clicked()), SLOT(sl_openFirstFile()));
     connect(openSecondButton, SIGNAL(clicked()), SLOT(sl_openSecondFile()));
@@ -29,6 +55,7 @@ ExpertDiscoveryPosNegMrkDialog::ExpertDiscoveryPosNegMrkDialog(QWidget *parent)
     openThirdButton->hide();
 
     filter = DialogUtils::prepareFileFilter("Markup files", QStringList() << "xml" << "gb");
+
 }
 
 void ExpertDiscoveryPosNegMrkDialog::accept(){
@@ -40,19 +67,21 @@ void ExpertDiscoveryPosNegMrkDialog::accept(){
     secondFileName = secondFileEdit->text();
     thirdFileName = thirdFileEdit->text();
 
- 
+
     if (!firstFileName.isEmpty() && !secondFileName.isEmpty()) {
         if(!generateDescr && thirdFileName.isEmpty()){
-            QMessageBox mb(QMessageBox::Critical, tr("Select files"), tr("Select description file"));
-            mb.exec();
+            QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Select files"), tr("Select description file"));
+            mb->exec();
+            CHECK(!mb.isNull(), );
         }else{
             QDialog::accept();
         }
     }else if(lettersCheck->isChecked() || !firstFileName.isEmpty()){
         QDialog::accept();
     }else{
-        QMessageBox mb(QMessageBox::Critical, tr("Select files"), tr("Select positive markup file at least or chose 'Nucleotides markup'"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Select files"), tr("Select positive markup file at least or chose 'Nucleotides markup'"));
+        mb->exec();
+        CHECK(!mb.isNull(), );
     }
 }
 
@@ -74,7 +103,7 @@ void ExpertDiscoveryPosNegMrkDialog::sl_lettersMarkup(){
 
 void ExpertDiscoveryPosNegMrkDialog::sl_openFirstFile(){
     LastUsedDirHelper lod("ExpertDiscovery positive sequences markup file");
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open positive sequences markup file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(NULL, tr("Open positive sequences markup file"), lod.dir, filter);
 
     Q_ASSERT(firstFileEdit);
     if (!lod.url.isEmpty()) {
@@ -89,7 +118,7 @@ void ExpertDiscoveryPosNegMrkDialog::sl_openSecondFile() {
 
         lod.dir = lodFirst.dir;
     }
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open second file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(NULL, tr("Open second file"), lod.dir, filter);
 
     Q_ASSERT(secondFileEdit);
     if (!lod.url.isEmpty()) {
@@ -105,7 +134,7 @@ void ExpertDiscoveryPosNegMrkDialog::sl_openThirdFile() {
 
         lod.dir = lodFirst.dir;
     }
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open description file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(NULL, tr("Open description file"), lod.dir, filter);
 
     Q_ASSERT(thirdFileEdit);
     if (!lod.url.isEmpty()) {

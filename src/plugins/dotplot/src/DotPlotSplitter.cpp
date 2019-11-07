@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,20 +21,27 @@
 
 #include "DotPlotSplitter.h"
 #include "DotPlotWidget.h"
+#include "DotPlotFilterDialog.h"
+
+#include <U2Gui/HBar.h>
+#include <U2View/AnnotatedDNAView.h>
+#include <U2Core/U2SafePoints.h>
 
 #include <QtCore/QString>
 #include <QtCore/QPair>
 #include <QtCore/QSet>
 
-#include <QtGui/QVBoxLayout>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#include <QtGui/QVBoxLayout>
 #include <QtGui/QMenu>
-
 #include <QtGui/QToolButton>
-//#include <QtGui/QToolBar>
-//#include <U2View/ADVSingleSequenceWidget.h>
-#include <U2Gui/HBar.h>
-#include <U2View/AnnotatedDNAView.h>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QToolButton>
+#endif
 
 namespace U2 {
 
@@ -49,17 +56,22 @@ DotPlotSplitter::DotPlotSplitter(AnnotatedDNAView* a)
     layout->setSpacing(0);
     layout->setContentsMargins(0,0,3,0);
 
+
     syncLockButton = createToolButton(":core/images/sync_lock.png", tr("Multiple view synchronization lock"), SLOT(sl_toggleSyncLock(bool)));
+    filterButton = createToolButton(":dotplot/images/filter.png", tr("Filter results"), SLOT(sl_toggleFilter()), false);
     aspectRatioButton = createToolButton(":dotplot/images/aspectRatio.png", tr("Keep aspect ratio"), SLOT(sl_toggleAspectRatio(bool)));
     zoomInButton = createToolButton(":core/images/zoom_in.png", tr("Zoom in (<b> + </b>)"), SLOT(sl_toggleZoomIn()), false);
     zoomOutButton = createToolButton(":core/images/zoom_out.png", tr("Zoom out (<b> - </b>)"), SLOT(sl_toggleZoomOut()), false);
     resetZoomingButton = createToolButton(":core/images/zoom_whole.png", tr("Reset zooming (<b>0</b>)"), SLOT(sl_toggleZoomReset()), false);
     selButton = createToolButton(":dotplot/images/cursor.png", tr("Select tool (<b>S</b>)"), SLOT(sl_toggleSel()));
-    handButton = createToolButton(":dotplot/images/hand_icon.png", tr("Hand tool (<b>H</b>)"), SLOT(sl_toggleHand())); 
-    
+    handButton = createToolButton(":dotplot/images/hand_icon.png", tr("Hand tool (<b>H</b>)"), SLOT(sl_toggleHand()));
+
 
     syncLockButton->setAutoRaise(true);
     syncLockButton->setAutoFillBackground(true);
+
+    filterButton->setAutoRaise(true);
+    filterButton->setAutoFillBackground(true);
 
     aspectRatioButton->setAutoRaise(true);
 
@@ -82,6 +94,7 @@ DotPlotSplitter::DotPlotSplitter(AnnotatedDNAView* a)
     buttonToolBar->setMovable(false);
     buttonToolBar->setStyleSheet("background: ");
 
+    buttonToolBar->addWidget(filterButton);
     buttonToolBar->addWidget(syncLockButton);
 //  buttonToolBar->addWidget(aspectRatioButton); // todo: not implemented yet
     buttonToolBar->addWidget(zoomInButton);
@@ -89,7 +102,7 @@ DotPlotSplitter::DotPlotSplitter(AnnotatedDNAView* a)
     buttonToolBar->addWidget(resetZoomingButton);
     buttonToolBar->addWidget(selButton);
     buttonToolBar->addWidget(handButton);
-    
+
 
     splitter = new QSplitter(Qt::Horizontal);
     if (!splitter) {
@@ -103,6 +116,18 @@ DotPlotSplitter::DotPlotSplitter(AnnotatedDNAView* a)
 
     setLayout(layout);
     setFocus();
+}
+
+bool DotPlotSplitter::onCloseEvent() {
+
+    foreach (DotPlotWidget* w, dotPlotList) {
+        bool canClose = w->onCloseEvent();
+        if (!canClose) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 QToolButton *DotPlotSplitter::createToolButton(const QIcon& ic, const QString& toolTip, const char *slot, bool checkable) {
@@ -133,6 +158,7 @@ QToolButton *DotPlotSplitter::createToolButton(const QString& iconPath, const QS
 DotPlotSplitter::~DotPlotSplitter() {
 
     delete syncLockButton;
+    delete filterButton;
     delete aspectRatioButton;
     delete zoomInButton;
     delete zoomOutButton;
@@ -147,7 +173,7 @@ DotPlotSplitter::~DotPlotSplitter() {
 void DotPlotSplitter::addView(DotPlotWidget* view) {
 
     dotPlotList.append(view);
-    Q_ASSERT(splitter);
+    SAFE_POINT(splitter, "splitter is NULL", );
     splitter->addWidget(view);
 
     connect(view,
@@ -217,7 +243,7 @@ bool DotPlotSplitter::isEmpty() const{
 // each DotPlotWidget defines if it should add menu
 void DotPlotSplitter::buildPopupMenu(QMenu *m) {
     foreach (DotPlotWidget *w, dotPlotList) {
-        Q_ASSERT(w);
+        SAFE_POINT(w, "w is NULL", );
         w->buildPopupMenu(m);
     }
 }
@@ -225,6 +251,14 @@ void DotPlotSplitter::buildPopupMenu(QMenu *m) {
 void DotPlotSplitter::sl_toggleSyncLock(bool l) {
 
     locked = l;
+}
+
+void DotPlotSplitter::sl_toggleFilter(){
+    foreach (DotPlotWidget *w, dotPlotList) {
+        SAFE_POINT(w, "w is NULL", );
+        w->sl_filter();
+        break; //todo: support several widgets
+    }
 }
 
 void DotPlotSplitter::sl_toggleAspectRatio(bool aspectRatio) {
@@ -318,10 +352,10 @@ void DotPlotSplitter::sl_dotPlotChanged(ADVSequenceObjectContext* sequenceX, ADV
             w->setShiftZoom(sequenceX, sequenceY, shiftX, shiftY, zoom);
         }
         update();
-        
+
     }
-    updateButtonState();    
-    
+    updateButtonState();
+
 }
 
 void DotPlotSplitter::sl_dotPlotSelecting() {
@@ -345,7 +379,7 @@ void DotPlotSplitter::updateButtonState(){
             noFocus = false;
             break;
         }
-    }   
+    }
     if (noFocus && !dotPlotList.isEmpty()){
         DotPlotWidget *dpWidget = dotPlotList.first();
         zoomInButton->setEnabled(dpWidget->canZoomIn());

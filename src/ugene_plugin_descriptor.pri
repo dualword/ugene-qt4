@@ -62,7 +62,9 @@ macx:  PLATFORM_NAME="macx"
 
 !contains(QMAKE_HOST.arch, x86_64) : PLATFORM_ARCH=32
 contains (QMAKE_HOST.arch, x86_64) : PLATFORM_ARCH=64
-
+CONFIG(x64) {
+    PLATFORM_ARCH=64
+}
 
 # Set plugin mode
 isEmpty(PLUGIN_MODE)  {
@@ -118,3 +120,20 @@ write("    <platform name=$${QQ}$${PLATFORM_NAME}$${QQ} arch=$${QQ}$${PLATFORM_A
 }
 
 write("</ugene-plugin>",  >>)
+
+
+# Add license files
+
+PLUGIN_LICENSE_FILE=$$_PRO_FILE_PWD_/*.license
+PLUGIN_LICENSE_FILE_REP=$$replace(PLUGIN_LICENSE_FILE, "/","\\")
+!debug_and_release|build_pass {
+    CONFIG(debug, debug|release) {
+        unix: system (cat $$PLUGIN_LICENSE_FILE > _debug/plugins/$${PLUGIN_ID}.license)
+        win32: system (copy /B $$PLUGIN_LICENSE_FILE_REP _debug\\plugins\\$${PLUGIN_ID}.license)
+    }
+    CONFIG(release, debug|release) {
+        unix: system (cat $$PLUGIN_LICENSE_FILE > _release/plugins/$${PLUGIN_ID}.license)
+        win32: system (copy /B $$PLUGIN_LICENSE_FILE_REP _release\\plugins\\$${PLUGIN_ID}.license)
+    }
+}
+

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,15 +22,10 @@
 #ifndef _PHYTREEGENERATOR
 #define _PHYTREEGENERATOR
 
-
 #include <U2Core/Task.h>
 #include <U2Core/PhyTree.h>
 #include <U2Core/MAlignment.h>
 #include "CreatePhyTreeSettings.h"
-
-#include <memory>
-
-
 
 namespace U2{
 
@@ -38,12 +33,11 @@ class CreatePhyTreeDialogController;
 
 class U2ALGORITHM_EXPORT PhyTreeGenerator{
 public:
+    virtual ~PhyTreeGenerator() {}
     //virtual PhyTree calculatePhyTree(const MAlignment& ma, const CreatePhyTreeSettings& s, TaskStateInfo& ti) = 0;
     virtual Task* createCalculatePhyTreeTask(const MAlignment& ma, const CreatePhyTreeSettings& s) = 0;
     virtual void setupCreatePhyTreeUI(CreatePhyTreeDialogController* c, const MAlignment& ma) = 0;
 };
-
-
 
 }
 #endif

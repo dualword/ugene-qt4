@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,12 @@
 #ifndef _U2_GOBJECT_UTILS_H_
 #define _U2_GOBJECT_UTILS_H_
 
-#include "GObjectTypes.h"
+#include <U2Core/AnnotationData.h>
 #include <U2Core/GObject.h>
+#include <U2Core/GObjectTypes.h>
 
 namespace U2 {
 
-class AnnotationTableObject;
-class Annotation;
 class U2SequenceObject;
 class DNATranslation;
 class DNASequence;
@@ -44,24 +43,38 @@ public:
 
     static QList<GObject*>  findAllObjects(UnloadedObjectFilter f, GObjectType t = GObjectType());
 
-    // select objects from 'fromObjects' 
-    // that are referenced by relations stored in 'obj' with 'relationRole' and 'type'
-    static QList<GObject*>   selectRelations(GObject* obj, GObjectType type, const QString& relationRole, 
-                                        const QList<GObject*>& fromObjects, UnloadedObjectFilter f);
+    /*
+     * Select objects from @fromObjects that are referenced by relations stored in @obj with @relationRole and @type.
+    */
+    static QList<GObject*> selectRelations(GObject* obj, GObjectType type,
+        GObjectRelationRole relationRole, const QList<GObject*>& fromObjects,
+        UnloadedObjectFilter f);
 
-    static QList<GObject*>  findObjectsRelatedToObjectByRole(const GObject* obj, GObjectType resultObjType, 
-                                        const QString& relationRole, const QList<GObject*>& fromObjects, UnloadedObjectFilter f);
+    static QList<GObject *> selectRelationsFromParentDoc(const GObject* obj, const GObjectType &type, GObjectRelationRole relationRole);
 
-    // selects objects from 'fromObjects' with filter 'f' that have relation(relationRole, type)
-    // 'availableObjectsOnly'  -> check if the related object is in project
-    static QList<GObject*>  selectObjectsWithRelation(const QList<GObject*>& fromObjects, GObjectType type, 
-                                        const QString& relationRole, UnloadedObjectFilter f, bool availableObjectsOnly);
+    /*
+     * Returns list of objects that references the @obj with @relationRole and have @resultObjType as well.
+     * Result list is a sublist of @fromObjects list.
+     */
+    static QList<GObject *>  findObjectsRelatedToObjectByRole(const GObject *obj, GObjectType resultObjType, GObjectRelationRole role,
+        const QList<GObject *> &fromObjects, UnloadedObjectFilter f);
+
+    static QList<GObject*> findObjectsRelatedToObjectByRole(const GObjectReference &obj, GObjectType resultObjType, GObjectRelationRole role,
+        const QList<GObject*>& fromObjects, UnloadedObjectFilter f);
+
+    /*
+     * Selects objects from 'fromObjects' with filter 'f' that have relation(relationRole, type)
+     * 'availableObjectsOnly'  -> check if the related object is in project
+     */
+    static QList<GObject *>  selectObjectsWithRelation(const QList<GObject *> &fromObjects,
+        GObjectType type, GObjectRelationRole relationRole, UnloadedObjectFilter f,
+        bool availableObjectsOnly);
 
     static GObject*         selectObjectByReference(const GObjectReference& r, const QList<GObject*>& fromObjects, UnloadedObjectFilter f);
 
     static GObject*         selectObjectByReference(const GObjectReference& r, UnloadedObjectFilter f);
 
-    static DNATranslation*  findComplementTT(DNAAlphabet* al);
+    static DNATranslation*  findComplementTT(const DNAAlphabet* al);
 
     static DNATranslation*  findAminoTT(U2SequenceObject* so, bool fromHintsOnly, const QString& table = NULL);
 
@@ -73,11 +86,11 @@ public:
     static void             updateRelationsURL(GObject* o, const QString& fromURL, const QString& toURL);
 
     static void             updateRelationsURL(GObject* o, const GUrl& fromURL, const GUrl& toURL);
-    
-    static void             replaceAnnotationQualfier(Annotation* a, const QString& name, const QString& newVal, bool create = false);
 
+    static void             replaceAnnotationQualfier(SharedAnnotationData &a, const QString &name, const QString &newVal, bool create = false);
+
+    static GObject *        createObject(const U2DbiRef &ref, const U2DataId &id, const QString &name);
 };
-
 
 } // namespace
 

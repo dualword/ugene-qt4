@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@ namespace U2 {
 // Represents some Application global resource identified by ID.
 // Only 1 resource of the given ID can exists per time
 
-// Note: This entity class is separated into a separate class to 
-// make it QObject and add more features to it in the future,  
+// Note: This entity class is separated into a separate class to
+// make it QObject and add more features to it in the future,
 // for example like deallocation features.
 
 class U2CORE_EXPORT AppGlobalObject : public QObject, public Identifiable<QString> {

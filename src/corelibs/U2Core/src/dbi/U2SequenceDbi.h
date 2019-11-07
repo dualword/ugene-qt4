@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,13 +36,13 @@ protected:
     U2SequenceDbi(U2Dbi* rootDbi) : U2ChildDbi(rootDbi){}
 
 public:
-    /** 
+    /**
         Reads sequence object from database by its id.
         If there is no sequence object with the specified id returns a default constructed value.
     */
     virtual U2Sequence getSequenceObject(const U2DataId& sequenceId, U2OpStatus& os) = 0;
-    
-    /**  
+
+    /**
         Reads specified sequence data region from database.
         The region must be valid region within sequence bounds.
         If there is no sequence with the specified id returns an empty QByteArray.
@@ -58,17 +58,17 @@ public:
 
         Requires: U2DbiFeature_WriteSequence feature support
     */
-    virtual void createSequenceObject(U2Sequence& sequence, const QString& folder, U2OpStatus& os) = 0;
+    virtual void createSequenceObject(U2Sequence& sequence, const QString& folder, U2OpStatus& os,
+        U2DbiObjectRank rank = U2DbiObjectRank_TopLevel) = 0;
 
-
-    /** 
+    /**
         Updates sequence object fields.
 
         Requires: U2DbiFeature_WriteSequence feature support.
     */
     virtual void updateSequenceObject(U2Sequence& sequence, U2OpStatus& os) = 0;
 
-    /** 
+    /**
         Updates sequence region:
         replaces 'regionToReplace' sequence region with 'dataToInsert'.
 
@@ -77,14 +77,17 @@ public:
 
         NOTE: The passed region 'startPos' has to be between 0 and sequence length inclusive.
         If the sequence is empty 'regionToReplace.startPos' has to be 0.
-        
+
         HINT: use U2_REGION_MAX to replace or clear whole the sequence
 
         Requires: U2DbiFeature_WriteSequence feature support
-    */
-    virtual void updateSequenceData(const U2DataId& sequenceId, const U2Region& regionToReplace, const QByteArray& dataToInsert, U2OpStatus& os) = 0;
-};
 
+        Note: if @updateLength is set then it will update length of the sequence object
+
+        Hint: if @emptySequence is set then the start position of the inserting data is not calculated
+    */
+    virtual void updateSequenceData(const U2DataId& sequenceId, const U2Region& regionToReplace, const QByteArray& dataToInsert, const QVariantMap &hints, U2OpStatus& os) = 0;
+};
 
 } //namespace
 

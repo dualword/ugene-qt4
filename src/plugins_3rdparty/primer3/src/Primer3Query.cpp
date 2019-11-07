@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,13 +25,11 @@
 
 #include <U2Designer/DelegateEditors.h>
 #include <U2Core/TaskSignalMapper.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/Log.h>
 #include <U2Lang/BaseTypes.h>
 
 namespace U2 {
 
-    
 static const QString LEFT_PRIMER_ID = "left";
 static const QString RIGHT_PRIMER_ID = "right";
 
@@ -45,7 +43,6 @@ static const QString MAX_TEMPLATE_MISPRIMING_ATTR("max_template_mispriming");
 static const QString STABILITY_ATTR("stability");
 static const QString PAIR_MAX_MISPRIMING_ATTR("pair_max_mispriming");
 static const QString PAIR_MAX_TEMPLATE_MISPRIMING_ATTR("pair_max_template_mispriming");
-
 
 QDPrimerActor::QDPrimerActor(QDActorPrototype const* proto) : QDActor(proto) {
     cfg->setAnnotationKey("top primers");
@@ -64,9 +61,9 @@ Task* QDPrimerActor::getAlgorithmTask(const QVector<U2Region>& /*location*/ ) {
     settings.setSequence(dnaSeq.seq);
 
     U2Region seqRange(0, dnaSeq.length());
-    settings.setIncludedRegion(qMakePair(int(seqRange.startPos + settings.getFirstBaseIndex()),int(seqRange.length)));
+    settings.setIncludedRegion(seqRange.startPos + settings.getFirstBaseIndex(), seqRange.length);
 
-    QList<QPair<int, int> > list;
+    QList< U2Region > list;
     bool ok = false;
     const QString& excludedRegsStr = cfg->getParameter(EXCLUDED_REGIONS_ATTR)->getAttributeValueWithoutScript<QString>();
     ok = Primer3Dialog::parseIntervalList(excludedRegsStr, ",", &list);
@@ -87,7 +84,7 @@ Task* QDPrimerActor::getAlgorithmTask(const QVector<U2Region>& /*location*/ ) {
     }
 
     const QString& sizeRangesAttr = cfg->getParameter(SIZE_RANGES_ATTR)->getAttributeValueWithoutScript<QString>();
-    ok = Primer3Dialog::parseIntervalList(sizeRangesAttr, "-", &list);
+    ok = Primer3Dialog::parseIntervalList(sizeRangesAttr, "-", &list, Primer3Dialog::Start_End);
     if (ok) {
         settings.setProductSizeRange(list);
     } else {
@@ -116,16 +113,6 @@ Task* QDPrimerActor::getAlgorithmTask(const QVector<U2Region>& /*location*/ ) {
     qreal pairtemplateMispriming = cfg->getParameter(PAIR_MAX_TEMPLATE_MISPRIMING_ATTR)->getAttributeValueWithoutScript<double>()*100;
     settings.setAlignProperty("PRIMER_PAIR_MAX_TEMPLATE_MISPRIMING", pairtemplateMispriming);
     assert(settings.getAlignPropertyList().contains("PRIMER_PAIR_MAX_TEMPLATE_MISPRIMING"));
-
-    /*int startCodon = cfg->getParameter(START_CODON_ATTR)->getAttributeValueWithoutScript<QString>().toInt(&ok);
-    if(ok) {
-        settings.setIntProperty("PRIMER_START_CODON_POSITION", startCodon);
-    }
-    else {
-        algoLog.error(tr("%1 invalid input. Start codon position must be int.")
-            .arg(cfg->getLabel()));
-        return NULL;
-    }*/
 
     t = new Primer3SWTask(settings);
     connect(new TaskSignalMapper(t), SIGNAL(si_taskFinished(Task*)), SLOT(sl_onAlgorithmTaskFinished(Task*)));
@@ -159,17 +146,17 @@ void QDPrimerActor::sl_onAlgorithmTaskFinished(Task* t) {
     }
 }
 
-void QDPrimerActor::setDefaultSettings() {    
+void QDPrimerActor::setDefaultSettings() {
     {
-        QList<QPair<int, int> > sizeRange;
-        sizeRange.append(qMakePair(150,250));
-        sizeRange.append(qMakePair(100,300));
-        sizeRange.append(qMakePair(301,400));
-        sizeRange.append(qMakePair(401,500));
-        sizeRange.append(qMakePair(501,600));
-        sizeRange.append(qMakePair(601,700));
-        sizeRange.append(qMakePair(701,850));
-        sizeRange.append(qMakePair(851,1000));
+        QList< U2Region > sizeRange;
+        sizeRange.append(U2Region(150, 101));  // 150-250
+        sizeRange.append(U2Region(100, 201));  // 100-300
+        sizeRange.append(U2Region(301, 100));  // 301-400
+        sizeRange.append(U2Region(401, 100));  // 401-500
+        sizeRange.append(U2Region(501, 100));  // 501-600
+        sizeRange.append(U2Region(601, 100));  // 601-700
+        sizeRange.append(U2Region(701, 150));  // 701-850
+        sizeRange.append(U2Region(851, 150));  // 851-1000
         settings.setProductSizeRange(sizeRange);
     }
     settings.setDoubleProperty("PRIMER_MAX_END_STABILITY",9.0);
@@ -211,7 +198,7 @@ QDPrimerActorPrototype::QDPrimerActorPrototype() {
     QMap<QString, PropertyDelegate*> delegates;
     QVariantMap lenMap;
     lenMap["minimum"] = QVariant(0);
-    lenMap["maximum"] = QVariant(9999); 
+    lenMap["maximum"] = QVariant(9999);
     delegates[NUM_RETURN_ATTR] = new SpinBoxDelegate(lenMap);
     delegates[MAX_MISPRIMING_ATTR] = new DoubleSpinBoxDelegate(lenMap);
     delegates[MAX_TEMPLATE_MISPRIMING_ATTR] = new DoubleSpinBoxDelegate(lenMap);

@@ -1,4 +1,26 @@
-#pragma once
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
+#ifndef _EXPERT_DISCOVERY_VIEW_H_
+#define _EXPERT_DISCOVERY_VIEW_H_
 
 #include "ExpertDiscoveryData.h"
 #include "ExpertDiscoveryTreeWidgetsCtrl.h"
@@ -10,8 +32,14 @@
 
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QToolBar>
 #include <QTreeWidget>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QToolBar>
+#include <QtWidgets/QTreeWidget>
+#endif
 
 namespace U2{
 class ExpertDiscoverySignalsAutoAnnotationUpdater;
@@ -36,10 +64,10 @@ public:
     QAction* getLoadControlMarkupAction(){return loadControlMarkupAction;}
     QAction* getGenerateFullReportAction(){return generateFullReportAction;}
     Task*    getExtractTask(){return extrTask;}
-    
+
     QAction* getLoadMarkupAction(){return loadMarkupAction;}
     QList<GObject*> getEDObjects() {return edObjects;}
-    
+
     EDProjectTree* getProjectTree() {return signalsWidget;}
     EDPropertiesTable* getPropertiesWidget() {return  propWidget;}
     AnnotatedDNAView* getCurrentAdv() {return currentAdv;}
@@ -52,8 +80,8 @@ public:
 
 
 private slots:
-    //     void sl_showExpertDiscoveryControlMrkDialog();
-    //     void sl_loadControlMrkTaskStateChanged();
+    void sl_showExpertDiscoveryControlMrkDialog();
+    void sl_loadControlMrkTaskStateChanged();
 
     void sl_newDoc();
 
@@ -95,7 +123,7 @@ private slots:
 
     void sl_sequenceItemSelChanged(ADVSequenceWidget*);
     void sl_newViewTask(Task* t);
-    void sl_testView(); 
+    void sl_testView();
 
     //void sl_propChanged(QTreeWidgetItem* item);
 
@@ -121,7 +149,7 @@ private:
 
     QSplitter*          splitter;
 
-    EDProjectTree*      signalsWidget;         
+    EDProjectTree*      signalsWidget;
     EDPropertiesTable*  propWidget;
     AnnotatedDNAView*   currentAdv;
 
@@ -137,7 +165,7 @@ private:
     QAction*            loadMarkupAction;
     QAction*            loadControlMarkupAction;
     QAction*            generateFullReportAction;
-    
+
     QList<GObject*>     edObjects;
     EDPISequence*       curEDsequence;
 
@@ -168,4 +196,8 @@ protected:
     bool onCloseEvent();
 
 };
-}//namespace
+
+} // namespace
+
+#endif // _EXPERT_DISCOVERY_VIEW_H_
+

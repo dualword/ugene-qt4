@@ -5,6 +5,7 @@ MODULE_ID=U2Remote
 include( ../../ugene_lib_common.pri )
 
 QT += network
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 DEFINES+= QT_FATAL_ASSERT BUILDING_U2REMOTE_DLL
 INCLUDEPATH += ../U2Private/src
 

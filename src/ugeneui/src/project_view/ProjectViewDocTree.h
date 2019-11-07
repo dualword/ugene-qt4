@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,15 +23,17 @@
 #define _U2_PROJECT_VIEW_DOC_TREE_H_
 
 #include <QtCore/QMimeData>
-#include <QtGui/QTreeWidget>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QTreeView>
+#else
+#include <QtWidgets/QTreeView>
+#endif
 
 namespace U2 {
 
-class ProjectViewDocTree : public QTreeWidget {
+class ProjectViewDocTree : public QTreeView {
 public:
     ProjectViewDocTree(QWidget* w);
-protected:
-    virtual QMimeData * mimeData ( const QList<QTreeWidgetItem *> items ) const;
 };
 
 }//namespace

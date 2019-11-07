@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,44 +23,99 @@
 #define _U2_EXTERNAL_TOOL_VALIDATE_TASK_H
 
 #include <U2Core/Task.h>
+#include <U2Core/MultiTask.h>
 #include <QtCore/QProcess>
 
 namespace U2 {
 
+class ExternalTool;
 class ExternalToolLogParser;
-class ExternalToolValidateTask: public Task {
+class ExternalToolValidation;
+class ExternalToolSearchTask;
+
+class ExternalToolValidateTask : public Task {
     Q_OBJECT
 public:
-    ExternalToolValidateTask(const QString& toolName);
-    ExternalToolValidateTask(const QString& toolName, const QString& path);
-    ~ExternalToolValidateTask();
+    ExternalToolValidateTask(const QString& toolName, TaskFlags flags = TaskFlag_None);
+    virtual ~ExternalToolValidateTask() {}
 
-    void prepare();
-    void run();
-    Task::ReportResult report();
+    virtual Task::ReportResult report() = 0;
 
-    void cancelProcess();
     bool isValidTool()  { return isValid; }
     QString getToolName()  { return toolName; }
-    QString getToolPath()  { return program; }
+    QString getToolPath()  { return toolPath; }
     QString getToolVersion()  { return version; }
 
-private:
-    void parseLog();
-    void checkVersion(const QString& partOfLog);
-
-    QStringList arguments;
-    QString     program;
-    QProcess*   externalToolProcess;
-    QString     toolName;
-    QString     expectedMessage;
-    QRegExp     checkVersionRegExp;
-    QString     version;
-    bool        isValid;
-    QString     lastErrLine;
-    QString     lastOutLine;
+protected:
+    QString toolName;
+    QString toolPath;
+    QString version;
+    bool isValid;
 };
 
-}//namespace
+class ExternalToolJustValidateTask: public ExternalToolValidateTask {
+    Q_OBJECT
+    Q_DISABLE_COPY(ExternalToolJustValidateTask)
+public:
+    ExternalToolJustValidateTask(const QString& toolName, const QString& path);
+    virtual ~ExternalToolJustValidateTask();
+
+    virtual void run();
+    virtual Task::ReportResult report();
+
+    void cancelProcess();
+
+private:
+    void setEnvironment(ExternalTool *tool);
+    bool parseLog(const ExternalToolValidation& validation);
+    void checkVersion(const QString& partOfLog);
+    void checkArchitecture(const QString &toolPath);
+
+    QString     errorMsg;
+
+    QList<ExternalToolValidation> validations; //original tool validation is the last one
+
+    QRegExp     checkVersionRegExp;
+
+    QString     lastErrLine;
+    QString     lastOutLine;
+
+    QProcess*   externalToolProcess;
+};
+
+class ExternalToolSearchAndValidateTask : public ExternalToolValidateTask {
+    Q_OBJECT
+public:
+    ExternalToolSearchAndValidateTask(const QString& toolName);
+
+    void prepare();
+    virtual QList<Task*> onSubTaskFinished(Task *subTask);
+    virtual Task::ReportResult report();
+
+private:
+    QStringList toolPaths;
+    QString     errorMsg;
+    bool        toolIsFound;
+    ExternalToolSearchTask*     searchTask;
+    ExternalToolJustValidateTask*   validateTask;
+};
+
+class ExternalToolsValidateTask : public SequentialMultiTask {
+    Q_OBJECT
+public:
+    ExternalToolsValidateTask(const QList<Task*> &_tasks);
+
+    virtual QList<Task*> onSubTaskFinished(Task* subTask);
+};
+
+class ExternalToolsInstallTask : public SequentialMultiTask {
+    Q_OBJECT
+public:
+    ExternalToolsInstallTask(const QList<Task*> &_tasks);
+
+    virtual QList<Task*> onSubTaskFinished(Task* subTask);
+};
+
+}   // namespace
 
 #endif // _U2_EXTERNAL_TOOL_VALIDATE_TASK_H

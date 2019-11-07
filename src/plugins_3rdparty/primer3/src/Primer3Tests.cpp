@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -146,7 +146,7 @@ namespace
 void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
     Q_UNUSED(tf);
 
-    settings.setIncludedRegion(qMakePair(0,-1));
+    settings.setIncludedRegion(U2Region(0,-1));
 
     QString buf;
     int n_quality = 0;
@@ -183,22 +183,28 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //1
     buf = elInput.attribute("PRIMER_SEQUENCE_ID");
     if (!buf.isEmpty()){
-        settings.setSequenceName(buf.toAscii());
+        settings.setSequenceName(buf.toLatin1());
     }
 //2
     buf = elInput.attribute("SEQUENCE");
     if (!buf.isEmpty()){
-        settings.setSequence(buf.toAscii());
+        settings.setSequence(buf.toLatin1());
     }
+
+    buf = elInput.attribute("CIRCULAR");
+    if (!buf.isEmpty()) {
+        settings.setCircularity(buf == "true" ? 1 : 0);
+    }
+
 //3
     buf = elInput.attribute("TARGET");
     if (!buf.isEmpty()){
-        QList<QPair<int, int> > regionList;
+        QList< U2Region > regionList;
         foreach(QString str,buf.split(' ',QString::SkipEmptyParts))
         {
             if(str.split(',').size() >= 2)
             {
-                regionList.append(qMakePair(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
+                regionList.append(U2Region(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
             }
             else
             {
@@ -211,12 +217,13 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //8
     buf = elInput.attribute("PRIMER_PRODUCT_SIZE_RANGE");
     if (!buf.isEmpty()){
-        QList<QPair<int, int> > regionList;
+        QList< U2Region > regionList;
         foreach(QString str,buf.split(' ',QString::SkipEmptyParts))
         {
             if(2 == str.split('-').size())
             {
-                regionList.append(qMakePair(str.split('-')[0].toInt(), str.split('-')[1].toInt()));
+                regionList.append(U2Region(str.split('-')[0].toInt(),
+                                  str.split('-')[1].toInt() - str.split('-')[0].toInt() + 1));
             }
             else
             {
@@ -229,12 +236,12 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //11
     buf = elInput.attribute("PRIMER_INTERNAL_OLIGO_EXCLUDED_REGION");
     if (!buf.isEmpty()){
-        QList<QPair<int, int> > regionList;
+        QList< U2Region > regionList;
         foreach(QString str,buf.split(' ',QString::SkipEmptyParts))
         {
             if(2 == str.split(',').size())
             {
-                regionList.append(qMakePair(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
+                regionList.append(U2Region(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
             }
             else
             {
@@ -249,7 +256,7 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
     if (!buf.isEmpty()){
         if(2 == buf.split(',').size())
         {
-            settings.setIncludedRegion(qMakePair(buf.split(',')[0].toInt(), buf.split(',')[1].toInt()));//??? may be wrong
+            settings.setIncludedRegion(U2Region(buf.split(',')[0].toInt(), buf.split(',')[1].toInt()));//??? may be wrong
         }
         else
         {
@@ -259,32 +266,33 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //32
     buf = elInput.attribute("PRIMER_LEFT_INPUT");
     if (!buf.isEmpty()){
-        settings.setLeftInput(buf.toAscii());
+        settings.setLeftInput(buf.toLatin1());
     }
 //33
     buf = elInput.attribute("PRIMER_RIGHT_INPUT");
     if (!buf.isEmpty()){
-        settings.setRightInput(buf.toAscii());
+        settings.setRightInput(buf.toLatin1());
     }
 //34
     buf = elInput.attribute("PRIMER_INTERNAL_OLIGO_INPUT");
     if (!buf.isEmpty()){
-        settings.setInternalInput(buf.toAscii());
+        settings.setInternalInput(buf.toLatin1());
     }
 //35
     buf = elInput.attribute("MARKER_NAME");
     if (!buf.isEmpty()){
-        settings.setSequenceName(buf.toAscii());
+        settings.setSequenceName(buf.toLatin1());
     }
 //37
     buf = elInput.attribute("PRIMER_DEFAULT_PRODUCT");
     if (!buf.isEmpty()){
-        QList<QPair<int, int> > regionList;
+        QList< U2Region > regionList;
         foreach(QString str,buf.split(' ',QString::SkipEmptyParts))
         {
             if(2 == str.split('-').size())
             {
-                regionList.append(qMakePair(str.split('-')[0].toInt(), str.split('-')[1].toInt()));
+                regionList.append(U2Region(str.split('-')[0].toInt(),
+                                  str.split('-')[1].toInt() - str.split('-')[0].toInt() + 1));
             }
             else
             {
@@ -297,12 +305,12 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //38
     buf = elInput.attribute("EXCLUDED_REGION");
     if (!buf.isEmpty()){
-        QList<QPair<int, int> > regionList;
+        QList< U2Region > regionList;
         foreach(QString str,buf.split(' ',QString::SkipEmptyParts))
         {
             if(2 == str.split(',').size())
             {
-                regionList.append(qMakePair(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
+                regionList.append(U2Region(str.split(',')[0].toInt(), str.split(',')[1].toInt()));
             }
             else
             {
@@ -374,12 +382,12 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
 //121
     buf = elInput.attribute("PRIMER_MISPRIMING_LIBRARY");
     if (!buf.isEmpty()){
-        settings.setRepeatLibrary((getEnv()->getVar("COMMON_DATA_DIR") + "/primer3/" + buf).toAscii());
+        settings.setRepeatLibrary((getEnv()->getVar("COMMON_DATA_DIR") + "/primer3/" + buf).toLatin1());
     }
 //122
     buf = elInput.attribute("PRIMER_INTERNAL_OLIGO_MISHYB_LIBRARY");
     if (!buf.isEmpty()){
-        settings.setMishybLibrary((getEnv()->getVar("COMMON_DATA_DIR") + "/primer3/" + buf).toAscii());
+        settings.setMishybLibrary((getEnv()->getVar("COMMON_DATA_DIR") + "/primer3/" + buf).toLatin1());
     }
     }
 
@@ -396,7 +404,7 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
         int pairsCount = 0;
 
         buf = elOutput.attribute("PRIMER_PAIRS_NUMBER");
-        if (!buf.isEmpty()){            
+        if (!buf.isEmpty()){
             pairsCount = buf.toInt();
         }
 
@@ -410,8 +418,8 @@ void GTest_Primer3::init(XMLTestFormat *tf, const QDomElement& el){
         stateInfo.setError(GTest::tr("Missing SEQUENCE tag"));//??? may be remove from this place
     else {
         int sequenceLength = settings.getSequence().size();
-        if (settings.getIncludedRegion().second == -1) {
-            settings.setIncludedRegion(qMakePair(settings.getFirstBaseIndex(), sequenceLength));
+        if (settings.getIncludedRegion().length == -1) {
+            settings.setIncludedRegion(U2Region(settings.getFirstBaseIndex(), sequenceLength));
         }
         if(n_quality !=0 && n_quality != sequenceLength)
             stateInfo.setError(GTest::tr("Error in sequence quality data"));//??? may be remove from this place
@@ -437,12 +445,12 @@ Task::ReportResult GTest_Primer3::report()
         stateInfo.setError(task->getError());
         return ReportResult_Finished;
     }
-    
+
     if(currentBestPairs.size() != expectedBestPairs.size()){
         stateInfo.setError(GTest::tr("PRIMER_PAIRS_NUMBER is incorrect. Expected:%2, but Actual:%3").arg(expectedBestPairs.size()).arg(currentBestPairs.size()));
         return ReportResult_Finished;
     }
-    
+
     for (int i=0;i<expectedBestPairs.size();i++)
     {
         if(!checkPrimerPair(currentBestPairs[i], expectedBestPairs[i], (i > 0)? ("_" + QString::number(i)):QString()))
@@ -458,7 +466,7 @@ Task::ReportResult GTest_Primer3::report()
             return ReportResult_Finished;
         }
     }
-*/    
+*/
 
 /*    need check error messages
 -        PRIMER_PAIR_PENALTY="3.4770"

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,8 +37,6 @@
 
 namespace U2 {
 
-class RemoteBLASTTask;
-
 struct ResponseBuffer {
     ResponseBuffer(){}
     ~ResponseBuffer() { buf.close(); }
@@ -53,7 +51,7 @@ struct ResponseBuffer {
 
 class HttpRequestBLAST:public HttpRequest {
 public:
-    HttpRequestBLAST(Task *_task):HttpRequest(_task){};
+    HttpRequestBLAST(Task *_task):HttpRequest(_task){}
     virtual void sendRequest(const QString &program,const QString &query);
     virtual void parseResult(const QByteArray &buf);
     virtual QByteArray getOutputFile();
@@ -65,30 +63,14 @@ private:
             msleep(mseconds);
         }
     };
+    QString runHttpRequest(QString request);
     static const QString host;
     QByteArray output;
     void parseHit(const QDomNode &xml);
-    void parseHsp(const QDomNode &xml,const QString &id, const QString &def, const QString &accession);
+    void parseHsp(const QDomNode &xml,const QString &id, const QString &def,
+                  const QString &accession, const QString &hitLen);
 };
 
-class HttpRequestCDD:public HttpRequest {
-public:
-    HttpRequestCDD(Task *_task):HttpRequest(_task){};
-    virtual void sendRequest(const QString &program,const QString &query);
-    virtual void parseResult(ResponseBuffer &buf);
-
-private:
-    class Waiter: public QThread {
-    public:
-        static void await(int mseconds) {
-            msleep(mseconds);
-        }
-    };
-    static const QString host;
-    void parseHit(QByteArray &b,ResponseBuffer &buf);
-    QString extractText(const QByteArray &b);
-    bool getLocations(QByteArray &b,int &from, int &to);
-};
 
 }
 

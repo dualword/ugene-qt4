@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,9 +27,10 @@
 
 namespace U2 {
 
-class MWMDIWindow;
+class AnnotationGroup;
 class AutoAnnotationObject;
 class AutoAnnotationsUpdater;
+class MWMDIWindow;
 
 class AutoAnnotationsADVAction : public ADVSequenceWidgetAction {
     Q_OBJECT
@@ -37,47 +38,50 @@ public:
     AutoAnnotationsADVAction(ADVSequenceWidget* widget, AutoAnnotationObject* aaObj);
     ~AutoAnnotationsADVAction();
     QList<QAction*> getToggleActions();
-	QAction* getSelectAllAction() { return selectAllAction; } 
-	QAction* getDeselectAllAction() { return deselectAllAction; }
+    QAction* getSelectAllAction() { return selectAllAction; }
+    QAction* getDeselectAllAction() { return deselectAllAction; }
     AutoAnnotationObject* getAAObj() {return aaObj; }
     QAction* findToggleAction(const QString& groupName);
-	void addUpdaterToMenu(AutoAnnotationsUpdater* updater);
+    void addUpdaterToMenu(AutoAnnotationsUpdater* updater);
     static const QString ACTION_NAME;
 
 private slots:
     void sl_toggle(bool toggled);
     void sl_autoAnnotationUpdateStarted();
     void sl_autoAnnotationUpdateFinished();
-	void sl_onSelectAll();
-	void sl_onDeselectAll();
+    void sl_onSelectAll();
+    void sl_onDeselectAll();
+
 private:
     void updateMenu();
-	AutoAnnotationObject* aaObj;
+    AutoAnnotationObject* aaObj;
     QMenu* menu;
     QAction *selectAllAction,*deselectAllAction;
-	int updatesCount;
+    int updatesCount;
 };
 
 class ADVCreateAnnotationsTask;
 
 class ExportAutoAnnotationsGroupTask : public Task {
+    Q_OBJECT
 public:
-	ExportAutoAnnotationsGroupTask(AnnotationGroup* ag, GObjectReference& aRef, ADVSequenceObjectContext* seqCtx);
-	virtual void prepare();
-	virtual QList<Task*> onSubTaskFinished(Task* subTask);
+    ExportAutoAnnotationsGroupTask(AnnotationGroup *ag, GObjectReference &aRef, ADVSequenceObjectContext *seqCtx, const QString &annDescription = "");
+    void prepare();
+    QList<Task *> onSubTaskFinished(Task *subTask);
+
 private:
-	AnnotationGroup* aGroup;
-	GObjectReference aRef;
-	AnnotatedDNAView* view;
-	ADVSequenceObjectContext* seqCtx;
-	ADVCreateAnnotationsTask* createTask;
+    AnnotationGroup *aGroup;
+    GObjectReference aRef;
+    ADVSequenceObjectContext* seqCtx;
+    ADVCreateAnnotationsTask* createTask;
+    const QString annDescription;
 };
 
 class U2VIEW_EXPORT AutoAnnotationUtils {
 public:
     static AutoAnnotationsADVAction* findAutoAnnotationADVAction(ADVSequenceObjectContext* ctx);
     static QAction* findAutoAnnotationsToggleAction(ADVSequenceObjectContext* ctx, const QString& name);
-	static QList<QAction*> getAutoAnnotationToggleActions(ADVSequenceObjectContext* ctx);
+    static QList<QAction*> getAutoAnnotationToggleActions(ADVSequenceObjectContext* ctx);
     static void triggerAutoAnnotationsUpdate(ADVSequenceObjectContext* ctx, const QString& aaGroupName);
 };
 

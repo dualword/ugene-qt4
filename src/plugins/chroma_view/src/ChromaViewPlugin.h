@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,11 @@
 #include <U2Gui/ObjectViewModel.h>
 
 #include <QtCore/QMap>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 #include <U2View/ADVSequenceWidget.h>
 
@@ -48,19 +52,20 @@ class ChromaViewContext: public GObjectViewWindowContext {
     Q_OBJECT
 public:
     ChromaViewContext(QObject* p);
+
+    bool canHandle(GObjectView* v, GObject* o);
 protected slots:
     void sl_showChromatogram();
     void sl_sequenceWidgetAdded(ADVSequenceWidget*);
-    
+
 protected:
     virtual void initViewContext(GObjectView* view);
-};    
+};
 
 class ChromaViewAction : public ADVSequenceWidgetAction {
     Q_OBJECT
 public:
     ChromaViewAction();
-    ~ChromaViewAction();
     ChromatogramView* view;
 };
 

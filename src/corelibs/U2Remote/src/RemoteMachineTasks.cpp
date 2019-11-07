@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,6 @@
 #include "SerializeUtils.h"
 
 #include <cassert>
-#include <memory>
 
 namespace U2 {
 
@@ -43,7 +42,7 @@ namespace U2 {
 * RetrieveRemoteMachineInfoTask
 *******************************************/
 
-RetrieveRemoteMachineInfoTask::RetrieveRemoteMachineInfoTask( RemoteMachineSettingsPtr s ) 
+RetrieveRemoteMachineInfoTask::RetrieveRemoteMachineInfoTask( RemoteMachineSettingsPtr s )
 : Task( tr( "Retrieve remote machine info task" ), TaskFlags_FOSCOE ), pingTask(NULL), pingOK(false), machine( NULL ), settings(s)
 {
     setVerboseLogMode(true);
@@ -76,8 +75,8 @@ void RetrieveRemoteMachineInfoTask::run() {
         return;
     }
     assert( NULL != machine );
-    if( isCanceled() ) { 
-        return; 
+    if( isCanceled() ) {
+        return;
     }
     hostname = machine->getServerName(stateInfo);
 }
@@ -137,7 +136,7 @@ RetrievePublicMachinesTask::~RetrievePublicMachinesTask() {
 void RetrievePublicMachinesTask::run() {
     rsLog.details(tr("Retrieving public machines..."));
 
-    SyncHTTP http( QUrl( PUBLIC_MACHINES_KEEPER_SERVER ).host() );
+    SyncHTTP http(stateInfo, this);
     NetworkConfiguration * nc = AppContext::getAppSettings()->getNetworkConfiguration();
     assert( NULL != nc );
     bool proxyUsed = nc->isProxyUsed( QNetworkProxy::HttpProxy );
@@ -146,7 +145,7 @@ void RetrievePublicMachinesTask::run() {
     if( proxyUsed && !srvIsException ) {
         http.setProxy( nc->getProxy( QNetworkProxy::HttpProxy ) );
     }
-    processEncodedMachines( http.syncGet( PUBLIC_MACHINES_KEEPER_PAGE ) );
+    processEncodedMachines( http.syncGet( QUrl( PUBLIC_MACHINES_KEEPER_SERVER + PUBLIC_MACHINES_KEEPER_PAGE ) ) );
 
     if (hasError()) {
         rsLog.error(tr("Failed to retrieve public machines, error: %1").arg(getError()));
@@ -190,7 +189,7 @@ SaveRemoteMachineSettings::SaveRemoteMachineSettings(const RemoteMachineSettings
         setError(tr("Nothing to write: empty remote machine settings"));
         return;
     }
-    data = SerializeUtils::serializeRemoteMachineSettings(machineSettings).toAscii();
+    data = SerializeUtils::serializeRemoteMachineSettings(machineSettings).toLatin1();
 }
 
 void SaveRemoteMachineSettings::run() {

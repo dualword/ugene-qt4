@@ -9,12 +9,15 @@ use_opencl(){
 UGENE_RELATIVE_DESTDIR = ''
 
 QT += xml network script webkit
+equals(QT_MAJOR_VERSION, 5): QT += widgets webkitwidgets
 TEMPLATE = app
 CONFIG +=qt dll thread debug_and_release
 DEFINES+= QT_DLL QT_FATAL_ASSERT
 INCLUDEPATH += src _tmp ../include ../corelibs/U2Private/src
+macx : INCLUDEPATH += /System/Library/Frameworks/Security.framework/Headers
 
 LIBS += -L../_release -lU2Core -lU2Algorithm -lU2Formats -lU2Gui -lU2View -lU2Test -lU2Remote -lU2Lang -lU2Private -lugenedb
+macx: LIBS += /System/Library/Frameworks/Security.framework/Security
 
 !debug_and_release|build_pass {
 

@@ -752,9 +752,17 @@ float** protein_wu_distance(struct alignment* si,float** dm,struct parameters* p
 		//for(j = 0; j < si->sl[i]-2;j++){
 			//hv = (p[j+1] << 5) + p[j+2];
 			//hash[hv] = big_insert_hash(hash[hv],j);
-			hv = (p[j] << 5) + p[j+1];
+            long tmp = (p[j] << 5) + p[j+1];
+            if (tmp < 0) {
+                throwKalignException("Sequences are too long for alignment");
+            }
+			hv = tmp;
 			hash[hv] = big_insert_hash(hash[hv],j);
-			hv = (p[j] << 5) + p[j+2];
+            tmp = (p[j] << 5) + p[j+2];
+            if (tmp < 0) {
+                throwKalignException("Sequences are too long for alignment");
+            }
+			hv = tmp;
 			hash[hv] = big_insert_hash(hash[hv],j);
 		}
 		for (j = i+1; j < numseq;j++){
@@ -951,15 +959,17 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 	struct bignode* node_p;
 	float out = 0.0;
 	unsigned int* tmp = 0;
-	unsigned int* d = 0;
+    unsigned int* d = 0;
+    unsigned int* d_array_start = 0;
 	int i,j;
 	unsigned int hv;
 	kalign_context* ctx = get_kalign_context();
 	
-	d = malloc(sizeof(int)*diagonals);
+    d_array_start = d = malloc(sizeof(int)*diagonals);
+    checkAllocatedMemory(d);
 	for (i = 0;i < diagonals;i++){
 		d[i] = 0;
-	}
+    }
 	for (i = seqlen-5;i--;){
 		if(check_task_canceled(ctx)) {
 			break;
@@ -967,7 +977,7 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 	
 		hv = ((p[i]&3)<<8) + ((p[i+1]&3)<<6) + ((p[i+2]&3)<<4)  + ((p[i+3]&3)<<2) + (p[i+4]&3);//ABCDE
 		if (hash[hv]){
-			node_p = hash[hv];		
+			node_p = hash[hv];
 			while(node_p){
 				tmp = node_p->pos;
 				for(j = 0;j < node_p->num;j++){
@@ -980,7 +990,7 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 
 		hv = ((p[i]&3)<<8) + ((p[i+1]&3)<<6) + ((p[i+2]&3)<<4)  + ((p[i+3]&3)<<2) + (p[i+5]&3);//ABCDF
 		if (hash[hv]){
-			node_p = hash[hv];		
+			node_p = hash[hv];
 			while(node_p){
 				tmp = node_p->pos;
 				for(j = 0;j < node_p->num;j++){
@@ -991,7 +1001,7 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 		}	
 		hv = ((p[i]&3)<<8) + ((p[i+1]&3)<<6) + ((p[i+2]&3)<<4)  + ((p[i+4]&3)<<2) + (p[i+5]&3);//ABCEF
 		if (hash[hv]){
-			node_p = hash[hv];		
+			node_p = hash[hv];
 			while(node_p){
 				tmp = node_p->pos;
 				for(j = 0;j < node_p->num;j++){
@@ -1002,7 +1012,7 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 		}	
 		hv = ((p[i]&3)<<8) + ((p[i+1]&3)<<6) + ((p[i+3]&3)<<4)  + ((p[i+4]&3)<<2) + (p[i+5]&3);//ABDEF
 		if (hash[hv]){
-			node_p = hash[hv];		
+			node_p = hash[hv];
 			while(node_p){
 				tmp = node_p->pos;
 				for(j = 0;j < node_p->num;j++){
@@ -1013,7 +1023,7 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 		}	
 		hv = ((p[i]&3)<<8) + ((p[i+2]&3)<<6) + ((p[i+3]&3)<<4) + ((p[i+4]&3)<<2) + (p[i+5]&3);//ACDEF
 		if (hash[hv]){
-			node_p = hash[hv];		
+			node_p = hash[hv];
 			while(node_p){
 				tmp = node_p->pos;
 				for(j = 0;j < node_p->num;j++){
@@ -1023,22 +1033,24 @@ float dna_distance_calculation(struct bignode* hash[],int* p,int seqlen,int diag
 			}
 		}	
 	
-		d++;
+        d++;
 	}
 	//exit(0);
-	d -= (seqlen-5);
-	//for (i = seqlen-1;i--;){
-	for (i = diagonals;i--;){
-		//d[i] /= minlen;
-		
-		//printf("%d ",d[i]);
-		
-		if(d[i] > mode){
-		//k_printf("%f	%d\n",d[i]/ minlen,d[i]);
-			out += d[i];
-		}
-	}
-	free(d);
+    d -= (seqlen-5);
+    //for (i = seqlen-1;i--;){
+    if (!check_task_canceled(ctx)) {
+        for (i = diagonals;i--;){
+            //d[i] /= minlen;
+
+            //printf("%d ",d[i]);
+
+            if(d[i] > mode){
+            //k_printf("%f	%d\n",d[i]/ minlen,d[i]);
+                out += d[i];
+            }
+        }
+    }
+    free(d_array_start);
 	return out;
 }
 

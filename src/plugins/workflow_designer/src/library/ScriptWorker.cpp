@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,25 +19,33 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtScriptTools/QScriptEngineDebugger>
+
 #include "ScriptWorker.h"
 
-#include <U2Lang/IntegralBusModel.h>
-#include <U2Lang/WorkflowEnv.h>
-#include <U2Lang/ActorPrototypeRegistry.h>
-#include <U2Lang/BaseTypes.h>
-#include <U2Lang/BaseSlots.h>
-#include <U2Lang/BaseActorCategories.h>
-#include <U2Designer/DelegateEditors.h>
-#include <U2Lang/CoreLibConstants.h>
-#include <U2Lang/IntegralBusType.h>
-#include <U2Lang/ScriptLibrary.h>
-
+#include <U2Core/AppContext.h>
+#include <U2Core/DNAAlphabet.h>
 #include <U2Core/DNASequence.h>
 #include <U2Core/DNATranslation.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/Log.h>
 #include <U2Core/FailTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/MAlignment.h>
+
+#include <U2Designer/DelegateEditors.h>
+
+#include <U2Lang/ActorContext.h>
+#include <U2Lang/ActorPrototypeRegistry.h>
+#include <U2Lang/BaseActorCategories.h>
+#include <U2Lang/BaseSlots.h>
+#include <U2Lang/BaseTypes.h>
+#include <U2Lang/CoreLibConstants.h>
+#include <U2Lang/IncludedProtoFactory.h>
+#include <U2Lang/IntegralBusModel.h>
+#include <U2Lang/IntegralBusType.h>
+#include <U2Lang/ScriptEngineUtils.h>
+#include <U2Lang/ScriptLibrary.h>
+#include <U2Lang/SequencePrototype.h>
+#include <U2Lang/WorkflowEnv.h>
 
 
 namespace U2 {
@@ -51,99 +59,69 @@ const static QString OUTPUT_PORT_TYPE("output-for-");
 static const QString IN_PORT_ID("in");
 static const QString OUT_PORT_ID("out");
 
+ScriptWorkerTask::ScriptWorkerTask(WorkflowScriptEngine *_engine, AttributeScript *_script)
+    : Task(tr("Script worker task"), AppContext::isGUIMode() ? TaskFlag_RunInMainThread
+    : TaskFlag_None), engine(_engine), script(_script)
+{
+    WorkflowScriptLibrary::initEngine(engine);
+}
+
 void ScriptWorkerTask::run() {
-    //QScriptEngine engine;
     QMap<QString, QScriptValue> scriptVars;
-    foreach( const Descriptor & key, script->getScriptVars().uniqueKeys() ) {
+    foreach(const Descriptor &key, script->getScriptVars().uniqueKeys()) {
         assert(!key.getId().isEmpty());
         if(!(script->getScriptVars().value(key)).isNull()) {
             scriptVars[key.getId()] = engine->newVariant(script->getScriptVars().value(key));
-        }
-        else {
-            scriptVars[key.getId()] = engine->newVariant(engine->globalObject().property(key.getId().toAscii().data()).toVariant());
+        } else {
+            scriptVars[key.getId()] = engine->newVariant(engine->globalObject().property(key.getId().toLatin1().data()).toVariant());
         }
     }
-
-	WorkflowScriptLibrary::initEngine(engine);
     QScriptValue scriptResultValue = ScriptTask::runScript(engine, scriptVars, script->getScriptText(), stateInfo);
-    if(engine->hasUncaughtException()) {
-		scriptResultValue = engine->uncaughtException();
+    if (engine->hasUncaughtException()) {
+        scriptResultValue = engine->uncaughtException();
         QString message = scriptResultValue.toString();
         stateInfo.setError(tr("Error in line ") + QString::number(engine->uncaughtExceptionLineNumber()) + ":" + message.split(":").last());
     }
-	result = scriptResultValue.toVariant();
-
-    if(engine->globalObject().property("list").toBool()) {
-        isList = true;
-    }
+    result = scriptResultValue.toVariant();
 
     if( stateInfo.cancelFlag ) {
-        if( !stateInfo.hasError() ) {
+        if(!stateInfo.hasError()) {
             stateInfo.setError("Script task canceled");
         }
     }
+}
 
+QVariant ScriptWorkerTask::getResult() const {
+    return result;
+}
+
+WorkflowScriptEngine * ScriptWorkerTask::getEngine() {
+    return engine;
 }
 
 QString ScriptPromter::composeRichDoc() {
     return target->getProto()->getDocumentation();
 }
 
-
-bool ScriptWorkerFactory::init(QList<DataTypePtr > input, QList<DataTypePtr > output, QList<Attribute *> attrs, const QString& name, const QString &description) {
-    QList<PortDescriptor*> portDescs; 
-    QList<Attribute*> attribs = attrs;
-
-    QMap<Descriptor, DataTypePtr> map;
-    foreach(const DataTypePtr & tptr, input) {
-        if(tptr == DataTypePtr()) {
-            coreLog.error(ScriptWorker::tr("For input port was set empty data type"));
-            return false;
-        }
-        map[WorkflowUtils::getSlotDescOfDatatype(tptr)] = tptr;
-    }
-
-    DataTypePtr inSet( new MapDataType(Descriptor(INPUT_PORT_TYPE + name), map) );
-    DataTypeRegistry * dr = WorkflowEnv::getDataTypeRegistry();
-    assert(dr);
-    dr->registerEntry( inSet );
-
-    map.clear();
-    foreach(const DataTypePtr & tptr, output) {
-        if(tptr == DataTypePtr()) {
-            coreLog.error(ScriptWorker::tr("For output port was set empty data type"));
-            return false;
-        }
-        map[WorkflowUtils::getSlotDescOfDatatype(tptr)] = tptr;
-    }
-    
-    DataTypePtr outSet( new MapDataType(Descriptor(OUTPUT_PORT_TYPE + name), map) );
-    dr->registerEntry( outSet );
-
-    Descriptor inDesc( IN_PORT_ID, ScriptWorker::tr("input data"), ScriptWorker::tr("input data") );
-    Descriptor outDesc( OUT_PORT_ID, ScriptWorker::tr("output data"), ScriptWorker::tr("output data") );
-
-    portDescs << new PortDescriptor( inDesc, inSet, /*input*/ true );
-    portDescs << new PortDescriptor( outDesc, outSet, /*input*/false, /*multi*/true );
-
-
-    Descriptor desc( ScriptWorkerFactory::ACTOR_ID + name, name, description );
-    ActorPrototype * proto = new IntegralBusActorPrototype( desc, portDescs, attribs );
-
-    proto->setEditor( new DelegateEditor(QMap<QString, PropertyDelegate*>()) );
-    proto->setIconPath(":workflow_designer/images/script.png");
-
-    proto->setPrompter( new ScriptPromter() );
-    proto->setScriptFlag();
+bool ScriptWorkerFactory::init(QList<DataTypePtr> input,
+                               QList<DataTypePtr> output,
+                               QList<Attribute*> attrs,
+                               const QString &name,
+                               const QString &description,
+                               const QString &actorFilePath) {
+    ActorPrototype *proto = IncludedProtoFactory::getScriptProto(
+        input, output, attrs, name, description, actorFilePath);
     WorkflowEnv::getProtoRegistry()->registerProto(BaseActorCategories::CATEGORY_SCRIPT(), proto);
-
-    DomainFactory* localDomain = WorkflowEnv::getDomainRegistry()->getById( LocalDomainFactory::ID );
-    localDomain->registerEntry( new ScriptWorkerFactory(ACTOR_ID + name) );
+    IncludedProtoFactory::registerScriptWorker(ACTOR_ID + name);
     return true;
 }
 
+Worker * ScriptWorkerFactory::createWorker(Actor *a) {
+    return new ScriptWorker(a);
+}
+
 ScriptWorker::ScriptWorker(Actor *a)
-: BaseWorker(a), input(NULL), output(NULL)
+: BaseWorker(a), input(NULL), output(NULL), taskFinished(false)
 {
     script = a->getScript();
     engine = NULL;
@@ -153,16 +131,13 @@ void ScriptWorker::init() {
     input = ports.value(IN_PORT_ID);
     output = ports.value(OUT_PORT_ID);
     engine = new WorkflowScriptEngine(context);
+    if ( AppContext::isGUIMode( ) ) { // add script debugger
+        engine->setProcessEventsInterval(50);
+        QScriptEngineDebugger *scriptDebugger = new QScriptEngineDebugger(engine);
+        scriptDebugger->setAutoShowStandardWindow(true);
+        scriptDebugger->attachTo(engine);
+    }
 }
-
-bool ScriptWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
-bool ScriptWorker::isDone() {
-    return input->isEnded();
-}
-
 
 void ScriptWorker::bindPortVariables() {
     foreach( IntegralBus * bus, ports.values() ) {
@@ -171,55 +146,99 @@ void ScriptWorker::bindPortVariables() {
             continue;
         }
 
-        QVariantMap busData = bus->look().getData().toMap();
-        foreach(const QString & slotDesc, busData.keys()) { 
-            ActorId actorId = IntegralBusType::parseSlotDesc(slotDesc);
-            QString attrId = IntegralBusType::parseAttributeIdFromSlotDesc(slotDesc);
-            QString portId = bus->getPortId();
-            IntegralBusPort * busPort = qobject_cast<IntegralBusPort*>(actor->getPort(portId));
-            Q_UNUSED(busPort);
-            assert(busPort != NULL);
-            
-            //Actor * bindedAttrOwner = busPort->getLinkedActorById(actorId);
-            attrId.prepend("in_");
+        QVariantMap busData = bus->lookMessage().getData().toMap();
+        foreach(const QString & slotId, busData.keys()) {
+            QString attrId = "in_" + slotId;
             if( script->hasVarWithId(attrId)) {
-                script->setVarValueWithId(attrId, busData.value(slotDesc));
+                script->setVarValueWithId(attrId, busData.value(slotId));
             }
         }
     }
 }
 
 void ScriptWorker::bindAttributeVariables() {
-    QMap<QString,Attribute*> attrs = actor->getParameters();
-    QMap<QString,Attribute*>::iterator it;
+    QMap<QString, Attribute*> attrs = actor->getParameters();
+    QMap<QString, Attribute*>::iterator it;
     for(it = attrs.begin(); it!=attrs.end();it++) {
-        Attribute* attr = it.value();
+        Attribute *attr = it.value();
         if(script->hasVarWithId(attr->getId())) {
-            script->setVarValueWithId(attr->getId(),attr->getAttributePureValue());
+            script->setVarValueWithId(attr->getId(), attr->getAttributePureValue());
         }
     }
 }
 
-Task *ScriptWorker::tick() {
-    //AttributeScript *script = actor->getScript();
-    if( script->isEmpty() ) {
+bool ScriptWorker::isNeedToBeDone() const {
+    bool result = false;
+    if (actor->getInputPorts().isEmpty()) {
+        result = taskFinished;
+    } else {
+        bool hasNotEnded = false;
+        foreach (Port *port, actor->getInputPorts()) {
+            IntegralBus *input = ports[port->getId()];
+            SAFE_POINT(NULL != input, "NULL input bus", false);
+            if (!input->isEnded()) {
+                hasNotEnded = true;
+                break;
+            }
+        }
+        result = !hasNotEnded;
+    }
+    return result;
+}
+
+bool ScriptWorker::isNeedToBeRun() const {
+    bool result = true;
+    if (actor->getInputPorts().isEmpty()) {
+        result = !taskFinished;
+    } else {
+        foreach (Port *port, actor->getInputPorts()) {
+            IntegralBus *input = ports[port->getId()];
+            SAFE_POINT(NULL != input, "NULL input bus", false);
+            if (!input->hasMessage()) {
+                result = false;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+void ScriptWorker::setDone() {
+    BaseWorker::setDone();
+    foreach (Port *port, actor->getOutputPorts()) {
+        IntegralBus *output = ports[port->getId()];
+        SAFE_POINT(NULL != output, "NULL output bus", );
+        output->setEnded();
+    }
+}
+
+Task * ScriptWorker::tick() {
+    if(script->isEmpty()) {
         coreLog.error(tr("no script text"));
         return new FailTask(tr("no script text"));
     }
 
-    bindPortVariables();
-    bindAttributeVariables();
-
-    getMessageAndSetupScriptValues(input);
-
-    Task *t = new ScriptWorkerTask(engine, script);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    if (isNeedToBeRun()) {
+        //WorkflowScriptLibrary::initEngine(engine);
+        //engine->globalObject().setProperty("ctx", ActorContext::createContext(this, engine), QScriptValue::ReadOnly);
+        bindPortVariables();
+        bindAttributeVariables();
+        foreach (Port *port, actor->getInputPorts()) {
+            getMessageAndSetupScriptValues(ports[port->getId()]);
+        }
+        Task *t = new ScriptWorkerTask(engine, script);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (isNeedToBeDone()) {
+        setDone();
+    }
+    return NULL;
 }
 
 void ScriptWorker::sl_taskFinished() {
+    taskFinished = true;
     ScriptWorkerTask *t = qobject_cast<ScriptWorkerTask*>(sender());
-    if (t->getState() != Task::State_Finished || t->hasError()) {
+    if (t->getState() != Task::State_Finished || t->hasError() || t->isCanceled()) {
         return;
     }
 
@@ -229,32 +248,49 @@ void ScriptWorker::sl_taskFinished() {
     DataTypePtr ptr = dtr->getById(OUTPUT_PORT_TYPE + name);
 
     if(ptr->getAllDescriptors().size() == 1 && ptr->getAllDescriptors().first().getId() == BaseTypes::MULTIPLE_ALIGNMENT_TYPE()->getId()) {
-        if (!input->isEnded()) {
+        if (input != NULL && !input->isEnded()) {
             return;
         }
     }
 
     QVariantMap map;
+    bool hasSeqArray = false;
     foreach(const Descriptor &desc, ptr->getAllDescriptors()) {
         QString varName = "out_" + desc.getId();
-        map[desc.getId()] = t->getEngine()->globalObject().property(varName.toAscii().data()).toVariant();
+        QScriptValue value = t->getEngine()->globalObject().property(varName.toLatin1().data());
+        if (BaseSlots::DNA_SEQUENCE_SLOT().getId() == desc.getId()) {
+            if (value.isArray()) {
+                hasSeqArray = true;
+                continue;
+            }
+            SharedDbiDataHandler seqId = ScriptEngineUtils::getDbiId(t->getEngine(), value,
+                SequenceScriptClass::CLASS_NAME);
+            if (!seqId.constData() || !seqId.constData()->isValid()) {
+                continue;
+            }
+            map[desc.getId()] = qVariantFromValue(seqId);
+        } else {
+            map[desc.getId()] = value.toVariant();
+        }
     }
     if (output) {
-        if (t->isList) {
+        if (hasSeqArray) {
             QString varName = "out_" + BaseSlots::DNA_SEQUENCE_SLOT().getId();
-            QList<U2DataId> seqs = t->getEngine()->globalObject().property(varName.toAscii().data()).toVariant().value<QList<U2DataId> >();
-            foreach(U2DataId seqId, seqs) {
-                map[BaseSlots::DNA_SEQUENCE_SLOT().getId()] = QVariant::fromValue<U2DataId>(seqId);
-                output->put(Message(ptr,map));
+            QScriptValue value = t->getEngine()->globalObject().property(varName.toLatin1().data());
+            for (int i=0; i<value.property("length").toInt32(); i++) {
+                SharedDbiDataHandler seqId = ScriptEngineUtils::getDbiId(t->getEngine(), value.property(i),
+                    SequenceScriptClass::CLASS_NAME);
+                if (seqId.constData() && seqId.constData()->isValid()) {
+                    map[BaseSlots::DNA_SEQUENCE_SLOT().getId()] = qVariantFromValue(seqId);
+                    output->put(Message(ptr,map));
+                }
             }
         } else {
             QVariant scriptResult = t->getResult();
-            output->put(Message(ptr,map));
+            if (!map.isEmpty()) {
+                output->put(Message(ptr,map));
+            }
         }
-    }
-
-    if (input->isEnded()) {
-        output->setEnded();
     }
 }
 
@@ -262,6 +298,5 @@ void ScriptWorker::cleanup() {
     delete engine;
 }
 
-
-} //namespace LocalWorkflow
-} //namespace U2
+} // LocalWorkflow
+} // U2

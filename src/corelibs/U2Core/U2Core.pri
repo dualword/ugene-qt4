@@ -6,6 +6,8 @@ include( ../../ugene_lib_common.pri )
 UGENE_RELATIVE_DESTDIR = ''
 
 QT += network xml
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
 DEFINES+= QT_FATAL_ASSERT BUILDING_U2CORE_DLL
 use_bundled_zlib() {
     INCLUDEPATH += ../../libs_3rdparty/zlib/src
@@ -40,12 +42,24 @@ INCLUDEPATH += ../../libs_3rdparty/sqlite3/src
 
 # Special compiler flags for windows configuration
 win32 {
-    LIBS += Psapi.lib
+    LIBS += Psapi.lib User32.lib
 }
 
 unix {
     target.path = $$UGENE_INSTALL_DIR/$$UGENE_RELATIVE_DESTDIR
     INSTALLS += target
+}
+
+unix_not_mac(){
+    exists( /usr/lib/libproc.so* ) {
+      LIBS += -lproc
+    }else{
+        exists( /usr/local/lib/libproc.so* ){
+          LIBS += -lproc
+        }else{
+          LIBS += -lprocps
+        }
+    }
 }
 
 HEADERS += ../../include/U2Core/U2*.h

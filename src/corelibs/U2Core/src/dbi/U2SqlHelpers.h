@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,6 +29,8 @@
 #include <QtCore/QStringList>
 #include <QtCore/QVector>
 #include <QtCore/QThread>
+#include <QtCore/QHash>
+#include <QtCore/QSharedPointer>
 
 struct sqlite3;
 struct sqlite3_stmt;
@@ -42,45 +44,35 @@ class U2CORE_EXPORT DbRef {
 public:
     DbRef(sqlite3* db = NULL) : handle(db), lock(QMutex::Recursive), useTransaction(true) {}
 
-    sqlite3*                    handle;
-    QMutex                      lock;
-    bool                        useTransaction;
-    QVector<SQLiteTransaction*> transactionStack;
+    sqlite3*                     handle;
+    QMutex                       lock;
+    bool                         useTransaction;
+    bool                         useCache;
+    QVector<SQLiteTransaction*>  transactionStack;
+    QHash<QString, QSharedPointer<SQLiteQuery> > preparedQueries; //shared pointer because a query can be deleted elsewhere
 };
 
 class U2CORE_EXPORT SQLiteUtils {
 public:
-    
-    /** 
-        Removes from the table all records with 'field' == id 
+
+    /**
+        Removes from the table all records with 'field' == id
         Checks 'expectedRowCount' the same way as 'update' method
     */
     static qint64 remove(const QString& table, const QString& field, const U2DataId& id, qint64 expectedRows, DbRef* db, U2OpStatus& os);
-    
-    /** Converts internal database id to U2DataId*/
-    static U2DataId toU2DataId(qint64 id, U2DataType type, const QByteArray& dbExtra = QByteArray());
 
-    /** Converts U2DataId to internal database id*/
-    static quint64 toDbiId(const U2DataId& id);
-
-    /** Extracts type info from U2DataId */
-    static U2DataType toType(const U2DataId& id);
-
-    /** Extracts table info from U2DataId */
-    static QByteArray toDbExtra(const U2DataId& id);
-
-    /** Adds limit operator to the sql query */
-    static void addLimit(QString& sql, qint64 offset, qint64 count);
-
-    /** Return textual representation of the id */
-    static QString text(const U2DataId& id);
-    
     /** Checks if the table exists in database */
     static bool isTableExists(const QString& tableName, DbRef* db, U2OpStatus& os);
+
+    /** returns 1 if the database is read-only, 0 if it is read/write, or -1 if dbName is not the name of a database on connection */
+    static int isDatabaseReadOnly(const DbRef* db, QString dbName);//dbName is usualy "main"
+
+    /** Writes Memory counters */
+    static bool getMemoryHint(int& currentMemory, int &maxMemory, int resetMax);
 };
 
-/** Common localization messages for SQLiteDBI*/
-class U2CORE_EXPORT SQLiteL10n : public QObject {
+/** Common localization messages for U2Dbi*/
+class U2CORE_EXPORT U2DbiL10n : public QObject {
     Q_OBJECT
 public:
     static QString queryError(const QString& err);
@@ -88,17 +80,17 @@ public:
 };
 
 
-/** 
+/**
     SQLite query wrapper. Uses prepared statement internally
     An optimized and simplified interface for U2DBI needs.
 */
 class U2CORE_EXPORT SQLiteQuery  {
-private:
-    
 public:
-    /** 
-        Constructs prepared statement for SQLiteDB 
+    /**
+        Constructs prepared statement for SQLiteDB
         If failed the error message is written to 'os'
+        It's desirable to release this object as soon as possible because it locks
+        the database for concurrent modifications from other threads
     */
     SQLiteQuery(const QString& sql, DbRef* d, U2OpStatus& os);
     SQLiteQuery(const QString& sql, qint64 offset, qint64 count, DbRef* d, U2OpStatus& os);
@@ -112,21 +104,24 @@ public:
     /** Clears all bindings and resets statement */
     bool reset(bool clearBindings = true);
 
-    /** 
-        Executes next step of the statement 
+    /**
+        Executes next step of the statement
         Returns true there are more results to fetch and no error occurs
     */
     bool step();
 
-    /** 
+    /**
         Ensures that there are no more results in result set
         Sets error message if more results are available
     */
     void ensureDone();
 
-    
+
     //////////////////////////////////////////////////////////////////////////
     // param binding methods
+
+    /** Binds NULL value  */
+    void bindNull(int idx);
 
     /** Binds U2DataId  */
     void bindDataId(int idx, const U2DataId& val);
@@ -151,13 +146,14 @@ public:
 
     /** Binds BLOB */
     void bindBlob(int idx, const QByteArray& blob, bool transient = true);
+    void bindZeroBlob(int idx, int reservedSize);
 
-    
+
     //////////////////////////////////////////////////////////////////////////
     // result retrieval methods
 
     U2DataId getDataId(int column, U2DataType type, const QByteArray& dbExtra = QByteArray()) const;
-    
+
     U2DataId getDataIdExt(int column) const;
 
     U2DataType getDataType(int column) const;
@@ -188,7 +184,7 @@ public:
     /** Executes query */
     void execute();
 
-    /** Executes update and returns number of rows affected. 
+    /** Executes update and returns number of rows affected.
         Fails if result count != expectedRowCount
         'expectedRowCount' == -1 disables row-count check
     */
@@ -201,9 +197,6 @@ public:
     /** Selects a single int64 value, if no results found returns default value */
     qint64 selectInt64(qint64 defaultValue);
 
-    /** Selects a single U2DataId value */
-    U2DataId selectDataId(U2DataType type, const QByteArray& dbExtra = QByteArray());
-
     /** Select list of ids and adds 'type' parameter to construct U2DataId */
     QList<U2DataId> selectDataIds(U2DataType type, const QByteArray& dbExtra = QByteArray());
 
@@ -214,19 +207,19 @@ public:
     QStringList selectStrings();
 
 
-        
+
     //////////////////////////////////////////////////////////////////////////
     // Query info methods
     const QString& getQueryText() const {return sql;}
 
     void setError(const QString& err);
-    
-    bool hasError() const {return os.hasError();}
 
-    void setOpStatus(U2OpStatus& _os) {os = _os;}
+    bool hasError() const {return (os!=NULL) ? os->hasError() : true;}
 
-    U2OpStatus& getOpStatus() {return  os;}
-    
+    void setOpStatus(U2OpStatus& _os) {os = &_os;}
+
+    U2OpStatus& getOpStatus() {return  *os;}
+
     DbRef*          getDb() const {return db;}
 
 private:
@@ -237,9 +230,10 @@ private:
 
 
     DbRef*          db;
-    U2OpStatus&     os;
+    U2OpStatus*     os;
     sqlite3_stmt*   st;
     QString         sql;
+    QMutexLocker    locker;
 };
 
 /** Helper class to mark transaction regions */
@@ -248,9 +242,18 @@ public:
     SQLiteTransaction(DbRef* db, U2OpStatus& os);
     virtual ~SQLiteTransaction();
 
+    QSharedPointer<SQLiteQuery> getPreparedQuery(const QString &sql, DbRef *d, U2OpStatus &os);
+    QSharedPointer<SQLiteQuery> getPreparedQuery(const QString &sql, qint64 offset, qint64 count, DbRef *d, U2OpStatus &os);
+
+    bool isCacheQueries() {return cacheQueries;}
+
 private:
     DbRef* db;
     U2OpStatus& os;
+    bool cacheQueries;
+    bool started;
+
+    void clearPreparedQueries();
 
 #ifdef _DEBUG
 public:
@@ -275,21 +278,22 @@ public:
 /** SQL query result set iterator */
 template<class T> class SqlRSIterator : public U2DbiIterator<T> {
 public:
-    SqlRSIterator(SQLiteQuery* q, SqlRSLoader<T>* l, SqlRSFilter<T>* f, const T& d, U2OpStatus& o) 
-        : query(q), loader(l), filter(f), defaultValue(d), os(o), endOfStream(false) 
+    SqlRSIterator(QSharedPointer<SQLiteQuery> q, SqlRSLoader<T>* l, SqlRSFilter<T>* f, const T& d, U2OpStatus& o)
+        : query(q), loader(l), filter(f), defaultValue(d), os(o), endOfStream(false)
     {
         fetchNext();
     }
-    
+
     virtual ~SqlRSIterator() {
         delete filter;
         delete loader;
-        delete query;
+        query.clear();
     }
 
     virtual bool hasNext() {
         return !endOfStream;
     }
+
     virtual T next() {
         if (endOfStream) {
             assert(0);
@@ -299,26 +303,27 @@ public:
         fetchNext();
         return currentResult;
     }
+
     virtual T peek() {
         if (endOfStream) {
             assert(0);
             return defaultValue;
         }
         return nextResult;
-
     }
+
 private:
     void fetchNext() {
         do {
             if (!query->step()) {
-                endOfStream = true;        
+                endOfStream = true;
                 return;
             }
-            nextResult = loader->load(query);
+            nextResult = loader->load(query.data());
         } while (filter != NULL && !filter->filter(nextResult));
     }
 
-    SQLiteQuery*    query;
+    QSharedPointer<SQLiteQuery>    query;
     SqlRSLoader<T>* loader;
     SqlRSFilter<T>* filter;
     T               defaultValue;
@@ -326,6 +331,7 @@ private:
     bool            endOfStream;
     T               nextResult;
     T               currentResult;
+    bool            deleteQuery;
 };
 
 class SqlDataIdRSLoader : public SqlRSLoader<U2DataId> {
@@ -333,7 +339,7 @@ public:
     SqlDataIdRSLoader(U2DataType _type, const QByteArray& _dbExra = QByteArray()) : type(_type), dbExtra(_dbExra){}
     U2DataId load(SQLiteQuery* q) { return q->getDataId(0, type, dbExtra);}
 
-protected:    
+protected:
     U2DataType type;
     QByteArray dbExtra;
 };
@@ -343,22 +349,20 @@ public:
     SqlDataIdRSLoaderEx(const QByteArray& _dbExra = QByteArray()) : dbExtra(_dbExra){}
     U2DataId load(SQLiteQuery* q) { return q->getDataId(0, q->getDataType(1), dbExtra);}
 
-protected:    
+protected:
     U2DataType type;
     QByteArray dbExtra;
 };
 
-
 #define DBI_TYPE_CHECK(dataId,  expectedType, os, res)\
     if (!dataId.isEmpty()) {\
-        U2DataType realType = SQLiteUtils::toType(dataId);\
+        U2DataType realType = U2DbiUtils::toType(dataId);\
         if (realType != expectedType) {\
             os.setError(QString("Illegal data type: %1, expected %2").arg(realType).arg(expectedType));\
             return res;\
         }\
     }\
-    
 
-} //namespace
+} // namespace U2
 
-#endif
+#endif // _U2_SQL_HELPERS_H_

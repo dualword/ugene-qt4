@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ class TestRunnerSettings;
 
 class U2CORE_EXPORT AppSettings {
 public:
-    AppSettings() : nc(NULL), userAppsSettings(NULL), ri(NULL), trs(NULL) {}
+    AppSettings() : nc(NULL), userAppsSettings(NULL), ri(NULL), trs(NULL), formatSettings(NULL) {}
 
     virtual ~AppSettings(){}
 

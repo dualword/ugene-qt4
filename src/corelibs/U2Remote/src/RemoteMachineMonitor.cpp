@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -72,9 +72,11 @@ void RemoteMachineMonitor::saveSettings() {
 QVariant RemoteMachineMonitor::serializeMachines() const {
     QVariantList res;
     foreach( const RemoteMachineSettingsPtr& item, items ) {
+        Q_UNUSED(item);
         QVariantList itemRes;
-        QString data = SerializeUtils::serializeRemoteMachineSettings(item);
-        itemRes << data;
+        // call leads to FAIL("Obsolete! Not implemented!", "");
+//         QString data = SerializeUtils::serializeRemoteMachineSettings(item);
+//         itemRes << data;
         res << QVariant( itemRes );
     }
     return res;
@@ -85,7 +87,7 @@ bool RemoteMachineMonitor::deserializeMachines( const QVariant & data ) {
         return false;
     }
     QVariantList args = data.toList();
-    
+
     foreach( QVariant arg, args ) {
         if( !arg.canConvert( QVariant::List ) ) {
             return false;
@@ -94,12 +96,13 @@ bool RemoteMachineMonitor::deserializeMachines( const QVariant & data ) {
         if( itemArgs.size() == 0 ) {
             return false;
         }
-        RemoteMachineSettingsPtr machineSettings = SerializeUtils::deserializeRemoteMachineSettings(itemArgs[0].toString());
-        if( machineSettings == NULL ) {
-            return false;
-        }
-        
-        items << machineSettings;
+        // call leads to FAIL("Obsolete! Not implemented!", "");
+        //RemoteMachineSettingsPtr machineSettings = SerializeUtils::deserializeRemoteMachineSettings(itemArgs[0].toString());
+        //if( machineSettings == NULL ) {
+        //    return false;
+        //}
+        //
+        //items << machineSettings;
     }
     return true;
 }
@@ -120,7 +123,7 @@ void RemoteMachineMonitor::removeMachineConfiguration( const RemoteMachineSettin
     if( NULL == machineSettings ) {
         return;
     }
-    
+
     items.removeOne(machineSettings);
 }
 

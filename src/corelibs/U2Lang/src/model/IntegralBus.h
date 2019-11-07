@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,9 +32,39 @@ namespace U2 {
 namespace Workflow {
 
 /**
+ * Keeps the type of the bus.
+ * Helps to convert messages for actors.
+ */
+class U2LANG_EXPORT BusMap {
+public:
+    BusMap(const QStrStrMap &busMap, const QMap<QString, QStringList> &listMap, const SlotPathMap &paths);
+    BusMap(const QStrStrMap &busMap, bool breaksDataflow, const QString &actorId);
+
+    Message takeMessageMap(CommunicationChannel *ch, QVariantMap &context);
+    Message lookMessageMap(CommunicationChannel *ch);
+    QVariantMap composeMessageMap(const Message &m, const QVariantMap &context);
+
+    static void parseSource(const QString &src, QString &srcId, QStringList &path);
+    static QString getNewSourceId(const QString &srcId, const QString &actorId);
+
+private:
+    bool input;
+
+    QStrStrMap busMap;
+    QMap<QString, QStringList> listMap;
+    SlotPathMap paths;
+
+    bool breaksDataflow;
+    QString actorId;
+
+private:
+    QVariantMap getMessageData(const Message &m) const;
+};
+
+/**
  * represents communication channel for support passing data between actors
  * connected in transitive closure of schema graph
- * 
+ *
  * is a container of communications with other actors
  */
 class U2LANG_EXPORT IntegralBus : public QObject, public CommunicationSubject, public CommunicationChannel {
@@ -42,15 +72,19 @@ class U2LANG_EXPORT IntegralBus : public QObject, public CommunicationSubject, p
 public:
     IntegralBus(Port* peer);
     ~IntegralBus();
-    
+
     // reimplemented from CommunicationSubject
     virtual bool addCommunication(const QString& id, CommunicationChannel* ch);
     virtual CommunicationChannel* getCommunication(const QString& id);
-    
+
+    void putWithoutContext(const Message& m);
+
     // reimplemented from CommunicationChannel
     virtual Message get();
     virtual Message look() const;
-    virtual void put(const Message& m);
+    virtual void put(const Message& m, bool isMessageRestored = false);
+    // put incoming context to the output channels
+    virtual void transit();
     virtual int hasMessage() const;
     virtual int takenMessages() const;
     virtual int hasRoom(const DataType* t = NULL) const;
@@ -58,19 +92,22 @@ public:
     virtual void setEnded();
     virtual int capacity() const {return 1;}
     virtual void setCapacity(int) {}
-    
-    virtual QVariantMap getContext() const {return context;}
-    virtual void setContext(const QVariantMap& m);
-    
+    virtual Message lookMessage() const;
+    virtual QQueue<Message> getMessages(int startIndex, int endIndex) const;
+
+    QVariantMap getContext() const {return context;}
+    void setContext(const QVariantMap& m, int metadataId);
+    int getContextMetadataId() const;
+
     virtual void addComplement(IntegralBus* b) {assert(!complement);complement = b;}
-    
+
     QString getPortId() const {return portId;}
     DataTypePtr getBusType() const {return busType;}
 
     void setPrintSlots(bool in, const QList<QString> &printSlots);
 
     void setWorkflowContext(WorkflowContext *context);
-    
+
 protected:
     virtual Message composeMessage(const Message&);
 
@@ -80,12 +117,11 @@ protected:
     // communications with other ports
     QMap<QString, CommunicationChannel*> outerChannels;
     // busmap of port integral bus is binded to
-    QStrStrMap busMap;
-    // 
-    QMap<QString, QStringList> listMap;
-    // 
+    BusMap *busMap;
+    // context of an output message. See put() for details
     QVariantMap context;
-    // 
+    int contextMetadataId;
+    //
     IntegralBus* complement;
     // integral bus is binded to port with this id
     QString portId;
@@ -98,7 +134,7 @@ protected:
     WorkflowContext *workflowContext;
 
     QMutex *contextMutex;
-    
+
 }; // IntegralBus
 
 }//Workflow namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,32 +19,32 @@
  * MA 02110-1301, USA.
  */
 
-#include "CAP3Support.h"
-#include "CAP3SupportDialog.h"
-#include "CAP3SupportTask.h"
-#include "ExternalToolSupportSettingsController.h"
-#include "ExternalToolSupportSettings.h"
+#include <QMainWindow>
+#include <QMessageBox>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
-#include <U2Core/U2SafePoints.h>
+#include <U2Core/MAlignmentObject.h>
 #include <U2Core/U2OpStatusUtils.h>
-#include <U2Gui/AppSettingsGUI.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Core/UserApplicationsSettings.h>
+
+#include <U2Gui/AppSettingsGUI.h>
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
 #include <U2Gui/MainWindow.h>
-#include <QtGui/QMainWindow>
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2View/MSAEditor.h>
 #include <U2View/MSAEditorFactory.h>
 
-#include <U2Core/MAlignmentObject.h>
-
-#include <U2Gui/GUIUtils.h>
-#include <U2Gui/DialogUtils.h>
+#include "CAP3Support.h"
+#include "CAP3SupportDialog.h"
+#include "CAP3SupportTask.h"
+#include "ExternalToolSupportSettings.h"
+#include "ExternalToolSupportSettingsController.h"
 
 namespace U2 {
-
 
 CAP3Support::CAP3Support(const QString& name, const QString& path) : ExternalTool(name, path)
 {
@@ -57,17 +57,17 @@ CAP3Support::CAP3Support(const QString& name, const QString& path) : ExternalToo
 #ifdef Q_OS_WIN
     executableFileName="cap3.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
     executableFileName="cap3";
     #endif
 #endif
-    validMessage="cap3 File_of_reads [options]";
+    validMessage="cap3 File_of_reads \\[options\\]";
     description=tr("<i>CAP3</i> is a contig assembly program. \
                    <br>It allows to assembly long DNA reads (up to 1000 bp). \
                    <br>Binaries can be downloaded from http://seq.cs.iastate.edu/cap3.html");
     description+=tr("<br><br> Huang, X. and Madan, A.  (1999)");
     description+=tr("<br>CAP3: A DNA Sequence Assembly Program,");
-    description+=tr("<br>Genome Research, 9: 868-877."); 
+    description+=tr("<br>Genome Research, 9: 868-877.");
     versionRegExp=QRegExp("VersionDate: (\\d+\\/\\d+\\/\\d+)");
     toolKitName="CAP3";
 }
@@ -75,13 +75,15 @@ CAP3Support::CAP3Support(const QString& name, const QString& path) : ExternalToo
 void CAP3Support::sl_runWithExtFileSpecify(){
     //Check that CAP3 and temporary directory path defined
     if (path.isEmpty()){
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(name);
-        msgBox.setText(tr("Path for %1 tool not selected.").arg(name));
-        msgBox.setInformativeText(tr("Do you want to select it now?"));
-        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-        msgBox.setDefaultButton(QMessageBox::Yes);
-        int ret = msgBox.exec();
+        QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox;
+        msgBox->setWindowTitle(name);
+        msgBox->setText(tr("Path for %1 tool not selected.").arg(name));
+        msgBox->setInformativeText(tr("Do you want to select it now?"));
+        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox->setDefaultButton(QMessageBox::Yes);
+        const int ret = msgBox->exec();
+        CHECK(!msgBox.isNull(), );
+
         switch (ret) {
            case QMessageBox::Yes:
                AppContext::getAppSettingsGUI()->showSettingsDialog(ExternalToolSupportSettingsPageId);
@@ -103,17 +105,19 @@ void CAP3Support::sl_runWithExtFileSpecify(){
 
     //Call select input file and setup settings dialog
     CAP3SupportTaskSettings settings;
-    CAP3SupportDialog cap3Dialog(settings, QApplication::activeWindow());
-    
-    if(cap3Dialog.exec() != QDialog::Accepted){
+    QObjectScopedPointer<CAP3SupportDialog> cap3Dialog = new CAP3SupportDialog(settings, QApplication::activeWindow());
+    cap3Dialog->exec();
+    CHECK(!cap3Dialog.isNull(), );
+
+    if(cap3Dialog->result() != QDialog::Accepted){
         return;
     }
-    
+
     assert(!settings.inputFiles.isEmpty());
 
-    CAP3SupportTask* task = new CAP3SupportTask(settings);
+    RunCap3AndOpenResultTask* task = new RunCap3AndOpenResultTask(settings);
     AppContext::getTaskScheduler()->registerTopLevelTask(task);
-    
+
 }
 
 

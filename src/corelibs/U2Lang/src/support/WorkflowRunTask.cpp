@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,8 @@
 #include <U2Lang/WorkflowUtils.h>
 #include <U2Lang/BaseAttributes.h>
 #include <U2Lang/WorkflowSettings.h>
+#include <U2Lang/LocalDomain.h>
+#include <U2Lang/WorkflowMonitor.h>
 
 #include <U2Core/Counter.h>
 #include <U2Core/CMDLineRegistry.h>
@@ -38,9 +40,22 @@
 #include <U2Core/GUrlUtils.h>
 #include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/U2SafePoints.h>
-#include <QtCore/QFile>
-#include <QtCore/QFileInfo>
+
 #include <QtCore/QDir>
+#include <QCoreApplication>
+
+#include <U2Lang/DbiDataStorage.h>
+#include <U2Lang/WorkflowEnv.h>
+#include <U2Lang/WorkflowManager.h>
+#include <U2Lang/Schema.h>
+#include <U2Lang/HRSchemaSerializer.h>
+#include <U2Lang/WorkflowUtils.h>
+#include <U2Lang/BaseAttributes.h>
+#include <U2Lang/WorkflowSettings.h>
+#include <U2Lang/LocalDomain.h>
+
+#include "WorkflowDebugMessageParser.h"
+#include "WorkflowRunTask.h"
 
 #if (defined(Q_OS_WIN32) || defined(Q_OS_WINCE))
 #include <Windows.h>
@@ -51,25 +66,50 @@ namespace U2 {
 static const QString OUTPUT_PROGRESS_OPTION("ugene-output-progress-state");
 static const QString OUTPUT_ERROR_OPTION("ugene-output-error");
 static const int UPDATE_PROGRESS_INTERVAL = 500;
-static const int TICK_UPDATE_INTERVAL = 1000;
 static const QString OUTPUT_PROGRESS_TAG("task-progress=");
 static const QString ERROR_KEYWORD("#%*ugene-finished-with-error#%*");
 static const QString STATE_KEYWORD("#%&state#%&");
 static const QString MSG_NUM_KEYWORD("#%$msgnum#%$");
 static const QString MSG_PASSED_KEYWORD("#%$msgpassed#%$");
 
+WorkflowAbstractRunner::WorkflowAbstractRunner(const QString &name, TaskFlags flags)
+: Task(name, flags)
+{
+
+}
+
+const QList<WorkflowMonitor*> & WorkflowAbstractRunner::getMonitors() const {
+    return monitors;
+}
+
+WorkflowAbstractIterationRunner::WorkflowAbstractIterationRunner(const QString &name, TaskFlags flags)
+: Task(name, flags)
+{
+
+}
+
 /*******************************************
  * WorkflowRunTask
  *******************************************/
-WorkflowRunTask::WorkflowRunTask(const Schema& sh, QList<Iteration> lst, const QMap<ActorId, ActorId>& remap) :
-WorkflowAbstractRunner(tr("Execute workflow"), TaskFlags(TaskFlag_NoRun) | TaskFlag_ReportingIsSupported), rmap(remap), flows(sh.getFlows()) {
+WorkflowRunTask::WorkflowRunTask(const Schema& sh, const QMap<ActorId, ActorId>& remap, WorkflowDebugStatus *debugInfo)
+    : WorkflowAbstractRunner(tr("Execute workflow"),
+    TaskFlags(TaskFlag_NoRun) | TaskFlag_ReportingIsSupported | TaskFlag_OnlyNotificationReport), rmap(remap), flows(sh.getFlows())
+{
+
     GCOUNTER( cvar, tvar, "WorkflowRunTask" );
-    assert(!lst.isEmpty());
-    foreach(const Iteration& it, lst) {
-        WorkflowIterationRunTask* t = new WorkflowIterationRunTask(sh, it);
-        connect(t, SIGNAL(si_ticked()), SIGNAL(si_ticked()));
-        addSubTask(t);
+    Q_ASSERT(NULL != debugInfo);
+    if (NULL == debugInfo->parent()) {
+        debugInfo->setParent(this);
     }
+
+    WorkflowIterationRunTask* t = new WorkflowIterationRunTask(sh, debugInfo);
+    WorkflowMonitor *m = t->getMonitor();
+    if (NULL != m) {
+        monitors << m;
+    }
+    connect(t, SIGNAL(si_ticked()), SIGNAL(si_ticked()));
+    addSubTask(t);
+
     setMaxParallelSubtasks(MAX_PARALLEL_SUBTASKS_AUTO);
     if(AppContext::getCMDLineRegistry()->hasParameter(OUTPUT_PROGRESS_OPTION)) {
         QTimer * timer = new QTimer(this);
@@ -114,45 +154,6 @@ inline bool isValidFile(const QString &link, const qint64 &processStartTime) {
     return false;
 }
 
-QString WorkflowRunTask::generateReport() const {
-    QString res;
-    res+="<table width='75%'>";
-    res+=QString("<tr><th>%1</th><th>%2</th><th>%3</th></tr>").arg(tr("Iterations")).arg(tr("Status")).arg(tr("Details"));
-    foreach(Task* sub, getSubtasks()) {
-        QString name = Qt::escape(sub->getTaskName());
-        QString status = sub->hasError() ? tr("Failed") : sub->isCanceled() ? tr("Canceled") : tr("Finished");
-        QString error = Qt::escape(sub->getError()).replace("\n", "<br>");
-            //AppContext::getTaskScheduler()->getStateName(sub);
-        if (sub->hasError()) {
-            name = "<font color='red'>"+name+"</font>";
-            status = "<font color='red'>"+status+"</font>";
-        } else if (sub->isCanceled()) {
-            status = "<font color='blue'>"+status+"</font>";
-        } else {
-            status = "<font color='green'>"+status+"</font>";
-        }
-        res+=QString("<tr><td>%1</td><td>%2</td><td>%3</td></tr>").arg(name).arg(status).arg(error);
-
-        QStringList links = (static_cast<WorkflowIterationRunTask*>(sub))->getFiles();
-        if(!links.isEmpty() && !sub->hasError()) {
-            res += QString("<tr><td><i>%1</i></td></tr>").arg(tr("Output files:"));
-        
-            qint64 startTimeSec = timeInfo.startTime/1000000;
-            foreach(const QString &link, links) {
-                QStringList rolledLinks = GUrlUtils::getRolledFilesList(link, "_oldcopy");
-                foreach (const QString &rolledLink, rolledLinks) {
-                    if (isValidFile(rolledLink, startTimeSec)) {
-                        res += QString("<tr><td><a href=\"%1\">%2</a></td></tr>").arg(rolledLink).arg(rolledLink);
-                    }
-                }
-            }
-        }
-        res+="<tr><td></td></tr>";
-    }
-    res+="</table>";
-    return res;
-}
-
 QList<WorkerState> WorkflowRunTask::getState( Actor* actor) {
     QList<WorkerState> ret;
     foreach(Task* t, getSubtasks()) {
@@ -162,7 +163,7 @@ QList<WorkerState> WorkflowRunTask::getState( Actor* actor) {
     return ret;
 }
 
-int WorkflowRunTask::getMsgNum( Link* l) {
+int WorkflowRunTask::getMsgNum(const Link* l) {
     int ret = 0;
     foreach(Task* t, getSubtasks()) {
         WorkflowIterationRunTask* rt = qobject_cast<WorkflowIterationRunTask*>(t);
@@ -171,7 +172,7 @@ int WorkflowRunTask::getMsgNum( Link* l) {
     return ret;
 }
 
-int WorkflowRunTask::getMsgPassed(Link* l) {
+int WorkflowRunTask::getMsgPassed(const Link* l) {
     int ret = 0;
     foreach(Task* t, getSubtasks()) {
         ret += qobject_cast<WorkflowIterationRunTask*>(t)->getMsgPassed(l);
@@ -184,17 +185,27 @@ Task::ReportResult WorkflowRunTask::report() {
     if(hasError() && AppContext::getCMDLineRegistry()->hasParameter(OUTPUT_ERROR_OPTION)) {
         coreLog.info(QString("%1%2%1").arg(ERROR_KEYWORD).arg(getError()));
     }
+    if(AppContext::getCMDLineRegistry()->hasParameter(OUTPUT_PROGRESS_OPTION)) {
+        sl_outputProgressAndState();
+    }
     return ReportResult_Finished;
 }
 
 /*******************************************
 * WorkflowIterationRunTask
 *******************************************/
-WorkflowIterationRunTask::WorkflowIterationRunTask(const Schema& sh, const Iteration& it) : 
-Task(QString("%1").arg(it.name), TaskFlags_NR_FOSCOE), context(NULL), schema(new Schema()), scheduler(NULL) {
-    rmap = HRSchemaSerializer::deepCopy(sh, schema);
-    schema->applyConfiguration(it, rmap);
-    
+
+WorkflowIterationRunTask::WorkflowIterationRunTask(const Schema& sh,
+    WorkflowDebugStatus *initDebugInfo)
+    : WorkflowAbstractIterationRunner(tr("Workflow run"),
+    (getAdditionalFlags() | TaskFlag_CancelOnSubtaskCancel | TaskFlag_FailOnSubtaskError)),
+    context(NULL), schema(new Schema()), scheduler(NULL), debugInfo(initDebugInfo),
+    isNextTickRestoring(false)
+{
+
+    rmap = HRSchemaSerializer::deepCopy(sh, schema, stateInfo);
+    SAFE_POINT_OP(stateInfo, );
+
     if(schema->getDomain().isEmpty()) {
         QList<DomainFactory*> factories = WorkflowEnv::getDomainRegistry()->getAllEntries();
         assert(!factories.isEmpty());
@@ -205,15 +216,42 @@ Task(QString("%1").arg(it.name), TaskFlags_NR_FOSCOE), context(NULL), schema(new
         stateInfo.setError(  tr("Unknown domain %1").arg(schema->getDomain()) );
         return;
     }
+
+    connect(debugInfo, SIGNAL(si_pauseStateChanged(bool)), SLOT(sl_pauseStateChanged(bool)));
+    connect(debugInfo, SIGNAL(si_singleStepIsRequested(const ActorId &)), SLOT(sl_singleStepIsRequested(const ActorId &)));
+    connect(debugInfo, SIGNAL(si_busInvestigationIsRequested(const Workflow::Link *, int)),
+        SLOT(sl_busInvestigationIsRequested(const Workflow::Link *, int)));
+    connect(debugInfo, SIGNAL(si_busCountOfMessagesIsRequested(const Workflow::Link *)),
+        SLOT(sl_busCountOfMessagesRequested(const Workflow::Link *)));
+    connect(debugInfo, SIGNAL(si_convertMessages2Documents(const Workflow::Link *,
+        const QString &, int, const QString &)), SLOT(sl_convertMessages2Documents(
+        const Workflow::Link *, const QString &, int, const QString &)));
+
+    WorkflowMonitor *m = new WorkflowMonitor(this, schema);
+    context = new WorkflowContext(schema->getProcesses(), m);
+
+    QTimer * timer = new QTimer(this);
+    connect(timer, SIGNAL(timeout()), SIGNAL(si_updateProducers()));
+    timer->start(UPDATE_PROGRESS_INTERVAL);
+}
+
+TaskFlags WorkflowIterationRunTask::getAdditionalFlags() {
+    TaskFlags result = (AppContext::isGUIMode())
+        ? (TaskFlags(TaskFlag_RunMessageLoopOnly) | TaskFlag_RunBeforeSubtasksFinished)
+        : TaskFlag_NoRun;
+    return result;
 }
 
 WorkflowIterationRunTask::~WorkflowIterationRunTask() {
+    emit si_updateProducers();
     lmap.clear();
     DomainFactory* df = WorkflowEnv::getDomainRegistry()->getById(schema->getDomain());
     if (df) {
         df->destroy(scheduler, schema);
     }
     scheduler = NULL;
+// make all signals to be delivered to GUI before the scheme is destroyed
+    QCoreApplication::processEvents();
     delete schema;
     delete context;
 }
@@ -222,7 +260,12 @@ void WorkflowIterationRunTask::prepare() {
     if( hasError() || isCanceled() ) {
         return;
     }
-    
+
+    bool res = schema->expand();
+    if (!res) {
+        stateInfo.setError(tr("Failed to preprocess the workflow. Some of included files are broken"));
+        return;
+    }
     DomainFactory* df = WorkflowEnv::getDomainRegistry()->getById(schema->getDomain());
     assert( df != NULL ); // checked in constructor
     foreach(Actor* a, schema->getProcesses()) {
@@ -248,12 +291,11 @@ void WorkflowIterationRunTask::prepare() {
         lmap.insert(key, cc);
     }
 
-    context = new WorkflowContext();
     if (!context->init()) {
-        stateInfo.setError(tr("Failed to create a worflow context"));
+        stateInfo.setError(tr("Failed to create a workflow context"));
         return;
     }
-
+    debugInfo->setContext(context);
     scheduler = df->createScheduler(schema);
     if (!scheduler) {
         stateInfo.setError(  tr("Failed to create scheduler in domain %1").arg(df->getDisplayName()) );
@@ -261,6 +303,8 @@ void WorkflowIterationRunTask::prepare() {
     }
     scheduler->setContext(context);
     scheduler->init();
+    scheduler->setDebugInfo(debugInfo);
+    context->getMonitor()->start();
     while(scheduler->isReady() && !isCanceled()) {
         Task* t = scheduler->tick();
         if (t) {
@@ -272,10 +316,25 @@ void WorkflowIterationRunTask::prepare() {
 
 QList<Task*> WorkflowIterationRunTask::onSubTaskFinished(Task* subTask) {
     QList<Task*> tasks;
+    // handle the situation when pause signal was not delivered to the current thread
+    while(debugInfo->isPaused() && !isCanceled()) {
+        QCoreApplication::processEvents();
+    }
+    if(scheduler->isReady() && isNextTickRestoring) {
+        Task *replayingTask = scheduler->replayLastWorkerTick();
+        isNextTickRestoring = false;
+        if(NULL != replayingTask) {
+            tasks << replayingTask;
+            emit si_ticked();
+            return tasks;
+        }
+    }
+
     if (subTask->hasError()) {
-        emit si_ticked();
-        propagateSubtaskError();
-        return tasks;
+        getMonitor()->addTaskError(subTask);
+    }
+    if (subTask->hasWarning()) {
+        getMonitor()->addTaskWarning(subTask);
     }
     while(scheduler->isReady() && !isCanceled()) {
         Task* t = scheduler->tick();
@@ -285,6 +344,7 @@ QList<Task*> WorkflowIterationRunTask::onSubTaskFinished(Task* subTask) {
         }
     }
     emit si_ticked();
+
     return tasks;
 }
 
@@ -292,7 +352,7 @@ DocumentFormat *getDocumentFormatByProtoId(QString protoId) {
     DocumentFormatId formatId;
     if (CoreLibConstants::WRITE_TEXT_PROTO_ID == protoId) {
         formatId = BaseDocumentFormats::PLAIN_TEXT;
-    } 
+    }
     else if (CoreLibConstants::WRITE_FASTA_PROTO_ID == protoId) {
         formatId = BaseDocumentFormats::FASTA;
     }
@@ -314,44 +374,43 @@ DocumentFormat *getDocumentFormatByProtoId(QString protoId) {
     return AppContext::getDocumentFormatRegistry()->getFormatById(formatId);
 }
 
-static QStringList getOutputFiles(const QList<Actor*> & procs) {
-    QStringList res;
-    foreach(Actor *a, procs) {
-        foreach(Attribute *attr, a->getProto()->getAttributes()) {
-            if(attr->getId() == BaseAttributes::URL_OUT_ATTRIBUTE().getId()) {
-                QString str = a->getParameter(BaseAttributes::URL_OUT_ATTRIBUTE().getId())->getAttributeValueWithoutScript<QString>();
-                QUrl url(str);
-                if(url.isValid()) {
-                    res << url.toString();
-                }
-            }
-        }
-    }
-    return res;
-}
-
 Task::ReportResult WorkflowIterationRunTask::report() {
+    context->getMonitor()->pause();
     if (scheduler) {
         scheduler->cleanup();
         if (!scheduler->isDone()) {
             if(!hasError() && !isCanceled()) {
-                setError(tr("No workers are ready, while not all workers are done. Schema is broken?"));
+                setError(tr("No workers are ready, while not all workers are done. Workflow is broken?"));
             }
         }
     }
-    fileLinks = getOutputFiles(schema->getProcesses());
+
+    // add unregistered output files
+    qint64 startTimeSec = getTimeInfo().startTime/1000000;
+    foreach(Actor *a, schema->getProcesses()) {
+        LocalWorkflow::BaseWorker *bw = a->castPeer<LocalWorkflow::BaseWorker>();
+        QStringList urls = bw->getOutputFiles();
+        foreach (const QString &url, urls) {
+            QString absUrl = context->absolutePath(url);
+            if (isValidFile(absUrl, startTimeSec)) {
+                context->getMonitor()->addOutputFile(absUrl, a->getId());
+            }
+        }
+    }
     return ReportResult_Finished;
 }
 
 WorkerState WorkflowIterationRunTask::getState(const ActorId& id)
 {
     if (scheduler) {
-        return scheduler->getWorkerState(rmap.value(id));
+        const WorkerState currentState = scheduler->getWorkerState(rmap.value(id));
+        return (debugInfo->isPaused() && Workflow::WorkerRunning == currentState) ?
+            Workflow::WorkerPaused : currentState;
     }
     return WorkerWaiting;
 }
 
-static QString getKey(Link * l) {
+static QString getKey(const Link * l) {
     QStringList lst;
     lst << (l->source()->owner()->getId());
     lst << (l->source()->getId());
@@ -360,8 +419,18 @@ static QString getKey(Link * l) {
     return lst.join("|");
 }
 
-int WorkflowIterationRunTask::getMsgNum( Link* l)
-{
+inline static bool isSourceActor(const QString &actor, const QString &key) {
+    QStringList lst = key.split("|");
+    CHECK(4 == lst.size(), false);
+    return lst.first() == actor;
+}
+
+WorkflowMonitor * WorkflowIterationRunTask::getMonitor() const {
+    CHECK(NULL != context, NULL);
+    return context->getMonitor();
+}
+
+int WorkflowIterationRunTask::getMsgNum(const Link *l) {
     CommunicationChannel* cc = lmap.value(getKey(l));
     if (cc) {
         return cc->hasMessage();
@@ -369,7 +438,7 @@ int WorkflowIterationRunTask::getMsgNum( Link* l)
     return 0;
 }
 
-int WorkflowIterationRunTask::getMsgPassed(Link* l) {
+int WorkflowIterationRunTask::getMsgPassed(const Link* l) {
     CommunicationChannel * cc = lmap.value(getKey(l));
     if(cc != NULL) {
         return cc->takenMessages();
@@ -377,177 +446,82 @@ int WorkflowIterationRunTask::getMsgPassed(Link* l) {
     return 0;
 }
 
-QStringList WorkflowIterationRunTask::getFiles() const {
-    return fileLinks;
-}
+QList<CommunicationChannel*> WorkflowIterationRunTask::getActorLinks(const QString &actor) {
+    QList<CommunicationChannel*> result;
 
-/*******************************************
- * WorkflowRunInProcessTask
- *******************************************/
-WorkflowRunInProcessTask::WorkflowRunInProcessTask(const Schema & sc, const QList<Iteration> & its) :
-WorkflowAbstractRunner(tr("Execute workflow in separate process"), TaskFlags(TaskFlag_NoRun) | TaskFlag_ReportingIsSupported) {
-    GCOUNTER(cvar, tvar, "WorkflowRunInProcessTask");
-    assert(!its.isEmpty());
-    foreach(const Iteration& it, its) {
-        WorkflowIterationRunInProcessTask * t = new WorkflowIterationRunInProcessTask(sc, it);
-        addSubTask(t);
-    }
-    setMaxParallelSubtasks(MAX_PARALLEL_SUBTASKS_AUTO);
-    
-    QTimer * timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), SIGNAL(si_ticked()));
-    timer->start(TICK_UPDATE_INTERVAL);
-}
-
-Task::ReportResult WorkflowRunInProcessTask::report() {
-    propagateSubtaskError();
-    return ReportResult_Finished;
-}
-
-QList<WorkerState> WorkflowRunInProcessTask::getState(Actor * a) {
-    QList<WorkerState> ret;
-    foreach(Task * t, getSubtasks()) {
-        WorkflowIterationRunInProcessTask * it = qobject_cast<WorkflowIterationRunInProcessTask*>(t);
-        ret << it->getState(a);
-    }
-    return ret;
-}
-
-int WorkflowRunInProcessTask::getMsgNum(Link * l) {
-    int ret = 0;
-    foreach(Task* t, getSubtasks()) {
-        WorkflowIterationRunInProcessTask* rt = qobject_cast<WorkflowIterationRunInProcessTask*>(t);
-        ret += rt->getMsgNum(l);
-    }
-    return ret;
-}
-
-int WorkflowRunInProcessTask::getMsgPassed(Link * l) {
-    int ret = 0;
-    foreach(Task* t, getSubtasks()) {
-        WorkflowIterationRunInProcessTask* rt = qobject_cast<WorkflowIterationRunInProcessTask*>(t);
-        ret += rt->getMsgPassed(l);
-    }
-    return ret;
-}
-
-QString WorkflowRunInProcessTask::generateReport() const {
-    QString res;
-    res+="<table width='75%'>";
-    res+=QString("<tr><th>%1</th><th>%2</th><th>%3</th></tr>").arg(tr("Iterations")).arg(tr("Status")).arg(tr("Details"));
-    foreach(Task* sub, getSubtasks()) {
-        QString name = Qt::escape(sub->getTaskName());
-        QString status = sub->hasError() ? tr("Failed") : sub->isCanceled() ? tr("Canceled") : tr("Finished");
-        QString error = Qt::escape(sub->getError()).replace("\n", "<br>");
-        if (sub->hasError()) {
-            name = "<font color='red'>"+name+"</font>";
-            status = "<font color='red'>"+status+"</font>";
-        } else if (sub->isCanceled()) {
-            status = "<font color='blue'>"+status+"</font>";
-        } else {
-            status = "<font color='green'>"+status+"</font>";
+    QMap<QString, CommunicationChannel*>::ConstIterator i = lmap.constBegin();
+    for (; i!= lmap.constEnd(); i++) {
+        if (isSourceActor(actor, i.key())) {
+            result << i.value();
         }
-        res+=QString("<tr><td>%1</td><td>%2</td><td>%3</td></tr>").arg(name).arg(status).arg(error);
-        QStringList links = (qobject_cast<WorkflowIterationRunInProcessTask*>(sub))->getFiles();
-        if(!links.isEmpty() && !sub->hasError()) {
-            res += QString("<tr><td><i>%1</i></td></tr>").arg(tr("Output files:"));
+    }
+    return result;
+}
 
-            qint64 startTimeSec = timeInfo.startTime/1000000;
-            foreach(const QString &link, links) {
-                QStringList rolledLinks = GUrlUtils::getRolledFilesList(link, "_oldcopy");
-                foreach (const QString &rolledLink, rolledLinks) {
-                    if (isValidFile(rolledLink, startTimeSec)) {
-                        res += QString("<tr><td><a href=\"%1\">%2</a></td></tr>").arg(rolledLink).arg(rolledLink);
-                    }
-                }
-            }
+int WorkflowIterationRunTask::getDataProduced(const ActorId &actor) {
+    int result = 0;
+    foreach (CommunicationChannel *cc, getActorLinks(actor)) {
+        result += cc->hasMessage();
+        result += cc->takenMessages();
+        break;
+    }
+    return result;
+}
+
+void WorkflowIterationRunTask::sl_pauseStateChanged(bool isPaused) {
+    if (isPaused) {
+        if (!debugInfo->isCurrentStepIsolated()) {
+            isNextTickRestoring = scheduler->cancelCurrentTaskIfAllowed();
         }
-        res+="<tr><td></td></tr>";
-    }
-    res+="</table>";
-    return res;
-}
-
-/*******************************************
- * WorkflowIterationRunInProcessTask
- *******************************************/
-WorkflowIterationRunInProcessTask::WorkflowIterationRunInProcessTask(const Schema & sc, const Iteration & it) :
-Task(QString("Execute iteration '%1'").arg(it.name), TaskFlags_NR_FOSCOE), schema(new Schema()), saveSchemaTask(NULL), monitor(NULL) {
-    tempFile.setFileTemplate(QString("%1/XXXXXX.uwl").arg(QDir::tempPath()));
-    if(!tempFile.open()) {
-        setError(tr("Cannot create temporary file for saving schema!"));
-        return;
-    }
-    Metadata meta; 
-    meta.url = tempFile.fileName();
-    tempFile.close();
-    
-    rmap = HRSchemaSerializer::deepCopy(sc, schema);
-    schema->applyConfiguration(it, rmap);
-    schema->getIterations().clear();
-    saveSchemaTask = new SaveWorkflowTask(schema, meta, true);
-    saveSchemaTask->setSubtaskProgressWeight(0);
-    addSubTask(saveSchemaTask);
-}
-
-WorkflowIterationRunInProcessTask::~WorkflowIterationRunInProcessTask() {
-    delete schema;
-}
-
-QList<Task*> WorkflowIterationRunInProcessTask::onSubTaskFinished(Task* subTask) {
-    QList<Task*> res;
-    propagateSubtaskError();
-    if(hasError() || isCanceled()) {
-        return res;
-    }
-    if(saveSchemaTask == subTask) {
-        monitor = new RunCmdlineWorkflowTask(tempFile.fileName());
-        monitor->setSubtaskProgressWeight(1);
-        res << monitor;
-    } else if(monitor == subTask) {
-        monitor = NULL;
-    } else {
-        assert(false);
-    }
-    return res;
-}
-
-Task::ReportResult WorkflowIterationRunInProcessTask::report() {
-    return ReportResult_Finished;
-}
-
-WorkerState WorkflowIterationRunInProcessTask::getState(Actor* a) {
-    return monitor != NULL ? monitor->getState(rmap.value(a->getId())) : WorkerWaiting;
-}
-
-int WorkflowIterationRunInProcessTask::getMsgNum(Link * l) {
-    if(monitor != NULL) {
-        ActorId srcId = rmap.value(l->source()->owner()->getId());
-        ActorId dstId = rmap.value(l->destination()->owner()->getId());
-        assert(!srcId.isEmpty() && !dstId.isEmpty());
-        return monitor->getMsgNum(QString("%1:%2").arg(srcId).arg(dstId));
-    } else {
-        return 0;
+        if (AppContext::isGUIMode()) {
+            AppContext::getTaskScheduler()->pauseThreadWithTask(this);
+        }
+    } else if (AppContext::isGUIMode()) {
+        AppContext::getTaskScheduler()->resumeThreadWithTask(this);
     }
 }
 
-int WorkflowIterationRunInProcessTask::getMsgPassed(Link * l) {
-    if(monitor != NULL) {
-        ActorId srcId = rmap.value(l->source()->owner()->getId());
-        ActorId dstId = rmap.value(l->destination()->owner()->getId());
-        assert(!srcId.isEmpty() && !dstId.isEmpty());
-        return monitor->getMsgPassed(QString("%1:%2").arg(srcId).arg(dstId));
-    } else {
-        return 0;
+void WorkflowIterationRunTask::sl_busInvestigationIsRequested( const Workflow::Link *bus,
+    int messageNumber )
+{
+    CommunicationChannel *channel = lmap.value( getKey( bus ) );
+    if ( NULL != channel && debugInfo->isPaused( ) ) {
+        QQueue<Message> messages = channel->getMessages( messageNumber, messageNumber );
+        WorkflowDebugMessageParser *parser = debugInfo->getMessageParser( );
+        SAFE_POINT( NULL != parser, "Invalid debug message parser!", );
+        parser->setSourceData( messages );
+        WorkflowInvestigationData data = parser->getAllMessageValues( );
+        debugInfo->respondToInvestigator( data, bus );
     }
 }
 
-QStringList WorkflowIterationRunInProcessTask::getFiles() {
-    return getOutputFiles(schema->getProcesses());
+void WorkflowIterationRunTask::sl_busCountOfMessagesRequested(const Workflow::Link *bus) {
+    debugInfo->respondMessagesCount(bus, getMsgNum(bus));
+}
+
+void WorkflowIterationRunTask::sl_singleStepIsRequested(const ActorId &actor) {
+    if(debugInfo->isPaused()) {
+        scheduler->makeOneTick(actor);
+    }
+}
+
+void WorkflowIterationRunTask::sl_convertMessages2Documents( const Workflow::Link *bus,
+    const QString &messageType, int messageNumber, const QString &schemeName )
+{
+    CommunicationChannel *channel = lmap.value( getKey( bus ) );
+    if ( NULL != channel && debugInfo->isPaused( ) ) {
+        QQueue<Message> messages = channel->getMessages( messageNumber, messageNumber );
+        if ( !messages.isEmpty( ) ) {
+            WorkflowDebugMessageParser *parser = debugInfo->getMessageParser( );
+            SAFE_POINT( NULL != parser, "Invalid debug message parser!", );
+            parser->setSourceData( messages );
+            parser->convertMessagesToDocuments( messageType, schemeName, messageNumber );
+        }
+    }
 }
 
 /***********************************
- * WorkflowRunInProcessMonitorTask
+ * RunCmdlineWorkflowTask
  ***********************************/
 static bool containsPrefix(const QStringList& list, const QString& prefix) {
     foreach(const QString& listItem, list) {
@@ -557,7 +531,6 @@ static bool containsPrefix(const QStringList& list, const QString& prefix) {
     }
     return false;
 }
-
 
 RunCmdlineWorkflowTask::RunCmdlineWorkflowTask(const RunCmdlineWorkflowTaskConfig& _conf)
 : Task(tr("Workflow process"), TaskFlag_NoRun), conf(_conf), proc(new QProcess(this))
@@ -578,7 +551,6 @@ static QString getLogLevelName(LogLevel l) {
 }
 
 void RunCmdlineWorkflowTask::prepare() {
-    
     QStringList args;
     // FIXME: use defined constants!
     args << QString("--task=%1").arg(conf.schemaPath);
@@ -588,7 +560,7 @@ void RunCmdlineWorkflowTask::prepare() {
     args << QString("--%1").arg(OUTPUT_ERROR_OPTION);
     args << QString("--ini-file=\"%1\"").arg(AppContext::getSettings()->fileName());
     args << conf.args;
-    
+
     if (!containsPrefix(args, "--log-level")) {
         QString logLevel = getLogLevelName(conf.logLevel2Commute).toLower();
         args << ("--log-level-" + logLevel);
@@ -634,22 +606,53 @@ void RunCmdlineWorkflowTask::sl_onError(QProcess::ProcessError err) {
     setError(msg);
 }
 
-void RunCmdlineWorkflowTask::writeLog(const QString& message) {
-    QStringList lines = message.split(QChar('\n'));
+/**
+ * Returns the position of the last symbol of @nameCandidate in the @line.
+ * Or returns -1 if the @line is not a log line
+ */
+inline static int getLogNameCandidate(const QString &line, QString &nameCandidate) {
+    if ("" == line) {
+        return -1;
+    }
 
-    foreach(QString line, lines) {
-        line = line.simplified();
-        if ("" == line) {
+    if (!line.startsWith("[")) {
+        return -1;
+    }
+
+    // maybe, @line is "[time][loglevel] log"
+    int openPos = line.indexOf("[", 1); // 1 because it is needed to skip first [time] substring
+    if (-1 == openPos) {
+        return -1;
+    }
+    int closePos = line.indexOf("]", openPos);
+    if (-1 == closePos) {
+        return -1;
+    }
+    nameCandidate = line.mid(openPos+1, closePos - openPos - 1);
+    return closePos;
+}
+
+void RunCmdlineWorkflowTask::writeLog(QStringList &lines) {
+    QStringList::Iterator it = lines.begin();
+    for (; it != lines.end(); it++) {
+        QString &line = *it;
+        line = line.trimmed();
+        QString nameCandidate;
+        int closePos = getLogNameCandidate(line, nameCandidate);
+        if (-1 == closePos) {
             continue;
         }
+
+
         for (int i = conf.logLevel2Commute; i < LogLevel_NumLevels; i++) {
             QString logLevelName = getLogLevelName((LogLevel)i);
-            QRegExp rx("\\[.+\\]\\[" + logLevelName + "\\]");
-            if (rx.indexIn(line) != 0) {
+
+            if (logLevelName != nameCandidate) {
                 continue;
             }
-            QString logLine = line.right(line.length() - rx.matchedLength());
-            logLine = logLine.simplified();
+
+            QString logLine = line.mid(closePos + 1);
+            logLine = logLine.trimmed();
             bool commandToken = logLine.startsWith(OUTPUT_PROGRESS_TAG)
                 || logLine.startsWith(ERROR_KEYWORD)
                 || logLine.startsWith(STATE_KEYWORD)
@@ -664,12 +667,24 @@ void RunCmdlineWorkflowTask::writeLog(const QString& message) {
     }
 }
 
+QString RunCmdlineWorkflowTask::readStdout() {
+    QByteArray charSet;
+#ifdef Q_OS_WIN32
+    charSet = "CP866";
+#else
+    charSet = "UTF-8";
+#endif
+    QTextCodec *codec = QTextCodec::codecForName(charSet);
+    return codec->toUnicode(proc->readAllStandardOutput());
+}
+
 void RunCmdlineWorkflowTask::sl_onReadStandardOutput() {
-    QString data(proc->readAllStandardOutput());
-    writeLog(data);
+    QString data = readStdout();
+    QStringList lines = data.split(QChar('\n'));
+    writeLog(lines);
 
     int errInd = data.indexOf(ERROR_KEYWORD);
-    if(errInd >= 0) {
+    if (errInd >= 0) {
         int errIndEnd = data.indexOf(ERROR_KEYWORD, errInd + 1);
         assert(errIndEnd > errInd);
         if(errIndEnd > errInd) {
@@ -680,48 +695,55 @@ void RunCmdlineWorkflowTask::sl_onReadStandardOutput() {
         }
         return;
     }
-    
-    QStringList words = data.split(QRegExp("\\s+"));
-    int sz = words.size();
-    for(int i = 0; i < sz; ++i) {
-        QString word = words.at(i);
-        if(word.startsWith(OUTPUT_PROGRESS_TAG)) {
-            QString numStr = words.at(i).mid(OUTPUT_PROGRESS_TAG.size());
-            bool ok = false;
-            int num = numStr.toInt(&ok);
-            if(ok && num >= 0) {
-                stateInfo.progress = qMin(num, 100);
-            }
-        } else if(word.startsWith(STATE_KEYWORD)) {
-            QStringList stWords = word.split(":");
-            if(stWords.size() == 3) {
+
+    foreach (const QString &line, lines) {
+        QStringList words = line.split(QRegExp("\\s+"), QString::SkipEmptyParts);
+        int sz = words.size();
+        for(int i = 0; i < sz; ++i) {
+            QString &word = words[i];
+            if(word.startsWith(OUTPUT_PROGRESS_TAG)) {
+                QString numStr = word.mid(OUTPUT_PROGRESS_TAG.size());
                 bool ok = false;
-                int num = stWords.at(2).toInt(&ok);
+                int num = numStr.toInt(&ok);
                 if(ok && num >= 0) {
-                    WorkerState st = (WorkerState)num;
-                    states[stWords.at(1)] = st;
+                    stateInfo.progress = qMin(num, 100);
                 }
-            }
-        } else if(word.startsWith(MSG_NUM_KEYWORD)) {
-            QStringList msgNumWords = word.split(":");
-            if(msgNumWords.size() == 4) {
-                bool ok = false;
-                int num = msgNumWords.at(3).toInt(&ok);
-                if(ok && num >= 0) {
-                    msgNums[QString("%1:%2").arg(msgNumWords.at(1)).arg(msgNumWords.at(2))] = num;
+                break;
+            } else if(word.startsWith(STATE_KEYWORD)) {
+                QStringList stWords = word.split(":");
+                if(stWords.size() == 3) {
+                    bool ok = false;
+                    int num = stWords[2].toInt(&ok);
+                    if(ok && num >= 0) {
+                        WorkerState st = (WorkerState)num;
+                        states[stWords[1]] = st;
+                    }
                 }
-            }
-        } else if(word.startsWith(MSG_PASSED_KEYWORD)) {
-            QStringList msgPassedWords = word.split(":");
-            if(msgPassedWords.size() == 4) {
-                bool ok = false;
-                int num = msgPassedWords.at(3).toInt(&ok);
-                if(ok && num >= 0) {
-                    msgPassed[QString("%1:%2").arg(msgPassedWords.at(1)).arg(msgPassedWords.at(2))] = num;
+                break;
+            } else if(word.startsWith(MSG_NUM_KEYWORD)) {
+                QStringList msgNumWords = word.split(":");
+                if(msgNumWords.size() == 4) {
+                    bool ok = false;
+                    int num = msgNumWords[3].toInt(&ok);
+                    if(ok && num >= 0) {
+                        msgNums[QString("%1:%2").arg(msgNumWords[1]).arg(msgNumWords[2])] = num;
+                    }
                 }
+                break;
+            } else if(word.startsWith(MSG_PASSED_KEYWORD)) {
+                QStringList msgPassedWords = word.split(":");
+                if(msgPassedWords.size() == 4) {
+                    bool ok = false;
+                    int num = msgPassedWords[3].toInt(&ok);
+                    if(ok && num >= 0) {
+                        msgPassed[QString("%1:%2").arg(msgPassedWords[1]).arg(msgPassedWords[2])] = num;
+                    }
+                }
+                break;
             }
         }
     }
+    emit si_logRead();
 }
 
 Task::ReportResult RunCmdlineWorkflowTask::report() {
@@ -752,44 +774,18 @@ int RunCmdlineWorkflowTask::getMsgPassed(const QString & ids) {
     return msgPassed.value(ids, 0);
 }
 
-
-/**************************
- * CheckCmdlineUgeneUtils
- **************************/
-static QStringList generateCandidatesWithExt(const QString & path) {
-    QStringList res;
-    res << path;
-    res << path + ".exe";
-    return res;
-}
-
-static QStringList generateCandidates(const QString & prefix) {
-    QStringList res;
-    res << generateCandidatesWithExt(prefix + "/" + "ugene");
-    res << generateCandidatesWithExt(prefix + "/" + "ugened");
-    res << generateCandidatesWithExt(prefix + "/" + "ugenecl");
-    res << generateCandidatesWithExt(prefix + "/" + "ugenecld");
-    return res;
-}
-
-static QString getCmdlineUgenePath() {
-    QString executableDir = QCoreApplication::applicationDirPath();
-    QStringList candidates(generateCandidates(executableDir));
-    foreach(const QString & candidate, candidates) {
-        if(QFile::exists(candidate)) {
-            return candidate;
+QStringList RunCmdlineWorkflowTask::getActorLinks(const ActorId &id) {
+    QStringList result;
+    foreach (const QString &ids, msgNums.keys()) {
+        QStringList link = ids.split(":");
+        if (2 != link.size()) {
+            continue;
+        }
+        if (link[0] == id) {
+            result << ids;
         }
     }
-    coreLog.info(WorkflowRunTask::tr("Command line UGENE path not found, a possibility to run in separate process will be disabled"));
-    return QString();
-}
-
-void CheckCmdlineUgeneUtils::setCmdlineUgenePath() {
-    QString path = getCmdlineUgenePath();
-    WorkflowSettings::setCmdlineUgenePath(path);
-    if(!WorkflowSettings::hasRunInSeparateProcess()) {
-        WorkflowSettings::setRunInSeparateProcess(!path.isEmpty());
-    }
+    return result;
 }
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,11 @@
 #include <U2Core/U2Region.h>
 
 #include <QtCore/QSharedPointer>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QWidget>
+#endif
 
 
 class QMenu;
@@ -45,7 +49,7 @@ class ZoomableAssemblyOverview: public QWidget {
     Q_OBJECT
 public:
     ZoomableAssemblyOverview(AssemblyBrowserUi * ui, bool zoomable = false);
-    
+
     void setScaleType(AssemblyBrowserSettings::OverviewScaleType t);
     AssemblyBrowserSettings::OverviewScaleType getScaleType()const;
 
@@ -84,7 +88,7 @@ private:
     QRect calcCurrentSelection() const;
     U2Region calcVisibleAssemblyRange() const;
     void moveSelectionToPos(QPoint pos, bool moveModel = true);
-    
+
     void zoomToPixRange(int x_pix_start, int x_pix_end);
     void checkedMoveVisibleRange(qint64 newStartPos);
     qint64 minimalOverviewedLen() const;
@@ -100,7 +104,7 @@ private:
     void drawSelection(QPainter & p);
     void drawCoordLabels(QPainter & p);
     void drawZoomToRegion(QPainter & p);
-    
+
     void launchCoverageCalculation();
 
 private:
@@ -128,6 +132,8 @@ private:
 
     QPixmap cachedBackground;
     bool redrawBackground;
+    U2Region previousCoverageRegion;
+    int previousCoverageLength;
     BackgroundTaskRunner<CoverageInfo> coverageTaskRunner;
 
     bool selectionScribbling;
@@ -136,17 +142,17 @@ private:
     QPoint visibleRangeLastPos;
 
     AssemblyBrowserSettings::OverviewScaleType scaleType;
-    
+
     struct ZoomToRegionSelector {
         ZoomToRegionSelector() : scribbling(false) {}
         bool scribbling;
         QPoint startPos;
     } zoomToRegionSelector;
-    
+
     const static int FIXED_HEIGHT = 70;
     const static double ZOOM_MULT;
 };
 
 } //ns
 
-#endif 
+#endif

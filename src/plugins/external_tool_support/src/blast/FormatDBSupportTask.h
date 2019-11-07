@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,14 +24,11 @@
 
 #include <U2Core/Task.h>
 #include <U2Core/IOAdapter.h>
-
-#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/ExternalToolRunTask.h>
 #include <U2Core/SaveDocumentTask.h>
 #include "utils/ExportTasks.h"
 
 #include <U2Core/MAlignmentObject.h>
-
-#include "ExternalToolRunTask.h"
 
 namespace U2 {
 
@@ -87,7 +84,7 @@ public:
     /*-p  Type of file
             T - protein
             F - nucleotide*/
-    bool            typeOfFile;
+    bool            isInputAmino;
 };
 
 
@@ -97,9 +94,11 @@ public:
     FormatDBSupportTask(const QString& name, const FormatDBSupportTaskSettings& settings);
     void prepare();
     Task::ReportResult report();
+    QString generateReport() const;
 private:
+    QString                     prepareLink(const QString &path) const;
     ExternalToolLogParser*      logParser;
-
+    QString                     externalToolLog;
     ExternalToolRunTask*        formatDBTask;
     QString                     toolName;
     FormatDBSupportTaskSettings settings;

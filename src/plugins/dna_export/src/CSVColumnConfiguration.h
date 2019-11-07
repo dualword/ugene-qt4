@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,8 @@ enum ColumnRole {
     ColumnRole_StartPos,    // column will be mapped as start position
     ColumnRole_EndPos,      // column will be mapped as end position
     ColumnRole_Length,      // column will be mapped as length
-    ColumnRole_ComplMark    // column is a complement strand indicator
+    ColumnRole_ComplMark,   // column is a complement strand indicator
+    ColumnRole_Group        // group of the annotation
 };
 
 class ColumnConfig {

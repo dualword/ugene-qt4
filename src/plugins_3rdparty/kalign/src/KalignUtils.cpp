@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -59,7 +59,9 @@ void setTaskProgress(struct kalign_context* ctx, int percent) {
 
 void setTaskDesc(struct kalign_context* ctx, const char *str ) {
 	TaskStateInfo *tsi = (TaskStateInfo*)ctx->ptask_state;
-	tsi->setDescription(QString::fromAscii(str));
+    QString description = QString::fromLatin1(str);
+    description.replace('\n', " ");
+    tsi->setDescription(description);
 }
 
 bool isCanceled(struct kalign_context* ctx) {

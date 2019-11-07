@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,22 @@
 #ifndef _U2_PAN_VIEW_H_
 #define _U2_PAN_VIEW_H_
 
-#include "GSequenceLineViewAnnotated.h"
-#include "U2Gui/GraphUtils.h"
-
 #include <QtGui/QFont>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QScrollBar>
 #include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QToolButton>
+#endif
+
+#include <U2Core/Annotation.h>
+
+#include <U2Gui/GraphUtils.h>
+
+#include "GSequenceLineViewAnnotated.h"
 
 namespace U2 {
 
@@ -36,14 +45,14 @@ class PanViewRenderArea;
 class GScrollBar;
 class GObjectView;
 class PVRowsManager;
-class AnnotationTableObject;
-class Annotation;
+class ADVSingleSequenceWidget;
+
 
 class RulerInfo {
 public:
     RulerInfo(): offset(0){}
     RulerInfo(const QString& _name, int _offset, const QColor& _color) : name(_name), offset(_offset), color(_color) {}
-    
+
     QString name;
     int     offset;
     QColor  color;
@@ -68,7 +77,7 @@ public:
         PanView *panView;
     };
 
-    PanView(QWidget* p, ADVSequenceObjectContext* ctx);
+    PanView(ADVSingleSequenceWidget* p, ADVSequenceObjectContext* ctx);
     ~PanView();
 
     const U2Region& getFrameRange() const {return frameView->getVisibleRange();}
@@ -81,8 +90,6 @@ public:
 
     virtual QAction* getZoomToSequenceAction() const {return zoomToSequenceAction;}
 
-    QToolButton* getPanViewActions() const {return panViewToolButton;}
-
     // [0..seqLen)
     virtual void setVisibleRange(const U2Region& reg, bool signal = true);
 
@@ -91,7 +98,7 @@ public:
     virtual void setNumBasesVisible(qint64 n);
 
     void setSyncOffset(int o);
- 
+
     int getSyncOffset() const {return syncOffset;}
 
     QList<RulerInfo> getCustomRulers() const;
@@ -103,7 +110,7 @@ public:
     void removeAllCustomRulers();
 
     QAction* getToggleMainRulerAction() const {return toggleMainRulerAction;}
-    
+
     QAction* getToggleCustomRulersAction() const {return toggleCustomRulersAction;}
 
     void hideEvent(QHideEvent *ev);
@@ -116,9 +123,9 @@ protected:
     virtual void onVisibleRangeChanged(bool signal = true);
     virtual void pack();
 
-    virtual void registerAnnotations(const QList<Annotation*>& l);
-    virtual void unregisterAnnotations(const QList<Annotation*>& l);
-    virtual void ensureVisible(Annotation* a, int locationIdx);
+    virtual void registerAnnotations(const QList<Annotation *> &l);
+    virtual void unregisterAnnotations(const QList<Annotation *> &l);
+    virtual void ensureVisible(Annotation *a, int locationIdx);
 protected slots:
     virtual void sl_sequenceChanged();
     void sl_onAnnotationsModified(const AnnotationModification& md);
@@ -128,7 +135,7 @@ private slots:
     void sl_zoomOutAction();
     void sl_zoomToSelection();
     void sl_zoomToSequence();
-    
+
     void sl_onRowBarMoved(int);
 
     void sl_onRangeChangeRequest(qint64 start, qint64 end);
@@ -151,7 +158,6 @@ public:
     void updateActions();
     void updateRows();
     void updateRowBar();
-    void updateRAHeight();
 
     void useZoom();
     void releaseZoom();
@@ -167,19 +173,14 @@ public:
     QAction*            zoomToSequenceAction;
     QAction*            toggleMainRulerAction;
     QAction*            toggleCustomRulersAction;
-    QAction*            increasePanViewHeight;
-    QAction*            decreasePanViewHeight;
-    QAction*            increase5PanViewHeight;
-    QAction*            decrease5PanViewHeight;
-    QAction*            resetAnnotations;
-    QAction*            showAllAnnotations;
-    QToolButton*        panViewToolButton;
 
     PVRowsManager*      rowsManager;
     QScrollBar*         rowBar;
     int                 syncOffset; //used by ADVSyncViewManager only
 
     int zoomUsing;
+
+    ADVSingleSequenceWidget*    seqWidget;
 };
 
 
@@ -195,43 +196,38 @@ public:
     int getRowLinesOffset() const {return rowLinesOffset;}
     void setRowLinesOffset(int r);
 
-    virtual U2Region getAnnotationYRange(Annotation* a, int region, const AnnotationSettings* as) const;
+    virtual U2Region getAnnotationYRange(Annotation *a, int region, const AnnotationSettings *as) const;
+    virtual U2Region getMirroredYRange( const U2Strand &mirroredStrand) const {Q_UNUSED(mirroredStrand); return U2Region(-1,0);}
 
+    // returns the height
+    int setNumVisibleRows(int rowNum);
     bool updateNumVisibleRows();
-    bool canIncreaseLines();
-    bool canDecreaseLines();
     bool isAllLinesShown();
-    bool isDefaultSize();
 
 protected:
     virtual void drawAll(QPaintDevice* pd);
     virtual void drawAnnotations(QPainter& p);
     virtual void drawSequence(QPainter& p);
 
-private slots:
-    void sl_increaseLines();
-    void sl_decreaseLines();
-    void sl_increase5Lines();
-    void sl_decrease5Lines();
-    void sl_resetToDefault();
-    void sl_maxLines(bool);
+    void resizeEvent(QResizeEvent *e);
 
 private:
     int getSelectionLine() const {return numLines - 1;}
 
     int getRulerLine() const {
-        assert(showMainRuler); 
+        assert(showMainRuler);
         return numLines - 2;
     }
 
     int getCustomRulerLine(int n) const {
-       assert(showCustomRulers); 
+       assert(showCustomRulers);
        assert(n >= 0 && n < customRulers.count());
         return numLines - (showMainRuler ? 3 : 2) - n;
     }
 
     int getFirstRowLine()const {return numLines - 2 - (showMainRuler ? 1 : 0) - (showCustomRulers ? customRulers.count() : 0 );}
-    
+    int getAdditionalLines() const { return 1 + (showMainRuler ? 1 : 0) + (showCustomRulers ? customRulers.size() : 0); }
+
     bool isSequenceCharsVisible() const;
 
     PanView* getPanView() const {return static_cast<PanView*>(view);}
@@ -243,19 +239,16 @@ private:
     void drawRuler(GraphUtils::RulerConfig c,  QPainter& p, const U2Region &visibleRange, int firstCharCenter, int firstLastWidth);
     void drawCustomRulers(GraphUtils::RulerConfig c,  QPainter& p, const U2Region &visibleRange, int firstCharCenter);
     void drawSequenceSelection(QPainter& p);
-    
+
     PanView*            panView;
     int                 numLines;       // number of visible lines
     int                 rowLinesOffset; // row number on the first row line
-    bool                showAllLines;
 
     bool                showMainRuler;
     bool                showCustomRulers;
     bool                fromActions;
-    bool                defaultRows;
     QList<RulerInfo>    customRulers;
 };
-
 
 }//namespace;
 

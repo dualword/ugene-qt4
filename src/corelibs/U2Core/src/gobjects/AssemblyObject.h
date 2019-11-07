@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,13 +31,11 @@ namespace U2 {
 class U2CORE_EXPORT AssemblyObject : public GObject {
     Q_OBJECT
 public:
-    AssemblyObject(const U2EntityRef& ref, const QString& objectName, const QVariantMap& hints) 
-        : GObject(GObjectTypes::ASSEMBLY, objectName, hints), entityRef(ref){};
+    AssemblyObject(const QString& objectName, const U2EntityRef& ref, const QVariantMap& hints = QVariantMap());
 
-    virtual GObject* clone(const U2DbiRef&, U2OpStatus& ) const;
-    const U2EntityRef& getEntityRef() const {return entityRef;}
-protected:
-    U2EntityRef entityRef;
+    GObject *clone(const U2DbiRef &dstDbiRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap()) const;
+
+    static U2EntityRef dbi2dbiClone(const AssemblyObject *const srcObj, const U2DbiRef &dstDbiRef, U2OpStatus &os, const QVariantMap &hints = QVariantMap());
 };
 
 }//namespace

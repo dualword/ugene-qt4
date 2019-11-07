@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,19 +23,20 @@
 #define _U2_MRBAYES_TASK_H
 
 #include "MrBayesSupport.h"
-#include "ExternalToolRunTask.h"
 #include "utils/ExportTasks.h"
 
 #include <U2View/CreatePhyTreeDialogController.h>
 #include <U2Algorithm/PhyTreeGenerator.h>
 #include <U2Algorithm/PhyTreeGeneratorTask.h>
-#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/ExternalToolRunTask.h>
 #include <U2Core/PhyTreeObject.h>
-
 
 namespace U2 {
 
+class LoadDocumentTask;
+
 class MrBayesPrepareDataForCalculation :public Task{
+    Q_OBJECT
 public:
     MrBayesPrepareDataForCalculation(const MAlignment& _ma, const CreatePhyTreeSettings& s, const QString& url);
     void prepare();
@@ -53,9 +54,11 @@ class MrBayesLogParser : public ExternalToolLogParser {
 public:
     MrBayesLogParser(int _nchains);
     int getProgress();
+    void parseOutput(const QString& partOfLog);
     void parseErrOutput(const QString& partOfLog);
 private:
-    QString lastErrLine; 
+    QString lastLine;
+    QString lastErrLine;
     int nchains;
     bool isMCMCRunning;
     int curProgress;
@@ -63,6 +66,7 @@ private:
 };
 
 class MrBayesGetCalculatedTreeTask: public Task{
+    Q_OBJECT
 public:
     MrBayesGetCalculatedTreeTask(const QString& url);
     void prepare();
@@ -76,6 +80,7 @@ private:
 };
 
 class MrBayesSupportTask : public PhyTreeGeneratorTask{
+    Q_OBJECT
 public:
     MrBayesSupportTask(const MAlignment& _ma, const CreatePhyTreeSettings& s);
     void prepare();
@@ -88,7 +93,6 @@ private:
     ExternalToolRunTask*                mrBayesTask;
     MrBayesGetCalculatedTreeTask*       getTreeTask;
     MrBayesLogParser*                   logParser;
-
 };
 
 

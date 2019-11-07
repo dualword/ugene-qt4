@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,18 +32,27 @@ class U2LANG_EXPORT BaseAttributes : public QObject {
 public:
     static const Descriptor URL_IN_ATTRIBUTE();
     static const Descriptor URL_OUT_ATTRIBUTE();
+    static const Descriptor URL_SUFFIX();
     static const Descriptor URL_LOCATION_ATTRIBUTE();
+    static const Descriptor DATABASE_ATTRIBUTE();
+    static const Descriptor DB_PATH();
     static const Descriptor DOCUMENT_FORMAT_ATTRIBUTE();
     static const Descriptor ACCUMULATE_OBJS_ATTRIBUTE();
     static const Descriptor READ_BY_LINES_ATTRIBUTE();
     static const Descriptor FILE_MODE_ATTRIBUTE();
-    
+    static const Descriptor SPLIT_SEQ_ATTRIBUTE();
+
     static const Descriptor STRAND_ATTRIBUTE();
     static const QString STRAND_BOTH();
     static const QString STRAND_DIRECT();
     static const QString STRAND_COMPLEMENTARY();
     static const QVariantMap STRAND_ATTRIBUTE_VALUES_MAP();
-    
+
+    static const Descriptor DATA_STORAGE_ATTRIBUTE();
+    static const QString LOCAL_FS_DATA_STORAGE();
+    static const QString SHARED_DB_DATA_STORAGE();
+    static const QVariantMap DATA_STORAGE_ATTRIBUTE_VALUES_MAP();
+
 }; // BaseAttributes
 
 } // Workflow

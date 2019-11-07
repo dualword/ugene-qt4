@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,33 +19,36 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExpertDiscoverySearchDialogController.h"
+#include <QFileInfo>
+#include <QListWidgetItem>
+#include <QMessageBox>
 
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/DNATranslation.h>
-#include <U2Core/DNAAlphabet.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/CreateAnnotationTask.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/DNATranslation.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
+#include <U2Core/L10n.h>
 #include <U2Core/TextUtils.h>
-#include <U2Core/CreateAnnotationTask.h>
-#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/U1AnnotationUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
-#include <U2Gui/GUIUtils.h>
 #include <U2Gui/CreateAnnotationDialog.h>
 #include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
 
-#include <U2View/AnnotatedDNAView.h>
 #include <U2View/ADVSequenceObjectContext.h>
+#include <U2View/AnnotatedDNAView.h>
 
-#include <assert.h>
-
-#include <QtCore/QFileInfo>
-#include <QtGui/QMessageBox>
-#include <QtGui/QListWidgetItem>
-#include <QtGui/QFileDialog>
+#include "ExpertDiscoverySearchDialogController.h"
 
 namespace U2 {
 
@@ -57,9 +60,9 @@ public:
         const ExpertDiscoveryResultItem* o = (const ExpertDiscoveryResultItem*)&other;
         int n = treeWidget()->sortColumn();
         switch (n) {
-            case 0 : 
+            case 0 :
                 return res.region.startPos < o->res.region.startPos;
-            case 1: 
+            case 1:
                 return res.strand != o->res.strand ? res.strand.isCompementary():  (res.region.startPos < o->res.region.startPos);
             case 2:
                 return res.score < o->res.score;
@@ -70,10 +73,11 @@ public:
 
 ExpertDiscoverySearchDialogController::ExpertDiscoverySearchDialogController(ADVSequenceObjectContext* _ctx, ExpertDiscoveryData& data, QWidget *p):QDialog(p), edData(data) {
     setupUi(this);
-    
+    new HelpButton(this, buttonBox, "16122413");
+
     ctx = _ctx;
     task = NULL;
-    
+
     initialSelection = ctx->getSequenceSelection()->isEmpty() ? U2Region() : ctx->getSequenceSelection()->getSelectedRegions().first();
     int seqLen = ctx->getSequenceLength();
     rs=new RegionSelector(this, seqLen, true, ctx->getSequenceSelection());
@@ -83,9 +87,10 @@ ExpertDiscoverySearchDialogController::ExpertDiscoverySearchDialogController(ADV
 
     connectGUI();
     updateState();
-    
+
     timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), SLOT(sl_onTimer()));
+
 }
 
 ExpertDiscoverySearchDialogController::~ExpertDiscoverySearchDialogController() {
@@ -94,11 +99,14 @@ ExpertDiscoverySearchDialogController::~ExpertDiscoverySearchDialogController() 
 
 void ExpertDiscoverySearchDialogController::connectGUI() {
     //buttons
+    pbSearch = buttonBox->button(QDialogButtonBox::Ok);
+    pbClose = buttonBox->button(QDialogButtonBox::Cancel);
+
     connect(pbSaveAnnotations, SIGNAL(clicked()), SLOT(sl_onSaveAnnotations()));
     connect(pbClear, SIGNAL(clicked()), SLOT(sl_onClearList()));
     connect(pbSearch, SIGNAL(clicked()), SLOT(sl_onSearch()));
     connect(pbClose, SIGNAL(clicked()), SLOT(sl_onClose()));
-    
+
     //results list
     connect(resultsTree, SIGNAL(itemActivated(QTreeWidgetItem*, int)), SLOT(sl_onResultActivated(QTreeWidgetItem*, int)));
 
@@ -112,17 +120,17 @@ void ExpertDiscoverySearchDialogController::updateState() {
     bool hasCompl = ctx->getComplementTT()!=NULL;
 
     bool hasResults = resultsTree->topLevelItemCount() > 0;
-    
+
     pbSearch->setEnabled(!hasActiveTask);
-    
+
     pbSaveAnnotations->setEnabled(!hasActiveTask && hasResults);
     pbClear->setEnabled(!hasActiveTask && hasResults);
-    pbClose->setText(hasActiveTask ? tr("Cancel") : tr("Close"));  
+    pbClose->setText(hasActiveTask ? tr("Cancel") : tr("Close"));
 
     rbBoth->setEnabled(!hasActiveTask && hasCompl);
     rbDirect->setEnabled(!hasActiveTask);
     rbComplement->setEnabled(!hasActiveTask && hasCompl);
-    
+
     updateStatus();
 }
 
@@ -152,24 +160,29 @@ void ExpertDiscoverySearchDialogController::sl_onSaveAnnotations() {
     if (resultsTree->topLevelItemCount() == 0) {
         return;
     }
-    
+
     CreateAnnotationModel m;
     m.sequenceObjectRef = ctx->getSequenceObject();
     m.hideLocation = true;
+    m.useAminoAnnotationTypes = ctx->getAlphabet()->isAmino();
     m.sequenceLen = ctx->getSequenceObject()->getSequenceLength();
-    CreateAnnotationDialog d(this, m);
-    int rc = d.exec();
+    QObjectScopedPointer<CreateAnnotationDialog> d = new CreateAnnotationDialog(this, m);
+    const int rc = d->exec();
+    CHECK(!d.isNull(), );
+
     if (rc != QDialog::Accepted) {
         return;
     }
-    const QString& name = m.data->name;
+    const QString &name = m.data->name;
     QList<SharedAnnotationData> list;
-    for (int i=0, n = resultsTree->topLevelItemCount(); i<n; ++i) {
-        ExpertDiscoveryResultItem* item = static_cast<ExpertDiscoveryResultItem* >(resultsTree->topLevelItem(i));
-        list.append(item->res.toAnnotation(name));
+    for (int i = 0, n = resultsTree->topLevelItemCount(); i < n; ++i) {
+        ExpertDiscoveryResultItem *item = static_cast<ExpertDiscoveryResultItem *>(resultsTree->topLevelItem(i));
+        SharedAnnotationData annotationData = item->res.toAnnotation(name);
+        U1AnnotationUtils::addDescriptionQualifier(annotationData, m.description);
+        list.append(annotationData);
     }
 
-    CreateAnnotationsTask* t = new CreateAnnotationsTask(m.getAnnotationObject(), m.groupName, list);
+    CreateAnnotationsTask* t = new CreateAnnotationsTask(m.getAnnotationObject(), list, m.groupName);
     AppContext::getTaskScheduler()->registerTopLevelTask(t);
 }
 
@@ -197,7 +210,7 @@ void ExpertDiscoverySearchDialogController::sl_onClose() {
 
 void ExpertDiscoverySearchDialogController::runTask() {
     assert(task == NULL);
-  
+
     bool isRegionOk=false;
     U2Region reg=rs->getRegion(&isRegionOk);
     if(!isRegionOk){
@@ -205,13 +218,15 @@ void ExpertDiscoverySearchDialogController::runTask() {
         return;
     }
 
-    QByteArray seq = ctx->getSequenceData(reg);
-    
+    U2OpStatusImpl os;
+    QByteArray seq = ctx->getSequenceData(reg, os);
+    CHECK_OP_EXT(os, QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), os.getError()), );
+
     ExpertDiscoverySearchCfg cfg;
     cfg.complTT = rbBoth->isChecked() || rbComplement->isChecked() ? ctx->getComplementTT() : NULL;
     cfg.complOnly = rbComplement->isChecked();
     cfg.minSCORE = scoreSpinBox->value();
-    
+
     //TODO: ask if to clear
     sl_onClearList();
 
@@ -239,14 +254,14 @@ void ExpertDiscoverySearchDialogController::sl_onTimer() {
 
 void ExpertDiscoverySearchDialogController::importResults() {
     resultsTree->setSortingEnabled(false);
-    
+
     QList<ExpertDiscoverySearchResult> newResults = task->takeResults();
     foreach(const ExpertDiscoverySearchResult& r, newResults) {
         ExpertDiscoveryResultItem* item  = new ExpertDiscoveryResultItem(r);
         resultsTree->addTopLevelItem(item);
     }
     updateStatus();
-    
+
     resultsTree->setSortingEnabled(true);
 }
 
@@ -254,16 +269,15 @@ void ExpertDiscoverySearchDialogController::sl_onResultActivated(QTreeWidgetItem
     Q_UNUSED(col);
     assert(i);
     ExpertDiscoveryResultItem* item = static_cast<ExpertDiscoveryResultItem*>(i);
-    DNASequenceSelection* sel = ctx->getSequenceSelection();
-    sel->clear();
-    sel->addRegion(item->res.region);
+
+    ctx->getSequenceSelection()->setRegion(item->res.region);
 }
 
 
 //////////////////////////////////////////////////////////////////////////
 /// tree
 
-ExpertDiscoveryResultItem::ExpertDiscoveryResultItem(const ExpertDiscoverySearchResult& r) : res(r) 
+ExpertDiscoveryResultItem::ExpertDiscoveryResultItem(const ExpertDiscoverySearchResult& r) : res(r)
 {
     QString range = QString("%1..%2").arg(r.region.startPos + 1).arg(r.region.endPos());
     setTextAlignment(0, Qt::AlignRight);

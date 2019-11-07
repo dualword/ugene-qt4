@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,9 +38,9 @@ void VanDerWaalsSurface::calculate(const QList<SharedAtom> &atoms, int& progress
     // Van Der Vaals surface calculation
     // based on atom radius (look for neighbours, exclude unneeded atoms)
     int overall = atoms.size();
-    
+
     int counter = 0;
-    
+
     int detaillevel = 2;
 
     if (atoms.size() > 10000) {
@@ -66,7 +66,7 @@ void VanDerWaalsSurface::calculate(const QList<SharedAtom> &atoms, int& progress
             }
         }
         counter++;
-        progress = counter * 100 / overall;  
+        progress = counter * 100 / overall;
     }
 
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,6 +47,7 @@ public:
     QList<Attribute*> getAttributes() const;
     const QString getName() const;
     const QString getDescription() const;
+    const QString getActorFilePath() const;
 
 private slots:
     void sl_addInputClicked();
@@ -71,6 +72,7 @@ private:
     QString name;
     QString description;
     bool editing;
+    QString actorFilePath;
 };
 
 } //namespace

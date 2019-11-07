@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,11 +40,14 @@ class ExportSequenceViewItemsController : public GObjectViewWindowContext {
     Q_OBJECT
 public:
     ExportSequenceViewItemsController(QObject* p);
+    void init();
 
 
 protected:
     virtual void initViewContext(GObjectView* view);
     virtual void buildMenu(GObjectView* v, QMenu* m);
+private:
+    AnnotatedDNAView* av;
 };
 
 class ADVExportContext : public QObject {
@@ -67,13 +70,15 @@ protected slots:
 
     void sl_onSequenceContextAdded(ADVSequenceObjectContext* c);
     void sl_onSequenceContextRemoved(ADVSequenceObjectContext* c);
+    void sl_exportBlastResultToAlignment();
 
-    void sl_onAnnotationSelectionChanged(AnnotationSelection*, const QList<Annotation*>& added, const QList<Annotation*>& removed);
+    void sl_onAnnotationSelectionChanged(AnnotationSelection *, const QList<Annotation *> &added, const QList<Annotation *> &removed);
     void sl_onSequenceSelectionChanged(LRegionsSelection* thiz, const QVector<U2Region>& added, const QVector<U2Region>& removed);
 
     void updateActions();
 
 private:
+    void prepareMAFromBlastAnnotations(MAlignment& ma, const QString& nameQualId, bool includeRef, U2OpStatus& os);
     void prepareMAFromAnnotations(MAlignment& ma, bool translate, U2OpStatus& os);
     void prepareMAFromSequences(MAlignment& ma, bool translate, U2OpStatus& os);
     void fetchSequencesFromRemoteDB(const QString & listId);
@@ -81,7 +86,7 @@ private:
     void selectionToAlignment(const QString& title, bool annotations, bool translate);
 
     AnnotatedDNAView*   view;
-    
+
     QAction*  sequence2SequenceAction;
     QAction*  annotations2SequenceAction;
     QAction*  annotations2CSVAction;
@@ -92,6 +97,7 @@ private:
     QAction*  sequenceById;
     QAction*  sequenceByAccession;
     QAction*  sequenceByDBXref;
+    QAction*  blastResultToAlignmentAction;
 
 };
 

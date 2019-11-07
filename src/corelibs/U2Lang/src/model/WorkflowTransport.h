@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_WORKFLOW_TRANSPORT_H_
 
 #include <QtCore/QVariant>
+#include <QtCore/QQueue>
 
 #include <U2Lang/Datatype.h>
 
@@ -35,23 +36,22 @@ namespace Workflow {
  */
 class U2LANG_EXPORT Message {
 public:
-    Message(DataTypePtr _t, const QVariant& d);
-    
-    int getId() const;
+    Message(DataTypePtr t, const QVariant &d, int metadataId = -1);
+
     DataTypePtr getType() const;
     QVariant getData() const;
-    
+    bool isEmpty() const;
+    int getMetadataId() const;
+
+    static Message getEmptyMapMessage();
+
 private:
-    static int nextid();
-    
-private:
-    // message identifier
-    int id;
     // type of data
     DataTypePtr t;
     // data itself
     QVariant data;
-    
+    // message metadata identifier
+    int metadataId;
 }; // Message
 
 /**
@@ -60,30 +60,37 @@ private:
 class U2LANG_EXPORT CommunicationChannel {
 public:
     virtual ~CommunicationChannel() {}
-    
+
     // take message from channel
     virtual Message get() = 0;
     // look at message without getting it out of channel
     // Message is united of data that was putted to outer channels
     // used in scripting
     virtual Message look() const = 0;
-    // after calling message is in channel until get() invocation
-    virtual void put(const Message& m) = 0;
+    // after calling message is in channel until get() invocation.
+    // isMessageRestored should be true for messages which are queued in channel repeatedly
+    // since they weren't processed
+    virtual void put(const Message& m, bool isMessageRestored = false) = 0;
     // how many messages in channel
     virtual int hasMessage() const = 0;
     // how many messages taken from channel
     virtual int takenMessages() const = 0;
-    // 
+    //
     virtual int hasRoom(const DataType* t = NULL) const = 0;
     // user can set 'ended' flag to channel
     // it means that no other data will be supplied to it
     virtual bool isEnded() const = 0;
     virtual void setEnded() = 0;
-    
+
     // how many messages can be put to channel
     virtual int capacity() const = 0;
     virtual void setCapacity(int) = 0;
-    
+    // get messages dump (this is intended to be used in WD debug purposes);
+    // messages shouldn't be removed from channel;
+    // indices should be treated inclusively;
+    // default indices values should be used for obtaining all the messages in channel
+    virtual QQueue<Message> getMessages(int startIndex = 0, int endIndex = -1) const = 0;
+
 }; // CommunicationChannel
 
 /**
@@ -93,10 +100,10 @@ public:
 class U2LANG_EXPORT CommunicationSubject {
 public:
     virtual ~CommunicationSubject() {}
-    
+
     virtual bool addCommunication(const QString& portId, CommunicationChannel* ch) = 0;
     virtual CommunicationChannel* getCommunication(const QString& portId) = 0;
-    
+
 }; // CommunicationSubject
 
 }//Workflow namespace

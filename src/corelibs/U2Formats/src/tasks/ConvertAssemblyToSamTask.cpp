@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,98 +28,100 @@
 #include <U2Core/U2AttributeDbi.h>
 #include <U2Core/U2DbiUtils.h>
 #include <U2Core/IOAdapter.h>
+#include <U2Core/IOAdapterUtils.h>
 #include <U2Core/U2ObjectDbi.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
 #include <U2Core/U2DbiRegistry.h>
 
+#include <U2Formats/BAMUtils.h>
 #include <U2Formats/SAMFormat.h>
 
-#include <QSharedPointer>
+#include <QtCore/QSharedPointer>
 
 #include "ConvertAssemblyToSamTask.h"
-
-#include <memory>
 
 namespace U2 {
 
 ConvertAssemblyToSamTask::ConvertAssemblyToSamTask(GUrl db, GUrl sam)
 : Task("ConvertAssemblyToSamTask", (TaskFlag)(TaskFlag_ReportingIsSupported | TaskFlag_ReportingIsEnabled)),
-dbFileUrl(db), samFileUrl(sam), handle(NULL)
+    dbFileUrl(db),
+    samFileUrl(sam),
+    handle(NULL)
 {
 }
 
 ConvertAssemblyToSamTask::ConvertAssemblyToSamTask(const DbiConnection *h, GUrl sam)
 : Task("ConvertAssemblyToSamTask", (TaskFlag)(TaskFlag_ReportingIsSupported | TaskFlag_ReportingIsEnabled)),
-samFileUrl(sam), handle(h)
+    dbFileUrl(NULL),
+    samFileUrl(sam),
+    handle(h)
 {
 }
 
+ConvertAssemblyToSamTask::ConvertAssemblyToSamTask(const U2EntityRef& entityRef, GUrl sam)
+: Task("ConvertAssemblyToSamTask", (TaskFlag)(TaskFlag_ReportingIsSupported | TaskFlag_ReportingIsEnabled)),
+    dbFileUrl(NULL),
+    samFileUrl(sam),
+    assemblyEntityRef(entityRef),
+    handle(NULL)
+{
+}
+
+
 void ConvertAssemblyToSamTask::run() {
-    //init sam file
-    SAMFormat samFormat;
-    
-    IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
-    bool res = io->open(samFileUrl, IOAdapterMode_Write);
-    SAFE_POINT(res == true, QString("Failed to open SAM file for write: %1").arg(samFileUrl.getURLString()),);
-    
-    //init assembly objects
-    U2OpStatusImpl status;
+    taskLog.details("Start converting assemblies to SAM");
+    // Init assembly objects
     QSharedPointer<DbiConnection> dbiHandle;
+
     if (NULL == handle) {
-        dbiHandle = QSharedPointer<DbiConnection>(new DbiConnection(U2DbiRef(SQLITE_DBI_ID, dbFileUrl.getURLString()), false, status));
+        if (assemblyEntityRef.isValid()) {
+            dbiHandle = QSharedPointer<DbiConnection>(
+                new DbiConnection(assemblyEntityRef.dbiRef,
+                false,
+                stateInfo));
+        }
+        else {
+            dbiHandle = QSharedPointer<DbiConnection>(
+                new DbiConnection(U2DbiRef(SQLITE_DBI_ID, dbFileUrl.getURLString()),
+                false,
+                stateInfo));
+        }
         handle = dbiHandle.data();
     }
+
+    if (handle->dbi == NULL){
+        setError(tr("Given file is not valid UGENE database file"));
+        return;
+    }
+
     U2ObjectDbi *odbi = handle->dbi->getObjectDbi();
-    U2AssemblyDbi *assDbi = handle->dbi->getAssemblyDbi();
-    QList<U2DataId> objectIds = odbi->getObjects("/", 0, U2_DBI_NO_LIMIT, status);
-    U2Region wholeAssembly;
-    wholeAssembly.startPos = 0;
-
-    QVector<QByteArray> names;
-    QVector<int> lengths;
-    foreach(U2DataId id, objectIds) {
-        U2DataType objectType = handle->dbi->getEntityTypeById(id);
-        if (U2Type::Assembly == objectType) {
-            U2Assembly assembly = handle->dbi->getAssemblyDbi()->getAssemblyObject(id, status);
-            int length = handle->dbi->getAttributeDbi()->getIntegerAttribute(id, status).value;
-            names.append(assembly.visualName.replace(QRegExp("\\s|\\t"), "_").toAscii());
-            lengths.append(length);
-        }
+    QList<U2DataId> objectIds;
+    // If the entityRef has been passed to the class constructor,
+    // then leave only one object with the specified ID
+    if (assemblyEntityRef.isValid()) {
+        objectIds.append(assemblyEntityRef.entityId);
+    }
+    // Otherwise convert all assembly objects
+    else {
+        objectIds = odbi->getObjects(U2Type::Assembly, 0, U2DbiOptions::U2_DBI_NO_LIMIT, stateInfo);
     }
 
-    //writing to a sam file for an every object
-    samFormat.storeHeader(io.get(), names, lengths);
-    foreach(U2DataId id, objectIds) {
-        U2DataType objectType = handle->dbi->getEntityTypeById(id);
-        if (U2Type::Assembly == objectType) {
-            U2Assembly assembly = handle->dbi->getAssemblyDbi()->getAssemblyObject(id, status);
-            wholeAssembly.length = assDbi->getMaxEndPos(assembly.id, status);
-
-            QByteArray refSeqName = assembly.visualName.replace(QRegExp("\\s|\\t"), "_").toAscii();
-            U2DbiIterator<U2AssemblyRead> *dbiIterator = assDbi->getReads(assembly.id, wholeAssembly, status);
-
-            DNASequence seq;
-            while (dbiIterator->hasNext()) {
-                U2AssemblyRead read = dbiIterator->next();
-                read->cigar;
-
-                seq.seq = read->readSequence;
-                seq.quality = read->quality;
-                seq.setName(read->name);
-                QByteArray cigar = U2AssemblyUtils::cigar2String(read->cigar);
-                if(!QRegExp("[!-~]+").exactMatch(seq.quality.qualCodes)) {
-                    seq.quality.qualCodes = "*";
-                }
-                if (cigar.isEmpty()) {
-                    cigar = "*";
-                }
-
-                samFormat.storeAlignedRead(read->leftmostPos, seq, io.get(), refSeqName, wholeAssembly.length, false, true, cigar);
-            }
-        }
+    DocumentFormat *format = AppContext::getDocumentFormatRegistry()->getFormatById(BaseDocumentFormats::SAM);
+    IOAdapterFactory *iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(samFileUrl));
+    QScopedPointer<Document> doc(format->createNewLoadedDocument(iof, samFileUrl , stateInfo));
+    CHECK_OP(stateInfo, );
+    doc->setDocumentOwnsDbiResources(false);
+    foreach (const U2DataId &id, objectIds) {
+        U2Assembly assembly = handle->dbi->getAssemblyDbi()->getAssemblyObject(id, stateInfo);
+        CHECK_OP(stateInfo, );
+        U2EntityRef ref(handle->dbi->getDbiRef(), id);
+        QString name = assembly.visualName.replace(QRegExp("\\s|\\t"), "_").toLatin1();
+        doc->addObject(new AssemblyObject(name, ref));
     }
+
+    BAMUtils::writeDocument(doc.data(), stateInfo);
+    taskLog.details("Finish converting assemblies to SAM");
 }
 
 QString ConvertAssemblyToSamTask::generateReport() const {

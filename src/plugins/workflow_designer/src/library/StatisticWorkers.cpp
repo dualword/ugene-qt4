@@ -1,4 +1,25 @@
-#include "StatisticWorkers.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
+#include <QtCore/QScopedPointer>
 
 #include <U2Lang/ConfigurationEditor.h>
 #include <U2Lang/WorkflowEnv.h>
@@ -13,6 +34,9 @@
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/AnnotationData.h>
 #include <U2Core/FailTask.h>
+#include <U2Core/U2OpStatusUtils.h>
+
+#include "StatisticWorkers.h"
 
 namespace U2 {
 namespace LocalWorkflow {
@@ -25,7 +49,7 @@ const QString GC2CONTENT("gc2-content");
 const QString GC3CONTENT("gc3-content");
 
 void DNAStatWorkerFactory::init() {
-    QList<PortDescriptor*> portDescs; 
+    QList<PortDescriptor*> portDescs;
     QList<Attribute*> attribs;
 
     //accept sequence and annotated regions as input
@@ -35,29 +59,28 @@ void DNAStatWorkerFactory::init() {
     outputMap[ BaseSlots::ANNOTATION_TABLE_SLOT() ] = BaseTypes::ANNOTATION_TABLE_TYPE();
 
     { //Create input port descriptors
-        Descriptor inDesc( BasePorts::IN_SEQ_PORT_ID(), DNAStatWorker::tr("Input sequence"), 
+        Descriptor inDesc( BasePorts::IN_SEQ_PORT_ID(), DNAStatWorker::tr("Input sequence"),
             DNAStatWorker::tr("Sequence for which GC-content and GC3-content will be evaluated.") );
-        Descriptor outDesc( BasePorts::OUT_ANNOTATIONS_PORT_ID(), DNAStatWorker::tr("Result annotation"), 
+        Descriptor outDesc( BasePorts::OUT_ANNOTATIONS_PORT_ID(), DNAStatWorker::tr("Result annotation"),
             DNAStatWorker::tr("Resulted annotations, with GC-content and GC3-content.") );
 
         portDescs << new PortDescriptor( inDesc, DataTypePtr(new MapDataType("filter.anns", inputMap)), /*input*/ true );
         portDescs << new PortDescriptor( outDesc, DataTypePtr(new MapDataType("filter.anns", outputMap)), /*input*/false, /*multi*/true );
     }
 
-    attribs << new Attribute(Descriptor(GCCONTENT, DNAStatWorker::tr("GC-content"), DNAStatWorker::tr("Evaluate GC-content")), 
+    attribs << new Attribute(Descriptor(GCCONTENT, DNAStatWorker::tr("GC-content"), DNAStatWorker::tr("Evaluate GC-content.")),
         BaseTypes::BOOL_TYPE(),false, true);
-    attribs << new Attribute(Descriptor(GC1CONTENT, DNAStatWorker::tr("GC1-content"), DNAStatWorker::tr("Evaluate GC1-content")), 
+    attribs << new Attribute(Descriptor(GC1CONTENT, DNAStatWorker::tr("GC1-content"), DNAStatWorker::tr("Evaluate GC1-content.")),
         BaseTypes::BOOL_TYPE(),false, true);
-    attribs << new Attribute(Descriptor(GC2CONTENT, DNAStatWorker::tr("GC2-content"), DNAStatWorker::tr("Evaluate GC2-content")), 
+    attribs << new Attribute(Descriptor(GC2CONTENT, DNAStatWorker::tr("GC2-content"), DNAStatWorker::tr("Evaluate GC2-content.")),
         BaseTypes::BOOL_TYPE(),false, true);
-    attribs << new Attribute(Descriptor(GC3CONTENT, DNAStatWorker::tr("GC3-content"), DNAStatWorker::tr("Evaluate GC3-content")), 
+    attribs << new Attribute(Descriptor(GC3CONTENT, DNAStatWorker::tr("GC3-content"), DNAStatWorker::tr("Evaluate GC3-content.")),
         BaseTypes::BOOL_TYPE(),false, true);
 
     Descriptor desc( ACTOR_ID,
-        DNAStatWorker::tr("DNA statistics"), 
-        DNAStatWorker::tr("Evaluates statistics for DNA sequences") );
+        DNAStatWorker::tr("DNA Statistics"),
+        DNAStatWorker::tr("Evaluates statistics for DNA sequences.") );
     ActorPrototype * proto = new IntegralBusActorPrototype( desc, portDescs, attribs );
-
     proto->setPrompter( new DNAStatWorkerPrompter() );
     proto->setEditor(new DelegateEditor(QMap<QString, PropertyDelegate*>()));
     WorkflowEnv::getProtoRegistry()->registerProto( BaseActorCategories::CATEGORY_STATISTIC(), proto );
@@ -67,7 +90,7 @@ void DNAStatWorkerFactory::init() {
 }
 
 QString DNAStatWorkerPrompter::composeRichDoc() {
-    return tr("Evaluates GC-Content and GC3-Content");
+    return tr("Evaluates GC-Content and GC3-Content.");
 }
 
 
@@ -76,66 +99,67 @@ void DNAStatWorker::init() {
     output = ports.value(BasePorts::OUT_ANNOTATIONS_PORT_ID());
 }
 
-bool DNAStatWorker::isReady() {
-    return input->hasMessage();
-}
-
 Task* DNAStatWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    QVariantMap qm = inputMessage.getData().toMap();
-    U2DataId seqId = qm.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return NULL;
+    while (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler seqId = qm.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        if (NULL == seqObj.data()) {
+            return NULL;
+        }
+        U2OpStatusImpl os;
+        DNASequence dna = seqObj->getWholeSequence(os);
+        CHECK_OP(os, new FailTask(os.getError()));
+
+        if(!dna.alphabet->isNucleic()) {
+            return new FailTask(tr("Sequence must be nucleotide"));
+        }
+
+        QList<SharedAnnotationData> res;
+        SharedAnnotationData gcAnn(new AnnotationData);
+        gcAnn->name = "statistics";
+        gcAnn->location->regions << U2Region( 0, dna.seq.size());
+
+        if (actor->getParameter(GCCONTENT)->getAttributeValue<bool>(context)) {
+            float gcContent = calcGCContent(dna.seq);
+            gcAnn->qualifiers.push_back(U2Qualifier("gc-content", QString::number(gcContent*100) + "%"));
+        }
+
+        if (actor->getParameter(GC1CONTENT)->getAttributeValue<bool>(context)) {
+            float gc1Content = calcGC1Content(dna.seq);
+            gcAnn->qualifiers.push_back(U2Qualifier("gc1-content", QString::number(gc1Content*100) + "%"));
+        }
+
+        if (actor->getParameter(GC2CONTENT)->getAttributeValue<bool>(context)) {
+            float gc2Content = calcGC2Content(dna.seq);
+            gcAnn->qualifiers.push_back(U2Qualifier("gc2-content", QString::number(gc2Content*100) + "%"));
+        }
+
+        if (actor->getParameter(GC3CONTENT)->getAttributeValue<bool>(context)) {
+            float gc3Content = calcGC3Content(dna.seq);
+            gcAnn->qualifiers.push_back(U2Qualifier("gc3-content", QString::number(gc3Content*100) + "%"));
+        }
+
+        if (gcAnn->qualifiers.isEmpty()) {
+            return new FailTask(tr("No statistics was selected"));
+        }
+
+        res << gcAnn;
+
+        const SharedDbiDataHandler tableId = context->getDataStorage()->putAnnotationTable(res);
+        const QVariant v = qVariantFromValue<SharedDbiDataHandler>(tableId);
+        output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v));
     }
-    DNASequence dna = seqObj->getWholeSequence();
-
-    if(!dna.alphabet->isNucleic()) {
-        return new FailTask(tr("Sequence must be nucleotide"));
-    }
-
-    QList<SharedAnnotationData> res;
-    SharedAnnotationData gcAnn(new AnnotationData());
-    gcAnn->name = "statistics";
-    gcAnn->location->regions << U2Region( 0, dna.seq.size());
-
-    if(actor->getParameter(GCCONTENT)->getAttributeValue<bool>(context)) {
-        float gcContent = calcGCContent(dna.seq);
-        gcAnn->qualifiers.push_back(U2Qualifier("gc-content", QString::number(gcContent*100) + "%"));
-    }
-
-    if(actor->getParameter(GC1CONTENT)->getAttributeValue<bool>(context)) {
-        float gc1Content = calcGC1Content(dna.seq);
-        gcAnn->qualifiers.push_back(U2Qualifier("gc1-content", QString::number(gc1Content*100) + "%"));
-    }
-
-    if(actor->getParameter(GC2CONTENT)->getAttributeValue<bool>(context)) {
-        float gc2Content = calcGC2Content(dna.seq);
-        gcAnn->qualifiers.push_back(U2Qualifier("gc2-content", QString::number(gc2Content*100) + "%"));
-    }
-
-    if(actor->getParameter(GC3CONTENT)->getAttributeValue<bool>(context)) {
-        float gc3Content = calcGC3Content(dna.seq);
-        gcAnn->qualifiers.push_back(U2Qualifier("gc3-content", QString::number(gc3Content*100) + "%"));
-    }
-
-    if(gcAnn->qualifiers.isEmpty()) {
-        return new FailTask(tr("No statistics was selected"));
-    }
-
-    res << gcAnn;
-
-    QVariant v = qVariantFromValue<QList<SharedAnnotationData> >(res);
-    output->put( Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v) );
     if (input->isEnded()) {
+        setDone();
         output->setEnded();
     }
-
     return NULL;
-}
-
-bool DNAStatWorker::isDone() {
-    return input->isEnded();
 }
 
 float DNAStatWorker::calcGCContent(const QByteArray &seq) {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -103,7 +103,7 @@ bool QDConstraintController::match(QDConstraint* c, const QDResultUnit& r1, cons
     const U2Region& reg1 = r1->region;
     const U2Region& reg2 = r2->region;
 
-    QDDistanceType dist = dc->distanceType();
+    const QDDistanceType& dist = dc->distanceType();
 
     int min = dc->getMin();
     int max = dc->getMax();
@@ -126,7 +126,7 @@ bool QDConstraintController::match(QDConstraint* c, const QDResultUnit& r1, cons
 
 bool QDConstraintController::match(const U2Region& srcReg,
                                    const U2Region& dstReg,
-                                   QDDistanceType type,
+                                   const QDDistanceType& type,
                                    int min,
                                    int max)
 {
@@ -153,7 +153,7 @@ bool QDConstraintController::match(const U2Region& srcReg,
         }
         return false;
     case S2S:
-        {                    
+        {
             int srcStarts = srcReg.startPos;
             int dstStarts = dstReg.startPos;
             int distance = dstStarts - srcStarts;
@@ -163,7 +163,7 @@ bool QDConstraintController::match(const U2Region& srcReg,
         }
         return false;
     case E2E:
-        {                    
+        {
             int srcEnds = srcReg.endPos();
             int dstEnds = dstReg.endPos();
             int distance = dstEnds - srcEnds;

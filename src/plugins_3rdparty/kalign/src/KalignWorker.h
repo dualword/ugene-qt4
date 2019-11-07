@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -44,19 +44,19 @@ public:
     KalignWorker(Actor* a);
     
     virtual void init();
-    virtual bool isReady();
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
     
 private slots:
     void sl_taskFinished();
 
-protected:
-    CommunicationChannel *input, *output;
+private:
+    IntegralBus *input, *output;
     QString resultName,transId;
     KalignTaskSettings cfg;
-    
+
+private:
+    void send(const MAlignment &msa);
 }; 
 
 class KalignWorkerFactory : public DomainFactory {

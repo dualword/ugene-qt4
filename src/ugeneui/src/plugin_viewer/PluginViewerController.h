@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include <U2Core/PluginModel.h>
 #include <U2Gui/MainWindow.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QtGui>
+#else
+#include <QtWidgets/QtWidgets>
+#endif
 
 namespace U2 {
 
@@ -62,15 +66,19 @@ private slots:
     void sl_onServiceRegistered(Service* s);
     void sl_onServiceUnregistered(Service* s);
     void sl_taskStateChanged();
+    void sl_showHideLicense();
+    void sl_acceptLicense();
 
 private: 
     void connectStaticActions();
     void connectVisualActions();
-	void disconnectVisualActions();
+    void disconnectVisualActions();
     void buildItems();
     void createWindow();
-	void updateActions();
+    void updateActions();
     void updateState();
+    void showLicense();
+    void hideLicense();
 
 	PlugViewPluginItem* findPluginItem(Plugin* p) const;
 	PlugViewServiceItem* findServiceItem(Service* s) const;

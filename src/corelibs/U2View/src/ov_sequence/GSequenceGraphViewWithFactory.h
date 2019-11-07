@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,10 +42,11 @@ public:
     GSequenceGraphFactory(const QString& _name, QObject* p)
         : QObject(p), graphName(_name){}
 
-    virtual QList<GSequenceGraphData*> createGraphs(GSequenceGraphView* v) = 0;
-    virtual GSequenceGraphDrawer* getDrawer(GSequenceGraphView* v) = 0;
+    virtual QList<QSharedPointer<GSequenceGraphData> > createGraphs(GSequenceGraphView* v) = 0;
 
-    virtual bool isEnabled(U2SequenceObject* o) const  = 0;
+    virtual GSequenceGraphDrawer* getDrawer(GSequenceGraphView* v);
+
+    virtual bool isEnabled(const U2SequenceObject* o) const  = 0;
 
     const QString& getGraphName() const {return graphName;}
 
@@ -67,7 +68,7 @@ public:
 protected:
     virtual void addActionsToGraphMenu(QMenu* graphMenu);
 
-private: 
+private:
     GSequenceGraphFactory* factory;
 };
 

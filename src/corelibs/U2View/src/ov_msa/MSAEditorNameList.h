@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,11 +27,20 @@
 #include <U2Core/global.h>
 #include <U2Core/U2Region.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
 #include <QtGui/QScrollBar>
 #include <QtGui/QRubberBand>
+#else
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QRubberBand>
+#endif
+
+#include "PhyTrees/MSAEditorTreeViewer.h"
 
 namespace U2 {
+
 
 class MSAEditor;
 class MSAEditorUI;
@@ -40,28 +49,39 @@ class MAlignment;
 class MAlignmentModInfo;
 class MSAEditorSelection;
 
-class MSAEditorNameList: public QWidget {
+class U2VIEW_EXPORT MSAEditorNameList: public QWidget {
     Q_OBJECT
+    Q_DISABLE_COPY(MSAEditorNameList)
 public:
     MSAEditorNameList(MSAEditorUI* ui, QScrollBar* nhBar);
-    ~MSAEditorNameList();
+    virtual ~MSAEditorNameList();
+
+    void drawNames( QPixmap &p, const QList<qint64>& seqIdx, bool drawSelection = false);
+    void drawNames(QPainter& p, const QList<qint64>& seqIdx, bool drawSelection = false);
 
 private slots:
-    void sl_buildStaticMenu(GObjectView* v, QMenu* m);
-    void sl_buildContextMenu(GObjectView* v, QMenu* m);
+    virtual void sl_buildStaticMenu(GObjectView* v, QMenu* m);
+    virtual void sl_buildContextMenu(GObjectView* v, QMenu* m);
     void sl_copyCurrentSequence();
     void sl_editSequenceName();
     void sl_lockedStateChanged();
     void sl_removeCurrentSequence();
+    void sl_selectReferenceSequence();
     void sl_alignmentChanged(const MAlignment&, const MAlignmentModInfo&);
     void sl_onScrollBarActionTriggered( int scrollAction );
-    
+    void sl_referenceSeqChanged(qint64);
+
     void sl_startChanged(const QPoint& p, const QPoint& prev);
     void sl_selectionChanged(const MSAEditorSelection& current, const MSAEditorSelection& prev);
 
     void sl_nameBarMoved(int n);
     void sl_fontChanged();
     void sl_modelChanged();
+
+    void sl_onGroupColorsChanged(const GroupColorSchema&);
+protected:
+    void updateContent();
+    virtual void updateScrollBar();
 
 protected:
     void resizeEvent(QResizeEvent* e);
@@ -75,38 +95,61 @@ protected:
     void focusInEvent(QFocusEvent* fe);
     void wheelEvent (QWheelEvent * we);
     //todo context menu?
+    int getSelectedRow() const;
+    virtual QString getTextForRow(int s);
+    virtual QString getSeqName(int s);
+
+    bool                completeRedraw;
+
+public:
+    void drawContent(QPainter& p);
+    qint64 sequenceIdAtPos(const QPoint &p);
+    void clearGroupsSelections();
+
+signals:
+    void si_sequenceNameChanged(QString prevName, QString newName);
+    void si_startMsaChanging();
+    void si_stopMsaChanging(bool modified);
 
 private:
     bool isRowInSelection(int row);
     void updateActions();
     void buildMenu(QMenu* m);
-    void updateScrollBar();
     void updateSelection(int newSeqNum);
     void moveSelectedRegion( int shift );
     void drawAll();
-    void drawContent(QPainter& p);
     void drawSelection(QPainter& p);
-    void drawSequenceItem(QPainter& p, int n, bool selected);
-    void drawSequenceItem(QPainter& p, int s, bool selected, const U2Region& yRange, int pos);
+    void drawSequenceItem(QPainter& p, int row, int firstVisibleRow, const QString& text, bool selected);
+    void drawSequenceItem(QPainter& p, int s, bool selected);
+    void drawSequenceItem(QPainter& p, int s, const QString& name, bool selected, const U2Region& yRange, int pos);
+    virtual void drawRefSequence(QPainter &p, QRect r);
     void drawFocus(QPainter& p);
     QFont getFont(bool selected) const;
     QRect calculateTextRect(const U2Region& yRange, bool selected) const;
     QRect calculateButtonRect(const QRect& itemRect) const;
-    int getSelectedRow() const;
-    
-    MSAEditor*          editor;
+
+    QObject*            labels; // used in GUI tests
     MSAEditorUI*        ui;
     QScrollBar*         nhBar;
     int                 curSeq;
+    int                 startSelectingSeq;
     QPoint              origin;
-    bool                scribbling,shifting;
+    bool                scribbling;
+    bool                shifting;
+    bool                singleSelecting;
+    GroupColorSchema    groupColors;
 
     QRubberBand*        rubberBand;
     QAction*            editSequenceNameAction;
     QAction*            copyCurrentSequenceAction;
     QAction*            removeCurrentSequenceAction;
     QPixmap*            cachedView;
-    bool                completeRedraw;
+
+    static const int CROSS_SIZE = 9;
+    static const int CHILDREN_OFFSET = 8;
+protected:
+    MSAEditor*          editor;
+
 };
 
 }//namespace

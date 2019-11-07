@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,6 @@
 #include <U2Core/CMDLineCoreOptions.h>
 
 #include <QtCore/QDir>
-#include <QtCore/QFileInfo>
 #include <QtCore/QProcess>
 
 namespace U2 {
@@ -52,8 +51,6 @@ static QString preparePath(const QString& pathName) {
     }
     return result;
 }
-
-
 
 SettingsImpl::SettingsImpl(QSettings::Scope scope) {
     QString fileName;
@@ -82,16 +79,16 @@ SettingsImpl::SettingsImpl(QSettings::Scope scope) {
     } else {
         fileName = findKey(envList, U2_SYSTEM_INI);
     }
-    if (fileName.isEmpty()) {
 #ifdef Q_WS_MAC
         QSettings::Format format = QSettings::NativeFormat;
 #else
         QSettings::Format format = QSettings::IniFormat;
 #endif
+    if (fileName.isEmpty()) {
         settings = new QSettings(format, scope, U2_ORGANIZATION_NAME, U2_PRODUCT_NAME
             , this);
     }  else {
-        settings = new QSettings(fileName, QSettings::IniFormat, this);
+        settings = new QSettings(fileName, format, this);
     }
 }
 
@@ -114,32 +111,73 @@ void SettingsImpl::remove(const QString& pathName) {
 }
 
 
-QVariant SettingsImpl::getValue(const QString& pathName, const QVariant& defaultValue) const {
+QVariant SettingsImpl::getValue(const QString& pathName, const QVariant& defaultValue, bool versionedValue) const {
     QMutexLocker lock(&threadSafityLock);
 
     QString path = pathName;
     QString key = preparePath(path);
+
+    if (versionedValue){
+        //find versioned value in the key path
+        settings->beginGroup(key);
+        QStringList allKeys = settings->allKeys();
+        settings->endGroup();
+
+        QString versionedKey = toVersionKey(key);
+
+        bool found = false;
+        foreach (const QString& settingsKey, allKeys){
+            if (QString(key + "/" + settingsKey) == versionedKey){
+                found = true;
+                break;
+            }
+        }
+        if (!found){
+            return defaultValue;
+        }
+
+        key = versionedKey;
+    }
+
     return settings->value(key, defaultValue);
 }
 
-void SettingsImpl::setValue(const QString& pathName, const QVariant& value) {
+void SettingsImpl::setValue(const QString& pathName, const QVariant& value, bool versionedValue) {
     QMutexLocker lock(&threadSafityLock);
 
     QString path = pathName;
     QString key = preparePath(path);
+
+    if (versionedValue){
+        //TODO: delete versioned keys?
+
+        //create versioned key
+        key = toVersionKey(key);
+    }
+
     settings->setValue(key, value);
 }
 
 QString SettingsImpl::toVersionKey(const QString& key) const {
     static QString VERSION_KEY_SUFFIX = "/" + Version::appVersion().text;
-    
+
     if (key.endsWith("/")) {
         return key + VERSION_KEY_SUFFIX + "/";
     }
     return key + VERSION_KEY_SUFFIX;
 }
 
-QStringList SettingsImpl::getAllKeys(const QString& path) {
+QString SettingsImpl::toMinorVersionKey(const QString& key) const {
+    static QString VERSION_KEY_SUFFIX = "/" + QString::number(Version::appVersion().major)
+        + "." + QString::number(Version::appVersion().minor);
+
+    if (key.endsWith("/")) {
+        return key + VERSION_KEY_SUFFIX + "/";
+    }
+    return key + VERSION_KEY_SUFFIX;
+}
+
+QStringList SettingsImpl::getAllKeys(const QString& path) const{
     QMutexLocker lock(&threadSafityLock);
 
     QString key = preparePath(path);
@@ -149,6 +187,12 @@ QStringList SettingsImpl::getAllKeys(const QString& path) {
     return allKeys;
 }
 
+void SettingsImpl::cleanSection(const QString& path){
+    QStringList keyList = getAllKeys(path);
+    foreach(QString key, keyList){
+        remove(key);
+    }
+}
 
 void SettingsImpl::sync() {
     QMutexLocker lock(&threadSafityLock);

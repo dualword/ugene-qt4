@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,12 @@
 
 #include <U2Core/global.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
+
 #include <QtCore/QList>
 #include <QtCore/QString>
 #include <QNetworkReply>
@@ -37,30 +42,35 @@ class Ui_DownloadRemoteFileDialog;
 namespace U2 {
 
 
-class U2GUI_EXPORT DownloadRemoteFileDialog : public QDialog
-{
+class U2GUI_EXPORT DownloadRemoteFileDialog : public QDialog{
     Q_OBJECT
     bool isQueryDB;
     QString resUrl;
+    QString resUrls;
     static QString defaultDB;
-    
+
 public slots:
-    void sl_updateHint(const QString& dbName);
+    void sl_onDbChanged();
+    void sl_formatChanged(const QString &format);
     void sl_saveFilenameButtonClicked();
-    
+    void sl_linkActivated(const QString& link);
+
 public:
-    DownloadRemoteFileDialog(QWidget *p = NULL);  
+    DownloadRemoteFileDialog(QWidget *p = NULL);
+    DownloadRemoteFileDialog(const QString& ids, const QString& dbId, QWidget *p = NULL);
     ~DownloadRemoteFileDialog();
-    QString getDBName() const;
+    QString getDBId() const;
     QString getResourceId() const;
     QString getFullpath() const;
     virtual void accept();
 
 private:
     void setSaveFilename();
+    bool isDefaultDb(const QString& dbId);
+    bool isNcbiDb(const QString& dbId) const;
+    void setupHintText( const QString &sampleText = QString( ) );
 
-    Ui_DownloadRemoteFileDialog* ui;
-    
+    Ui_DownloadRemoteFileDialog *ui;
 };
 
 } // namespace

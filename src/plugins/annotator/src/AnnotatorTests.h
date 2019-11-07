@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,6 +29,8 @@
 #include <U2Core/AnnotationTableObject.h>
 #include <U2View/AnnotatedDNAView.h>
 #include "CollocationsDialogController.h"
+#include "GeneByGeneReportTask.h"
+#include "CustomPatternAnnotationTask.h"
 
 namespace U2 {
 
@@ -50,5 +52,39 @@ private:
     QVector<U2Region> expectedResults;
 };
 
-} //namespace
+class GTest_CustomAutoAnnotation : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CustomAutoAnnotation, "custom-auto-annotation-search");
+
+    void prepare();
+    Task::ReportResult report();
+private:
+    QString seqName;
+    QString docName;
+    QString resultDocContextName;
+    bool isCircular;
+    SharedFeatureStore featureStore;
+    CustomPatternAnnotationTask* searchTask;
+};
+
+
+class GTest_GeneByGeneApproach : public GTest{
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_GeneByGeneApproach, "plugin_dna-annotator-gene-by-gene");
+
+    void prepare();
+    Task::ReportResult report();
+private:
+    QString seqName;
+    QString annName;
+    QString docName;
+    QString resultDocContextName;
+    bool expected;
+    float identity;
+    GeneByGeneCompareResult result;
+};
+
+} //namespace U2
+
 #endif

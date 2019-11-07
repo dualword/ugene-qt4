@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,9 @@
 
 #include <U2Core/global.h>
 #include <U2Core/GUrl.h>
-#include <QString>
-#include <QList>
+#include <QtCore/QString>
+#include <QtCore/QList>
+#include <QtCore/QStringList>
 
 namespace U2{
 
@@ -34,6 +35,8 @@ public:
     CreatePhyTreeSettings();
     QString algorithmId;
     QString matrixId;
+    bool    displayWithAlignmentEditor;
+    bool    syncAlignmentWithTree;
     GUrl    fileUrl;
     bool useGammaDistributionRates;
     double alphaFactor;
@@ -44,10 +47,12 @@ public:
     double fraction;
     QString consensusID;
     int mb_ngen;
+    QStringList rowsOrder;
 
     QString mrBayesSettingsScript;
+    QStringList extToolArguments;
 };
 
 }
 
-#endif 
+#endif

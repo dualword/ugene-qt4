@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 namespace U2 {
 
 typedef long OpenCLGpuId;
+typedef long OpenCLGpuContext;
 
 #define OPENCL_GPU_REGISTRY_SETTINGS "/opencl_gpu_registry"
 //stores settings for concrete GPU. The key for appending - textual representation of OpenCLGpuId
@@ -42,18 +43,22 @@ typedef long OpenCLGpuId;
 class U2ALGORITHM_EXPORT OpenCLGpuModel {
 public:
     OpenCLGpuModel( const QString & _name,
+                    const OpenCLGpuContext & _context,
                     const OpenCLGpuId & _id,
                     quint64 _platformId,
                     quint64 _globalMemorySizeBytes,
+                    quint64 _maxAllocateMemorySizeBytes,
                     quint64 _localMemorySizeBytes,
                     quint32 _maxComputeUnits,
                     size_t _maxWorkGroupSize,
                     quint32 _maxClockFrequency,
                     bool _enabled  = true) :
       name(_name),
+      context(_context),
       id(_id),
       platformId(_platformId),
       globalMemorySizeBytes(_globalMemorySizeBytes),
+      maxAllocateMemorySizeBytes(_maxAllocateMemorySizeBytes),
       localMemorySizeBytes(_localMemorySizeBytes),
       maxComputeUnits(_maxComputeUnits),
       maxWorkGroupSize(_maxWorkGroupSize),
@@ -63,14 +68,16 @@ public:
 
     QString getName() const {return name;}
     OpenCLGpuId getId() const {return id;}
-    quint64 getGlobalMemorySizeBytes() const {return globalMemorySizeBytes;}    
+    OpenCLGpuContext getContext() const {return context;}
+    quint64 getGlobalMemorySizeBytes() const {return globalMemorySizeBytes;}
+    quint64 getMaxAllocateMemorySizeBytes() const {return maxAllocateMemorySizeBytes;}
     quint64 getLocalMemorySizeBytes() const {return localMemorySizeBytes;}
     quint32 getMaxComputeUnits() const {return maxComputeUnits;}
     size_t getMaxWorkGroupSize() const {return maxWorkGroupSize;}
     quint32 getMaxClockFrequency() const {return maxClockFrequency;}
     quint64 getPlatformId() const {return platformId;}
 
-    bool isEnabled() const {return  enabled;} 
+    bool isEnabled() const {return  enabled;}
     void setEnabled(bool b) {enabled = b;}
 
     bool isAcquired() const {return acquired;}
@@ -78,11 +85,12 @@ public:
 
     bool isReady() {return !isAcquired() && isEnabled(); }
 private:
-    //TODO: add another opencl device properties
     QString name;
+    OpenCLGpuContext context; // There should be one context for each device, no need to recreate context billion times TODO: releasing
     OpenCLGpuId id;
     quint64 platformId;
     quint64 globalMemorySizeBytes;
+    quint64 maxAllocateMemorySizeBytes;
     quint64 localMemorySizeBytes;
     quint32 maxComputeUnits;
     size_t maxWorkGroupSize;
@@ -98,6 +106,7 @@ public:
     void registerOpenCLGpu( OpenCLGpuModel * gpu );
     OpenCLGpuModel * getGpuById( OpenCLGpuId id ) const;
     QList<OpenCLGpuModel*> getRegisteredGpus() const;
+    QList<OpenCLGpuModel*> getEnabledGpus() const;
 
     OpenCLGpuModel * getAnyEnabledGpu() const;
 

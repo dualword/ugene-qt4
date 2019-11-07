@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,7 +37,7 @@
 #include <U2Core/FailTask.h>
 
 #include <U2Core/Log.h>
-#include <U2Core/MAlignment.h>
+#include <U2Core/MAlignmentObject.h>
 
 /* TRANSLATOR U2::SiteconIO */
 /* TRANSLATOR U2::LocalWorkflow::SiteconBuildWorker */
@@ -70,10 +70,10 @@ void SiteconBuildWorker::registerProto() {
     p << new PortDescriptor(od, DataTypePtr(new MapDataType("sitecon.build.out", outM)), false /*input*/, true /*multi*/);
     
     {
-        Descriptor wd(WINDOW_ATTR, SiteconBuildWorker::tr("Window size, bp"), QApplication::translate("SiteconBuildDialog", "win_tip", 0, QApplication::UnicodeUTF8));
-        Descriptor ld(LEN_ATTR, SiteconBuildWorker::tr("Calibration length"), QApplication::translate("SiteconBuildDialog", "seq_len_tip", 0, QApplication::UnicodeUTF8));
-        Descriptor sd(SEED_ATTR, SiteconBuildWorker::tr("Random seed"), QApplication::translate("SiteconBuildDialog", "seed_tip", 0, QApplication::UnicodeUTF8));
-        Descriptor ad(ALG_ATTR, SiteconBuildWorker::tr("Weight algorithm"), QApplication::translate("SiteconBuildDialog", "algo_tip", 0, QApplication::UnicodeUTF8));
+        Descriptor wd(WINDOW_ATTR, SiteconBuildWorker::tr("Window size, bp"), SiteconBuildWorker::tr("Window size."));
+        Descriptor ld(LEN_ATTR, SiteconBuildWorker::tr("Calibration length"), SiteconBuildWorker::tr("Calibration length."));
+        Descriptor sd(SEED_ATTR, SiteconBuildWorker::tr("Random seed"), SiteconBuildWorker::tr("Random seed."));
+        Descriptor ad(ALG_ATTR, SiteconBuildWorker::tr("Weight algorithm"), SiteconBuildWorker::tr("Weight algorithm."));
 
         a << new Attribute(wd, BaseTypes::NUM_TYPE(), false, 40);
         a << new Attribute(ld, BaseTypes::NUM_TYPE(), false, 1000*1000);
@@ -81,7 +81,7 @@ void SiteconBuildWorker::registerProto() {
         a << new Attribute(ad, BaseTypes::BOOL_TYPE(), false, int(SiteconWeightAlg_None));
     }
 
-    Descriptor desc(ACTOR_ID, tr("Build SITECON model"),
+    Descriptor desc(ACTOR_ID, tr("Build SITECON Model"),
         tr("Builds statistical profile for SITECON. The SITECON is a program for probabilistic recognition of transcription factor binding sites."));
     ActorPrototype* proto = new IntegralBusActorPrototype(desc, p, a);
     QMap<QString, PropertyDelegate*> delegates;    
@@ -116,14 +116,8 @@ void SiteconBuildWorker::registerProto() {
 }
 
 QString SiteconBuildPrompter::composeRichDoc() {
-    IntegralBusPort* input = qobject_cast<IntegralBusPort*>(target->getPort(BasePorts::IN_MSA_PORT_ID()));
-    Actor* msaProducer = input->getProducer(BasePorts::IN_MSA_PORT_ID());
-
-    QString msaName = msaProducer ? tr("For each MSA from <u>%1</u>,").arg(msaProducer->getLabel()) : "";
-    QString doc = tr("%1 build SITECON model.")
-        .arg(msaName);
-
-    return doc;
+    QString prod = getProducersOrUnset(BasePorts::IN_MSA_PORT_ID(), BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId());
+    return  tr("For each MSA from <u>%1</u>, build SITECON model.").arg(prod);
 }
 
 void SiteconBuildWorker::init() {
@@ -131,51 +125,58 @@ void SiteconBuildWorker::init() {
     output = ports.value(OUT_SITECON_PORT_ID);
 }
 
-bool SiteconBuildWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* SiteconBuildWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    cfg.props = SiteconPlugin::getDinucleotiteProperties();
-    cfg.randomSeed = actor->getParameter(SEED_ATTR)->getAttributeValue<int>(context);
-    if(cfg.randomSeed<0){
-        return new FailTask(tr("Random seed can not be less zero"));
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        cfg.props = SiteconPlugin::getDinucleotiteProperties();
+        cfg.randomSeed = actor->getParameter(SEED_ATTR)->getAttributeValue<int>(context);
+        if(cfg.randomSeed<0){
+            return new FailTask(tr("Random seed can not be less zero"));
+        }
+        cfg.secondTypeErrorCalibrationLen = actor->getParameter(LEN_ATTR)->getAttributeValue<int>(context);
+        if(cfg.secondTypeErrorCalibrationLen<0){
+            return new FailTask(tr("Calibration length can not be less zero"));
+        }
+        cfg.weightAlg = SiteconWeightAlg(actor->getParameter(ALG_ATTR)->getAttributeValue<int>(context));
+        cfg.windowSize = actor->getParameter(WINDOW_ATTR)->getAttributeValue<int>(context);
+        if(cfg.windowSize<0){
+            return new FailTask(tr("Window size can not be less zero"));
+        }
+        mtype = SiteconWorkerFactory::SITECON_MODEL_TYPE();
+        QVariantMap data = inputMessage.getData().toMap();
+        SiteconModel model = data.value(SiteconWorkerFactory::SITECON_MODEL_TYPE_ID).value<SiteconModel>();
+        QString url = data.value(BaseSlots::URL_SLOT().getId()).toString();
+        
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        Task* t = new SiteconBuildTask(cfg, msa, url);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    cfg.secondTypeErrorCalibrationLen = actor->getParameter(LEN_ATTR)->getAttributeValue<int>(context);
-    if(cfg.secondTypeErrorCalibrationLen<0){
-        return new FailTask(tr("Calibration length can not be less zero"));
-    }
-    cfg.weightAlg = SiteconWeightAlg(actor->getParameter(ALG_ATTR)->getAttributeValue<int>(context));
-    cfg.windowSize = actor->getParameter(WINDOW_ATTR)->getAttributeValue<int>(context);
-    if(cfg.windowSize<0){
-        return new FailTask(tr("Window size can not be less zero"));
-    }
-    mtype = SiteconWorkerFactory::SITECON_MODEL_TYPE();
-    QVariantMap data = inputMessage.getData().toMap();
-    SiteconModel model = data.value(SiteconWorkerFactory::SITECON_MODEL_TYPE_ID).value<SiteconModel>();
-    QString url = data.value(BaseSlots::URL_SLOT().getId()).toString();
-    
-    const MAlignment& ma = data.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    Task* t = new SiteconBuildTask(cfg, ma, url);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void SiteconBuildWorker::sl_taskFinished() {
     SiteconBuildTask* t = qobject_cast<SiteconBuildTask*>(sender());
+    if ( t->isCanceled( ) ) {
+        return;
+    }
     if (t->getState() != Task::State_Finished) return;
     SiteconModel model = t->getResult();
     QVariant v = qVariantFromValue<SiteconModel>(model);
     output->put(Message(mtype, v));
-    if (input->isEnded()) {
-        output->setEnded();
-    }
     algoLog.info(tr("Built SITECON model from: %1").arg(model.aliURL));
-}
-
-bool SiteconBuildWorker::isDone() {
-    return !input || input->isEnded();
 }
 
 } //namespace LocalWorkflow

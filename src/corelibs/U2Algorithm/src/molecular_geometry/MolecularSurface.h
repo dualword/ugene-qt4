@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,6 @@
 #include <QtCore/QObject>
 #include <QtCore/QVector>
 #include <QtCore/QString>
-#include <memory>
 #include <limits>
 
 #include <U2Core/Task.h>
@@ -38,7 +37,7 @@ namespace U2 {
 template<class T> inline T sqr(const T& x) { return x*x; }
 
 class U2ALGORITHM_EXPORT AtomConstants {
-    static const int NUM_ELEMENTS = 120; 
+    static const int NUM_ELEMENTS = 120;
     static double atomRadiusTable[NUM_ELEMENTS];
 public:
     inline static double getAtomCovalentRadius(int atomicNumber);
@@ -73,9 +72,9 @@ class U2ALGORITHM_EXPORT MolecularSurfaceCalcTask : public Task
     MolecularSurface* molSurface;
     QString typeName;
     const QList<SharedAtom> atoms;
-public: 
+public:
     MolecularSurfaceCalcTask(const QString& surfaceTypeName, const QList<SharedAtom>& atoms);
-    std::auto_ptr<MolecularSurface> getCalculatedSurface();
+    MolecularSurface * getCalculatedSurface();
     virtual void run();
     virtual ReportResult report();
 };
@@ -84,6 +83,7 @@ public:
 
 class U2ALGORITHM_EXPORT MolecularSurfaceFactory {
 public:
+    virtual ~MolecularSurfaceFactory();
     virtual MolecularSurface *createInstance()const=0;
     virtual bool hasConstraints(const BioStruct3D&) const {  return false; }
 };

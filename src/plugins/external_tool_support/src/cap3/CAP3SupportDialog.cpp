@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,24 +19,35 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
+
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
 #include "CAP3SupportDialog.h"
 #include "CAP3SupportTask.h"
-
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-
-#include <U2Gui/LastUsedDirHelper.h>
-
 
 namespace U2 {
 ////////////////////////////////////////
 //CAP3SupportDialog
 
-CAP3SupportDialog::CAP3SupportDialog(CAP3SupportTaskSettings& s, QWidget* parent) 
+CAP3SupportDialog::CAP3SupportDialog(CAP3SupportTaskSettings& s, QWidget* parent)
 : QDialog(parent), settings(s)
 {
     setupUi(this);
-    
+    new HelpButton(this, buttonBox, "16122385");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Run"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    tabWidget->setCurrentIndex(0);
     QString outputUrl;
     outputPathLineEdit->setText(outputUrl);
 
@@ -45,6 +56,30 @@ CAP3SupportDialog::CAP3SupportDialog(CAP3SupportTaskSettings& s, QWidget* parent
     connect(removeAllButton, SIGNAL(clicked()), SLOT(sl_onRemoveAllButtonClicked()));
     connect(specifyOutputPathButton, SIGNAL(clicked()), SLOT(sl_onSpecifyOutputPathButtonClicked()));
 
+    initSettings();
+
+}
+
+void CAP3SupportDialog::initSettings() {
+    bandExpansionBox->setValue(settings.bandExpansionSize);
+    baseQualityDiffCutoffBox->setValue(settings.baseQualityDiffCutoff);
+    baseQualityClipCutoffBox->setValue(settings.baseQualityClipCutoff);
+    maxQScoreDiffBox->setValue(settings.maxQScoreSum);
+    maxGapLengthBox->setValue(settings.maxGapLength);
+    gapPenaltyFactorBox->setValue(settings.gapPenaltyFactor);
+    matchScoreFactorBox->setValue(settings.matchScoreFactor);
+    mismatchScoreFactorBox->setValue(settings.mismatchScoreFactor);
+    overlapLengthCutoffBox->setValue(settings.overlapLengthCutoff);
+    overlapPercentIdentityBox->setValue(settings.overlapPercentIdentityCutoff);
+    if (settings.reverseReads) {
+        reverseReadsBox->setChecked(true);
+    }
+    else {
+        reverseReadsBox->setChecked(false);
+    }
+    overlapSimilarityScoreCutoffBox->setValue(settings.overlapSimilarityScoreCutoff);
+    maxNumWordMatchesBox->setValue(settings.maxNumberOfWordMatches);
+    clippingRangeBox->setValue(settings.clippingRange);
 }
 
 void CAP3SupportDialog::accept()
@@ -54,7 +89,7 @@ void CAP3SupportDialog::accept()
             tr("List of input files is empty!") );
         return;
     }
-    
+
     int itemCount = seqList->count();
     for (int i = 0; i < itemCount; ++i) {
         settings.inputFiles.append( seqList->item(i)->text() );
@@ -78,7 +113,7 @@ void CAP3SupportDialog::accept()
             return;
         }
     }
-    
+
     settings.outputFilePath = outputPath;
     settings.bandExpansionSize = bandExpansionBox->value();
     settings.baseQualityClipCutoff = baseQualityClipCutoffBox->value();
@@ -88,7 +123,7 @@ void CAP3SupportDialog::accept()
     settings.maxGapLength = maxGapLengthBox->value();
     settings.matchScoreFactor = matchScoreFactorBox->value();
     settings.mismatchScoreFactor = mismatchScoreFactorBox->value();
-    settings.overlapPercentIdentetyCutoff = overlapPercentIdentityBox->value();
+    settings.overlapPercentIdentityCutoff = overlapPercentIdentityBox->value();
     settings.overlapLengthCutoff = overlapLengthCutoffBox->value();
     settings.overlapSimilarityScoreCutoff = overlapSimilarityScoreCutoffBox->value();
     settings.maxNumberOfWordMatches = maxNumWordMatchesBox->value();
@@ -101,13 +136,13 @@ void CAP3SupportDialog::accept()
 void CAP3SupportDialog::sl_onAddButtonClicked()
 {
     LastUsedDirHelper lod;
-    QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Add sequences to assembly"), lod.dir);
+    QStringList fileNames = U2FileDialog::getOpenFileNames(this, tr("Add Sequences to Assembly"), lod.dir);
     if (fileNames.isEmpty()) {
         return;
     }
     lod.url = fileNames.at(fileNames.count() - 1);
     foreach(const QString& f, fileNames) {
-        seqList->addItem(f);    
+        seqList->addItem(f);
     }
 
 
@@ -130,9 +165,9 @@ void CAP3SupportDialog::sl_onRemoveAllButtonClicked()
 
 void CAP3SupportDialog::sl_onSpecifyOutputPathButtonClicked()
 {
-    
+
     LastUsedDirHelper lod;
-    lod.url = QFileDialog::getSaveFileName(this, tr("Set result contig file name"), lod.dir, tr("ACE format (*.ace)"));
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Set Result Contig File Name"), lod.dir, tr("ACE format (*.ace)"));
     if (!lod.url.isEmpty()) {
         GUrl result = lod.url;
         if (result.lastFileSuffix().isEmpty()) {
@@ -140,7 +175,7 @@ void CAP3SupportDialog::sl_onSpecifyOutputPathButtonClicked()
         }
         outputPathLineEdit->setText(result.getURLString());
     }
-    
+
 }
 
 

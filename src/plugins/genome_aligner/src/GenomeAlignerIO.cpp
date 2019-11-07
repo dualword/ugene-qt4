@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,10 +25,12 @@
 #include <U2Core/Counter.h>
 #include <U2Core/U2AssemblyDbi.h>
 #include <U2Core/U2AttributeDbi.h>
+#include <U2Core/U2CoreAttributes.h>
 #include <U2Core/Timer.h>
 #include <U2Core/U2DbiRegistry.h>
 #include <U2Core/U2AlphabetUtils.h>
 #include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
@@ -105,7 +107,7 @@ int GenomeAlignerCommunicationChanelReader::getProgress() {
 
 SearchQuery *GenomeAlignerCommunicationChanelReader::read() {
     DNASequence seq = reads->get().getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<DNASequence>();
-    
+
     return new SearchQuery(&seq);
 }
 
@@ -119,8 +121,8 @@ GenomeAlignerMAlignmentWriter::GenomeAlignerMAlignmentWriter() {
     writtenReadsCount = 0;
 }
 
-void GenomeAlignerMAlignmentWriter::close() { 
-    //TODO: add some heuristic alphabet selection. 
+void GenomeAlignerMAlignmentWriter::close() {
+    //TODO: add some heuristic alphabet selection.
     result.setAlphabet(AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT()));
 }
 
@@ -129,13 +131,15 @@ MAlignment& GenomeAlignerMAlignmentWriter::getResult() {
 }
 
 void GenomeAlignerMAlignmentWriter::write(SearchQuery *seq, SAType offset) {
-    MAlignmentRow row;
-    row.setName(seq->getName());
-    row.setSequence(seq->constSequence(), offset);
-    if (seq->hasQuality() && seq->getQuality().qualCodes.length() > 0) {
-        row.setQuality(seq->getQuality());
-    }
-    result.addRow(row);
+    U2OpStatus2Log os;
+    //if (seq->hasQuality() && seq->getQuality().qualCodes.length() > 0) {
+    //    row.setQuality(seq->getQuality());
+    //}
+    QByteArray offsetGaps;
+    offsetGaps.fill(MAlignment_GapChar, offset);
+    QByteArray seqWithOffset = seq->constSequence();
+    seqWithOffset.prepend(offsetGaps);
+    result.addRow(seq->getName(), seqWithOffset, os);
     writtenReadsCount++;
 }
 
@@ -155,14 +159,14 @@ GenomeAlignerDbiReader::GenomeAlignerDbiReader(U2AssemblyDbi *_rDbi, U2Assembly 
 : rDbi(_rDbi), assembly(_assembly)
 {
     wholeAssembly.startPos = 0;
-    wholeAssembly.length = rDbi->getMaxEndPos(assembly.id, status);
+    wholeAssembly.length = rDbi->getMaxEndPos(assembly.id, status) + 1;
     currentRead = reads.end();
     readNumber = 0;
     maxRow = rDbi->getMaxPackedRow(assembly.id, wholeAssembly, status);
 
     readsInAssembly = rDbi->countReads(assembly.id, wholeAssembly, status);
     if (readsInAssembly <= 0 || status.hasError()) {
-        uiLog.error(QString("Genome Aligner -> Database Error: " + status.getError()).toAscii().data());
+        uiLog.error(QString("Genome Aligner -> Database Error: " + status.getError()).toLatin1().data());
         end = true;
         return;
     }
@@ -175,7 +179,7 @@ SearchQuery *GenomeAlignerDbiReader::read() {
         return NULL;
     }
     reads.clear();
-    if (dbiIterator.get() == NULL) {
+    if (dbiIterator.data() == NULL) {
         dbiIterator.reset(rDbi->getReads(assembly.id, wholeAssembly, status));
     }
     if (dbiIterator->hasNext()) {
@@ -203,27 +207,27 @@ const qint64 GenomeAlignerDbiWriter::readBunchSize = 10000;
 
 inline void checkOperationStatus(const U2OpStatus &status) {
     if (status.hasError()) {
+        coreLog.error(status.getError());
         throw status.getError();
     }
 }
 
-GenomeAlignerDbiWriter::GenomeAlignerDbiWriter(QString dbiFilePath, QString refName, int refLength) {
+GenomeAlignerDbiWriter::GenomeAlignerDbiWriter(const QString &dbiFilePath, const QString &refName, int refLength) :
+    importer(status)
+{
     //TODO: support several assemblies.
     dbiHandle = QSharedPointer<DbiConnection>(new DbiConnection(U2DbiRef(SQLITE_DBI_ID, dbiFilePath), true, status));
     checkOperationStatus(status);
     sqliteDbi = dbiHandle->dbi;
     wDbi = sqliteDbi->getAssemblyDbi();
 
-    sqliteDbi->getObjectDbi()->createFolder("/", status);
-    checkOperationStatus(status);
     assembly.visualName = refName;
-    U2AssemblyReadsImportInfo importInfo;
-    wDbi->createAssemblyObject(assembly, "/", NULL, importInfo, status);
+    importer.createAssembly(sqliteDbi->getDbiRef(), U2ObjectDbi::ROOT_FOLDER, assembly);
     checkOperationStatus(status);
 
     U2IntegerAttribute lenAttr;
     lenAttr.objectId = assembly.id;
-    lenAttr.name = "reference_length_attribute";
+    lenAttr.name = U2BaseAttributeName::reference_length;
     lenAttr.version = 1;
     lenAttr.value = refLength;
     dbiHandle->dbi->getAttributeDbi()->createIntegerAttribute(lenAttr, status);
@@ -232,7 +236,7 @@ GenomeAlignerDbiWriter::GenomeAlignerDbiWriter(QString dbiFilePath, QString refN
 void GenomeAlignerDbiWriter::write(SearchQuery *seq, SAType offset) {
     U2AssemblyRead read(new U2AssemblyReadData());
 
-    read->name = seq->getName().toAscii();
+    read->name = seq->getName().toLatin1();
     read->leftmostPos = offset;
     read->effectiveLen = seq->length();
     read->readSequence = seq->constSequence();
@@ -243,7 +247,7 @@ void GenomeAlignerDbiWriter::write(SearchQuery *seq, SAType offset) {
     reads.append(read);
     if (reads.size() >= readBunchSize) {
         BufferedDbiIterator<U2AssemblyRead> readsIterator(reads);
-        wDbi->addReads(assembly.id, &readsIterator, status);
+        importer.addReads(&readsIterator);
         checkOperationStatus(status);
         reads.clear();
     }
@@ -252,14 +256,15 @@ void GenomeAlignerDbiWriter::write(SearchQuery *seq, SAType offset) {
 void GenomeAlignerDbiWriter::close() {
     if (reads.size() > 0) {
         BufferedDbiIterator<U2AssemblyRead> readsIterator(reads);
-        wDbi->addReads(assembly.id, &readsIterator, status);
+        importer.addReads(&readsIterator);
         checkOperationStatus(status);
         reads.clear();
     }
 
-    U2AssemblyPackStat packStatus;
-    wDbi->pack(assembly.id, packStatus, status);
+    U2AssemblyReadsImportInfo info;
+    importer.packReads(info);
     checkOperationStatus(status);
+    sqliteDbi->flush(status);
 }
 
 } //U2

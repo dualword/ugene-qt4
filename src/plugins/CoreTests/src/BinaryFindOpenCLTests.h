@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,6 +43,7 @@ public:
 private:
     QVector<NumberType> numbers;
     QVector<NumberType> findNumbers;
+    QVector<int> windowSizes;
     QVector<NumberType> expectedResults;
     NumberType* results;
 };

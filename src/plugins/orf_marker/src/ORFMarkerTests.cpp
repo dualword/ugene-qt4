@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -44,16 +44,15 @@ namespace U2 {
 #define ALT_INIT_ATTR "allow_alt_init_codons"
 #define TRANSLATION_ID_ATTR "translation_id"
 #define EXPECTED_RESULTS_ATTR  "expected_results"
-#define CIRCULAR_ATTR  "circular_search"
 
 Translator::Translator(const U2SequenceObject *s, const QString& tid) : seq(s), complTransl(NULL), aminoTransl(NULL) {
-    DNAAlphabet* al = seq->getAlphabet();
+    const DNAAlphabet* al = seq->getAlphabet();
     DNATranslationRegistry* tr = AppContext::getDNATranslationRegistry();
     aminoTransl = tr->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO, ("NCBI-GenBank #" + tid));
     assert(aminoTransl);
-    QList<DNATranslation*> complTs = tr->lookupTranslation(al, DNATranslationType_NUCL_2_COMPLNUCL);
-    if (!complTs.empty()) {
-        complTransl = complTs.first();
+    DNATranslation* complT = tr->lookupComplementTranslation(al);
+    if (complT != NULL) {
+        complTransl = complT ;
     }
 }
 
@@ -139,12 +138,12 @@ void GTest_ORFMarkerTask::init(XMLTestFormat *tf, const QDomElement& el) {
         return;
     }
 
-	QString strIncStopCodon = el.attribute(INCLUDE_STOP_CODON_ATTR);
-	if (strIncStopCodon == "true") {
-		settings.includeStopCodon = true;
-	} else {
-		settings.includeStopCodon = false;
-	}
+    QString strIncStopCodon = el.attribute(INCLUDE_STOP_CODON_ATTR);
+    if (strIncStopCodon == "true") {
+        settings.includeStopCodon = true;
+    } else {
+        settings.includeStopCodon = false;
+    }
 
     QString strAltStart = el.attribute(ALT_INIT_ATTR);
     if (strAltStart.isEmpty()) {
@@ -160,14 +159,7 @@ void GTest_ORFMarkerTask::init(XMLTestFormat *tf, const QDomElement& el) {
         return;
     }
 
-    QString circularSearch = el.attribute(CIRCULAR_ATTR);
-    if (circularSearch == "true") {
-        settings.circularSearch = true;
-    } else{
-        settings.circularSearch = false;
-    }
-
-	settings.maxResult2Search = INT_MAX;
+    settings.maxResult2Search = INT_MAX;
 
     QString strTranslationId = el.attribute(TRANSLATION_ID_ATTR);
     if (strTranslationId.isEmpty()) {
@@ -185,12 +177,13 @@ void GTest_ORFMarkerTask::init(XMLTestFormat *tf, const QDomElement& el) {
 void GTest_ORFMarkerTask::prepare() {
     U2SequenceObject * mySequence = getContext<U2SequenceObject>(this, seqName);
     CHECK_EXT(mySequence != NULL, setError("Can't cast to sequence from GObject"), );
-    
+
     Translator tr(mySequence, translationId);
     settings.complementTT = tr.getComplTranslation();
     settings.proteinTT = tr.getAminoTranslation();
     settings.searchRegion = U2Region(0, mySequence->getSequenceLength());
-	task = new ORFFindTask(settings, mySequence->getSequenceRef());
+    settings.circularSearch = mySequence->isCircular();
+    task = new ORFFindTask(settings, mySequence->getSequenceRef());
     addSubTask(task);
 }
 

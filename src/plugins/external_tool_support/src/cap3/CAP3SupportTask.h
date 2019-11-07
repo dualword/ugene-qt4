@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,38 +29,37 @@
 
 #include "utils/ExportTasks.h"
 
+#include <U2Core/ExternalToolRunTask.h>
 #include <U2Core/MAlignmentObject.h>
-
-#include "ExternalToolRunTask.h"
 
 namespace U2 {
 
 class CAP3LogParser;
 class CopyDataTask;
-class LoadDocumentTask;
+class DocumentProviderTask;
 
 class CAP3SupportTaskSettings {
 public:
-    CAP3SupportTaskSettings() 
+    CAP3SupportTaskSettings()
     {
         openView = true;
-        bandExpansionSize = 20;
-        baseQualityDiffCutoff = 20;
-        baseQualityClipCutoff = 12;
-        maxQScoreSum = 200;
-        maxGapLength = 20;
-        gapPenaltyFactor = 6;
-        maxOverhangPercent = 20;
-        matchScoreFactor = 2;
-        mismatchScoreFactor = -5;
-        overlapSimilarityScoreCutoff = 900;
-        overlapLengthCutoff = 40;
-        overlapPercentIdentetyCutoff = 80;
-        maxNumberOfWordMatches = 300;
-        clippingRange = 250;
-        reverseReads = 1;
+        bandExpansionSize = defaultBandExpansionSize;
+        baseQualityDiffCutoff = defaultBaseQualityDiffCutoff;
+        baseQualityClipCutoff = defaultBaseQualityClipCutoff;
+        maxQScoreSum = defaultMaxQScoreSum;
+        maxGapLength = defaultMaxGapLength;
+        gapPenaltyFactor = defaultGapPenaltyFactor;
+        maxOverhangPercent = defaultMaxOverhangPercent;
+        matchScoreFactor = defaultMatchScoreFactor;
+        mismatchScoreFactor = defaultMismatchScoreFactor;
+        overlapSimilarityScoreCutoff = defaultOverlapSimilarityScoreCutoff;
+        overlapLengthCutoff = defaultOverlapLengthCutoff;
+        overlapPercentIdentityCutoff = defaultOverlapPercentIdentityCutoff;
+        maxNumberOfWordMatches = defaultMaxNumberOfWordMatches;
+        clippingRange = defaultClippingRange;
+        reverseReads = defaultReverseReads;
     }
-    
+
     QStringList getArgumentsList();
 
     QStringList inputFiles;
@@ -76,12 +75,27 @@ public:
     int matchScoreFactor;
     int mismatchScoreFactor;
     int overlapLengthCutoff;
-    int overlapPercentIdentetyCutoff;
+    int overlapPercentIdentityCutoff;
     int overlapSimilarityScoreCutoff;
     int maxNumberOfWordMatches;
     int clippingRange;
-    int reverseReads;
+    bool reverseReads;
 
+    static const int defaultBandExpansionSize = 20;
+    static const int defaultBaseQualityDiffCutoff = 20;
+    static const int defaultBaseQualityClipCutoff = 12;
+    static const int defaultMaxQScoreSum = 200;
+    static const int defaultMaxGapLength = 20;
+    static const int defaultGapPenaltyFactor = 6;
+    static const int defaultMaxOverhangPercent = 20;
+    static const int defaultMatchScoreFactor = 2;
+    static const int defaultMismatchScoreFactor = -5;
+    static const int defaultOverlapSimilarityScoreCutoff = 900;
+    static const int defaultOverlapLengthCutoff = 40;
+    static const int defaultOverlapPercentIdentityCutoff = 90;
+    static const int defaultMaxNumberOfWordMatches = 300;
+    static const int defaultClippingRange = 100;
+    static const bool defaultReverseReads = true;
 };
 
 class PrepareInputForCAP3Task : public Task {
@@ -98,32 +112,52 @@ private:
     QStringList filesToCopy;
     StreamSequenceReader seqReader;
     StreamShortReadWriter seqWriter;
-    QString outputDir, preparedPath;
+    QString outputDir, preparedPath, qualityFilePath;
     bool onlyCopyFiles;
 };
 
 
-class CAP3SupportTask : public Task {
+class CAP3SupportTask : public ExternalToolSupportTask {
     Q_OBJECT
 public:
     CAP3SupportTask(const CAP3SupportTaskSettings& settings);
     void prepare();
-    MAlignmentObject* getResultAlignment() { return maObject; }
+
+    /**
+     * Returns output file URL if the file has already been produced
+     * Otherwise, returns an empty string
+     */
+    QString getOutputFile() const;
+
     Task::ReportResult report();
     QList<Task*> onSubTaskFinished(Task* subTask);
+
 private:
-    MAlignmentObject*           maObject;
-    QString                     tmpDirUrl, tmpOutputUrl;
-    Document*                   newDoc;
-    LoadDocumentTask*           loadTmpDocumentTask;
+    QString                     tmpDirUrl;
+    QString                     tmpOutputUrl;
     PrepareInputForCAP3Task*    prepareDataForCAP3Task;
     ExternalToolRunTask*        cap3Task;
     CopyDataTask*               copyResultTask;
     CAP3LogParser*              logParser;
     CAP3SupportTaskSettings     settings;
+    QString                     outputFile;
+};
+
+class RunCap3AndOpenResultTask : public Task {
+    Q_OBJECT
+public:
+    RunCap3AndOpenResultTask(const CAP3SupportTaskSettings& settings);
+
+    virtual void prepare();
+    virtual QList<Task*> onSubTaskFinished(Task *subTask);
+
+private:
+    CAP3SupportTask*        cap3Task;
+    bool                    openView;
 };
 
 class CAP3LogParser : public ExternalToolLogParser {
+    // TODO: Implement it (UGENE-2725)
 public:
     CAP3LogParser();
     int getProgress();

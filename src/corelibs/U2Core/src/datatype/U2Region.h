@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,22 +22,24 @@
 #ifndef _U2_REGION_H_
 #define _U2_REGION_H_
 
-#include <U2Core/global.h>
-
-#include <QtCore/QVector>
 //small hack, may be bad
 #ifndef LLONG_MAX
 #ifdef Q_OS_LINUX
 #include <limits.h>
 #endif
 #endif
+
+#include <QVector>
+
+#include <U2Core/global.h>
+
 namespace U2 {
 
 /** Predefined region - acts as hint for a function that all possible range must be processed */
 #define U2_REGION_MAX U2Region(0, LLONG_MAX)
 
-/** 
-    Linear 64bit region 
+/**
+    Linear 64bit region
 */
 class U2CORE_EXPORT U2Region {
 public:
@@ -49,7 +51,6 @@ public:
 
     /** Region length. */
     qint64 length;
-
 
     ////////////////////////// Member functions and operators ////////////////////
 
@@ -74,20 +75,20 @@ public:
     /** Returns the intersection between 2 regions, or empty value if regions do not intersect. */
     U2Region intersect(const U2Region& r) const;
 
-    /** 
-        Checks whether this region has common points with any region in the specified list. 
+    /**
+        Checks whether this region has common points with any region in the specified list.
         Returns the index of the first region found or -1 if no matches found
     */
     int findIntersectedRegion(const QVector<U2Region>& rs) const;
 
-    /** 
-        Checks whether this region has common points with any region in the specified list. 
+    /**
+        Checks whether this region has common points with any region in the specified list.
         Returns the index of the first region found or -1 if no matches found
     */
     bool intersects(const QVector<U2Region>& rs) const {return findIntersectedRegion(rs) != -1;}
 
-    /** 
-        Checks whether this region is located inside of any region in the specified list. 
+    /**
+        Checks whether this region is located inside of any region in the specified list.
         Returns the index of the first region found or -1 if no matches found
     */
     int findOverlappingRegion(const QVector<U2Region>& regions) const;
@@ -98,9 +99,28 @@ public:
     /** Checks whether the specified region is not equal to this region. */
     bool operator!= ( const U2Region & r ) const { return r.startPos != startPos || r.length != length; }
 
-    /** Compares 2 regions by start position. 
+    /** Compares 2 regions by start position.
     Returns true if this region starts strictly earlier than the specified one. */
     bool operator<(const U2Region &r) const {return startPos < r.startPos;}
+
+/** Compares 2 regions by start position.
+    Returns true if this region starts strictly later than the specified one. */
+    bool operator>(const U2Region &r) const {return startPos > r.startPos;}
+
+    /**
+        String formats for U2Region::toString:
+            FormatBrackets  "[100, 200)"
+            FormatDash      "100 - 200"
+            FormatPlusMinus "150 &plusmn; 50" - for html only
+    */
+    enum Format {
+        FormatBrackets,
+        FormatDash,
+        FormatPlusMinus
+    };
+
+    /** Converts region to its string represenation using given format. */
+    QString toString(Format format = FormatBrackets) const;
 
     ///////////////////////// Class functions /////////////////////////////////
 
@@ -110,13 +130,16 @@ public:
     /** Returns least common region which contains all of the specified regions. */
     static U2Region containingRegion(const QVector<U2Region>& regions);
 
-    /** Normalizes the specified list by joining overlapping regions. 
-    This function sorts regions by starting position then 
+    /** Returns least coverage of the regions. Sequence is considered to be circular. */
+    static QVector<U2Region> circularContainingRegion(QVector<U2Region>& regions, int seqLen);
+
+    /** Normalizes the specified list by joining overlapping regions.
+    This function sorts regions by starting position then
     iterates through them and replaces all groups of intersecting regions by containing regions.
     */
     static QVector<U2Region> join(QVector<U2Region>& regions);
 
-    /** Fixes start & len for all regions to ensure that the result region 
+    /** Fixes start & len for all regions to ensure that the result region
         has startPos >= minPos & endPos <= maxPos
      */
     static void bound(qint64 minPos, qint64 maxPos, QVector<U2Region>& regions);
@@ -134,10 +157,7 @@ public:
     static void reverse(QVector<U2Region>& regions);
 
     /** shifts regions by offset pos: startPos = startPos + offset */
-    static void shift(int offset, QVector<U2Region>& regions);
-
-    /** Removes all items from 'regionsToRemove' from 'regionsToProcess'*/
-    static void removeAll(QVector<U2Region>& regionsToProcess, const QVector<U2Region>& regionsToRemove);
+    static void shift(qint64 offset, QVector<U2Region>& regions);
 
 private:
     static bool registerMeta;

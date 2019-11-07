@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,12 +48,20 @@ static const int LONG_NOTCH_END = 18;
 static const int LABELS_END = LONG_NOTCH_END + 2;
 
 AssemblyRuler::AssemblyRuler(AssemblyBrowserUi * ui_) :
-QWidget(ui_), ui(ui_), browser(ui->getWindow()), model(ui->getModel()), cursorPos(0), 
-showCoords(AssemblyBrowserSettings::getShowCoordsOnRuler()) {
+QWidget(ui_), ui(ui_), browser(ui->getWindow()), model(ui->getModel()), cursorPos(0),
+showCoords(AssemblyBrowserSettings::getShowCoordsOnRuler()),
+showCoverage(AssemblyBrowserSettings::getShowCoverageOnRuler())
+{
     setFixedHeight(FIXED_HEIGHT);
     connectSlots();
     sl_redraw();
     setMouseTracking(true);
+
+    QObject *startPositionParent = new QObject(this);
+    startPositionParent->setObjectName("start position");
+    startPositionObject = new QObject(startPositionParent);
+
+    this->setObjectName("AssemblyRuler");
 }
 
 void AssemblyRuler::connectSlots() {
@@ -91,18 +99,18 @@ void AssemblyRuler::drawCursor(QPainter & p) {
     p.setPen(Qt::darkRed);
     p.drawLine(cursorPos, BORDER_NOTCH_START, cursorPos, BORDER_NOTCH_END);
     p.drawLine(cursorPos+1, BORDER_NOTCH_START, cursorPos+1, BORDER_NOTCH_END);
-    
-    //2. extract coverage info on current position
+
+    //2. find current position
     qint64 posXInAsm = browser->calcAsmPosX(cursorPos);
-    U2OpStatusImpl status;
-    U2AssemblyCoverageStat coverageStat;
-    coverageStat.coverage.resize(1);
-    model->calculateCoverageStat(U2Region(posXInAsm, 1), coverageStat, status);
-    LOG_OP(status);
-    
-    //3. format the string 
+
+
+    //3. format the string, add coverage if needed
     // pos + 1 because of 1-based coords
-    QString cursorLabel = FormatUtils::formatNumberWithSeparators(posXInAsm + 1) + QString(" C%1").arg(coverageStat.coverage.at(0).maxValue);
+    QString cursorLabel = FormatUtils::formatNumberWithSeparators(posXInAsm + 1);
+    if(showCoverage) {
+        qint64 coverage = browser->getCoverageAtPos(posXInAsm);
+        cursorLabel += " C " + FormatUtils::formatNumberWithSeparators(coverage);
+    }
     int textWidth = p.fontMetrics().width(cursorLabel);
     int textHeight = p.fontMetrics().height();
     QRect offsetRect(cursorPos - textWidth/2, LABELS_END, textWidth, textHeight);
@@ -112,13 +120,15 @@ void AssemblyRuler::drawCursor(QPainter & p) {
     if(offsetRect.right() > width() - 1) {
         offsetRect.moveRight(width() - 1);
     }
-    
+
     //4. draw cursor label
     p.drawText(offsetRect, Qt::AlignCenter, cursorLabel);
+    startPositionObject->setObjectName(cursorLabel);
+
     if(!showCoords) {
         return;
     }
-    
+
     //5. draw cached labels. Skip labels intersecting the cursor label
     assert(cachedLabelsRects.size() == cachedLabels.size());
     for(int i = 0; i < cachedLabels.size(); i++) {
@@ -130,7 +140,7 @@ void AssemblyRuler::drawCursor(QPainter & p) {
 }
 
 void AssemblyRuler::drawRuler(QPainter & p) {
-    cachedLabelsRects.clear(); 
+    cachedLabelsRects.clear();
     cachedLabels.clear();
     p.setPen(Qt::black);
 
@@ -142,17 +152,17 @@ void AssemblyRuler::drawRuler(QPainter & p) {
         p.drawLine(0, BORDER_NOTCH_START, 0, BORDER_NOTCH_END);
         p.drawLine(width()-1, BORDER_NOTCH_START, width()-1, BORDER_NOTCH_END);
     }
-    
+
     int lettersPerZ = browser->calcAsmCoordX(50);
     int interval = pow((double)10, numOfDigits(lettersPerZ)-1); //interval between notches
     //int pixInterval = browser->calcPixelCoord(interval);
-    
+
     int globalOffset = browser->getXOffsetInAssembly();
     qint64 firstLetterWithNotch = globalOffset - 1;
     while((firstLetterWithNotch + 1) % interval != 0) {
         ++firstLetterWithNotch;
     }
-    
+
     int start = firstLetterWithNotch - globalOffset;
     int end = browser->basesCanBeVisible();
 
@@ -188,7 +198,7 @@ void AssemblyRuler::drawRuler(QPainter & p) {
                 cachedLabels.append(img);
             }
         } else {
-            //draw short notches 
+            //draw short notches
             p.drawLine(x_pix, SHORT_NOTCH_START, x_pix, SHORT_NOTCH_END);
         }
     }
@@ -242,6 +252,16 @@ void AssemblyRuler::setShowCoordsOnRuler(bool sh) {
 
 bool AssemblyRuler::getShowCoordsOnRuler() const {
     return showCoords;
+}
+
+void AssemblyRuler::setShowCoverageOnRuler(bool value) {
+    AssemblyBrowserSettings::setShowCoverageOnRuler(value);
+    showCoverage = value;
+    update();
+}
+
+bool AssemblyRuler::getShowCoverageOnRuler() const {
+    return showCoverage;
 }
 
 }

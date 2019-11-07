@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,6 +39,9 @@ public:
     virtual bool isEmpty() const = 0;
 
     virtual void clear() = 0;
+
+protected slots:
+    void sl_selectionChanged();
 
 signals:
     void si_onSelectionChanged(GSelection*);

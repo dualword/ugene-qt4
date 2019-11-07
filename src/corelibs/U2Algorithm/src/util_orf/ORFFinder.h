@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,36 +31,37 @@
 namespace U2 {
 
 class DNATranslation;
+class TaskStateInfo;
 
 class U2ALGORITHM_EXPORT ORFFindResult {
 public:
     ORFFindResult () : region(0, 0), frame(0), isJoined(false){}
-    ORFFindResult (const U2Region& _r, int frame) 
+    ORFFindResult (const U2Region& _r, int frame)
         : region(_r), frame(frame), isJoined(false){}
-    ORFFindResult (const U2Region& _r, const U2Region& _r_joined, int frame) 
+    ORFFindResult (const U2Region& _r, const U2Region& _r_joined, int frame)
         :region(_r), joinedRegion(_r_joined), frame(frame), isJoined(true){}
-    
+
     void clear() {region.startPos = 0; region.length = 0; frame = 0;}
-    
+
     bool isEmpty() const {return region.startPos == 0 && region.length == 0;}
 
     bool operator ==(const ORFFindResult& o) const {
         return region == o.region && frame == o.frame;
     }
 
-    SharedAnnotationData toAnnotation(const QString& name) const {
-        SharedAnnotationData data;
-        data = new AnnotationData;
+    SharedAnnotationData toAnnotation(const QString &name) const {
+        SharedAnnotationData data(new AnnotationData);
         data->name = name;
         data->location->regions << region;
+        int regLen = region.length;
         if(isJoined){
             data->location->regions << joinedRegion;
+            regLen += joinedRegion.length;
         }
         data->setStrand(frame < 0 ? U2Strand::Complementary : U2Strand::Direct);
-        //data->qualifiers.append(U2Qualifier("frame", QString::number(frame)));
-        data->qualifiers.append(U2Qualifier("dna_len", QString::number(region.length)));
-        if (region.length >= 6) { // 3 bp - end codon
-            data->qualifiers.append(U2Qualifier("protein_len", QString::number(region.length/3)));
+        data->qualifiers.append(U2Qualifier("dna_len", QString::number(regLen)));
+        if (regLen >= 6) { // 3 bp - end codon
+            data->qualifiers.append(U2Qualifier("protein_len", QString::number(regLen/3)));
         }
         return data;
     }
@@ -70,11 +71,10 @@ public:
     int frame;
     bool isJoined;
 
-    static QList<SharedAnnotationData> toTable(const QList<ORFFindResult>& res, const QString& name)
-    {
+    static QList<SharedAnnotationData> toTable(const QList<ORFFindResult>& res, const QString& name) {
         QList<SharedAnnotationData> list;
-        foreach (const ORFFindResult& f, res) {
-            list.append(f.toAnnotation(name));
+        foreach (const ORFFindResult &f, res) {
+            list << f.toAnnotation(name);
         }
         return list;
     }
@@ -103,13 +103,13 @@ public:
         bool mustInit = true,
         bool allowAltStart = false,
         bool allowOverlap = false,
-		bool includeStopCodon = false,
+        bool includeStopCodon = false,
         bool circularSearch = false
-		) : strand(strand), complementTT(complementTT), proteinTT(proteinTT),
-        searchRegion(searchRegion), minLen(minLen), mustFit(mustFit), 
-        mustInit(mustInit), allowAltStart(allowAltStart), allowOverlap(allowOverlap), 
-		includeStopCodon(includeStopCodon), circularSearch(circularSearch) {}
-    
+        ) : strand(strand), complementTT(complementTT), proteinTT(proteinTT),
+        searchRegion(searchRegion), minLen(minLen), mustFit(mustFit),
+        mustInit(mustInit), allowAltStart(allowAltStart), allowOverlap(allowOverlap),
+        includeStopCodon(includeStopCodon), circularSearch(circularSearch) {}
+
     ORFAlgorithmStrand          strand;
     DNATranslation*             complementTT;
     DNATranslation*             proteinTT;
@@ -119,17 +119,17 @@ public:
     bool                        mustInit;
     bool                        allowAltStart;
     bool                        allowOverlap;
-	bool						includeStopCodon;
+    bool                        includeStopCodon;
     bool                        circularSearch;
-	int							maxResult2Search;
-	bool						isResultsLimited;
+    int                         maxResult2Search;
+    bool                        isResultsLimited;
     static const QString        ANNOTATION_GROUP_NAME;
     // strand string ids
     static const QString        STRAND_DIRECT;
     static const QString        STRAND_COMPL;
-    static const QString        STRAND_BOTH; 
+    static const QString        STRAND_BOTH;
     static QString              getStrandStringId(ORFAlgorithmStrand strand);
-    static ORFAlgorithmStrand   getStrandByStringId(const QString& id);	
+    static ORFAlgorithmStrand   getStrandByStringId(const QString& id);
 };
 
 
@@ -138,9 +138,24 @@ public:
     static void find(
         ORFFindResultsListener* rl,
         const ORFAlgorithmSettings& config,
-        U2EntityRef& entityRef, 
-        int& stopFlag, 
+        U2EntityRef& entityRef,
+        int& stopFlag,
         int& percentsCompleted);
+private:
+    static void addStartCodonsFromJunction(const U2SequenceObject &seq,
+                                           const ORFAlgorithmSettings &cfg,
+                                           ORFAlgorithmStrand strand,
+                                           QList<int> *start);
+    static void checkStopCodonOnJunction(const U2SequenceObject &dnaSeq,
+                                         const ORFAlgorithmSettings &cfg,
+                                         ORFAlgorithmStrand strand,
+                                         ORFFindResultsListener* rl,
+                                         QList<int> *start,
+                                         TaskStateInfo &os);
+    static char* getCodonFromJunction(const U2SequenceObject &dnaSeq,
+                                      ORFAlgorithmStrand strand,
+                                       // points to number of characters that are located in the end of the sequence
+                                      int symbolsFromEnd);
 };
 
 }//namespace

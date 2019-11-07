@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,11 +38,11 @@ BwaSupport::BwaSupport(const QString &name, const QString &path):
 #ifdef Q_OS_WIN
     executableFileName="bwa.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
     executableFileName="bwa";
     #endif
 #endif
-    validMessage="Program: bwa (alignment via Burrows-Wheeler transformation)";
+    validMessage="Program: bwa \\(alignment via Burrows-Wheeler transformation\\)";
     description=tr("<i>Burrows-Wheeler Aligner (BWA)</i> is an efficient program "
                    "that aligns relatively short nucleotide sequences "
                    "against a long reference sequence such as the human genome.");

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,23 +31,38 @@
 #include <QtCore/QProcessEnvironment>
 
 #include <QtGui/QDesktopServices>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
 #include <QtGui/QStyle>
 #include <QtGui/QStyleFactory>
+#include <QtGui/QDialogButtonBox>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QStyle>
+#include <QtWidgets/QStyleFactory>
+#include <QtWidgets/QDialogButtonBox>
+#include <QStandardPaths>
+#endif
+
+
 
 namespace U2 {
-    
+
 #define SETTINGS_ROOT   QString("/user_apps/")
 #define WEB_BROWSER     QString("web_browser")
 #define USE_DEFAULT_WEB_BROWSER     QString("use_default_web_browser")
 #define TRANSLATION     QString("translation_file")
 #define LAST_PROJECT_FLAG QString("open_last_project")
+#define SAVE_PROJECT_STATE QString("save_project")
 #define VISUAL_STYLE    QString("style")
 #define DOWNLOAD_DIR    QString("download_file")
 #define RECENTLY_DOWNLOADED QString("recently_downloaded")
 #define TEMPORARY_DIR QString("temporary_dir")
+#define DATA_DIR QString("data_dir")
 #define COLLECTING_STATISTICS QString("collecting_statistics")
 #define WINDOW_LAYOUT  QString("tabbed_windows")
+#define RESET_SETTINGS_FLAG QString("reset_settings")
+#define FILE_STORAGE_DIR    QString("file_storage_dir")
 
 //TODO: create a special ENV header to keep all env-vars ugene depends
 #define UGENE_SKIP_TMP_DIR_CLEANUP "UGENE_SKIP_TMP_DIR_CLEANUP"
@@ -99,6 +114,22 @@ void UserAppsSettings::setOpenLastProjectAtStartup(bool v) {
     return AppContext::getSettings()->setValue(SETTINGS_ROOT + LAST_PROJECT_FLAG, v);
 }
 
+int UserAppsSettings::getAskToSaveProject() const {
+    return AppContext::getSettings()->getValue(SETTINGS_ROOT + SAVE_PROJECT_STATE, QDialogButtonBox::NoButton).toInt();
+}
+
+void UserAppsSettings::setAskToSaveProject(int v) {
+    AppContext::getSettings()->setValue(SETTINGS_ROOT + SAVE_PROJECT_STATE, v);
+}
+
+bool UserAppsSettings::resetSettings() const {
+    return AppContext::getSettings()->getValue(SETTINGS_ROOT + RESET_SETTINGS_FLAG, false).toBool();
+}
+
+void UserAppsSettings::setResetSettings(bool b){
+    AppContext::getSettings()->setValue(SETTINGS_ROOT + RESET_SETTINGS_FLAG, b);
+}
+
 QString UserAppsSettings::getVisualStyle() const {
     QString defaultStyle = QApplication::style()->objectName();
 #ifdef Q_OS_WIN
@@ -136,12 +167,35 @@ void UserAppsSettings::setRecentlyDownloadedFileNames(const QStringList& fileNam
 }
 
 QString UserAppsSettings::getUserTemporaryDirPath() const {
+#if (QT_VERSION >= 0x050000)
+    return AppContext::getSettings()->getValue(SETTINGS_ROOT + TEMPORARY_DIR, QStandardPaths::writableLocation(QStandardPaths::TempLocation)).toString();
+#else
     return AppContext::getSettings()->getValue(SETTINGS_ROOT + TEMPORARY_DIR, QDesktopServices::storageLocation(QDesktopServices::TempLocation)).toString();
+#endif
+
 }
 
 void UserAppsSettings::setUserTemporaryDirPath(const QString& newPath) {
     AppContext::getSettings()->setValue(SETTINGS_ROOT + TEMPORARY_DIR, newPath);
     emit si_temporaryPathChanged();
+}
+
+QString UserAppsSettings::getDefaultDataDirPath() const{
+    QString dirpath;
+#if (QT_VERSION >= 0x050000)
+    dirpath = AppContext::getSettings()->getValue(SETTINGS_ROOT + DATA_DIR, QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QDir::separator() + "UGENE_Data").toString();
+#else
+    dirpath = AppContext::getSettings()->getValue(SETTINGS_ROOT + DATA_DIR, QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation) + QDir::separator() + "UGENE_Data").toString();
+#endif
+    QDir d(dirpath);
+    if(!d.exists(dirpath)){
+        d.mkdir(dirpath);
+    }
+    return dirpath;
+}
+
+void UserAppsSettings::setDefaultDataDirPath( const QString& newPath ){
+    AppContext::getSettings()->setValue(SETTINGS_ROOT + DATA_DIR, newPath);
 }
 
 bool UserAppsSettings::isStatisticsCollectionEnabled() const {
@@ -153,11 +207,11 @@ void UserAppsSettings::setEnableCollectingStatistics(bool b) {
 }
 
 bool UserAppsSettings::tabbedWindowLayout() const {
-    return AppContext::getSettings()->getValue(SETTINGS_ROOT + WINDOW_LAYOUT).toBool();
+    return AppContext::getSettings()->getValue(SETTINGS_ROOT + WINDOW_LAYOUT, false, true).toBool();
 }
 
 void UserAppsSettings::setTabbedWindowLayout(bool b) {
-    AppContext::getSettings()->setValue(SETTINGS_ROOT + WINDOW_LAYOUT, b);
+    AppContext::getSettings()->setValue(SETTINGS_ROOT + WINDOW_LAYOUT, b, true);
     emit si_windowLayoutChanged();
 }
 
@@ -169,6 +223,47 @@ QString UserAppsSettings::getCurrentProcessTemporaryDirPath(const QString& domai
         tmpDirPath += "/" + domain;
     }
     return tmpDirPath;
+}
+
+static const int MAX_ATTEMPTS = 500;
+
+QString UserAppsSettings::createCurrentProcessTemporarySubDir(U2OpStatus &os, const QString &domain) const {
+    QDir baseDir(getCurrentProcessTemporaryDirPath(domain));
+    if (!baseDir.exists()) {
+        bool created = baseDir.mkpath(baseDir.absolutePath());
+        if (!created) {
+            os.setError(QString("Can not create the directory: %1").arg(baseDir.absolutePath()));
+            return "";
+        }
+    }
+
+    uint time = QDateTime::currentDateTime().toTime_t();
+    QString baseDirName = QByteArray::number(time);
+
+    // create sub dir
+    int idx = 0;
+    QString result;
+    bool created = false;
+    do {
+        result = baseDirName + "_" + QByteArray::number(idx);
+        created = baseDir.mkdir(result);
+        idx++;
+
+        if (idx > MAX_ATTEMPTS) {
+            os.setError(QString("Can not create a sub-directory in: %1").arg(baseDir.absolutePath()));
+            return "";
+        }
+    } while (!created);
+
+    return baseDir.absolutePath() + "/" + result;
+}
+
+QString UserAppsSettings::getFileStorageDir() const {
+    return AppContext::getSettings()->getValue(SETTINGS_ROOT + FILE_STORAGE_DIR, QDir::homePath()+"/.UGENE_files").toString();
+}
+
+void UserAppsSettings::setFileStorageDir(const QString &newPath) {
+    AppContext::getSettings()->setValue(SETTINGS_ROOT + FILE_STORAGE_DIR, newPath);
 }
 
 }//namespace

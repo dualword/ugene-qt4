@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,7 +48,7 @@ DumpVersionTask::DumpVersionTask() : Task(tr("Dump version information task"), T
 }
 
 void DumpVersionTask::run() {
-    fprintf(stdout, "%s", DumpHelpTask::VERSION_INFO.toAscii().constData());
+    fprintf(stdout, "%s", DumpHelpTask::VERSION_INFO.toLatin1().constData());
     fprintf(stdout, "Using Qt %s\n", qVersion());
 }
 

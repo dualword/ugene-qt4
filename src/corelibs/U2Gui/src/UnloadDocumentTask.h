@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,11 @@
 #ifndef _U2_UNLOAD_DOCUMENT_TASK_H_
 #define _U2_UNLOAD_DOCUMENT_TASK_H_
 
+#include <QPointer>
+
 #include <U2Core/GUrl.h>
 #include <U2Core/Task.h>
 #include <U2Core/UnloadedObject.h>
-
-#include <QtCore/QPointer>
 
 namespace U2 {
 
@@ -46,12 +46,33 @@ public:
     UnloadDocumentTask(Document* doc, bool save);
     ReportResult report();
 
-    static void runUnloadTaskHelper(const QList<Document*>& docs, UnloadDocumentTask_SaveMode sm);
+    static QList<Task *> runUnloadTaskHelper(const QList<Document*>& docs, UnloadDocumentTask_SaveMode sm);
     static QString checkSafeUnload(Document* d);
 
 private:
     QPointer<Document>      doc;
     SaveDocumentTask*       saveTask;
+    StateLock*              lock;
+};
+
+class U2GUI_EXPORT ReloadDocumentTask : public Task{
+    Q_OBJECT
+public:
+    ReloadDocumentTask( Document *d );
+    virtual void prepare( );
+    virtual QList<Task *> onSubTaskFinished( Task* subTask );
+
+private:
+    void saveObjectRelationsFromDoc( );
+    void restoreObjectRelationsForDoc( );
+    static void restoreObjectRelationsForObject( GObject *obj,
+        const QList<GObjectRelation> &relations );
+
+    Document *doc;
+    GUrl url;
+    Task *removeDocTask;
+    Task *openDocTask;
+    QMultiMap<QString, GObjectRelation> savedObjectRelations;
 };
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,8 +26,14 @@
 #include <U2Core/PluginModel.h>
 #include <U2Core/ServiceTypes.h>
 
+#include "NotificationsTypes.h"
+
 #include <QtCore/QEvent>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QWidget>
+#endif
 
 class QAction;
 class QMdiSubWindow;
@@ -36,13 +42,12 @@ class QMenu;
 class QToolBar;
 class QMainWindow;
 
-// menu 
+// menu
+#define MWMENU                              "mw_menu_bar"
 #define MWMENU_FILE                         "mwmenu_file"
 #define MWMENU_ACTIONS                      "mwmenu_actions"
 #define MWMENU_SETTINGS                     "mwmenu_settings"
 #define MWMENU_TOOLS                        "mwmenu_tools"
-#define MWMENU_TOOLS_MALIGN                 "mwmenu_tools_malign"
-#define MWMENU_TOOLS_ASSEMBLY               "mwmenu_tools_assembly"
 #define MWMENU_WINDOW                       "mwmenu_window"
 #define MWMENU_HELP                         "mwmenu_help"
 
@@ -62,20 +67,66 @@ class QMainWindow;
 
 #define ACTION_PROJECTSUPPORT__NEW_PROJECT              "action_projectsupport__new_project"
 #define ACTION_PROJECTSUPPORT__OPEN_PROJECT             "action_projectsupport__open_project"
+#define ACTION_PROJECTSUPPORT__OPEN_AS                  "action_projectsupport__open_as"
 #define ACTION_PROJECTSUPPORT__SAVE_PROJECT             "action_projectsupport__save_project"
+#define ACTION_PROJECTSUPPORT__SAVE_AS_PROJECT          "action_projectsupport__save_as_project"
 #define ACTION_PROJECTSUPPORT__CLOSE_PROJECT            "action_projectsupport__close_project"
 #define ACTION_PROJECTSUPPORT__RECENT_PROJECTS_MENU     "action_projectsupport__recent_projects_menu"
 #define ACTION_PROJECTSUPPORT__EXPORT_PROJECT           "action_projectsupport__export_project"
+#define ACTION_PROJECTSUPPORT__ACCESS_REMOTE_DB         "action_projectsupport__access_remote_db"
+#define ACTION_PROJECTSUPPORT__ACCESS_SHARED_DB         "action_projectsupport__access_shared_db"
+#define ACTION_PROJECTSUPPORT__SEARCH_GENBANK           "action_projectsupport__search_genbank"
 
 #define ACTION_PROJECT__ADD_MENU                    "action_project__add_menu"
+#define ACTION_PROJECT__ADD_OBJECT                  "action_project__add_object"
+#define ACTION_PROJECT__REMOVE_MENU                 "action_project__remove_menu"
+#define ACTION_PROJECT__REMOVE_SELECTED             "action_project__remove_selected_action"
 #define ACTION_PROJECT__ADD_NEW_DOCUMENT            "action_project__add_new_document"
 #define ACTION_PROJECT__ADD_EXISTING_DOCUMENT       "action_project__add_existing_document"
+#define ACTION_PROJECT__UNLOAD_SELECTED             "action_project__unload_selected_action"
+#define ACTION_PROJECT__IMPORT_TO_DATABASE          "action_project__import_to_database"
+#define ACTION_PROJECT__CREATE_FOLDER               "action_project__create_folder"
+#define ACTION_PROJECT__SAVE_DOCUMENT               "action_prpject__save_document"
 
-#define ACTION_PROJECT__EDIT_MENU                    "action_project__edit_menu"
+#define ACTION_PROJECT__EDIT_MENU                   "action_project__edit_menu"
+
+#define ACTION_DOCUMENT__LOCK                       "action_document_lock"
+#define ACTION_DOCUMENT__UNLOCK                     "action_document_unlock"
+
+#define ACTION_PROJECT__EXPORT_IMPORT_MENU_ACTION   "action_project__export_import_menu_action"
+#define ACTION_PROJECT__EXPORT_AS_SEQUENCES_ACTION  "action_project__export_as_sequence_action"
+#define ACTION_PROJECT__EXPORT_TO_AMINO_ACTION      "action_project__export_to_amino_action"
+
+#define ACTION_BLAST_SUBMENU                        "BLAST"
+#define ACTION_BLAST_FORMAT_DB                      "FormatDB"
+
+#define ACTION_EXPORT_SEQUENCE                      "export sequences"
+#define ACTION_EXPORT_CORRESPONDING_SEQ             "export corresponding sequence"
+#define ACTION_EXPORT_SEQUENCE_AS_ALIGNMENT         "export sequences as alignment"
+#define ACTION_EXPORT_ANNOTATIONS                   "action_export_annotations"
+#define ACTION_EXPORT_CHROMATOGRAM                  "action_export_chromatogram"
+
+#define ACTION_EXPORT_OBJECT                        "export object"
+
+#define ACTION_EDIT_SEQUENCE                        "edit sequences"
+#define ACTION_EDIT_INSERT_SUBSEQUENCE              "action_edit_insert_sub_sequences"
+#define ACTION_EDIT_REMOVE_SUBSEQUENCE              "action_edit_remove_sub_sequences"
+#define ACTION_EDIT_REPLACE_SUBSEQUENCE             "action_edit_replace_sub_sequences"
+#define ACTION_EDIT_RESERVE_COMPLEMENT_SEQUENCE     "action_edit_reserve_complement_sequences"
+#define ACTION_EDIT_RESERVE_SEQUENCE                "action_edit_reserve_sequences"
+#define ACTION_EDIT_COMPLEMENT_SEQUENCE             "action_edit_complement_sequences"
+#define ACTION_EDIT_SELECT_SEQUENCE_FROM_VIEW       "action_edit_select_sequences_from_view"
+
+#define ACTION_BOOKMARK_TREE_VIEW                   "action_bookmark_tree_view"
+#define ACTION_ACTIVATE_VIEW                        "action_activate_view"
+#define ACTION_ADD_BOOKMARK                         "action_add_bookmark"
+#define ACTION_RENAME_BOOKMARK                      "action_rename_bookmark"
+#define ACTION_REMOVE_BOOKMARK                      "action_remove_bookmark"
 
 #define DOCK_PROJECT_VIEW    "dock_project_view"
 #define DOCK_TASK_VIEW       "dock_task_view"
 #define DOCK_LOG_VIEW        "dock_log_view"
+#define DOCK_TASK_TREE_VIEW  "taskViewTree"
 
 namespace U2 {
 
@@ -93,10 +144,13 @@ public:
     virtual MWMDIManager*           getMDIManager() const = 0;
     virtual MWDockManager*          getDockManager() const = 0;
     virtual NotificationStack*      getNotificationStack() const = 0;
-    
-    
+
 
     virtual void setWindowTitle(const QString& title) = 0;
+
+    virtual void addNotification(const QString& message, NotificationType type) = 0;
+
+    virtual void registerAction(QAction *action) = 0;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -107,8 +161,8 @@ class U2GUI_EXPORT MWMDIWindow : public QWidget {
 
     friend class MWMDIManager;
 public:
-
     MWMDIWindow(const QString& _windowName);
+    ~MWMDIWindow();
 
     virtual void setupMDIToolbar(QToolBar*) {}
     virtual void setupViewMenu(QMenu*) {}
@@ -127,7 +181,7 @@ class U2GUI_EXPORT MWMDIManager : public QObject {
     Q_OBJECT
 public:
     MWMDIManager(QObject* p) : QObject(p){}
-    
+
     /** Adds the specified window to MainWindow layout and activates it. */
     virtual void addMDIWindow(MWMDIWindow* w) = 0;
 
@@ -145,8 +199,9 @@ signals:
     void si_windowAdded(MWMDIWindow* w);
     void si_windowClosing(MWMDIWindow* w);
     void si_windowActivated(MWMDIWindow* w);
+    void si_windowDeactivated(MWMDIWindow* w);
 
-protected: 
+protected:
     /* returns true if the window agreed to close, false otherwise */
     bool onCloseEvent(MWMDIWindow* w) {return w->onCloseEvent();}
 };
@@ -165,7 +220,7 @@ class U2GUI_EXPORT MWDockManager: public QObject {
     Q_OBJECT
 public:
     MWDockManager(QObject* p) : QObject(p){}
-    
+
     virtual QAction* registerDock(MWDockArea area, QWidget* w, const QKeySequence& ks = QKeySequence()) = 0;
 
     virtual QWidget* findWidget(const QString& widgetObjName) = 0;
@@ -175,6 +230,8 @@ public:
     virtual QWidget* activateDock(const QString& widgetObjName) = 0;
 
     virtual QWidget* toggleDock(const QString& widgetObjName) = 0;
+
+    virtual void dontActivateNextTime(MWDockArea a) = 0;
 };
 
 }//namespace

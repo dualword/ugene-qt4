@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,6 @@
 namespace U2 {
 
 class DnaAssemblyMultiTask;
-class MAlignmentObject;
 class U2SequenceObject;
 class LoadDocumentTask;
 
@@ -47,11 +46,21 @@ private:
     QList<GUrl> shortReadUrls;
     QMap<QString,QString> customOptions;
     QString objName;
-    MAlignmentObject* expectedObj;
     QString algName;
     QString refSeqUrl;
     QString indexFileName;
     GUrl resultFileName;
+    bool pairedReads;
+};
+
+class GTest_AssemblycompareTwoSAMbyLength : public GTest {
+    Q_OBJECT
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_AssemblycompareTwoSAMbyLength, "compare-sam-by-length");
+
+    ReportResult report();
+    QString file1Url;
+    QString file2Url;
+    bool isBam;
 };
 
 

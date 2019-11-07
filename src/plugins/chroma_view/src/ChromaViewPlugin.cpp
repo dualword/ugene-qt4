@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,10 +25,13 @@
 #include <U2Core/GObject.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/GObjectTypes.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/DNAChromatogramObject.h>
-#include <U2Gui/MainWindow.h>
 #include <U2Core/DocumentSelection.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/MainWindow.h>
 
 #include <U2View/AnnotatedDNAView.h>
 #include <U2View/ADVSingleSequenceWidget.h>
@@ -37,8 +40,13 @@
 
 #include <U2Gui/GUIUtils.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QMenu>
+#endif
 
 namespace U2 {
 
@@ -51,7 +59,7 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
 }
 
 
-ChromaViewPlugin::ChromaViewPlugin() : Plugin(tr("ChromaView"), tr("chroma_view_plugin_desc")) {
+ChromaViewPlugin::ChromaViewPlugin() : Plugin(tr("Chromatogram View"), tr("Chromatograms visualization")) {
     viewCtx = new ChromaViewContext(this);
     viewCtx->init();
 }
@@ -71,17 +79,17 @@ void ChromaViewContext::initViewContext(GObjectView* v) {
         sl_sequenceWidgetAdded(w);
     }
     connect(av, SIGNAL(si_sequenceWidgetAdded(ADVSequenceWidget*)), SLOT(sl_sequenceWidgetAdded(ADVSequenceWidget*)));
-    
 }
 
 static DNAChromatogramObject* findChromaObj(ADVSingleSequenceWidget* sw) {
-    QList<GObject*> chromaObjs = sw->getSequenceObject()->getDocument()->findGObjectByType(GObjectTypes::CHROMATOGRAM);
-    if (chromaObjs.isEmpty()) {
-        return NULL;
-    }
-    DNAChromatogramObject* chromaObj = qobject_cast<DNAChromatogramObject*>(chromaObjs.first());
-    assert(chromaObj->getChromatogram().seqLength == sw->getSequenceLength());
-    return chromaObj;
+    U2SequenceObject *seqObj = sw->getSequenceObject();
+
+    QList<GObject *> allChromas = GObjectUtils::findAllObjects(UOF_LoadedOnly, GObjectTypes::CHROMATOGRAM);
+    QList<GObject *> targetChromas = GObjectUtils::findObjectsRelatedToObjectByRole(seqObj,
+        GObjectTypes::CHROMATOGRAM, ObjectRole_Sequence, allChromas, UOF_LoadedOnly);
+    CHECK(!targetChromas.isEmpty(), NULL);
+
+    return qobject_cast<DNAChromatogramObject *>(targetChromas.first());
 }
 
 void ChromaViewContext::sl_sequenceWidgetAdded(ADVSequenceWidget* w) {
@@ -89,7 +97,7 @@ void ChromaViewContext::sl_sequenceWidgetAdded(ADVSequenceWidget* w) {
     if (sw == NULL || sw->getSequenceObject() == NULL || findChromaObj(sw) == NULL) {
         return;
     }
-    
+
     ChromaViewAction* action = new ChromaViewAction();
     action->setIcon(QIcon(":chroma_view/images/cv.png"));
     action->setCheckable(true);
@@ -97,43 +105,48 @@ void ChromaViewContext::sl_sequenceWidgetAdded(ADVSequenceWidget* w) {
     action->addToMenu = true;
     action->addToBar = true;
     connect(action, SIGNAL(triggered()), SLOT(sl_showChromatogram()));
-    
+
     sw->addADVSequenceWidgetAction(action);
 
     // if chromatogram is enabled detailed sequence view is hidden
     sw->setDetViewCollapsed(true);
-    
+
     action->trigger();
 }
 
 void ChromaViewContext::sl_showChromatogram() {
     ChromaViewAction* a = qobject_cast<ChromaViewAction*>(sender());
-    assert(a!=NULL);
+    CHECK(a!=NULL, );
+    ADVSingleSequenceWidget* sw = qobject_cast<ADVSingleSequenceWidget*>(a->seqWidget);
+    DNAChromatogramObject* chromaObj = findChromaObj(sw);
+    CHECK(sw->getSequenceContext(), );
+    AnnotatedDNAView *adv = sw->getSequenceContext()->getAnnotatedDNAView();
+    CHECK(adv, );    
     if (a->isChecked()) {
-        assert(a->view == NULL);
-        ADVSingleSequenceWidget* sw = qobject_cast<ADVSingleSequenceWidget*>(a->seqWidget);
-        DNAChromatogramObject* chromaObj = findChromaObj(sw);
-        assert(chromaObj!=NULL);
+        CHECK(a->view == NULL, );
+        CHECK(chromaObj!=NULL, );
+        adv->addObject(chromaObj);
         a->view = new ChromatogramView(sw, sw->getSequenceContext(), sw->getPanGSLView(), chromaObj->getChromatogram());
         sw->addSequenceView(a->view);
     } else {
-        assert(a->view!=NULL);
+        CHECK(a->view!=NULL, );
         GObject* editSeq = a->view->getEditedSequence();
         if (editSeq!=NULL) {
             a->view->getSequenceContext()->getAnnotatedDNAView()->removeObject(editSeq);
         }
+        adv->removeObject(chromaObj);
         delete a->view;
         a->view = NULL;
-    } 
+    }
 }
 
-ChromaViewAction::ChromaViewAction() : ADVSequenceWidgetAction(CHROMA_ACTION_NAME, tr("show_chromatogram")), view(NULL) 
+bool ChromaViewContext::canHandle(GObjectView* v, GObject* o) {
+    Q_UNUSED(v);
+    return qobject_cast<DNAChromatogramObject*>(o) != NULL;
+}
+
+ChromaViewAction::ChromaViewAction() : ADVSequenceWidgetAction(CHROMA_ACTION_NAME, tr("Show chromatogram")), view(NULL) 
 {
 }
-
-ChromaViewAction::~ChromaViewAction() {
-    delete view;
-}
-
 
 }//namespace

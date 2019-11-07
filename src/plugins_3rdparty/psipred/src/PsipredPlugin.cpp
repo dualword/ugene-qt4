@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,16 @@
  * MA 02110-1301, USA.
  */
 
-#include <QtGui/QMenu>
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#include <QtGui/QMenu>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QMessageBox>
+#endif
 #include <QtCore/QMap>
 #include <QtCore/QFile>
 
@@ -43,6 +50,8 @@
 #include "PsipredAlgTask.h"
 #include "sspred_utils.h"
 
+#define PSIPRED_PLUGIN_NAME "PsiPred"
+
 namespace U2 {
 
 
@@ -52,16 +61,17 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
 }
 
 
-PsipredPlugin::PsipredPlugin() : Plugin(tr("PsiPred"), tr("PsiPred protein secondary structure prediction")) {
+PsipredPlugin::PsipredPlugin() : Plugin(tr(PSIPRED_PLUGIN_NAME), tr("PsiPred protein secondary structure prediction"),false) {
    
     // Register PsiPred algorithm
     SecStructPredictAlgRegistry* registry = AppContext::getSecStructPredictAlgRegistry();
     SecStructPredictTaskFactory* taskFactory = new PsipredAlgTask::Factory;
-    registry->registerAlgorithm(taskFactory, PsipredAlgTask::taskName);
+    registry->registerAlgorithm(taskFactory, PSIPRED_PLUGIN_NAME);
     
     //Register PsiPred annotation settings
     AnnotationSettingsRegistry* asr =AppContext::getAnnotationsSettingsRegistry();
     AnnotationSettings* as = new AnnotationSettings(PSIPRED_ANNOTATION_NAME, true, QColor(102,255, 0), true);
+    as->showNameQuals = true;
     as->nameQuals.append(BioStruct3D::SecStructTypeQualifierName);
     asr->changeSettings(QList<AnnotationSettings*>() << as, false);
 

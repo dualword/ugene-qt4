@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,20 +22,24 @@
 #ifndef _U2_PROJECT_TREE_ITEM_SELECTOR_DIALOG_H_
 #define _U2_PROJECT_TREE_ITEM_SELECTOR_DIALOG_H_
 
-#include <U2Core/global.h>
+#include <U2Core/Folder.h>
 
 class QWidget;
 
 namespace U2 {
 
-class ProjectTreeControllerModeSettings;
 class Document;
 class GObject;
+class ProjectTreeControllerModeSettings;
+class StateLockableTreeItem;
 
 class U2GUI_EXPORT ProjectTreeItemSelectorDialog {
 public:
-    static QList<Document*> selectDocuments(const ProjectTreeControllerModeSettings& s, QWidget* p);
-    static QList<GObject*> selectObjects(const ProjectTreeControllerModeSettings& s, QWidget* p);
+    static QList<Document *> selectDocuments(const ProjectTreeControllerModeSettings &s, QWidget *p);
+    static QList<GObject *> selectObjects(const ProjectTreeControllerModeSettings &s, QWidget *p);
+    static void selectObjectsAndDocuments(const ProjectTreeControllerModeSettings &s, QWidget *p, QList<Document *> &docList, QList<GObject *> &objList);
+    static void selectObjectsAndFolders(const ProjectTreeControllerModeSettings &s, QWidget *p, QList<Folder> &folderList, QList<GObject *> &objList);
+    static Folder selectFolder(QWidget *parent);
 };
 
 

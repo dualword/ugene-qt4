@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/FailTask.h>
 #include <U2Core/U2AlphabetUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Lang/CoreLibConstants.h>
 #include <U2Lang/IntegralBusModel.h>
@@ -42,22 +43,17 @@
 namespace U2 {
 namespace LocalWorkflow {
 
-
 const QString RemoteBLASTWorkerFactory::ACTOR_ID("blast-ncbi");
 
-const QString DATABASE("db");
-const QString EXPECT("e-val");
-const QString MAX_HITS("max-hits");
-const QString SHORT_SEQ("short-sequence");
 const QString ANNOTATION_NAME("result-name");
 const QString ORIGINAL_OUT("blast-output");
 
 void RemoteBLASTWorkerFactory::init() {
-    QList<PortDescriptor*> p; 
+    QList<PortDescriptor*> p;
     QList<Attribute*> a;
-    Descriptor ind(BasePorts::IN_SEQ_PORT_ID(), RemoteBLASTWorker::tr("Input sequence"), 
+    Descriptor ind(BasePorts::IN_SEQ_PORT_ID(), RemoteBLASTWorker::tr("Input sequence"),
         RemoteBLASTWorker::tr("The sequence to search the annotations for"));
-    Descriptor outd(BasePorts::OUT_ANNOTATIONS_PORT_ID(), RemoteBLASTWorker::tr("Annotations"), 
+    Descriptor outd(BasePorts::OUT_ANNOTATIONS_PORT_ID(), RemoteBLASTWorker::tr("Annotations"),
         RemoteBLASTWorker::tr("Found annotations"));
 
     QMap<Descriptor, DataTypePtr> inM;
@@ -66,38 +62,93 @@ void RemoteBLASTWorkerFactory::init() {
     QMap<Descriptor, DataTypePtr> outM;
     outM[BaseSlots::ANNOTATION_TABLE_SLOT()] = BaseTypes::ANNOTATION_TABLE_TYPE();
     p << new PortDescriptor(outd, DataTypePtr(new MapDataType("blast.ncbi.annotations", outM)), false, true);
-    
-    Descriptor db(DATABASE,RemoteBLASTWorker::tr("Database"),
-        RemoteBLASTWorker::tr("Select the database to search through. Available databases are blastn, blastp and cdd"));
-    Descriptor evalue(EXPECT,RemoteBLASTWorker::tr("Expected value"),
+
+    Descriptor toolDescriptor(ALG_ATTR,RemoteBLASTWorker::tr("Database"),
+        RemoteBLASTWorker::tr("Select the database to search through. Available databases are blastn, blastp and cdd."));
+    Descriptor databaseDescriptor(DATABASE_ATTR, RemoteBLASTWorker::tr("Database"),
+        RemoteBLASTWorker::tr("Select the database to search through."));
+    Descriptor evalueDescriptor(EVALUE_ATTR,RemoteBLASTWorker::tr("Expected value"),
         RemoteBLASTWorker::tr("This parameter specifies the statistical significance threshold of reporting matches against the database sequences."));
-    Descriptor hits(MAX_HITS,RemoteBLASTWorker::tr("Max hits"),
-        RemoteBLASTWorker::tr("Maximum number of hits."));
-    Descriptor short_seq(SHORT_SEQ,RemoteBLASTWorker::tr("Short sequence"),
+    Descriptor hitsDescriptor(HITS_ATTR,RemoteBLASTWorker::tr("Results limit"),
+        RemoteBLASTWorker::tr("The maximum number of results."));
+    Descriptor mbDescriptor(MEGABLAST_ATTR, RemoteBLASTWorker::tr("Megablast"),
+        RemoteBLASTWorker::tr("Use megablast."));
+    Descriptor shortSeqDescriptor(SHORTSEQ_ATTR,RemoteBLASTWorker::tr("Short sequence"),
         RemoteBLASTWorker::tr("Optimize search for short sequences."));
-    Descriptor annotateAs(ANNOTATION_NAME,RemoteBLASTWorker::tr("Annotate as"),
-        RemoteBLASTWorker::tr("Name for annotations"));
-    Descriptor output(ORIGINAL_OUT, RemoteBLASTWorker::tr("BLAST output"),
+    Descriptor entrezQueryDescriptor(ENTREZ_QUERY_ATTR,RemoteBLASTWorker::tr("Entrez query"),
+        RemoteBLASTWorker::tr("Enter an Entrez query to limit search."));
+    Descriptor annotateAsDescriptor(ANNOTATION_NAME,RemoteBLASTWorker::tr("Annotate as"),
+        RemoteBLASTWorker::tr("Name for annotations."));
+    Descriptor outputDescriptor(ORIGINAL_OUT, RemoteBLASTWorker::tr("BLAST output"),
         RemoteBLASTWorker::tr("Location of BLAST output file. This parameter insignificant for cdd search."));
 
-    a << new Attribute(db,BaseTypes::STRING_TYPE(),true,"ncbi-blastn");
-    a << new Attribute(evalue,BaseTypes::STRING_TYPE(),false,10);
-    a << new Attribute(hits,BaseTypes::NUM_TYPE(),false,10);
-    a << new Attribute(short_seq,BaseTypes::BOOL_TYPE(),false,false);
-    a << new Attribute(annotateAs,BaseTypes::STRING_TYPE(),false);
-    a << new Attribute(output, BaseTypes::STRING_TYPE(),false);
+    Descriptor gapCosts(GAP_ATTR, RemoteBLASTWorker::tr("Gap costs"),
+        RemoteBLASTWorker::tr("Cost to create and extend a gap in an alignment."));
+    Descriptor matchScores(MATCHSCORE_ATTR, RemoteBLASTWorker::tr("Match scores"),
+        RemoteBLASTWorker::tr("Reward and penalty for matching and mismatching bases."));
 
-    Descriptor desc(ACTOR_ID, RemoteBLASTWorker::tr("Remote BLAST"), 
-        RemoteBLASTWorker::tr("Finds annotations for DNA sequence in remote database")
-        );
+    Attribute* toolNameAttr = new Attribute(toolDescriptor, BaseTypes::STRING_TYPE(),true,"ncbi-blastn");
+    QVariantMap matchscoreRelations;
+    addParametersSetToMap(matchscoreRelations, "ncbi-blastn", ParametersLists::blastn_scores);
+    addParametersSetToMap(matchscoreRelations, "ncbi-blastp", QStringList("Unavailable"));
+    addParametersSetToMap(matchscoreRelations, "ncbi-cdd", QStringList("Unavailable"));
+    toolNameAttr->addRelation(new ValuesRelation(MATCHSCORE_ATTR, matchscoreRelations));
+
+    QVariantMap databaseRelations;
+    addParametersSetToMap(databaseRelations, "ncbi-blastn", ParametersLists::blastn_dataBase);
+    addParametersSetToMap(databaseRelations, "ncbi-blastp", ParametersLists::blastp_dataBase);
+    addParametersSetToMap(databaseRelations, "ncbi-cdd",    ParametersLists::cdd_dataBase);
+    toolNameAttr->addRelation(new ValuesRelation(DATABASE_ATTR, databaseRelations));
+
+    a << toolNameAttr;
+
+    const int defaultDatabaseNumber = 2;
+    SAFE_POINT(defaultDatabaseNumber < ParametersLists::blastn_dataBase.size(), QObject::tr("Incorrect list of Blastn databases"),);
+    a << new Attribute(databaseDescriptor,BaseTypes::STRING_TYPE(),true, ParametersLists::blastn_dataBase.at(defaultDatabaseNumber));
+
+    a << new Attribute(evalueDescriptor,BaseTypes::STRING_TYPE(),false,10);
+
+    QVariantList notCddTools;
+    notCddTools << "ncbi-blastn" << "ncbi-blastp";
+
+    a << new Attribute(hitsDescriptor,BaseTypes::NUM_TYPE(),false,10);
+    Attribute *mbAttr = new Attribute(mbDescriptor, BaseTypes::BOOL_TYPE(), false, false);
+    mbAttr->addRelation(new VisibilityRelation(ALG_ATTR, "ncbi-blastn"));
+    a << mbAttr;
+
+    Attribute* shortSeqAttr = new Attribute(shortSeqDescriptor,BaseTypes::BOOL_TYPE(),true,false);
+    shortSeqAttr->addRelation(new VisibilityRelation(ALG_ATTR, notCddTools));
+    a << shortSeqAttr;
+
+    Attribute* entrezQueryAttr = new Attribute(entrezQueryDescriptor, BaseTypes::STRING_TYPE(), false);
+    entrezQueryAttr->addRelation(new VisibilityRelation(ALG_ATTR, notCddTools));
+    a << entrezQueryAttr;
+    a << new Attribute(annotateAsDescriptor,BaseTypes::STRING_TYPE(),false);
+    a << new Attribute(outputDescriptor, BaseTypes::STRING_TYPE(),false);
+
+    Attribute* gapAttr = new Attribute(gapCosts, BaseTypes::STRING_TYPE(), false, "2 2");
+    gapAttr->addRelation(new VisibilityRelation(ALG_ATTR, notCddTools));
+    a << gapAttr;
+
+    Attribute* msAttr = new Attribute(matchScores, BaseTypes::STRING_TYPE(), false, "1 -3");
+    QVariantMap scoresGapDependency = ExternalToolSupportUtils::getScoresGapDependencyMap();
+    addParametersSetToMap(scoresGapDependency, "Unavailable", ParametersLists::blastp_gapCost);
+
+    msAttr->addRelation(new ValuesRelation(GAP_ATTR, scoresGapDependency));
+    msAttr->addRelation(new VisibilityRelation(ALG_ATTR, "ncbi-blastn"));
+    a << msAttr;
+
+    Descriptor desc(ACTOR_ID, RemoteBLASTWorker::tr("Remote BLAST"),
+        RemoteBLASTWorker::tr("Finds annotations for DNA sequence in remote database.")
+       );
     ActorPrototype* proto = new IntegralBusActorPrototype(desc, p, a);
-    QMap<QString, PropertyDelegate*> delegates; 
+    QMap<QString, PropertyDelegate*> delegates;
 
     {
         QVariantMap m;
         m["minimum"] = 1;
-        m["maximum"] = 500;
-        delegates[MAX_HITS] = new SpinBoxDelegate(m);
+        m["maximum"] = 5000;
+        delegates[HITS_ATTR] = new SpinBoxDelegate(m);
     }
 
     {
@@ -105,7 +156,15 @@ void RemoteBLASTWorkerFactory::init() {
         m["ncbi-blastn"] = "ncbi-blastn";
         m["ncbi-blastp"] = "ncbi-blastp";
         m["ncbi-cdd"] = "ncbi-cdd";
-        delegates[DATABASE] = new ComboBoxDelegate(m);
+        delegates[ALG_ATTR] = new ComboBoxDelegate(m);
+    }
+
+    {
+        QVariantMap m;
+        foreach(const QString& curStr, ParametersLists::blastn_dataBase) {
+            m[curStr] = curStr;
+        }
+        delegates[DATABASE_ATTR] = new ComboBoxDelegate(m);
     }
 
     {
@@ -114,7 +173,21 @@ void RemoteBLASTWorkerFactory::init() {
         m["maximum"] = 100000;
         m["singleStep"] = 1.0;
         m["decimals"] = 6;
-        delegates[EXPECT] = new DoubleSpinBoxDelegate(m);
+        delegates[EVALUE_ATTR] = new DoubleSpinBoxDelegate(m);
+    }
+
+    {
+        QVariantMap m;
+        const QList <QString> matchValues = scoresGapDependency.keys();
+        for (int i = 0; i < matchValues.size(); i++) {
+            m[matchValues.at(i)] = matchValues.at(i);
+        }
+        delegates[MATCHSCORE_ATTR] = new ComboBoxDelegate(m);;
+    }
+
+    {
+        const QVariantMap m = scoresGapDependency.value("1 -3").toMap();
+        delegates[GAP_ATTR] = new ComboBoxDelegate(m);
     }
 
     delegates[ORIGINAL_OUT] = new URLDelegate("(*.xml)","xml file");
@@ -134,8 +207,8 @@ QString RemoteBLASTPrompter::composeRichDoc() {
     QString unsetStr = "<font color='red'>"+tr("unset")+"</font>";
     QString producerName = tr(" from <u>%1</u>").arg(producer ? producer->getLabel() : unsetStr);
 
-    QString doc = tr("For sequence %1 find annotations in database <u>%2</u>")
-        .arg(producerName).arg(getHyperlink(DATABASE, getRequiredParam(DATABASE)));
+    QString doc = tr("For sequence %1 find annotations in database <u>%2</u>.")
+        .arg(producerName).arg(getHyperlink(ALG_ATTR, getRequiredParam(ALG_ATTR)));
     return doc;
 }
 
@@ -144,105 +217,130 @@ void RemoteBLASTWorker::init() {
     output = ports.value(BasePorts::OUT_ANNOTATIONS_PORT_ID());
 }
 
-bool RemoteBLASTWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* RemoteBLASTWorker::tick() {
-    if((actor->getParameter(ANNOTATION_NAME)->getAttributeValue<QString>(context)).isEmpty()){
+    if(getValue<QString>(ANNOTATION_NAME).isEmpty()){
         algoLog.details(tr("Annotations name is empty, default name used"));
     }
-    
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    //cfg.minrl = 0;
-    //cfg.maxrl = 3000;
-    cfg.dbChoosen = actor->getParameter(DATABASE)->getAttributeValue<QString>(context).split("-").last();
-    cfg.aminoT = NULL;
 
-    int evalue = actor->getParameter(EXPECT)->getAttributeValue<int>(context);
-    int maxHits = actor->getParameter(MAX_HITS)->getAttributeValue<int>(context);
-    bool shortSeq = actor->getParameter(SHORT_SEQ)->getAttributeValue<bool>(context);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
+        }
+        //cfg.minrl = 0;
+        //cfg.maxrl = 3000;
+        cfg.dbChoosen = getValue<QString>(ALG_ATTR).split("-").last();
+        cfg.aminoT = NULL;
 
-    if(evalue <= 0 ){
-        algoLog.error(tr("Incorrect value for 'e-value' parameter, default value passed to schema"));
-        evalue = 10;
-    }
+        int evalue = getValue<int>(EVALUE_ATTR);
+        int maxHits = getValue<int>(HITS_ATTR);
+        bool shortSeq = getValue<bool>(SHORTSEQ_ATTR);
 
-    if(cfg.dbChoosen == "cdd") {
-        cfg.params = "db=cdd";
-        addParametr(cfg.params,ReqParams::cdd_hits,maxHits);
-        addParametr(cfg.params,ReqParams::cdd_eValue,evalue);
-    }
-    else {
-        cfg.params = "CMD=Put";
-        addParametr(cfg.params,ReqParams::database,"nr");
-        addParametr(cfg.params, ReqParams::program, cfg.dbChoosen);
-        QString filter;
-        QString wordSize;
-        if(shortSeq) {
-            evalue = 1000;
-            filter = "";
+        if(evalue <= 0){
+            algoLog.error(tr("Incorrect value for the 'e-value' parameter, default value passed to the workflow"));
+            evalue = 10;
+        }
+
+        if(cfg.dbChoosen.contains("cdd", Qt::CaseInsensitive)) {
+            cfg.dbChoosen = "blastp";
+            cfg.params = "CMD=Put";
+            addParametr(cfg.params, ReqParams::program, cfg.dbChoosen);
+            addParametr(cfg.params, ReqParams::service, "rpsblast");
+            QString usedDB = getValue<QString>(DATABASE_ATTR);
+            addParametr(cfg.params, ReqParams::database, usedDB.toLower());
+            addParametr(cfg.params, ReqParams::hits, maxHits);
+            addParametr(cfg.params, ReqParams::expect, evalue);
+        }
+        else {
+            cfg.params = "CMD=Put";
+            addParametr(cfg.params, ReqParams::program, cfg.dbChoosen);
+            QString usedDatabase = getValue<QString>(DATABASE_ATTR);
+            addParametr(cfg.params,ReqParams::database,usedDatabase.split(" ").last());
+            QString filter;
+            if(shortSeq) {
+                evalue = 1000;
+                filter = "";
+                if(cfg.dbChoosen == "blastn") {
+                    addParametr(cfg.params, ReqParams::wordSize, 7);
+                }
+            }
+            else {
+                addParametr(cfg.params, ReqParams::filter, "L");
+            }
+            QString entrezQueryStr = getValue<QString>(ENTREZ_QUERY_ATTR);
+            if(false == entrezQueryStr.isEmpty()) {
+                addParametr(cfg.params, ReqParams::entrezQuery, entrezQueryStr);
+            }
+            addParametr(cfg.params, ReqParams::expect, evalue);
+
+            addParametr(cfg.params, ReqParams::hits, maxHits);
+            if (getValue<bool>(MEGABLAST_ATTR)) {
+                addParametr(cfg.params, ReqParams::megablast, "true");
+            }
+        }
+        SharedDbiDataHandler seqId = inputMessage.getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        if (seqObj.isNull()) {
+            return NULL;
+        }
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        CHECK_OP(os, new FailTask(os.getError()));
+
+        seq.info.clear();
+        const DNAAlphabet *alp = U2AlphabetUtils::findBestAlphabet(seq.seq);
+        /*if(seq.length()>MAX_BLAST_SEQ_LEN) {
+            log.error(tr("The sequence is too long"));
+            return NULL;
+        }*/
+        if(alp == AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::AMINO_DEFAULT())) {
             if(cfg.dbChoosen == "blastn") {
-                addParametr(cfg.params, ReqParams::wordSize, 7);
+                algoLog.details(tr("Selected nucleotide database"));
+                return NULL;
             }
         }
         else {
-            addParametr(cfg.params, ReqParams::filter, "L");
+            if(cfg.dbChoosen != "blastn") {
+                algoLog.details(tr("Selected amino acid database"));
+                return NULL;
+            }
         }
-        addParametr(cfg.params, ReqParams::expect, evalue);
-        
-        addParametr(cfg.params, ReqParams::hits, maxHits);
-    }
-    U2DataId seqId = inputMessage.getData().toMap().value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return NULL;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
-    
-    seq.info.clear();
-    DNAAlphabet *alp = U2AlphabetUtils::findBestAlphabet(seq.seq);
-    /*if(seq.length()>MAX_BLAST_SEQ_LEN) {
-        log.error(tr("The sequence is too long"));
-        return NULL;
-    }*/
-    if(alp == AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::AMINO_DEFAULT())) {
-        if(cfg.dbChoosen == "blastn") {
-            algoLog.details(tr("Selected nucleotide database"));
-            return NULL;
-        }
-    }
-    else {
-        if(cfg.dbChoosen != "blastn") {
-            algoLog.details(tr("Selected amino acid database"));
-            return NULL;
-        }
-    }
-    cfg.query = seq.seq;
-    cfg.retries = 60;
-    cfg.filterResult = 0;
-    Task* t = new RemoteBLASTTask(cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
-}
+        cfg.query = seq.seq;
+        cfg.isCircular = seq.circular;
+        cfg.retries = 60;
+        cfg.filterResult = 0;
 
-bool RemoteBLASTWorker::isDone() {
-    return !input || input->isEnded();
+        if(cfg.dbChoosen == "blastn") {
+            addParametr(cfg.params, ReqParams::gapCost, getValue<QString>(GAP_ATTR));
+            QString matchScores = getValue<QString>(MATCHSCORE_ATTR);
+            addParametr(cfg.params, ReqParams::matchScore, matchScores.split(" ").first());
+            addParametr(cfg.params, ReqParams::mismatchScore, matchScores.split(" ").last());
+        }
+
+        Task* t = new RemoteBLASTTask(cfg);
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
+    }
+    return NULL;
 }
 
 void RemoteBLASTWorker::sl_taskFinished() {
     RemoteBLASTTask * t = qobject_cast<RemoteBLASTTask*>(sender());
-    if (t->getState() != Task::State_Finished || t->hasError()) {
+    if (t->getState() != Task::State_Finished || t->hasError() || t->isCanceled()) {
         return;
     }
 
     if(output) {
-        if(actor->getParameter(DATABASE)->getAttributeValue<QString>(context) != "ncbi-cdd") {
-            QString url = actor->getParameter(ORIGINAL_OUT)->getAttributeValue<QString>(context);
+        if(getValue<QString>(ALG_ATTR) != "ncbi-cdd") {
+            QString url = getValue<QString>(ORIGINAL_OUT);
             if(!url.isEmpty()) {
-                IOAdapterFactory * iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById( BaseIOAdapters::LOCAL_FILE );
+                IOAdapterFactory * iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
                 IOAdapter * io = iof->createIOAdapter();
-                if(io->open( url, IOAdapterMode_Write )) {
+                if(io->open(url, IOAdapterMode_Write)) {
                     QByteArray output = t->getOutputFile();
                     io->writeBlock(output);
                     io->close();
@@ -251,17 +349,15 @@ void RemoteBLASTWorker::sl_taskFinished() {
         }
 
         QList<SharedAnnotationData> res = t->getResultedAnnotations();
-        QString annName = actor->getParameter(ANNOTATION_NAME)->getAttributeValue<QString>(context);
-        if(!annName.isEmpty()) {
-            for(int i = 0; i<res.count();i++) {
+        const QString annName = getValue<QString>(ANNOTATION_NAME);
+        if (!annName.isEmpty()) {
+            for (int i = 0; i < res.count(); i++) {
                 res[i]->name = annName;
             }
         }
-        QVariant v = qVariantFromValue<QList<SharedAnnotationData> >(res);
+        const SharedDbiDataHandler tableId = context->getDataStorage()->putAnnotationTable(res);
+        const QVariant v = qVariantFromValue<SharedDbiDataHandler>(tableId);
         output->put(Message(BaseTypes::ANNOTATION_TABLE_TYPE(), v));
-        if (input->isEnded()) {
-            output->setEnded();
-        }
     }
 }
 

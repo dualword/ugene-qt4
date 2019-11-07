@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -49,10 +49,12 @@ public:
 private slots:
     void sl_align();
     void sl_iterationTypeEnabled(bool checked);
-    void sl_inputFileLineEditChanged(const QString& str);
+    void sl_inputPathButtonClicked();
+    void sl_outputPathButtonClicked();
 private:
     ClustalWSupportTaskSettings&    settings;
-    FileLineEdit*                   inputFileLineEdit;
+    void buildMultipleAlignmentUrl(const GUrl &alnUrl);
+
 };
 
 }//namespace

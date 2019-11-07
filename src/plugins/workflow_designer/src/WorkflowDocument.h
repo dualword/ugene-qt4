@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,14 +41,13 @@ class WorkflowDocFormat : public DocumentFormat {
     Q_OBJECT
 public:
     WorkflowDocFormat(QObject* p);
-    
+
     static const DocumentFormatId FORMAT_ID;
     virtual DocumentFormatId getFormatId() const {return FORMAT_ID;}
 
     virtual const QString& getFormatName() const {return formatName;}
 
-    virtual Document* createNewLoadedDocument(IOAdapterFactory* io, const QString& url, U2OpStatus& os, const QVariantMap& fs = QVariantMap());
-
+    virtual Document* createNewLoadedDocument(IOAdapterFactory* io, const GUrl& url, U2OpStatus& os, const QVariantMap& fs = QVariantMap());
 
     virtual void storeDocument( Document* d, IOAdapter* io, U2OpStatus& os);
 
@@ -65,12 +64,12 @@ class WorkflowGObject : public GObject {
     Q_OBJECT
 public:
     static const GObjectType TYPE;
-    WorkflowGObject(const QString& objectName, const QString& s, const QVariantMap& map = QVariantMap()) 
+    WorkflowGObject(const QString& objectName, const QString& s, const QVariantMap& map = QVariantMap())
         : GObject(TYPE, objectName), serializedScene(s), view(NULL) { Q_UNUSED(map); }
 
     QString getSceneRawData() const {return serializedScene;}
     void setSceneRawData(const QString & data);
-    virtual GObject* clone(const U2DbiRef& dbiRef, U2OpStatus& os) const;
+    virtual GObject* clone(const U2DbiRef& dbiRef, U2OpStatus& os, const QVariantMap &hints = QVariantMap()) const;
     virtual bool isTreeItemModified () const;
     void setView(WorkflowView* view);
     WorkflowView* getView() const {return view;}
@@ -84,7 +83,7 @@ class WorkflowViewFactory : public GObjectViewFactory {
     Q_OBJECT
 public:
     static const GObjectViewFactoryId ID;
-    WorkflowViewFactory(QObject* p = NULL) : GObjectViewFactory(ID, U2::WorkflowDesignerPlugin::tr("Workflow Designer"), p) {}    
+    WorkflowViewFactory(QObject* p = NULL) : GObjectViewFactory(ID, tr("Workflow Designer"), p) {}
 
     virtual bool canCreateView(const MultiGSelection& multiSelection);
     virtual Task* createViewTask(const MultiGSelection& multiSelection, bool single = false);

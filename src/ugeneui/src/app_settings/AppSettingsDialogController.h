@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,13 +24,18 @@
 
 #include <ui/ui_AppSettingsDialog.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 #include <QtCore/QTimerEvent>
 
 class AppSettingsDialogTree;
 
 namespace U2 {
 
+class HelpButton;
 class AppSettingsGUIPageController;
 class AppSettingsGUIPageState;
 class AppSettingsGUIPageWidget;
@@ -54,11 +59,12 @@ private:
     bool checkCurrentState(bool saveStateInItem, bool showError);
     bool turnPage(AppSettingsTreeItem* page);
     void registerPage(AppSettingsGUIPageController* page);
-    
+
     AppSettingsTreeItem* findPageItem(const QString& id) const;
 
 private:
     AppSettingsTreeItem*    currentPage;
+    HelpButton*             helpButton;
 };
 
 class AppSettingsTreeItem : public QTreeWidgetItem {

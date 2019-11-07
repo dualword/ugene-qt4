@@ -9,12 +9,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>463</width>
-    <height>534</height>
+    <width>464</width>
+    <height>472</height>
    </rect>
   </property>
+  <property name="minimumSize">
+   <size>
+    <width>464</width>
+    <height>472</height>
+   </size>
+  </property>
   <property name="windowTitle">
-   <string>Extractor Parameters setup</string>
+   <string>Extractor Parameters Setup</string>
   </property>
   <property name="accessibleName">
    <string/>
@@ -30,6 +36,9 @@
   </property>
   <property name="wizardStyle">
    <enum>QWizard::ClassicStyle</enum>
+  </property>
+  <property name="options">
+   <set>QWizard::HaveHelpButton|QWizard::HelpButtonOnRight</set>
   </property>
   <property name="titleFormat">
    <enum>Qt::AutoText</enum>

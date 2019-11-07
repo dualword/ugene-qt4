@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,46 +19,95 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/QDir>
+
+#include <QtGui/QKeyEvent>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
+
+#include <U2Core/AppContext.h>
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Formats/GenbankLocationParser.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
 #include "EditSequenceDialogController.h"
 #include "ui/ui_EditSequenceDialog.h"
 
-#include <U2Core/BaseDocumentFormats.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/DocumentModel.h>
-
-#include <U2Gui/LastUsedDirHelper.h>
-
-#include <QtCore/QFileInfo>
-#include <QtCore/QDir>
-
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
-
-
 namespace U2{
 
-    EditSequenceDialogController::EditSequenceDialogController( EditSequencDialogConfig cfg, QWidget* p)
-: QDialog(p), filter(""), pos(1), config(cfg) {
+//////////////////////////////////////////////////////////////////////////
+//SeqPasterEventFilter
+bool SeqPasterEventFilter::eventFilter( QObject* obj, QEvent *event ){
+    if (QEvent::KeyPress == event->type()) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (Qt::Key_Return == keyEvent->key()) {
+            emit si_enterPressed();
+            return true;
+        }
+    }
+    return QObject::eventFilter(obj, event);
+}
+
+SeqPasterEventFilter::SeqPasterEventFilter( QObject* parent )
+:QObject(parent){
+
+}
+
+//////////////////////////////////////////////////////////////////////////
+//EditSequenceDialogController
+EditSequenceDialogController::EditSequenceDialogController(const EditSequencDialogConfig &cfg, QWidget *p)
+    : QDialog(p), filter(""), pos(1), config(cfg)
+{
     ui = new Ui_EditSequenceDialog;
     ui->setupUi(this);
+    new HelpButton(this, ui->buttonBox, "16122161");
 
     connect(ui->browseButton, SIGNAL(clicked()), SLOT(sl_browseButtonClicked()));
     addSeqpasterWidget();
     w->disableCustomSettings();
     w->setPreferredAlphabet(cfg.alphabet);
 
-    if (cfg.mode == EditSequenceMode_Insert) { 
-        setWindowTitle(tr("Insert sequence"));
+    //selection
+    ui->selectionGroupBox->setEnabled(false);
+    if (!cfg.selectionRegions.isEmpty()){
+        ui->selectionLineEdit->setText(U1AnnotationUtils::buildLocationString(cfg.selectionRegions));
+    }
+    connect(ui->beforeSelectionToolButton, SIGNAL(clicked()), this, SLOT(sl_beforeSlectionClicked()));
+    connect(ui->afterSelectionToolButton, SIGNAL(clicked()), this, SLOT(sl_afterSlectionClicked()));
+
+    seqEndPos = cfg.source.length + 1;
+
+    ui->insertPositionSpin->setMinimum(1);
+    ui->insertPositionSpin->setMaximum(seqEndPos);
+
+    if ((1 < cfg.position) && (cfg.position < seqEndPos)) {
+        ui->insertPositionSpin->setValue(cfg.position);
+    }
+
+    if (cfg.mode == EditSequenceMode_Insert) {
+        setWindowTitle(tr("Insert Sequence"));
+        if (!cfg.selectionRegions.isEmpty()) {
+            ui->selectionGroupBox->setEnabled(true);
+            sl_beforeSlectionClicked();
+        }
     } else {
-        setWindowTitle(tr("Replace sequence")); 
+        setWindowTitle(tr("Replace sequence"));
         ui->splitRB->setEnabled(false);
         ui->split_separateRB->setEnabled(false);
         //ui->insertPositionSpin->setEnabled(false);
         ui->insertPositionBox->setEnabled(false);
+        w->selectText();
     }
-    
-    ui->insertPositionSpin->setMinimum(1);
-    ui->insertPositionSpin->setMaximum(cfg.source.length + 1);
 
     connect(ui->formatBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sl_indexChanged(int)));
 
@@ -66,6 +115,14 @@ namespace U2{
     ui->formatBox->addItem("Genbank", BaseDocumentFormats::PLAIN_GENBANK);
     connect(ui->mergeAnnotationsBox, SIGNAL(toggled(bool)), this, SLOT(sl_mergeAnnotationsToggled(bool)));
     sl_indexChanged(0);
+
+    connect(ui->startPosToolButton, SIGNAL(clicked()), this, SLOT(sl_startPositionliClicked()));
+    connect(ui->endPosToolButton, SIGNAL(clicked()), this, SLOT(sl_endPositionliClicked()));
+
+    //event filter
+    SeqPasterEventFilter* evFilter= new SeqPasterEventFilter(this);
+    w->setEventFilter(evFilter);
+    connect(evFilter, SIGNAL(si_enterPressed()), this, SLOT(sl_enterPressed()));
 }
 
 void EditSequenceDialogController::accept(){
@@ -75,7 +132,8 @@ void EditSequenceDialogController::accept(){
         return;
     }
 
-    if (w->getSequence().seq == config.initialText && config.mode == EditSequenceMode_Replace ) {
+    if ((w->getSequences().isEmpty() || w->getSequences().first().seq == config.initialText)
+            && config.mode == EditSequenceMode_Replace ) {
         QDialog::reject();
         return;
     }
@@ -102,27 +160,31 @@ void EditSequenceDialogController::accept(){
 }
 
 void EditSequenceDialogController::addSeqpasterWidget(){
-    w = new SeqPasterWidgetController(this, config.initialText);
+    w = new SeqPasterWidgetController(this, config.initialText, true);
     ui->globalLayout->insertWidget(0, w);
 
 }
 
 void EditSequenceDialogController::sl_browseButtonClicked(){
     LastUsedDirHelper h;
-    
-    h.url = QFileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
+
+    h.url = U2FileDialog::getSaveFileName(this, tr("Select file to save..."), h.dir, filter);
     ui->filepathEdit->setText(h.url);
     sl_indexChanged(ui->formatBox->currentIndex());
 }
 
-U1AnnotationUtils::AnnotationStrategyForResize EditSequenceDialogController::getAnnotationStrategy() {
-    if(ui->resizeRB->isChecked()){
+int EditSequenceDialogController::getPosToInsert() const {
+    return pos;
+}
+
+U1AnnotationUtils::AnnotationStrategyForResize EditSequenceDialogController::getAnnotationStrategy() const {
+    if (ui->resizeRB->isChecked()) {
         return U1AnnotationUtils::AnnotationStrategyForResize_Resize;
-    }else if(ui->splitRB->isChecked()){
+    } else if(ui->splitRB->isChecked()) {
         return U1AnnotationUtils::AnnotationStrategyForResize_Split_To_Joined;
-    }else if(ui->split_separateRB->isChecked()){
+    } else if(ui->split_separateRB->isChecked()) {
         return U1AnnotationUtils::AnnotationStrategyForResize_Split_To_Separate;
-    }else{
+    } else {
         assert(ui->removeRB->isChecked());
         return U1AnnotationUtils::AnnotationStrategyForResize_Remove;
     }
@@ -151,8 +213,11 @@ void EditSequenceDialogController::sl_mergeAnnotationsToggled( bool state){
     sl_indexChanged(ui->formatBox->findText("Genbank"));
 }
 
-GUrl EditSequenceDialogController::getDocumentPath()
-{
+DNASequence EditSequenceDialogController::getNewSequence() const {
+    return w->getSequences().isEmpty() ? DNASequence() : w->getSequences().first();
+}
+
+GUrl EditSequenceDialogController::getDocumentPath() const {
     if (modifyCurrentDocument()) {
         return GUrl();
     } else {
@@ -165,19 +230,46 @@ EditSequenceDialogController::~EditSequenceDialogController()
     delete ui;
 }
 
-bool EditSequenceDialogController::mergeAnnotations()
-{
+bool EditSequenceDialogController::mergeAnnotations() const {
     return (ui->mergeAnnotationsBox->isChecked() && !modifyCurrentDocument());
 }
 
-U2::DocumentFormatId EditSequenceDialogController::getDocumentFormatId()
-{
+bool EditSequenceDialogController::recalculateQualifiers() const {
+    return ui->recalculateQualsCheckBox->isChecked();
+}
+
+U2::DocumentFormatId EditSequenceDialogController::getDocumentFormatId() const {
     return ui->formatBox->itemData(ui->formatBox->currentIndex()).toString();
 }
 
-bool EditSequenceDialogController::modifyCurrentDocument()
-{
+bool EditSequenceDialogController::modifyCurrentDocument() const {
     return !ui->saveToAnotherBox->isChecked();
 }
+
+void EditSequenceDialogController::sl_startPositionliClicked(){
+    ui->insertPositionSpin->setValue(1);
+}
+
+void EditSequenceDialogController::sl_endPositionliClicked(){
+    ui->insertPositionSpin->setValue(seqEndPos);
+}
+
+void EditSequenceDialogController::sl_beforeSlectionClicked(){
+    SAFE_POINT(!config.selectionRegions.isEmpty(), "No selection", );
+    U2Region containingregion = U2Region::containingRegion(config.selectionRegions);
+    ui->insertPositionSpin->setValue(containingregion.startPos+1);
+}
+
+void EditSequenceDialogController::sl_afterSlectionClicked(){
+    SAFE_POINT(!config.selectionRegions.isEmpty(), "No selection", );
+    U2Region containingregion = U2Region::containingRegion(config.selectionRegions);
+    ui->insertPositionSpin->setValue(containingregion.endPos()+1);
+}
+
+void EditSequenceDialogController::sl_enterPressed(){
+    accept();
+}
+
+
 } // U2
 

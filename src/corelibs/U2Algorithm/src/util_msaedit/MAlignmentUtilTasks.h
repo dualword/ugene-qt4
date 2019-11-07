@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,14 +37,15 @@ class DNATranslation;
 class U2ALGORITHM_EXPORT TranslateMSA2AminoTask : public Task {
     Q_OBJECT
 public:
-    TranslateMSA2AminoTask(MAlignmentObject* obj );
+    TranslateMSA2AminoTask(MAlignmentObject* obj);
+    TranslateMSA2AminoTask(MAlignmentObject* obj, const QString& trId );
     const MAlignment& getTaskResult() { return resultMA; }
     void run();
     ReportResult report();
 private:
     MAlignment resultMA;
     MAlignmentObject* maObj;
-    QList<DNATranslation*> translations;
+    DNATranslation* translation;
 };
 
 
@@ -57,7 +58,7 @@ class U2ALGORITHM_EXPORT AlignGObjectTask : public Task {
 public:
     AlignGObjectTask(const QString& taskName, TaskFlags f, MAlignmentObject* maobj)
         : Task(taskName, f), obj(maobj) {}
-    void setMAObject(MAlignmentObject* maobj) { obj = maobj; }
+    virtual void setMAObject(MAlignmentObject* maobj) { obj = maobj; }
     MAlignmentObject* getMAObject() { return obj; }
 protected:
     QPointer<MAlignmentObject> obj;
@@ -66,15 +67,16 @@ protected:
 
 /**
  Multi task converts alignment object to amino representation if possible.
- This allows to: 
- 1) speed up alignment 
- 2) avoid errors of inserting gaps within codon boundaries  
+ This allows to:
+ 1) speed up alignment
+ 2) avoid errors of inserting gaps within codon boundaries
 */
 
 class U2ALGORITHM_EXPORT AlignInAminoFormTask : public Task {
     Q_OBJECT
+    Q_DISABLE_COPY(AlignInAminoFormTask)
 public:
-    AlignInAminoFormTask(MAlignmentObject* obj, AlignGObjectTask* alignTask);
+    AlignInAminoFormTask(MAlignmentObject* obj, AlignGObjectTask* alignTask, const QString& traslId);
     ~AlignInAminoFormTask();
 
     virtual void prepare();
@@ -83,7 +85,11 @@ public:
 protected:
     AlignGObjectTask* alignTask;
     MAlignmentObject *maObj, *clonedObj;
-    MAlignment bufMA;
+    //MAlignment bufMA;
+    QString traslId;
+    Document* tmpDoc;
+    QMap<qint64, QList<U2MsaGap> > rowsGapModel;
+    QMap<qint64, QList<U2MsaGap> > emptyGapModel;
 };
 
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,38 +22,61 @@
 #ifndef _U2_EXPORT_SEQUENCE_PLUGIN_TASKS_H_
 #define _U2_EXPORT_SEQUENCE_PLUGIN_TASKS_H_
 
-#include "ExportTasks.h"
+#include <U2Core/AnnotationData.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DocumentProviderTask.h>
 
 namespace U2 {
 
 class DNAAlphabet;
 class DNATranslation;
+class U2Sequence;
 
 /** An item to export sequence. Contains unprocessed sequence + annotations + info about required transformations */
 class ExportSequenceItem {
 public:
-    ExportSequenceItem() : complTT(NULL), aminoTT(NULL), backTT(NULL){}
-    DNASequence                 sequence;   // the sequences to copy
-    QList<SharedAnnotationData> annotations;//annotations to copy
-    DNATranslation*             complTT;    // complement translations for a sequence. Used only if 'strand' is 'compl' or 'both'
-    DNATranslation*             aminoTT;    // amino translation for a sequence. If not NULL -> sequence is translated
-    DNATranslation*             backTT;     // nucleic translation for a sequence. If not NULL -> sequence is back translated
+    ExportSequenceItem();
+    ExportSequenceItem(const ExportSequenceItem &other);
+
+    ~ExportSequenceItem();
+
+    void setOwnershipOverSeq(const U2Sequence &seq, const U2DbiRef &dbiRef);
+    void setSequenceInfo(U2SequenceObject *seqObj);
+
+    // after calling this method the client code takes responsibility for correct release the sequence from the database
+    U2SequenceObject * takeOwnedSeq();
+    bool ownsSeq() const;
+
+    ExportSequenceItem & operator =(const ExportSequenceItem &other);
+
+    U2EntityRef                 seqRef; // sequence to copy
+    QString                     name;
+    bool                        circular;
+    const DNAAlphabet *         alphabet;
+    qint64                      length;
+
+    QList<SharedAnnotationData> annotations;// annotations to copy
+    const DNATranslation *      complTT;    // complement translations for a sequence. Used only if 'strand' is 'compl' or 'both'
+    const DNATranslation *      aminoTT;    // amino translation for a sequence. If not NULL -> sequence is translated
+    const DNATranslation *      backTT;     // nucleic translation for a sequence. If not NULL -> sequence is back translated
+
+private:
+    void startSeqOwnership();
+    int incrementSeqRefCount() const;
+    int decrementSeqRefCount() const;
+    void stopSeqOwnership();
+
+    void releaseOwnedSeq();
+
+    static QMap<U2EntityRef, int> sequencesRefCounts;
 };
 
 class ExportSequenceTaskSettings {
 public:
-    ExportSequenceTaskSettings() {
-        merge = false;
-        mergeGap = 0;
-        strand = TriState_Yes;
-        allAminoFrames = false;
-        formatId = BaseDocumentFormats::FASTA;
-        mostProbable = true;
-        saveAnnotations = false;
-    }
+    ExportSequenceTaskSettings();
 
     QList<ExportSequenceItem> items;            // sequences to export
-    
+
     QString             fileName;               // result file name
     bool                merge;                  // if true -> multiple sequences are merged
     int                 mergeGap;               // the gap between sequences if merged
@@ -66,14 +89,16 @@ public:
     bool                saveAnnotations;        // Store available annotations for sequences into result file too
 
     DocumentFormatId    formatId;
+
+    QString             sequenceName;             // custom sequence name
 };
 
 /** Exports sequences a file */
-class ExportSequenceTask: public DocumentProviderTask {
+class ExportSequenceTask : public DocumentProviderTask {
     Q_OBJECT
 public:
-    ExportSequenceTask(const ExportSequenceTaskSettings& s);
-    
+    ExportSequenceTask(const ExportSequenceTaskSettings &s);
+
     void run();
 
 private:
@@ -85,13 +110,12 @@ private:
 
 class ExportSequenceAItem {
 public:
-    ExportSequenceAItem() : aminoTT(NULL), complTT(NULL) {}
+    ExportSequenceAItem();
 
-    DNASequence                 sequence;     // sequence
+    QPointer<U2SequenceObject>  sequence;     // sequence
     QList<SharedAnnotationData> annotations;  // annotated regions to be exported
-    DNATranslation*             aminoTT;      // if not null -> sequence regions will be translated (0-frame only)
-    DNATranslation*             complTT;      // if not null & annotation location is on complement strand - it will be rev-complemented
-
+    const DNATranslation *      aminoTT;      // if not null -> sequence regions will be translated (0-frame only)
+    const DNATranslation *      complTT;      // if not null & annotation location is on complement strand - it will be rev-complemented
 };
 
 
@@ -102,27 +126,29 @@ public:
 };
 
 class ExportAnnotationSequenceSubTask : public Task {
-Q_OBJECT
+    Q_OBJECT
 public:
-    ExportAnnotationSequenceSubTask(ExportAnnotationSequenceTaskSettings& s);
+    ExportAnnotationSequenceSubTask(ExportAnnotationSequenceTaskSettings &s);
+
     void run();
+
 private:
-    ExportAnnotationSequenceTaskSettings& config;
+    ExportAnnotationSequenceTaskSettings &config;
 };
 
 class ExportAnnotationSequenceTask : public DocumentProviderTask {
     Q_OBJECT
 public:
-    ExportAnnotationSequenceTask(const ExportAnnotationSequenceTaskSettings& s);
+    ExportAnnotationSequenceTask(const ExportAnnotationSequenceTaskSettings &s);
 
-    virtual QList<Task*> onSubTaskFinished(Task* subTask);
+    QList<Task *> onSubTaskFinished(Task *subTask);
 
 private:
     ExportAnnotationSequenceTaskSettings    config;
-    ExportAnnotationSequenceSubTask*        extractSubTask;
-    ExportSequenceTask*                     exportSubTask;
+    ExportAnnotationSequenceSubTask *       extractSubTask;
+    ExportSequenceTask *                    exportSubTask;
 };
 
-}//namespace
+} // namespace U2
 
-#endif
+#endif // _U2_EXPORT_SEQUENCE_PLUGIN_TASKS_H_

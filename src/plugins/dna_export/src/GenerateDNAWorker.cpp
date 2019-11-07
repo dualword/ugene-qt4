@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ namespace U2 {
 namespace LocalWorkflow {
 
 /**************************
-* GenerateDNAWorkerFactory 
+* GenerateDNAWorkerFactory
  **************************/
 
 static const QString LENGHT_ATTR("length");
@@ -97,7 +97,7 @@ void GenerateDNAWorkerFactory::init() {
         Descriptor alg(ALGORITHM, GenerateDNAWorker::tr("Algorithm"),GenerateDNAWorker::tr("Algorithm for generating."));
         Descriptor wnd(WINDOW_SIZE, GenerateDNAWorker::tr("Window size"), GenerateDNAWorker::tr("Size of window where set content."));
         Descriptor gcSkew(GC_SKEW, GenerateDNAWorker::tr("GC Skew"), GenerateDNAWorker::tr("GC Skew."));
-        Descriptor seed(SEED, GenerateDNAWorker::tr("Seed"), GenerateDNAWorker::tr("Value to initialize the random generator. " 
+        Descriptor seed(SEED, GenerateDNAWorker::tr("Seed"), GenerateDNAWorker::tr("Value to initialize the random generator. "
             "By default (seed = -1) the generator is initialized with the system time."));
 
         a << new Attribute(ld, BaseTypes::NUM_TYPE(), false, 1000);
@@ -144,7 +144,7 @@ void GenerateDNAWorkerFactory::init() {
         contentMap[ContentIds::MANUAL] = ContentIds::MANUAL;
         delegates[CONTENT_ATTR] = new ComboBoxDelegate(contentMap);
 
-        delegates[REFERENCE_ATTR] = new URLDelegate(DNASequenceGenerator::prepareReferenceFileFilter(), DNASequenceGenerator::ID);
+        delegates[REFERENCE_ATTR] = new URLDelegate(DNASequenceGenerator::prepareReferenceFileFilter(), DNASequenceGenerator::ID, false, false, false);
 
         QVariantMap percentMap;
         percentMap["minimum"] = 0;
@@ -187,28 +187,23 @@ void GenerateDNAWorkerFactory::init() {
 }
 
 /**************************
-* GenerateDNAPrompter 
+* GenerateDNAPrompter
  **************************/
 
 QString GenerateDNAPrompter::composeRichDoc() {
-    return tr("Generates random DNA sequence(s)");
+    return tr("Generates random DNA sequence(s).");
 }
 
 /**************************
-* GenerateDNAWorker 
+* GenerateDNAWorker
  **************************/
 
 void GenerateDNAWorker::init() {
-    done = false;
     ch = ports.value(BasePorts::OUT_SEQ_PORT_ID());
 }
 
-bool GenerateDNAWorker::isReady() {
-    return !isDone();
-}
-
 Task* GenerateDNAWorker::tick() {
-    done = true;
+    setDone();
     DNASequenceGeneratorConfig cfg;
     cfg.sequenceName = "Sequence ";
 
@@ -275,7 +270,7 @@ Task* GenerateDNAWorker::tick() {
 
         cfg.alphabet = AppContext::getDNAAlphabetRegistry()->findById(BaseDNAAlphabetIds::NUCL_DNA_DEFAULT());
     }
-    
+
     cfg.length = actor->getParameter(LENGHT_ATTR)->getAttributeValue<int>(context);
     cfg.window = actor->getParameter(WINDOW_SIZE)->getAttributeValue<int>(context);
 
@@ -299,16 +294,16 @@ Task* GenerateDNAWorker::tick() {
     return t;
 }
 
-bool GenerateDNAWorker::isDone() {
-    return done;
-}
-
 void GenerateDNAWorker::sl_taskFinished(Task* t) {
     DNASequenceGeneratorTask* task = qobject_cast<DNASequenceGeneratorTask*>(t);
+    SAFE_POINT( NULL != t, "Invalid task is encountered", );
+    if ( t->isCanceled( ) ) {
+        return;
+    }
     if (ch) {
         foreach(DNASequence seq, task->getSequences()) {
-            U2DataId dataId = context->getDataStorage()->putSequence(seq);
-            ch->put(Message(BaseTypes::DNA_SEQUENCE_TYPE(), dataId));
+            SharedDbiDataHandler handler = context->getDataStorage()->putSequence(seq);
+            ch->put(Message(BaseTypes::DNA_SEQUENCE_TYPE(), qVariantFromValue<SharedDbiDataHandler>(handler)));
         }
         ch->setEnded();
     }

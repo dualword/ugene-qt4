@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,6 @@
  */
 
 #include "WorkflowEditor.h"
-#include "IterationListWidget.h"
 
 #include "WorkflowEditorDelegates.h"
 
@@ -30,19 +29,23 @@ namespace U2 {
  * ProxyDelegate
  ********************************/
 QWidget *ProxyDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const {
-    //if (owner->custom) 
+    //if (owner->custom)
+    QWidget* editor;
     {
         QItemDelegate* itemDelegate = index.model()->data(index, DelegateRole).value<PropertyDelegate*>();
         if (itemDelegate) {
             connect(itemDelegate, SIGNAL(commitData(QWidget*)), SIGNAL(commitData(QWidget*)));
-            return itemDelegate->createEditor(parent, option, index);
+            editor = itemDelegate->createEditor(parent, option, index);
+        }
+        else{
+            editor = QItemDelegate::createEditor(parent, option, index);
         }
     }
-    return QItemDelegate::createEditor(parent, option, index);
+    return editor;
 }
 
 void ProxyDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
-    //if (owner->custom) 
+    //if (owner->custom)
     {
         QItemDelegate* itemDelegate = index.model()->data(index, DelegateRole).value<PropertyDelegate*>();
         if (itemDelegate) {
@@ -87,11 +90,11 @@ void ProxyDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, con
 /********************************
  * SuperDelegate
  ********************************/
-SuperDelegate::SuperDelegate(WorkflowEditor *parent) : ProxyDelegate(parent), owner(parent) {
+SuperDelegate::SuperDelegate(WorkflowEditor *parent) : ProxyDelegate(parent) {
 }
 
-bool SuperDelegate::handlePropertyValueList(const QString& name, QVariant list) const {
-    return owner->iterationList->expandList(owner->actor->getId(), name, list);
+bool SuperDelegate::handlePropertyValueList(const QString& /*name*/, QVariant /*list*/) const {
+    return true;
 }
 
 } // U2

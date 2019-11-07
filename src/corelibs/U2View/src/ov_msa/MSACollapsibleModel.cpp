@@ -1,22 +1,68 @@
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
 #include "MSACollapsibleModel.h"
 #include "MSAEditor.h"
 
-#include <U2Core/U2Region.h>
-#include <U2Core/MAlignmentObject.h>
 #include <U2Core/Log.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2Region.h>
 
 
 namespace U2 {
 
-MSACollapsibleItemModel::MSACollapsibleItemModel(MSAEditorUI* p) : QObject(p), ui(p) {
-    MAlignmentObject* obj = p->getEditor()->getMSAObject();
-    connect(obj, SIGNAL(si_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)), SLOT(sl_alignmentChanged(const MAlignment&, const MAlignmentModInfo&)));
+//////////////////////////////////////////////////////////////////////////
+/// MSACollapsableItem
+//////////////////////////////////////////////////////////////////////////
+
+MSACollapsableItem::MSACollapsableItem()
+    : row(-1), numRows(-1), isCollapsed(false)
+{
+
+}
+
+MSACollapsableItem::MSACollapsableItem(int startPos, int length)
+    : row(startPos), numRows(length), isCollapsed(false)
+{
+
+}
+
+//////////////////////////////////////////////////////////////////////////
+/// MSACollapsibleItemModel
+//////////////////////////////////////////////////////////////////////////
+
+MSACollapsibleItemModel::MSACollapsibleItemModel(MSAEditorUI *p)
+    : QObject(p), ui(p)
+{
+
 }
 
 void MSACollapsibleItemModel::reset(const QVector<U2Region>& itemRegions) {
     items.clear();
     positions.clear();
     foreach(const U2Region& r, itemRegions) {
+        if(r.length <= 1) {
+            continue;
+        }
         items.append(MSACollapsableItem(r.startPos, r.length));
         positions.append(r.startPos);
     }
@@ -24,9 +70,12 @@ void MSACollapsibleItemModel::reset(const QVector<U2Region>& itemRegions) {
 }
 
 void MSACollapsibleItemModel::reset() {
-    items.clear();
-    positions.clear();
-    emit toggled();
+    const bool modelExists = ( !items.isEmpty( ) || !positions.isEmpty( ) );
+    if ( modelExists ) {
+        items.clear( );
+        positions.clear( );
+        emit toggled( );
+    }
 }
 
 void MSACollapsibleItemModel::collapseAll(bool collapse) {
@@ -86,7 +135,7 @@ U2Region MSACollapsibleItemModel::mapToRows(int pos) const {
     QVector<int>::ConstIterator i = qLowerBound(positions, pos);
 
     int idx = i - positions.constBegin();
-    
+
     if (i < positions.constEnd() && *i == pos) {
         // 'pos' is top row in group
         const MSACollapsableItem& item = items.at(idx);
@@ -104,6 +153,55 @@ U2Region MSACollapsibleItemModel::mapToRows(int pos) const {
         startPos = mapToRow(idx, pos);
     }
     return U2Region(startPos, 1);
+}
+
+U2Region MSACollapsibleItemModel::mapSelectionRegionToRows(const U2Region& selectionRegion) const {
+    if (selectionRegion.isEmpty()) {
+        return U2Region();
+    }
+
+    if (!ui->isCollapsibleMode()) {
+        return selectionRegion;
+    }
+
+    int startPos = selectionRegion.startPos;
+    int endPos = startPos + selectionRegion.length - 1;
+
+    int startSeq = 0;
+    int endSeq = 0;
+
+    int startItemIdx = itemAt(startPos);
+
+    if (startItemIdx >= 0) {
+        const MSACollapsableItem& startItem = getItem(startItemIdx);
+        startSeq = startItem.row;
+    } else {
+        startSeq = mapToRow(startPos);
+    }
+
+    int endItemIdx = itemAt(endPos);
+
+    if (endItemIdx >= 0) {
+        const MSACollapsableItem& endItem = getItem(endItemIdx);
+        endSeq = endItem.row + endItem.numRows;
+    } else {
+        endSeq = mapToRow(endPos) + 1;
+    }
+
+    return U2Region(startSeq, endSeq - startSeq);
+}
+
+int MSACollapsibleItemModel::rowToMap(int row, bool failIfNotVisible) const {
+    int invisibleRows = 0;
+    for (QVector<MSACollapsableItem>::ConstIterator it = items.constBegin(); it < items.constEnd() && it->row < row; it++) {
+        if (it->isCollapsed) {
+            if (it->row + it->numRows > row && failIfNotVisible) {
+                return -1;
+            }
+            invisibleRows += (it->row + it->numRows <= row) ? it->numRows - 1 : row - it->row;
+        }
+    }
+    return row - invisibleRows;
 }
 
 void MSACollapsibleItemModel::getVisibleRows(int startPos, int endPos, QVector<U2Region>& range) const {
@@ -140,13 +238,14 @@ void MSACollapsibleItemModel::getVisibleRows(int startPos, int endPos, QVector<U
 
     MSAEditor* ed = ui->getEditor();
     MAlignmentObject* obj = ed->getMSAObject();
-    int alnNumRows = obj->getMAlignment().getNumRows();
+    int alnNumRows = obj->getNumRows();
     lastRow = qMin(lastRow, alnNumRows - 1);
     int len = lastRow - start + 1;
     if (len>0) {
         range.append(U2Region(start, len));
     }
 }
+
 
 bool MSACollapsibleItemModel::isTopLevel(int pos) const {
     QVector<int>::ConstIterator i = qBinaryFind(positions, pos);
@@ -156,68 +255,24 @@ bool MSACollapsibleItemModel::isTopLevel(int pos) const {
     return true;
 }
 
-void MSACollapsibleItemModel::tracePositions() {
-    QVector<int>::ConstIterator iter = positions.constBegin();
-    while (iter != positions.constEnd()) {
-        uiLog.trace(tr("%1").arg(*iter));
-        iter++;
-    }
-}
-
-void MSACollapsibleItemModel::sl_alignmentChanged(const MAlignment& maBefore, const MAlignmentModInfo& modInfo) {
-    if (!ui->isCollapsibleMode() || modInfo.hints.value(MODIFIER) == MAROW_SIMILARITY_SORT) {
-        return;
-    }
-
-    MAlignmentObject* obj = ui->getEditor()->getMSAObject();
-
-    QStringList open;
-    foreach(const MSACollapsableItem& i, items) {
-        if (!i.isCollapsed) {
-            const MAlignmentRow& row = maBefore.getRow(i.row);
-            const QString& name = row.getName();
-            open.append(name);
-        }
-    }
-    
-    // prevent update of msa widgets on 'reset()' call
-    // they'll be updated on 'MSAObject::setMAlignment()'
-    blockSignals(true);
-
-    MAlignment ma = obj->getMAlignment();
-    QVector<U2Region> unitedRows;
-    ma.sortRowsBySimilarity(unitedRows);
-    reset(unitedRows);
-
-    for (int i=0; i<items.size(); i++) {
-        int rowIdx = items.at(i).row;
-        const MAlignmentRow& row = ma.getRow(rowIdx);
-        const QString& name = row.getName();
-        if (open.contains(name)) {
-            triggerItem(i);
-        }
-    }
-
-    blockSignals(false);
-
-    QVariantMap hints;
-    hints[MODIFIER] = MAROW_SIMILARITY_SORT;
-    obj->setMAlignment(ma, hints);
-}
-
 int MSACollapsibleItemModel::getLastPos() const {
+    MSAEditor* ed = ui->getEditor();
+    MAlignmentObject* o = ed->getMSAObject();
+    const MAlignment& ma = o->getMAlignment();
+
     if (items.isEmpty()) {
-        MSAEditor* ed = ui->getEditor();
-        MAlignmentObject* o = ed->getMSAObject();
-        const MAlignment& ma = o->getMAlignment();
         return ma.getNumRows() - 1;
     }
 
-    int lastIdx = items.size() - 1;
-    int res = positions.at(lastIdx);
-    const MSACollapsableItem& i = items.at(lastIdx);
-    if (!i.isCollapsed) {
-        res += i.numRows - 1;
+    const MSACollapsableItem& lastItem = items.last();
+    int res = lastItem.row;
+    if (!lastItem.isCollapsed) {
+        res += lastItem.numRows - 1;
+    }
+    // determine if last collapsible item is last in MSA sequence list
+    int lastPos = lastItem.row + lastItem.numRows - 1;
+    if (lastPos < ma.getNumRows() - 1) {
+        res += ma.getNumRows() -1 - res;
     }
     return res;
 }
@@ -246,4 +301,44 @@ int MSACollapsibleItemModel::itemAt(int pos) const {
     }
 }
 
-} //namespace
+int MSACollapsibleItemModel::getItemPos(int index) const {
+    return positions.at(index);
+}
+
+MSACollapsableItem MSACollapsibleItemModel::getItem(int index) const {
+    return items.at(index);
+}
+
+int MSACollapsibleItemModel::displayedRowsCount() const {
+    MSAEditor *ed = ui->getEditor();
+    MAlignmentObject *o = ed->getMSAObject();
+    int size = o->getNumRows();
+    foreach (const MSACollapsableItem &item, items) {
+        if (item.isCollapsed) {
+            size -= item.numRows - 1;
+        }
+    }
+    return size;
+}
+
+void MSACollapsibleItemModel::removeCollapsedForPosition(int index) {
+    for (int i = 0, n = items.size(); i < n; ++i) {
+        MSACollapsableItem &collapsedItem = items[i];
+
+        int itemStart = collapsedItem.row;
+        int itemEnd = itemStart + collapsedItem.numRows;
+
+        if ((index >= itemStart) && (index < itemEnd)) {
+            items.remove(i);
+
+            int positionIndex = positions.indexOf(itemStart);
+            positions.remove(positionIndex);
+        }
+    }
+}
+
+bool MSACollapsibleItemModel::isEmpty() const {
+    return items.isEmpty();
+}
+
+} // namespace U2

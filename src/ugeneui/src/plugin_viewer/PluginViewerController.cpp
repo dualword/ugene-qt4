@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -65,7 +65,7 @@ PluginViewerController::~PluginViewerController() {
 void PluginViewerController::createWindow() {
     assert(mdiWindow == NULL);
 
-    mdiWindow = new MWMDIWindow(tr("plugin_view_window_title"));
+    mdiWindow = new MWMDIWindow(tr("Plugin Viewer"));
     ui.setupUi(mdiWindow);
     ui.treeWidget->setColumnWidth(1, 200); //todo: save geom
 
@@ -74,7 +74,12 @@ void PluginViewerController::createWindow() {
     }
 
     QList<int> sizes; sizes<<200<<500;
-    ui.splitter->setSizes(sizes);
+    //ui.splitter->setSizes(sizes);
+    ui.licenseLabel->hide();
+    ui.licenseView->hide();
+    ui.acceptLicenseButton->hide();
+    ui.showLicenseButton->setDisabled(true);
+
     ui.treeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     
     connectVisualActions();
@@ -104,19 +109,19 @@ void PluginViewerController::connectStaticActions() {
     viewPluginsAction->setObjectName(ACTION__PLUGINS_VIEW);
     pluginsMenu->addAction(viewPluginsAction);
 
-    addPluginAction = new QAction(tr("add_plugin_label"), this);
+    addPluginAction = new QAction(tr("Add plugin"), this);
     connect(addPluginAction, SIGNAL(triggered()), SLOT(sl_addPlugin()));
 
-    enablePluginAction = new QAction(tr("enable_plugin_action"), this);
+    enablePluginAction = new QAction(tr("Enable plugin"), this);
     connect(enablePluginAction, SIGNAL(triggered()), SLOT(sl_enablePlugin()));
 
-    disablePluginAction = new QAction(tr("disable_plugin_action"), this);
+    disablePluginAction = new QAction(tr("Remove plugin"), this);
     connect(disablePluginAction, SIGNAL(triggered()), SLOT(sl_disablePlugin()));
 
-    enableServiceAction =  new QAction(tr("enable_service_label"), this);
+    enableServiceAction =  new QAction(tr("Enable service"), this);
     connect(enableServiceAction, SIGNAL(triggered()), SLOT(sl_enableService()));
 
-    disableServiceAction = new QAction(tr("disable_service_label"), this);
+    disableServiceAction = new QAction(tr("Disable service"), this);
     connect(disableServiceAction, SIGNAL(triggered()), SLOT(sl_disableService()));
 }
 
@@ -134,6 +139,8 @@ void PluginViewerController::connectVisualActions() {
 
     connect(ui.treeWidget, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),SLOT(sl_treeCurrentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)));
     connect(ui.treeWidget, SIGNAL(customContextMenuRequested(const QPoint&)),SLOT(sl_treeCustomContextMenuRequested(const QPoint&)));
+    connect(ui.showLicenseButton,SIGNAL(clicked()),SLOT(sl_showHideLicense()));
+    connect(ui.acceptLicenseButton,SIGNAL(clicked()),SLOT(sl_acceptLicense()));
 }
 
 void PluginViewerController::disconnectVisualActions() {
@@ -260,12 +267,12 @@ void PluginViewerController::sl_show() {
 }
 
 void PluginViewerController::sl_addPlugin() {
-    QString caption = tr("add_plugin_caption");
+    QString caption = tr("Select plugin file");
     QString lastDir = AppContext::getSettings()->getValue(PLUGIN_VIEW_SETTINGS + "addDir").toString();
     
-    QString ext=tr("genome_browser2_plugin_files")+" (*."+PLUGIN_FILE_EXT+")";
+    QString ext=tr("Plugin files")+" (*."+PLUGIN_FILE_EXT+")";
 
-    QString pluginFilePath = QFileDialog::getOpenFileName(ui.treeWidget, caption, lastDir, ext);
+    QString pluginFilePath = U2FileDialog::getOpenFileName(ui.treeWidget, caption, lastDir, ext);
     if (pluginFilePath.isEmpty())  {
         return;
     }
@@ -281,7 +288,7 @@ void PluginViewerController::sl_taskStateChanged() {
     Task* t = qobject_cast<Task*>(sender());
     assert(t!=NULL);
     if (t->isFinished() && t->hasError()) {
-        QMessageBox::critical(ui.treeWidget, tr("add_plugin_error_caption"), t->getError());
+        QMessageBox::critical(ui.treeWidget, tr("Error"), t->getError());
     }
 }
 
@@ -365,6 +372,20 @@ void PluginViewerController::updateState() {
 
 void PluginViewerController::sl_treeCurrentItemChanged(QTreeWidgetItem * current, QTreeWidgetItem * previous) {
     Q_UNUSED(current); Q_UNUSED(previous);
+    if(current == previous){
+        return;
+    }
+    ui.showLicenseButton->setEnabled(true);
+    PlugViewPluginItem* curentItem=dynamic_cast<PlugViewPluginItem*>(current);
+    if(!curentItem->plugin->isFree()){
+        if(!curentItem->plugin->isLicenseAccepted()){
+            showLicense();
+        }else{
+            hideLicense();
+        }
+    }else{
+        hideLicense();
+    }
     updateState();
 }
 
@@ -399,6 +420,49 @@ void PluginViewerController::sl_treeCustomContextMenuRequested(const QPoint & po
     menu->exec(QCursor::pos());
 }
 
+void PluginViewerController::sl_showHideLicense(){
+    if(ui.licenseView->isHidden()){
+        showLicense();
+    }else{
+        hideLicense();
+    }
+}
+void PluginViewerController::sl_acceptLicense(){
+    PlugViewPluginItem* curentItem=dynamic_cast<PlugViewPluginItem*>(ui.treeWidget->currentItem());
+    showLicense();
+    AppContext::getPluginSupport()->setLicenseAccepted(curentItem->plugin);
+}
+
+void PluginViewerController::showLicense(){
+    ui.showLicenseButton->setText(tr("Hide License"));
+    ui.licenseView->show();
+    ui.licenseLabel->show();
+    PlugViewPluginItem* curentItem=dynamic_cast<PlugViewPluginItem*>(ui.treeWidget->currentItem());
+    if(!curentItem->plugin->isFree()){
+        if(!curentItem->plugin->isLicenseAccepted()){
+            ui.acceptLicenseButton->show();
+        }else{
+            ui.acceptLicenseButton->hide();
+        }
+    }else{
+        ui.acceptLicenseButton->hide();
+    }
+
+    //Opening license file
+    QFile licenseFile(curentItem->plugin->getLicensePath().getURLString());
+    if (!licenseFile.open(QIODevice::ReadOnly | QIODevice::Text)){
+        ui.licenseView->setText(tr("License file not found."));
+    }else{
+        ui.licenseView->setText(QString(licenseFile.readAll()));
+        licenseFile.close();
+    }
+}
+void PluginViewerController::hideLicense(){
+    ui.showLicenseButton->setText(tr("Show License"));
+    ui.licenseView->hide();
+    ui.licenseLabel->hide();
+    ui.acceptLicenseButton->hide();
+}
 //////////////////////////////////////////////////////////////////////////
 // TreeItems
 
@@ -409,13 +473,13 @@ PlugViewPluginItem::PlugViewPluginItem(PlugViewTreeItem *parent, Plugin* p, bool
 }
 
 void PlugViewPluginItem::updateVisual() {
-    setData(0, Qt::DisplayRole, PluginViewerController::tr("item_type_plugin_label"));
+    setData(0, Qt::DisplayRole, PluginViewerController::tr("Plugin"));
     setData(1, Qt::DisplayRole, plugin->getName());
 
     bool toRemove = AppContext::getPluginSupport()->getRemoveFlag(plugin);
     QString state = toRemove ?
-        PluginViewerController::tr("removed_after_restart") 
-        : PluginViewerController::tr("item_state_on");
+        PluginViewerController::tr("to remove after restart") 
+        : PluginViewerController::tr("On");
 
     setData(2, Qt::DisplayRole, state);
     QString desc=QString(plugin->getDescription()).replace("\n"," ");
@@ -445,11 +509,11 @@ PlugViewServiceItem::PlugViewServiceItem(PlugViewPluginItem *parent, Service* s)
 }
 
 void PlugViewServiceItem::updateVisual() {
-    setData(0, Qt::DisplayRole, PluginViewerController::tr("item_type_service_label"));
+    setData(0, Qt::DisplayRole, PluginViewerController::tr("Service"));
     setData(1, Qt::DisplayRole, service->getName());
     setData(2, Qt::DisplayRole, service->isEnabled() 
-            ? PluginViewerController::tr("item_state_on") 
-            : PluginViewerController::tr("item_state_off"));
+            ? PluginViewerController::tr("On") 
+            : PluginViewerController::tr("Off"));
     setData(3, Qt::DisplayRole, service->getDescription());
     setIcon(0, QIcon(":ugene/images/service.png"));
 }

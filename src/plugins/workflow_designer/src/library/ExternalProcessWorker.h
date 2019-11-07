@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@
 #define ExtrenalProcessWorker_h__
 
 
-#include <U2Core/Task.h> 
+#include <U2Core/Task.h>
 #include <U2Lang/LocalDomain.h>
 #include <U2Lang/WorkflowUtils.h>
 #include <U2Lang/ExternalToolCfg.h>
@@ -40,30 +40,29 @@ public:
         ExternalToolCfgRegistry * reg = WorkflowEnv::getExternalCfgRegistry();
         cfg = reg->getConfigByName(actor->getProto()->getId());
         commandLine = cfg->cmdLine;
-        done = false;
-        busy = false;
     }
-    bool isReady();
-    bool isDone();
+    bool isReady() const;
     Task* tick();
     void init();
     void cleanup();
 
 private slots:
     void sl_onTaskFinishied();
-    
-private:
-    const QString generateAndCreateURL(const QString &extention, const QString &name);
 
+private:
+    void applyAttributes(QString &execString);
+    QStringList applyInputMessage(QString &execString, const DataConfig &dataCfg, const QVariantMap &data, U2OpStatus &os);
+    QString prepareOutput(QString &execString, const DataConfig &dataCfg, U2OpStatus &os);
+    void checkInputBusState(bool &hasMessages, bool &isEnded) const;
+    bool finishWorkIfInputEnded();
+
+private:
     IntegralBus *output;
     QList<IntegralBus*> inputs;
     QString commandLine;
     ExternalProcessConfig *cfg;
 
     QStringList inputUrls;
-    QMap<QString, DataConfig> outputUrls;
-    bool done;
-    bool busy;
 };
 
 class ExternalProcessWorkerFactory: public DomainFactory {
@@ -82,11 +81,19 @@ public:
 
 class LaunchExternalToolTask: public Task {
     Q_OBJECT
+    Q_DISABLE_COPY(LaunchExternalToolTask)
 public:
-    LaunchExternalToolTask(const QString &execString);
+    LaunchExternalToolTask(const QString &execString, const QMap<QString, DataConfig> &outputUrls);
+    ~LaunchExternalToolTask();
+
     void run();
 
+    QMap<QString, DataConfig> takeOutputUrls();
+
 private:
+    QMap<QString, DataConfig> outputUrls;
+    QStringList parseCombinedArgString(const QString &program);
+
     QString execString;
 };
 

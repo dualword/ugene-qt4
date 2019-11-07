@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -77,10 +77,8 @@ class SiteconReader : public BaseWorker {
 public:
     static const QString ACTOR_ID;
     SiteconReader(Actor* a) : BaseWorker(a), output(NULL) {}
-    virtual void init() ;
-    virtual bool isReady() {return !urls.isEmpty();}
-    virtual Task* tick() ;
-    virtual bool isDone() {return urls.isEmpty();}
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 private slots:
     void sl_taskFinished();
@@ -97,10 +95,8 @@ class SiteconWriter : public BaseWorker {
 public:
     static const QString ACTOR_ID;
     SiteconWriter(Actor* a) : BaseWorker(a), input(NULL), done(false), fileMode(SaveDoc_Overwrite) {}
-    virtual void init() ;
-    virtual bool isReady() {return input && input->hasMessage();}
-    virtual Task* tick() ;
-    virtual bool isDone() {return !input || input->isEnded();}
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 
 protected:

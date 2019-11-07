@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,9 +21,15 @@
 
 #include "WindowStepSelectorWidget.h"
 
-#include <QtGui/QFormLayout>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QPushButton>
+#include <QtGui/QFormLayout>
 #include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QFormLayout>
+#include <QtWidgets/QMessageBox>
+#endif
 
 #include <limits.h>
 
@@ -40,13 +46,12 @@ WindowStepSelectorWidget::WindowStepSelectorWidget(QWidget* p, const U2Region& w
     windowEdit->setRange(winRange.startPos, winRange.endPos());
     windowEdit->setValue(win);
     windowEdit->setAlignment(Qt::AlignRight);
-    
+
     stepsPerWindowEdit = new QSpinBox(this);
     stepsPerWindowEdit->setRange(1, winRange.endPos());
-    assert(win % step == 0);
     stepsPerWindowEdit->setValue(win/step);
     stepsPerWindowEdit->setAlignment(Qt::AlignRight);
-    
+
     QFormLayout* l = new QFormLayout(this);
     l->addRow(tr("Window:"), windowEdit);
     l->addRow(tr("Steps per window:"), stepsPerWindowEdit);
@@ -149,7 +154,7 @@ WindowStepSelectorDialog::WindowStepSelectorDialog(QWidget* p, const U2Region& w
     QHBoxLayout* buttonsLayout = new QHBoxLayout();
     buttonsLayout->addStretch(10);
     QPushButton* cancelButton = new QPushButton(tr("Cancel"), this);
-    QPushButton* okButton = new QPushButton(tr("Ok"), this);
+    QPushButton* okButton = new QPushButton(tr("OK"), this);
     buttonsLayout->addWidget(okButton);
     buttonsLayout->addWidget(cancelButton);
 
@@ -166,7 +171,7 @@ WindowStepSelectorDialog::WindowStepSelectorDialog(QWidget* p, const U2Region& w
 
     connect(cancelButton, SIGNAL(clicked(bool)), SLOT(sl_onCancelClicked(bool)));
     connect(okButton, SIGNAL(clicked(bool)), SLOT(sl_onOkClicked(bool)));
-    
+
     okButton->setDefault(true);
 }
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include "SiteconAlgorithm.h"
 #include <U2Core/Task.h>
 #include <U2Core/MAlignment.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -53,6 +57,8 @@ private slots:
 private:
     Task* task;
     SiteconPlugin* plug;
+    QPushButton* okButton;
+    QPushButton* cancelButton;
 };
 
 class SiteconBuildTask : public Task {

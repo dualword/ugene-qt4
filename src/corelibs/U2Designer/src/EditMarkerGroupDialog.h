@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -29,6 +29,9 @@
 #include "ui_EditStringMarkerWidget.h"
 
 namespace U2 {
+namespace Workflow {
+    class MarkerGroupListCfgModel;
+}
 
 class Marker;
 class MarkerListCfgModel;
@@ -39,7 +42,7 @@ class MarkerListCfgModel;
 class EditMarkerGroupDialog : public QDialog, public Ui::EditMarkerGroupDialog {
     Q_OBJECT
 public:
-    EditMarkerGroupDialog(bool isNew, Marker *marker, QWidget *parent);
+    EditMarkerGroupDialog(bool isNew, Marker *marker, Workflow::MarkerGroupListCfgModel *allModel, QWidget *parent);
     ~EditMarkerGroupDialog();
     void accept();
 
@@ -53,6 +56,7 @@ private:
     Marker *marker;
     QString oldName;
     MarkerListCfgModel *markerModel;
+    Workflow::MarkerGroupListCfgModel *allModel;
     int currentTypeIndex;
 
     QStringList typeIds;
@@ -64,6 +68,8 @@ private slots:
     void sl_onEditButtonClicked();
     void sl_onRemoveButtonClicked();
     void sl_onTypeChanged(int newTypeIndex);
+    void sl_onItemSelected(const QModelIndex &idx);
+    void sl_onItemEntered(const QModelIndex &idx);
 };
 
 /************************************************************************/

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <ui/ui_DotPlotDialog.h>
 
 #include <U2Algorithm/RepeatFinderSettings.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
 
 namespace U2 {
 
@@ -37,8 +41,8 @@ class U2SequenceObject;
 class DotPlotDialog : public QDialog, public Ui_DotPlotDialog{
     Q_OBJECT
 public:
-    DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int minLen, int identity, 
-        ADVSequenceObjectContext *seqX, ADVSequenceObjectContext *seqY, bool dir, bool inv, 
+    DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int minLen, int identity,
+        ADVSequenceObjectContext *seqX, ADVSequenceObjectContext *seqY, bool dir, bool inv,
         const QColor &dColor = QColor(), const QColor &iColor = QColor(), bool hideLoadSequences = false);
 
     virtual void accept();
@@ -87,6 +91,7 @@ private:
 
     Task* openSequenceTask;
     QString curURL;
+    QPushButton* startButton;
 };
 
 } //namespace

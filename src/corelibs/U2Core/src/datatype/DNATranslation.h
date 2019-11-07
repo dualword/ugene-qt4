@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ public:
 
 class U2CORE_EXPORT DNATranslation {
 public:
-    DNATranslation(const QString& _id, const QString& _name, DNAAlphabet* src, DNAAlphabet* dst);
+    DNATranslation(const QString& _id, const QString& _name, const DNAAlphabet* src, const DNAAlphabet* dst);
     virtual ~DNATranslation(){}
 
     virtual qint64 translate(const char* src, qint64 src_len, char* dst, qint64 dst_capacity) const = 0;
@@ -67,15 +67,15 @@ public:
 
     DNATranslationType getDNATranslationType() const {return type;}
 
-    DNAAlphabet* getSrcAlphabet() const {return srcAlphabet;}
+    const DNAAlphabet* getSrcAlphabet() const {return srcAlphabet;}
 
-    DNAAlphabet* getDstAlphabet() const {return dstAlphabet;}
+    const DNAAlphabet* getDstAlphabet() const {return dstAlphabet;}
 
     virtual bool isOne2One() const {return false;}
-    
+
     virtual bool isThree2One() const {return false;}
 
-       virtual bool isOne2Three() const {return false;}
+    virtual bool isOne2Three() const {return false;}
 
     virtual QByteArray getOne2OneMapper() const {
         assert(0); return QByteArray(256, 0);
@@ -95,8 +95,36 @@ protected:
     DNATranslationType type;
     QString name;
     QString id;
-    DNAAlphabet* srcAlphabet;
-    DNAAlphabet* dstAlphabet;
+    const DNAAlphabet* srcAlphabet;
+    const DNAAlphabet* dstAlphabet;
+};
+
+enum DNACodonGroup {
+    DNACodonGroup_POLAR,
+    DNACodonGroup_NONPOLAR,
+    DNACodonGroup_BASIC,
+    DNACodonGroup_ACIDIC,
+    DNACodonGroup_STOP
+};
+
+class U2CORE_EXPORT DNACodon {
+public:
+    DNACodon(char s, QString code, QString name, DNACodonGroup gr)
+        : symbol(s), threeLetterCode(code), fullName(name), group(gr) {}
+    virtual ~DNACodon(){}
+    void setLink(QString _link) {link = _link; }
+
+    char            getSymbol() const { return symbol; }
+    QString         getTreeLetterCode() const { return threeLetterCode; }
+    QString         getFullName() const { return fullName; }
+    DNACodonGroup   getCodonGroup() const { return group; }
+    QString         getLink() const {return link; }
+private:
+    char            symbol;
+    QString         threeLetterCode;
+    QString         fullName;
+    QString         link;
+    DNACodonGroup   group;
 };
 
 
@@ -105,22 +133,33 @@ public:
     DNATranslationRegistry(QObject* p=0) :QObject(p){}
     ~DNATranslationRegistry();
 
+    DNATranslation* getStandardGeneticCodeTranslation(const DNAAlphabet* srcAlphabet);
+
     QStringList getDNATranlations() const;
 
     QStringList getDNATranslationIds() const;
 
+    QStringList getDNATranslationIds(const QString& name) const;
+
     void registerDNATranslation(DNATranslation* t);
 
-    QList<DNATranslation*> lookupTranslation(DNAAlphabet* srcAlphabet, DNATranslationType type);
+    void registerDNACodon(DNACodon* codon);
 
-    DNATranslation* lookupTranslation(DNAAlphabet* srcAlphabet, DNATranslationType type, const QString& id);
+    QList<DNATranslation*> lookupTranslation(const DNAAlphabet* srcAlphabet, DNATranslationType type);
+
+    DNATranslation* lookupTranslation(const DNAAlphabet* srcAlphabet, DNATranslationType type, const QString& id);
 
     DNATranslation* lookupTranslation(const QString& id);
 
-    DNATranslation* lookupComplementTranslation(DNAAlphabet* srcAlphabet);
+    DNATranslation* lookupTranslation(const DNAAlphabet* srcAlphabet, const QString& id);
+
+    DNATranslation* lookupComplementTranslation(const DNAAlphabet* srcAlphabet);
+
+    DNACodon* lookupCodon(char symbol);
 
 private:
     QList<DNATranslation*> translations;
+    QList<DNACodon*> codons;
 };
 
 } //namespace

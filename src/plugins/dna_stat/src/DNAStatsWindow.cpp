@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,54 +25,62 @@
 #include "DNAStatsWindow.h"
 #include "DNAStatProfileTask.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QLabel>
 #include <QtGui/QHBoxLayout>
 #include <QtGui/QVBoxLayout>
-#include <QtGui/QLabel>
 #include <QtGui/QDoubleSpinBox>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QDoubleSpinBox>
+#endif
 #include <QtGui/QContextMenuEvent>
 
 namespace U2 {
 
 DNAStatsWindow::DNAStatsWindow(ADVSequenceObjectContext* context)
-: MWMDIWindow(tr("Statistics for %1").arg(context->getSequenceObject()->getGObjectName())), 
-			  ctx(context), updateTask(NULL)
+: MWMDIWindow(tr("Statistics for %1").arg(context->getSequenceObject()->getGObjectName())),
+              ctx(context), updateTask(NULL)
 {
     QVBoxLayout* l = new QVBoxLayout(this);
     l->setMargin(0);
     setLayout(l);
 
     webView = new DNAStatsWebView(this);
-	webView->addAction(new QAction("New action!", this));
+    webView->addAction(new QAction("New action!", this));
+    webView->setObjectName("DNAStatWebView" + context->getSequenceObject()->getGObjectName());
     l->addWidget(webView);
-	connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), SLOT(sl_onTaskStateChanged(Task*)));
-	
-	update();
+    connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), SLOT(sl_onTaskStateChanged(Task*)));
+
+    update();
 }
 
 void DNAStatsWindow::update()
 {
-	if (updateTask == NULL) {
-		updateTask = new DNAStatProfileTask(ctx);
-		AppContext::getTaskScheduler()->registerTopLevelTask(updateTask);
-	}
-	
+    if (updateTask == NULL) {
+        updateTask = new DNAStatProfileTask(ctx);
+        AppContext::getTaskScheduler()->registerTopLevelTask(updateTask);
+    }
+
 }
 
 void DNAStatsWindow::sl_onTaskStateChanged( Task* task )
 {
-	if (task == updateTask && task->getState() == Task::State_Finished) {
-		webView->setHtml(updateTask->getResult());
-		updateTask = NULL;
-	}
+    if (task == updateTask && task->getState() == Task::State_Finished) {
+        webView->setHtml(updateTask->getResult());
+        updateTask = NULL;
+    }
 }
 
 
 void DNAStatsWebView::contextMenuEvent( QContextMenuEvent* event )
 {
-	QMenu menu;
-	menu.addAction(new QAction("Settings", this));
+    QMenu menu;
+    menu.addAction(new QAction("Settings", this));
 
-	menu.exec(event->globalPos());
+    menu.exec(event->globalPos());
 }
 
 } //namespace

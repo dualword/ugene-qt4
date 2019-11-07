@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,8 +25,13 @@
 #include <U2Core/PluginModel.h>
 #include <U2Core/AppContext.h>
 #include <U2Gui/ObjectViewModel.h>
+#include <U2Algorithm/AlignmentAlgorithmsRegistry.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMenu>
+#endif
 
 //#include <kalign_local_task/KalignLocalTask.h> //TODO
 
@@ -42,8 +47,7 @@ public:
     KalignPlugin();
     ~KalignPlugin();
 public slots:
-    void sl_runKalignTask();
-    void sl_documentLoaded(Task* task);
+    void sl_runWithExtFileSpecify();
 
 private:
     KalignMSAEditorContext* ctx;
@@ -66,12 +70,18 @@ protected:
 class KalignAction : public GObjectViewAction {
     Q_OBJECT
 public:
-    KalignAction(QObject* p, GObjectView* v, const QString& text, int order) 
+    KalignAction(QObject* p, GObjectView* v, const QString& text, int order)
         : GObjectViewAction(p,v,text,order) {}
     MSAEditor*  getMSAEditor() const;
 
 private slots:
-    void sl_lockedStateChanged();
+    void sl_updateState();
+};
+
+class KalignPairwiseAligmnentAlgorithm : public AlignmentAlgorithm {
+public:
+    KalignPairwiseAligmnentAlgorithm();
+    bool checkAlphabet(const DNAAlphabet *alphabet) const;
 };
 
 } //namespace

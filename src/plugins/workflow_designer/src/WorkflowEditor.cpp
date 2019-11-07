@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,29 +21,55 @@
 
 #include "WorkflowEditor.h"
 #include "WorkflowViewController.h"
-#include "IterationListWidget.h"
 #include "WorkflowEditorDelegates.h"
 
+#include "ActorCfgFilterProxyModel.h"
 #include "ActorCfgModel.h"
 
-#include <U2Core/Settings.h>
 #include <U2Core/Log.h>
-#include <U2Lang/WorkflowUtils.h>
-#include <U2Lang/MapDatatypeEditor.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/Counter.h>
 
+#include <U2Designer/DatasetsController.h>
+
+#include <U2Lang/BaseAttributes.h>
+#include <U2Lang/MapDatatypeEditor.h>
+#include <U2Lang/URLAttribute.h>
+#include <U2Lang/WorkflowUtils.h>
+#include "TableViewTabKey.h"
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QHeaderView>
-
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QHeaderView>
+#endif
+#include <QtGui/QKeyEvent>
 
 #define MAIN_SPLITTER "main.splitter"
 #define TAB_SPLITTER "tab.splitter"
 
 namespace U2 {
 
-WorkflowEditor::WorkflowEditor(WorkflowView *p) 
-: QWidget(p), owner(p), custom(NULL), customWidget(NULL), subject(NULL), actor(NULL)
+WorkflowEditor::WorkflowEditor(WorkflowView *p)
+: QWidget(p), owner(p), custom(NULL),
+customWidget(NULL), subject(NULL), actor(NULL)
 {
+    GCOUNTER( cvar, tvar, "WorkflowEditor" );
     setupUi(this);
+
+    specialParameters = new SpecialParametersPanel(this);
+    tableSplitter->insertWidget(0, specialParameters);
+    specialParameters->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    table->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    specialParameters->hide();
+
+#ifdef Q_OS_MAC
+    QString style("QGroupBox::title {margin-top: 1px; margin-left: 15px;}");
+    editorBox->setStyleSheet(style);
+#endif
 
     inputPortWidget << table2;
     outputPortWidget << table3;
@@ -55,52 +81,41 @@ WorkflowEditor::WorkflowEditor(WorkflowView *p)
     caption->setMinimumHeight(nameEdit->sizeHint().height());
     //doc->setMaximumHeight(height()/4);
 
-    iterationList = new IterationListWidget(this);
-    iterationBox->layout()->addWidget(iterationList);
-    connect(iterationBox, SIGNAL(toggled(bool)), iterationList, SLOT(setVisible(bool)));
-    connect(iterationBox, SIGNAL(toggled(bool)), SLOT(sl_resizeSplitter(bool)));
-    iterationBox->setChecked(false);
-    //iterationBox->setMaximumHeight(height()/4);
+    actorModel = new ActorCfgModel(this, owner);
+    proxyModel = new ActorCfgFilterProxyModel(this);
+    proxyModel->setSourceModel(actorModel);
+    table->setModel(proxyModel);
 
-    actorModel = new ActorCfgModel(this, iterationList->list());
-    table->setModel(actorModel);
-    table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-    
     table->horizontalHeader()->setStretchLastSection(true);
-    //table->horizontalHeader()->setStretchLastSection(false);
-    //table->horizontalHeader()->setResizeMode(0, QHeaderView::ResizeToContents);
-    //table->horizontalHeader()->setResizeMode(1, QHeaderView::Interactive);
-    //table->horizontalHeader()->setResizeMode(2, QHeaderView::Stretch);
-    
+
+#if (QT_VERSION < 0x050000) //Qt 5
     table->horizontalHeader()->setClickable(false);
+    table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
+#else
+    table->horizontalHeader()->setSectionsClickable(false);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+#endif
     table->verticalHeader()->hide();
     table->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 6);
     table->setItemDelegate(new SuperDelegate(this));
-    //table->setMinimumHeight(height()/2);
 
     reset();
 
     doc->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     propDoc->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     doc->installEventFilter(this);
-    
-    connect(iterationList, SIGNAL(iterationListAboutToChange()), SLOT(finishPropertyEditing()));
-    connect(iterationList, SIGNAL(selectionChanged()), SLOT(updateIterationData()));
-    connect(iterationList, SIGNAL(listChanged()), SLOT(commitIterations()));
-    connect(iterationList, SIGNAL(selectionChanged()), SIGNAL(iterationSelected()));
 
     connect(nameEdit, SIGNAL(editingFinished()), SLOT(editingLabelFinished()));
 
     connect(table->selectionModel(), SIGNAL(currentChanged(QModelIndex, QModelIndex)), SLOT(sl_showPropDoc()));
     connect(table->model(), SIGNAL(dataChanged(QModelIndex, QModelIndex)), SLOT(handleDataChanged(QModelIndex, QModelIndex)));
-    
     // FIXME
     //connect(doc, SIGNAL(customContextMenuRequested(const QPoint &)), SLOT(sl_contextMenuForDoc(const QPoint &)));
+    table->setTabKeyNavigation(true);
 }
 
 void WorkflowEditor::setEditable(bool editable) {
     table->setDisabled(!editable);
-    iterationList->setDisabled(!editable);
     foreach(QWidget* w, inputPortWidget) { w->setDisabled(!editable); }
     foreach(QWidget* w, outputPortWidget) { w->setDisabled(!editable); }
 }
@@ -143,7 +158,7 @@ void WorkflowEditor::changeSizes(QWidget *w, int h) {
 
 void WorkflowEditor::handleDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight) {
     if (topLeft == bottomRight) {
-        commitIterations();
+        sendModified();
     }
 }
 
@@ -154,7 +169,12 @@ void WorkflowEditor::changeScriptMode(bool _mode) {
     }
     actorModel->changeScriptMode(_mode);
     //table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+
+#if (QT_VERSION < 0x050000) //Qt 5
     table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
+#else
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+#endif
     table->horizontalHeader()->setStretchLastSection(true);
     if(_mode) {
         int tWidth = table->width();
@@ -164,20 +184,11 @@ void WorkflowEditor::changeScriptMode(bool _mode) {
     }
 }
 
-void WorkflowEditor::selectIteration(int id) {
-    iterationList->selectIteration(id);
-}
-
-Iteration WorkflowEditor::getCurrentIteration() const {
-    return iterationList->list().at(iterationList->current());
-}
-
-void WorkflowEditor::updateIterationData() {
+void WorkflowEditor::updateEditingData() {
     if (sender()) {
         finishPropertyEditing();
     }
-    actorModel->setIterations(iterationList->list());
-    actorModel->selectIteration(iterationList->current());
+    actorModel->update();
 }
 
 void WorkflowEditor::sl_showDoc(const QString& str) {
@@ -213,9 +224,10 @@ void WorkflowEditor::reset() {
     propDoc->setText("");
     inputPortBox->setEnabled(false);
     outputPortBox->setEnabled(false);
+    paramBox->setEnabled(false);
     inputPortBox->setVisible(true);
     outputPortBox->setVisible(true);
-    paramBox->setEnabled(false);
+    paramBox->setVisible(true);
 
     QList<int> sizes = splitter->sizes();
     int splitterHeight = splitter->height();
@@ -230,9 +242,6 @@ void WorkflowEditor::reset() {
     ind = splitter->indexOf(paramBox);
     splitter->setStretchFactor(ind, 0);
     sizes[ind] = 0;
-    ind = splitter->indexOf(iterationBox);
-    splitter->setStretchFactor(ind, 0);
-    sizes[ind] = 0;
 
     sizes[indDoc] = splitterHeight/2;
     splitter->setStretchFactor(indDoc, 1);
@@ -243,27 +252,30 @@ void WorkflowEditor::reset() {
     paramHeight = 0;
     inputHeight = 0;
     outputHeight = 0;
+    if (NULL != specialParameters) {
+        specialParameters->setEnabled(false);
+        specialParameters->reset();
+    }
 }
 
-void WorkflowEditor::resetIterations() {
-    //disconnect(iterationList, SIGNAL(listChanged()), this, SLOT(commitIterations()));
-    iterationList->setList(owner->getScene()->getIterations());
-    //connect(iterationList, SIGNAL(listChanged()), SLOT(commitIterations()));
+void WorkflowEditor::commitDatasets(const QString &attrId, const QList<Dataset> &sets) {
+    assert(NULL != actor);
+    Attribute *attr = actor->getParameter(attrId);
+    attr->setAttributeValue(qVariantFromValue< QList<Dataset> >(sets));
+    sendModified();
 }
 
-void WorkflowEditor::commitIterations() {
-    uiLog.trace("committing iterations data");
-    owner->getScene()->setIterations(iterationList->list());
+void WorkflowEditor::sendModified() {
+    uiLog.trace("committing workflow data");
+    owner->onModified();
 }
 
 void WorkflowEditor::finishPropertyEditing() {
-    //table->setCurrentCell(0,0, QItemSelectionModel::NoUpdate);
-    table->setCurrentIndex(QModelIndex()/*table->model()->index(0, 0, QModelIndex())*/);
+    table->setCurrentIndex(QModelIndex());
 }
 
 void WorkflowEditor::commit() {
     finishPropertyEditing();
-    //commitIterations();
 }
 
 void WorkflowEditor::editActor(Actor* a) {
@@ -275,27 +287,27 @@ void WorkflowEditor::editActor(Actor* a) {
         nameEdit->show();
         setDescriptor(a->getProto(), tr("To configure the parameters of the element go to \"Parameters\" area below."));
         edit(a);
-
-        paramHeight = table->rowHeight(0) * (table->model()->rowCount() + 3);
-        paramBox->setTitle(tr("Parameters"));
-        if(paramBox->isChecked()) {
-            changeSizes(paramBox, paramHeight);
+        if (NULL != specialParameters) {
+            specialParameters->editActor(a);
         }
 
         if(!a->getInputPorts().isEmpty()) {
-            inputPortBox->setVisible(true);
+            inputPortBox->setVisible(false);
             inputHeight = 0;
             foreach(Port *p, a->getInputPorts()) {
                 BusPortEditor* ed = new BusPortEditor(qobject_cast<IntegralBusPort*>(p));
                 ed->setParent(p);
                 p->setEditor(ed);
                 QWidget *w = ed->getWidget();
-                inputHeight += ed->getOptimalHeight(); 
                 inputLayout->addWidget(w);
-                w->setVisible(inputPortBox->isChecked());
-                inputPortBox->setEnabled(true);
-                inputPortBox->setVisible(true);
-                
+                bool visible = ed && !ed->isEmpty();
+                if (visible) {
+                    inputHeight += ed->getOptimalHeight();
+                    w->setVisible(inputPortBox->isChecked());
+                    inputPortBox->setEnabled(true);
+                    inputPortBox->setVisible(true);
+                }
+
                 connect(ed, SIGNAL(si_showDoc(const QString&)), SLOT(sl_showDoc(const QString&)));
                 inputPortWidget << w;
             }
@@ -311,19 +323,22 @@ void WorkflowEditor::editActor(Actor* a) {
         }
 
         if(!a->getOutputPorts().isEmpty()) {
-            outputPortBox->setVisible(true);
+            outputPortBox->setVisible(false);
             outputHeight = 0;
             foreach(Port *p, a->getOutputPorts()) {
                 BusPortEditor* ed = new BusPortEditor(qobject_cast<IntegralBusPort*>(p));
                 ed->setParent(p);
                 p->setEditor(ed);
                 QWidget *w = ed->getWidget();
-                outputHeight += ed->getOptimalHeight();
                 outputLayout->addWidget(w);
-                w->setVisible(outputPortBox->isChecked());
-                outputPortBox->setEnabled(true);
-                outputPortBox->setVisible(true);
-                
+                bool visible = ed && !ed->isEmpty();
+                if (visible) {
+                    outputHeight += ed->getOptimalHeight();
+                    w->setVisible(outputPortBox->isChecked());
+                    outputPortBox->setEnabled(true);
+                    outputPortBox->setVisible(true);
+                }
+
                 connect(ed, SIGNAL(si_showDoc(const QString&)), SLOT(sl_showDoc(const QString&)));
                 outputPortWidget << w;
             }
@@ -335,6 +350,14 @@ void WorkflowEditor::editActor(Actor* a) {
             outputPortBox->setEnabled(false);
             outputPortBox->setVisible(false);
             outputPortBox->resize(0,0);
+        }
+        paramHeight = table->rowHeight(0) * (table->model()->rowCount() + 3);
+        if (NULL != specialParameters && specialParameters->isVisible()) {
+            paramHeight += specialParameters->contentHeight();
+        }
+        paramBox->setTitle(tr("Parameters"));
+        if(paramBox->isChecked()) {
+            changeSizes(paramBox, paramHeight);
         }
     }
 }
@@ -400,6 +423,11 @@ void WorkflowEditor::editPort(Port* p) {
         paramHeight = ed->getOptimalHeight();
 
         edit(p);
+        bool invisible = ((NULL != ed && ed->isEmpty()) || !p->isEnabled());
+        paramBox->setVisible(!invisible);
+        if (invisible) {
+            paramHeight = 0;
+        }
         if(paramBox->isChecked()) {
             changeSizes(paramBox, paramHeight);
         }
@@ -422,6 +450,9 @@ void WorkflowEditor::setDescriptor(Descriptor* d, const QString& hint) {
 
 void WorkflowEditor::edit(Configuration* cfg) {
     paramBox->setEnabled(true);
+    if (NULL != specialParameters) {
+        specialParameters->setEnabled(true);
+    }
     disconnect(paramBox, SIGNAL(toggled(bool)), tableSplitter, SLOT(setVisible(bool)));
 
     if (customWidget) {
@@ -455,24 +486,30 @@ void WorkflowEditor::edit(Configuration* cfg) {
         connect(paramBox, SIGNAL(toggled(bool)), customWidget, SLOT(setVisible(bool)));
         connect(paramBox, SIGNAL(toggled(bool)), SLOT(sl_resizeSplitter(bool)));
     }
-    
+
     //int h = 0;
     if (subject && !customWidget) {
         assert(actor);
         actorModel->setActor(actor);
-        updateIterationData();
+        updateEditingData();
         tableSplitter->setVisible(paramBox->isChecked());
         /*if(paramBox->isChecked()) {
             h = table->sizeHint().height();
-            
+
         }*/
         connect(paramBox, SIGNAL(toggled(bool)), tableSplitter, SLOT(setVisible(bool)));
         connect(paramBox, SIGNAL(toggled(bool)), SLOT(sl_resizeSplitter(bool)));
     } else {
         tableSplitter->hide();
         if (customWidget) {
+            if (custom->isEmpty()) {
+                paramBox->setVisible(false);
+                customWidget->setVisible(false);
+            }
             paramBox->layout()->addWidget(customWidget);
-            customWidget->setVisible(paramBox->isChecked());
+            if (!custom->isEmpty()) {
+                customWidget->setVisible(paramBox->isChecked());
+            }
             /*if(paramBox->isChecked()) {
                 h = customWidget->minimumSizeHint().height();
             }*/
@@ -494,7 +531,7 @@ void WorkflowEditor::restoreState(const QVariant& v) {
 }
 
 bool WorkflowEditor::eventFilter(QObject* object, QEvent* event) {
-    if (event->type() == QEvent::Shortcut || 
+    if (event->type() == QEvent::Shortcut ||
         event->type() == QEvent::ShortcutOverride)
     {
         if (object == doc)
@@ -503,18 +540,118 @@ bool WorkflowEditor::eventFilter(QObject* object, QEvent* event) {
             return true;
         }
     }
-    return false;
+    return QObject::eventFilter(object, event);
 }
 
 void WorkflowEditor::sl_linkActivated(const QString& url) {
     const QString& id = WorkflowUtils::getParamIdFromHref(url);
-    
-    QModelIndex modelIndex = actorModel->modelIndexById(id);
+
+    QModelIndex modelIndex = proxyModel->mapFromSource(actorModel->modelIndexById(id));
     QModelIndex prev = table->selectionModel()->currentIndex();
     if (modelIndex==prev) {
         table->selectionModel()->reset();
     }
     table->setCurrentIndex(modelIndex);
+    QWidget *w = table->indexWidget(modelIndex);
+    PropertyWidget *pw = dynamic_cast<PropertyWidget*>(w);
+    CHECK(NULL != pw, );
+    pw->activate();
+}
+
+void WorkflowEditor::setSpecialPanelEnabled(bool isEnabled) {
+    if(NULL != specialParameters) {
+        specialParameters->setDatasetsEnabled(isEnabled);
+    }
+}
+
+/************************************************************************/
+/* SpecialParametersPanel */
+/************************************************************************/
+SpecialParametersPanel::SpecialParametersPanel(WorkflowEditor *parent)
+: QWidget(parent), editor(parent)
+{
+    QVBoxLayout *l = new QVBoxLayout(this);
+    l->setContentsMargins(0, 0, 0, 0);
+    this->setLayout(l);
+}
+
+SpecialParametersPanel::~SpecialParametersPanel() {
+    qDeleteAll(controllers);
+    controllers.clear();
+}
+
+void SpecialParametersPanel::editActor(Actor *a) {
+    reset();
+
+    bool visible = false;
+    foreach (const QString &attrId, a->getParameters().keys()) {
+        Attribute *attr = a->getParameter(attrId);
+        CHECK(NULL != attr, );
+        URLAttribute *urlAttr = dynamic_cast<URLAttribute*>(attr);
+        if (NULL == urlAttr) {
+            continue;
+        }
+        sets[attrId] = urlAttr->getAttributePureValue().value< QList<Dataset> >();
+        controllers[attrId] = new AttributeDatasetsController(sets[attrId], urlAttr->getCompatibleObjectTypes());
+        connect(controllers[attrId], SIGNAL(si_attributeChanged()), SLOT(sl_datasetsChanged()));
+        addWidget(controllers[attrId]);
+        visible = true;
+    }
+
+    if (visible) {
+        this->show();
+    }
+}
+
+void SpecialParametersPanel::sl_datasetsChanged() {
+    AttributeDatasetsController *ctrl = dynamic_cast<AttributeDatasetsController*>(sender());
+    CHECK(NULL != ctrl, );
+    CHECK(controllers.values().contains(ctrl), );
+    QString attrId = controllers.key(ctrl);
+    sets[attrId] = ctrl->getDatasets();
+    editor->commitDatasets(attrId, sets[attrId]);
+}
+
+void SpecialParametersPanel::reset() {
+    foreach (AttributeDatasetsController *controller, controllers.values()) {
+        removeWidget(controller);
+        delete controller;
+        controller = NULL;
+    }
+    controllers.clear();
+    sets.clear();
+    this->hide();
+}
+
+void SpecialParametersPanel::addWidget(AttributeDatasetsController *controller) {
+    CHECK(NULL != controller, );
+    QWidget *newWidget = controller->getWigdet();
+    if(!editor->isEnabled()) {
+        newWidget->setEnabled(false);
+    }
+    this->layout()->addWidget(newWidget);
+}
+
+void SpecialParametersPanel::removeWidget(AttributeDatasetsController *controller) {
+    CHECK(NULL != controller, );
+    disconnect(controller, SIGNAL(si_attributeChanged()), this, SLOT(sl_datasetsChanged()));
+    this->layout()->removeWidget(controller->getWigdet());
+}
+
+void SpecialParametersPanel::setDatasetsEnabled(bool isEnabled) {
+    setEnabled(isEnabled);
+    foreach(AttributeDatasetsController *dataset, controllers.values()) {
+        dataset->getWigdet()->setEnabled(isEnabled);
+    }
+}
+
+int SpecialParametersPanel::contentHeight() const {
+    int result = 0;
+    for (int i=0; i<layout()->count(); i++) {
+        QLayoutItem *item = layout()->itemAt(i);
+        result += item->widget()->height();
+    }
+    return result;
 }
 
 }//namespace

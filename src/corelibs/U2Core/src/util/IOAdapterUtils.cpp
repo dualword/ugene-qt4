@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,8 +28,6 @@
 #include <U2Core/U2OpStatus.h>
 #include <U2Core/L10n.h>
 
-#include <memory>
-
 namespace U2 {
 
 IOAdapterId IOAdapterUtils::url2io(const GUrl& url) {
@@ -51,7 +49,7 @@ IOAdapterId IOAdapterUtils::url2io(const GUrl& url) {
 QByteArray IOAdapterUtils::readFileHeader(const GUrl& url, int size) {
     QByteArray data;
     IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(url));
-    std::auto_ptr<IOAdapter> adapter(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> adapter(iof->createIOAdapter());
     bool res = adapter->open(url, IOAdapterMode_Read);
     if (!res) {
         return data;//BUG:420: report error
@@ -98,7 +96,7 @@ IOAdapter* IOAdapterUtils::open(const GUrl& url, U2OpStatus& os, IOAdapterMode m
     }
     IOAdapter* io = iof->createIOAdapter();
     SAFE_POINT(io != NULL, "IO adapter is NULL!", NULL);
-    
+
     bool ok = io->open(url, mode);
     if (!ok) {
         os.setError(L10N::tr("Failed to detect IO adapter for %1").arg(url.getURLString()));

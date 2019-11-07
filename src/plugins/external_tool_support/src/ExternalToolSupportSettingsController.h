@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,11 @@
 #include <U2Core/ExternalToolRegistry.h>
 #include <ui/ui_ETSSettingsWidget.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLineEdit>
+#else
+#include <QtWidgets/QLineEdit>
+#endif
 
 namespace U2
 {
@@ -37,6 +41,7 @@ struct ExternalToolInfo{
     QString description;
     QString version;
     bool    valid;
+    bool    isModule;
 };
 
 class ExternalToolSupportSettingsPageController : public AppSettingsGUIPageController {
@@ -47,7 +52,9 @@ public:
     AppSettingsGUIPageState* getSavedState();
     void saveState(AppSettingsGUIPageState* s);
     AppSettingsGUIPageWidget* createWidget(AppSettingsGUIPageState* state);
-
+    const QString& getHelpPageId() const {return helpPageId;};
+private:
+    static const QString helpPageId;
 };
 
 class ExternalToolSupportSettingsPageState : public AppSettingsGUIPageState {
@@ -64,20 +71,35 @@ public:
     virtual void setState(AppSettingsGUIPageState* state);
 
     virtual AppSettingsGUIPageState* getState(QString& err) const;
+
 private:
     QWidget* createPathEditor(QWidget *parent, const QString& path) const;
-    void insertChild(QTreeWidgetItem* rootItem, QString name, int pos);
+    QTreeWidgetItem* insertChild(QTreeWidgetItem* rootItem, const QString& name, int pos, bool isModule = false);
+    ExternalTool* isMasterWithModules(const QList<ExternalTool*>& toolsList) const;
+    void setToolState(ExternalTool* tool);
+    QString getToolStateDescription(ExternalTool* tool) const;
+    void setDescription(ExternalTool* tool);
+    QString warn(const QString& text) const;
+
 private slots:
-    void sl_toolPathCanged();//QString path);
-    void sl_validateTaskStateChanged();
+    void sl_toolPathChanged();
     void sl_itemSelectionChanged();
     void sl_onPathEditWidgetClick();
     void sl_onBrowseToolKitPath();
     void sl_onBrowseToolPackPath();
-    void sl_linkActivated(QString);
+    void sl_linkActivated(const QString& url);
+    void sl_toolValidationStatusChanged(bool isValid);
+    void sl_validationComplete();
+    void sl_onClickLink(const QUrl& url);
+
 private:
     QMap<QString, ExternalToolInfo> externalToolsInfo;
+    QMap<QString, QTreeWidgetItem*> externalToolsItems;
+    QString getToolLink(const QString &toolName) const;
     mutable int buttonsWidth;
+
+    static const QString INSTALLED;
+    static const QString NOT_INSTALLED;
 };
 
 class PathLineEdit : public QLineEdit {

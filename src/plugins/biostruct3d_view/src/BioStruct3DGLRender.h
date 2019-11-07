@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 #include <QtCore/QString>
 #include <QtCore/QMap>
 
-namespace U2 { 
+namespace U2 {
 
 class BioStruct3D;
 class BioStruct3DGLRenderer;

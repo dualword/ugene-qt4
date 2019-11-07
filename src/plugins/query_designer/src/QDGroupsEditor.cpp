@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,17 +19,16 @@
  * MA 02110-1301, USA.
  */
 
-#include "QDGroupsEditor.h"
-#include "QueryViewController.h"
+#include <QHeaderView>
+#include <QInputDialog>
+#include <QMenu>
+#include <QMessageBox>
+#include <QMouseEvent>
 
 #include <U2Lang/QDScheme.h>
 
-#include <QtGui/QHeaderView>
-#include <QtGui/QMouseEvent>
-#include <QtGui/QMenu>
-#include <QtGui/QInputDialog>
-#include <QtGui/QMessageBox>
-
+#include "QueryViewController.h"
+#include "QDGroupsEditor.h"
 
 namespace U2 {
 
@@ -102,7 +101,7 @@ void QDGroupsEditor::mousePressEvent( QMouseEvent *event ) {
     QTreeWidget::mousePressEvent(event);
 }
 
-static const QString MSGBOX_TITLE = QDGroupsEditor::tr("Query Designer");
+static const QString MSGBOX_TITLE = QObject::tr("Query Designer");
 
 void QDGroupsEditor::sl_addGroup() {
     QDScheme* scheme = view->getScheme();
@@ -175,7 +174,7 @@ void QDGroupsEditor::sl_setReqNum() {
     assert(currentItem());
     assert(!currentItem()->parent());
     QString group = currentItem()->text(0);
-    
+
     bool ok;
     int num = QInputDialog::getInt(this,
         tr("Set required number for '%1'").arg(group),

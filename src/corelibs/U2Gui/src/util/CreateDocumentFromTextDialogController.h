@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,17 @@
 #ifndef _U2_CREATE_DOCUMENT_FROM_TEXT_DIALOG_CONTROLLER_H_
 #define _U2_CREATE_DOCUMENT_FROM_TEXT_DIALOG_CONTROLLER_H_
 
-#include "SeqPasterWidgetController.h"
-
 #include <U2Core/global.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Gui/DialogUtils.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QDialog>
+#endif
+
+#include "SeqPasterWidgetController.h"
 
 class Ui_CreateDocumentFromTextDialog;
 
@@ -42,7 +46,7 @@ public:
 
     virtual void accept();
     virtual void reject();
-    Document* getDocument(){return doc;};
+    Document* getDocument(){return doc;}
 
 private slots:
     void sl_browseButtonClicked();

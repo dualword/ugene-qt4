@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,14 +27,14 @@
 #include <U2Core/DocumentModel.h>
 #include <U2Core/AnnotationTableObject.h>
 #include <U2Core/FeatureColors.h>
-
+#include <U2Core/U2SafePoints.h>
 #include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectUtils.h>
 
 #include <QtCore/QObject>
 #include <QtAlgorithms>
 
-namespace U2 { 
+namespace U2 {
 
 /* class BioStruct3DColorSchemeRegistry */
 const QString BioStruct3DColorSchemeRegistry::defaultFactoryName() {
@@ -167,33 +167,21 @@ ChemicalElemColorScheme::ChemicalElemColorScheme(const BioStruct3DObject *biostr
 
 /* class ChainsColorScheme : public BioStruct3DColorScheme */
 
-const QMap<int, QColor> ChainsColorScheme::getChainColors(const BioStruct3DObject *biostrucObj) {
+const QMap<int, QColor> ChainsColorScheme::getChainColors(const BioStruct3DObject *biostructObj) {
     QMap<int, QColor> colorMap;
-    //AnnotationSettingsRegistry* asr = AppContext::getAnnotationsSettingsRegistry();
-    
-    Document *doc = biostrucObj->getDocument();
-    QList<GObjectRelation> relations = biostrucObj->findRelatedObjectsByRole(GObjectRelationRole::ANNOTATION_TABLE);
-    
-    if (doc) {
-        
-        QList<GObject*> aObjs;
-        foreach(GObjectRelation r, relations) {
-             aObjs += GObjectUtils::selectObjectByReference(r.ref, doc->getObjects(), UOF_LoadedOnly );
-        } 
 
+    if (NULL != biostructObj->getDocument()) {
+        QList<GObject *> aObjs = GObjectUtils::selectRelationsFromParentDoc(biostructObj, GObjectTypes::ANNOTATION_TABLE, ObjectRole_AnnotationTable);
         foreach (GObject* obj, aObjs ) {
-            AnnotationTableObject* ao = qobject_cast<AnnotationTableObject*>(obj);
-            assert(ao);
+            AnnotationTableObject* ao = qobject_cast<AnnotationTableObject *>(obj);
+            SAFE_POINT(NULL != ao, "Invalid annotation table!", colorMap);
 
-            foreach(Annotation* a, ao->getAnnotations()) {
-                QString name = a->getAnnotationName();
-                if (name.startsWith(BioStruct3D::MoleculeAnnotationTag)) {
-                    bool ok = false;
-                    int chainId = a->findFirstQualifierValue(BioStruct3D::ChainIdQualifierName).toInt(&ok);
-                    assert(ok && chainId != 0);
-                    QColor color = FeatureColors::genLightColor(QString("chain_%1").arg(chainId));
-                    colorMap.insert(chainId, color);
-                }
+            foreach (Annotation *a, ao->getAnnotationsByName(BioStruct3D::MoleculeAnnotationTag)) {
+                bool ok = false;
+                const int chainId = a->findFirstQualifierValue(BioStruct3D::ChainIdQualifierName).toInt(&ok);
+                SAFE_POINT(ok && chainId != 0, "Invalid type conversion", colorMap);
+                const QColor color = FeatureColors::genLightColor(QString("chain_%1").arg(chainId));
+                colorMap.insert(chainId, color);
             }
         }
     }
@@ -224,27 +212,23 @@ Color4f ChainsColorScheme::getSchemeAtomColor(const SharedAtom& atom) const
     }
 }
 
-
 /* class SecStructColorScheme : public BioStruct3DColorScheme */
 
 const QMap<QString, QColor> SecStructColorScheme::getSecStructAnnotationColors(const BioStruct3DObject *biostruct) {
     QMap<QString, QColor> colors;
     AnnotationSettingsRegistry* asr = AppContext::getAnnotationsSettingsRegistry();
 
-    // bug-2857: GObject relations shoud be used
     Document *doc = biostruct->getDocument();
     if (doc) {
-        foreach (GObject* obj, doc->findGObjectByType(GObjectTypes::ANNOTATION_TABLE) ) {
-            AnnotationTableObject *ao = qobject_cast<AnnotationTableObject*>(obj);
-            assert(ao);
+        QList<GObject *> targetAnnotations = GObjectUtils::selectRelationsFromParentDoc(biostruct, GObjectTypes::ANNOTATION_TABLE, ObjectRole_AnnotationTable);
+        foreach (GObject* obj, targetAnnotations) {
+            AnnotationTableObject *ao = qobject_cast<AnnotationTableObject *>(obj);
+            SAFE_POINT(NULL != ao, "Invalid annotation table!", colors);
 
-            foreach(Annotation *a, ao->getAnnotations()) {
-                QString name = a->getAnnotationName();
-                if (name == BioStruct3D::SecStructAnnotationTag) {
-                    QString ssName = a->getQualifiers().first().value;
-                    AnnotationSettings* as = asr->getAnnotationSettings(ssName);
-                    colors.insert(ssName, as->color);
-                }
+            foreach (Annotation *a, ao->getAnnotationsByName(BioStruct3D::SecStructAnnotationTag)) {
+                QString ssName = a->getQualifiers().first().value;
+                AnnotationSettings* as = asr->getAnnotationSettings(ssName);
+                colors.insert(ssName, as->color);
             }
         }
     }
@@ -253,7 +237,7 @@ const QMap<QString, QColor> SecStructColorScheme::getSecStructAnnotationColors(c
 }
 
 SecStructColorScheme::SecStructColorScheme(const BioStruct3DObject *biostruct)
-        : BioStruct3DColorScheme(biostruct)
+    : BioStruct3DColorScheme(biostruct)
 {
     defaultAtomColor = Color4f(0.5f,0.9f,0.9f);
     const QMap<QString, QColor> secStrucColors = getSecStructAnnotationColors(biostruct);
@@ -261,12 +245,12 @@ SecStructColorScheme::SecStructColorScheme(const BioStruct3DObject *biostruct)
         QMapIterator<QString, QColor> i(secStrucColors);
         while (i.hasNext()) {
             i.next();
-            secStrucColorMap.insert(i.key().toAscii(), Color4f(i.value()));
+            secStrucColorMap.insert(i.key().toLatin1(), Color4f(i.value()));
         }
 
         foreach (const SharedSecondaryStructure& struc, biostruct->getBioStruct3D().secondaryStructures) {
             for (int index = struc->startSequenceNumber; index <= struc->endSequenceNumber; ++index ) {
-                QByteArray type = BioStruct3D::getSecStructTypeName(struc->type).toAscii();
+                QByteArray type = BioStruct3D::getSecStructTypeName(struc->type).toLatin1();
                 Q_ASSERT( secStrucColorMap.contains(type));
                 Q_ASSERT( struc->chainIndex != 0);
                 molMap[struc->chainIndex].strucResidueTable.insert(index, type);
@@ -295,7 +279,7 @@ Color4f SecStructColorScheme::getSchemeAtomColor( const SharedAtom& atom ) const
         if (residueTable.contains(residueIndex)) {
             QByteArray type = residueTable.value(residueIndex);
             c = secStrucColorMap.value(type);
-        }    
+        }
     }
 
     return c;

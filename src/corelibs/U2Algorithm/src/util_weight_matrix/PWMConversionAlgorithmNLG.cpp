@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 
 namespace U2 {
 
-PWMConversionAlgorithmFactoryNLG::PWMConversionAlgorithmFactoryNLG(QObject* p) 
+PWMConversionAlgorithmFactoryNLG::PWMConversionAlgorithmFactoryNLG(QObject* p)
 : PWMConversionAlgorithmFactory(BuiltInPWMConversionAlgorithms::NLG_ALGO, p)
 {
 }
@@ -44,7 +44,7 @@ QString PWMConversionAlgorithmFactoryNLG::getDescription() const {
 PWMatrix PWMConversionAlgorithmNLG::convert(const PFMatrix& matrix) {
     int size = (matrix.getType() == PFM_MONONUCLEOTIDE) ? 4 : 16;
     int sum[16];
-    qMemSet(sum, 0, size*sizeof(int));
+    memset(sum, 0, size*sizeof(int));
     int all_hits = 0;
     for (int i = 0; i < size; i++) {
         for (int j = 0, n = matrix.getLength(); j < n; j++) {

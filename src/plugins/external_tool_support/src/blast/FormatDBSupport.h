@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,8 +25,9 @@
 #include <U2Core/ExternalToolRegistry.h>
 #include "utils/ExternalToolSupportAction.h"
 
-#define FORMATDB_TOOL_NAME "FormatDB"
-#define MAKEBLASTDB_TOOL_NAME "MakeBLASTDB"
+#define ET_FORMATDB "FormatDB"
+#define ET_MAKEBLASTDB "MakeBLASTDB"
+#define ET_GPU_MAKEBLASTDB "GPU-MakeBLASTDB"
 namespace U2 {
 
 class FormatDBSupport : public ExternalTool {

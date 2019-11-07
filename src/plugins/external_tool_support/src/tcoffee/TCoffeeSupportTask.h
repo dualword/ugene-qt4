@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,31 +22,21 @@
 #ifndef _U2_TCOFFEE_SUPPORT_TASK_H
 #define _U2_TCOFFEE_SUPPORT_TASK_H
 
-#include <U2Core/Task.h>
-#include <U2Core/IOAdapter.h>
 
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/SaveDocumentTask.h>
 #include "utils/ExportTasks.h"
 
-#include <U2Core/MAlignmentObject.h>
-
-#include "ExternalToolRunTask.h"
+#include <U2Core/ExternalToolRunTask.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/GObjectReference.h>
+#include <U2Core/MAlignment.h>
+#include <U2Core/SaveDocumentTask.h>
+#include <U2Core/Task.h>
 
 namespace U2 {
 
-/*Options for MAFFT
-+ --op # :         Gap opening penalty, default: 1.53
-+ --ep # :         Offset (works like gap extension penalty), default: 0.0
-+ --maxiterate # : Maximum number of iterative refinement, default: 0
-? --clustalout :   Output: clustal format, default: fasta // With this option bad output clustal file is generated.(dkandrov)
-? --reorder :      Outorder: aligned, default: input order
-? --quiet :        Do not report progress
-? --thread # :     Number of threads. (# must be <= number of physical cores - 1)
-
-*/
 class TCoffeeLogParser;
-class TCoffeeSupportTaskSettings {
+
+class TCoffeeSupportTaskSettings  {
 public:
     TCoffeeSupportTaskSettings() {reset();}
     void reset();
@@ -55,13 +45,18 @@ public:
     float   gapExtenstionPenalty;
     int     numIterations;
     QString inputFilePath;
+    QString outputFilePath;
 };
 
+class LoadDocumentTask;
 
-class TCoffeeSupportTask : public Task {
+class TCoffeeSupportTask : public ExternalToolSupportTask {
     Q_OBJECT
+    Q_DISABLE_COPY(TCoffeeSupportTask)
 public:
-    TCoffeeSupportTask(MAlignmentObject* _mAObject, const TCoffeeSupportTaskSettings& settings);
+    TCoffeeSupportTask(const MAlignment& _inputMsa, const GObjectReference& _objRef, const TCoffeeSupportTaskSettings& _settings);
+    ~TCoffeeSupportTask();
+
     void prepare();
     Task::ReportResult report();
 
@@ -69,9 +64,9 @@ public:
 
     MAlignment                  resultMA;
 private:
-    MAlignmentObject*           mAObject;
-    Document*                   currentDocument;
-    Document*                   newDocument;
+    MAlignment                  inputMsa;
+    GObjectReference            objRef;
+    QPointer<Document>          tmpDoc;
     QString                     url;
     TCoffeeLogParser*           logParser;
 
@@ -79,10 +74,14 @@ private:
     ExternalToolRunTask*        tCoffeeTask;
     LoadDocumentTask*           loadTmpDocumentTask;
     TCoffeeSupportTaskSettings  settings;
+    QPointer<StateLock>         lock;
 };
+
+class MAlignmentObject;
 
 class TCoffeeWithExtFileSpecifySupportTask : public Task {
     Q_OBJECT
+    Q_DISABLE_COPY(TCoffeeWithExtFileSpecifySupportTask)
 public:
     TCoffeeWithExtFileSpecifySupportTask(const TCoffeeSupportTaskSettings& settings);
     ~TCoffeeWithExtFileSpecifySupportTask();

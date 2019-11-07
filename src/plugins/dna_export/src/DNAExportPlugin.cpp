@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,24 @@
  * MA 02110-1301, USA.
  */
 
-#include "DNAExportPlugin.h"
-#include "DNAExportPluginTests.h"
-
-#include "ExportProjectViewItems.h"
-#include "ExportSequenceViewItems.h"
-#include "ExportAlignmentViewItems.h"
-#include "ImportQualityScoresWorker.h"
-#include "WriteAnnotationsWorker.h"
-#include "DNASequenceGeneratorDialog.h"
-#include "GenerateDNAWorker.h"
-
 #include <U2Core/AppContext.h>
 #include <U2Core/GAutoDeleteList.h>
 
-#include <U2Test/XMLTestFormat.h>
+#include <U2Gui/ToolsMenu.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2Test/GTestFrameworkComponents.h>
+#include <U2Test/XMLTestFormat.h>
+
+#include "DNAExportPlugin.h"
+#include "DNAExportPluginTests.h"
+#include "DNASequenceGeneratorDialog.h"
+#include "ExportAlignmentViewItems.h"
+#include "ExportProjectViewItems.h"
+#include "ExportQualityScoresWorker.h"
+#include "ExportSequenceViewItems.h"
+#include "GenerateDNAWorker.h"
+#include "ImportQualityScoresWorker.h"
 
 namespace U2 {
 
@@ -46,10 +48,10 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
 DNAExportPlugin::DNAExportPlugin() : Plugin(tr("DNA export"), tr("Export and import support for DNA & protein sequences")) {
     if (AppContext::getMainWindow()) {
         services.push_back(new DNAExportService());
-        QAction* a = new QAction(tr("Generate Sequence..."), this);
+        QAction* a = new QAction(QIcon(":/core/images/add_sequence.png"), tr("Generate sequence..."), this);
+        a->setObjectName(ToolsMenu::GENERATE_SEQUENCE);
         connect(a, SIGNAL(triggered()), SLOT(sl_generateSequence()));
-        QMenu* toolsMenu = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS);
-        toolsMenu->addAction(a);
+        ToolsMenu::addAction(ToolsMenu::TOOLS, a);
     }
 
     //tests
@@ -60,25 +62,27 @@ DNAExportPlugin::DNAExportPlugin() : Plugin(tr("DNA export"), tr("Export and imp
     GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
     l->qlist = DNAExportPluginTests::createTestFactories();
 
-    foreach(XMLTestFactory* f, l->qlist) { 
+    foreach(XMLTestFactory* f, l->qlist) {
         bool res = xmlTestFormat->registerTestFactory(f);
         assert(res); Q_UNUSED(res);
     }
-    
+
     LocalWorkflow::ImportPhredQualityWorkerFactory::init();
-    LocalWorkflow::WriteAnnotationsWorkerFactory::init();
+    LocalWorkflow::ExportPhredQualityWorkerFactory::init();
     LocalWorkflow::GenerateDNAWorkerFactory::init();
+
 }
 
 void DNAExportPlugin::sl_generateSequence() {
-    DNASequenceGeneratorDialog dlg;
-    dlg.exec();
+    QObjectScopedPointer<DNASequenceGeneratorDialog> dlg = new DNASequenceGeneratorDialog(QApplication::activeWindow());
+    dlg->setWindowIcon(QIcon(":/core/images/add_sequence.png"));
+    dlg->exec();
 }
 
 //////////////////////////////////////////////////////////////////////////
 // Service
-DNAExportService::DNAExportService() 
-: Service(Service_DNAExport, tr("DNA export service"), tr("Export and import support for DNA & protein sequences"), 
+DNAExportService::DNAExportService()
+: Service(Service_DNAExport, tr("DNA export service"), tr("Export and import support for DNA & protein sequences"),
           QList<ServiceType>() << Service_ProjectView)
 {
     projectViewController = NULL;

@@ -7,11 +7,11 @@
     <x>0</x>
     <y>0</y>
     <width>547</width>
-    <height>271</height>
+    <height>305</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Generate Distance matrix</string>
+   <string>Generate Distance Matrix</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
    <item>
@@ -48,6 +48,23 @@
        <widget class="QRadioButton" name="percentsRB">
         <property name="text">
          <string>Percents</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="checkBox">
+        <property name="text">
+         <string>Exclude gaps</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="groupStatisticsCheck">
+        <property name="text">
+         <string>Show group statistics of multiple alignment</string>
         </property>
        </widget>
       </item>
@@ -120,72 +137,57 @@
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>38</width>
-         <height>18</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="okButton">
-       <property name="text">
-        <string>Generate </string>
-       </property>
-       <property name="default">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>saveBox</tabstop>
+  <tabstop>countsRB</tabstop>
+  <tabstop>percentsRB</tabstop>
+  <tabstop>checkBox</tabstop>
+  <tabstop>groupStatisticsCheck</tabstop>
+  <tabstop>fileEdit</tabstop>
+  <tabstop>fileButton</tabstop>
+  <tabstop>htmlRB</tabstop>
+  <tabstop>csvRB</tabstop>
+  <tabstop>algoCombo</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>
-   <sender>cancelButton</sender>
-   <signal>clicked()</signal>
-   <receiver>DistanceMatrixMSAProfileDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>498</x>
-     <y>238</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>273</x>
-     <y>130</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>okButton</sender>
-   <signal>clicked()</signal>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
    <receiver>DistanceMatrixMSAProfileDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>415</x>
-     <y>238</y>
+     <x>273</x>
+     <y>365</y>
     </hint>
     <hint type="destinationlabel">
      <x>273</x>
-     <y>130</y>
+     <y>192</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>DistanceMatrixMSAProfileDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>273</x>
+     <y>365</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>273</x>
+     <y>192</y>
     </hint>
    </hints>
   </connection>

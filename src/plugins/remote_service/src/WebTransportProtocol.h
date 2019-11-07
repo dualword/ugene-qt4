@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@
 
 #include <QtXml/QXmlDefaultHandler>
 #include <QtXml/QXmlSimpleReader>
-#include <QtXml/QXmlStreamWriter>
+#include <QtCore/QXmlStreamWriter>
 
 
 
@@ -176,7 +176,7 @@ private:
 class UctpError : public std::runtime_error
 {
 public:
-    UctpError(QString message) : std::runtime_error(message.toAscii().constData()) {}
+    UctpError(QString message) : std::runtime_error(message.toLatin1().constData()) {}
     const QString getErrorMessage() {return QString( what() ); }
     ~UctpError() throw();
 private:
@@ -188,7 +188,7 @@ class Uctp {
     QString errorString;
 public:
     bool parseReply(QIODevice* reply, const UctpCommand& command, QMap<QString,UctpElementData>& replyData);
-    const QString& getErrorText() const { return errorString; } 
+    const QString& getErrorText() const { return errorString; }
 };
 
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,6 @@
 #include <U2Core/DocumentSelection.h>
 
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/GObjectTypes.h>
 #include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectUtils.h>
@@ -43,8 +42,8 @@ namespace U2 {
 
 const GObjectViewFactoryId AnnotatedDNAViewFactory::ID(ANNOTATED_DNA_VIEW_FACTORY_ID);
 
-AnnotatedDNAViewFactory::AnnotatedDNAViewFactory() 
-: GObjectViewFactory(ID, tr("Sequence view"))
+AnnotatedDNAViewFactory::AnnotatedDNAViewFactory()
+: GObjectViewFactory(ID, tr("Sequence View"))
 {
 }
 
@@ -53,21 +52,21 @@ bool AnnotatedDNAViewFactory::canCreateView(const MultiGSelection& multiSelectio
     //1. selection has loaded of unloaded DNA sequence object
     //2. selection has any object with SEQUENCE relation to DNA sequence object that is in the project
     //3. selection has document that have sequence object or object assosiated with sequence
-    
+
     //1.
     QList<GObject*> selectedObjects = SelectionUtils::findObjects("", &multiSelection, UOF_LoadedAndUnloaded);
     QList<GObject*> selectedSequences = GObjectUtils::select(selectedObjects, GObjectTypes::SEQUENCE, UOF_LoadedAndUnloaded);
     if (!selectedSequences.isEmpty()) {
         return true;
     }
-    
+
     //2.
-    QList<GObject*> objectsWithSeqRelation = GObjectUtils::selectObjectsWithRelation(selectedObjects, GObjectTypes::SEQUENCE, 
-                                                            GObjectRelationRole::SEQUENCE, UOF_LoadedAndUnloaded, true);
+    QList<GObject*> objectsWithSeqRelation = GObjectUtils::selectObjectsWithRelation(selectedObjects, GObjectTypes::SEQUENCE,
+                                                            ObjectRole_Sequence, UOF_LoadedAndUnloaded, true);
     if (!objectsWithSeqRelation.isEmpty()) {
         return true;
     }
-    
+
     //3.
     const DocumentSelection* ds = qobject_cast<const DocumentSelection*>(multiSelection.findSelectionByType(GSelectionTypes::DOCUMENTS));
     if (ds == NULL) {
@@ -76,10 +75,10 @@ bool AnnotatedDNAViewFactory::canCreateView(const MultiGSelection& multiSelectio
     foreach(Document* doc, ds->getSelectedDocuments()) {
         if (!doc->findGObjectByType(GObjectTypes::SEQUENCE, UOF_LoadedAndUnloaded).isEmpty()) {
             return true;
-        }    
-        objectsWithSeqRelation = GObjectUtils::selectObjectsWithRelation(doc->getObjects(), 
-            GObjectTypes::SEQUENCE, GObjectRelationRole::SEQUENCE, UOF_LoadedAndUnloaded, true);
-        
+        }
+        objectsWithSeqRelation = GObjectUtils::selectObjectsWithRelation(doc->getObjects(),
+            GObjectTypes::SEQUENCE, ObjectRole_Sequence, UOF_LoadedAndUnloaded, true);
+
         if (!objectsWithSeqRelation.isEmpty()) {
             return true;
         }
@@ -94,29 +93,25 @@ Task* AnnotatedDNAViewFactory::createViewTask(const MultiGSelection& multiSelect
     QList<GObject*> objectsToOpen = SelectionUtils::findObjects(GObjectTypes::SEQUENCE, &multiSelection, UOF_LoadedAndUnloaded);
 
     QList<GObject*> selectedObjects = SelectionUtils::findObjects("", &multiSelection, UOF_LoadedAndUnloaded);
-    QList<GObject*> objectsWithSequenceRelation = GObjectUtils::selectObjectsWithRelation(selectedObjects, 
-                                                    GObjectTypes::SEQUENCE, GObjectRelationRole::SEQUENCE, UOF_LoadedAndUnloaded, true);
+    QList<GObject*> objectsWithSequenceRelation = GObjectUtils::selectObjectsWithRelation(selectedObjects,
+                                                    GObjectTypes::SEQUENCE, ObjectRole_Sequence, UOF_LoadedAndUnloaded, true);
 
     foreach(GObject* obj, objectsWithSequenceRelation) {
         if(!objectsToOpen.contains(obj)) {
             objectsToOpen.append(obj);
         }
     }
-    //objectsToOpen.append(objectsWithSequenceRelation);
 
     const DocumentSelection* ds = qobject_cast<const DocumentSelection*>(multiSelection.findSelectionByType(GSelectionTypes::DOCUMENTS));
     if (ds != NULL) {
         foreach(Document* doc, ds->getSelectedDocuments()) {
-            /*objectsToOpen.append(doc->findGObjectByType(GObjectTypes::SEQUENCE, UOF_LoadedAndUnloaded));
-            objectsToOpen.append(GObjectUtils::selectObjectsWithRelation(doc->getObjects(), GObjectTypes::SEQUENCE, 
-                GObjectRelationRole::SEQUENCE, UOF_LoadedAndUnloaded, true));*/
             foreach(GObject* obj, doc->findGObjectByType(GObjectTypes::SEQUENCE, UOF_LoadedAndUnloaded)) {
                 if(!objectsToOpen.contains(obj)) {
                     objectsToOpen.append(obj);
                 }
             }
-            foreach(GObject* obj, GObjectUtils::selectObjectsWithRelation(doc->getObjects(), GObjectTypes::SEQUENCE, 
-                GObjectRelationRole::SEQUENCE, UOF_LoadedAndUnloaded, true)) {
+            foreach(GObject* obj, GObjectUtils::selectObjectsWithRelation(doc->getObjects(), GObjectTypes::SEQUENCE,
+                ObjectRole_Sequence, UOF_LoadedAndUnloaded, true)) {
                 if(!objectsToOpen.contains(obj)) {
                     objectsToOpen.append(obj);
                 }
@@ -170,8 +165,4 @@ Task* AnnotatedDNAViewFactory::createViewTask(const QString& viewName, const QVa
     return new OpenSavedAnnotatedDNAViewTask(viewName, stateData);
 }
 
-
-
-
 } // namespace
-

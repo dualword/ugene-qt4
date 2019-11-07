@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,8 +29,13 @@
 #include <U2Core/TextUtils.h>
 #include <U2Core/U2SafePoints.h>
 
-#include <QtCore/QFileInfo>
-#include <QtGui/QVBoxLayout>
+#include <U2Gui/OptionsPanel.h>
+#include <U2Gui/OptionsPanelWidget.h>
+
+#include <QFileInfo>
+#include <QScrollArea>
+#include <QSplitter>
+#include <QVBoxLayout>
 
 //BUG:535 refactor closing interface.
 //Idea: make it QObject and call 'deleteLater' on it
@@ -42,8 +47,8 @@ const GObjectViewFactoryId GObjectViewFactory::SIMPLE_TEXT_FACTORY("SimpleTextVi
 
 void GObjectViewState::setViewName(const QString& newName) {
     // this method is not a real state modification: state caches view name as a reference, but not its internal data
-    // it is used only on view renaming 
-     viewName = newName; 
+    // it is used only on view renaming
+     viewName = newName;
 }
 
 void GObjectViewState::setStateName(const QString& newName) {
@@ -79,6 +84,7 @@ GObjectView::GObjectView(GObjectViewFactoryId _factoryId, const QString& _viewNa
     factoryId = _factoryId;
     viewName = _viewName;
     widget = NULL;
+    optionsPanel = NULL;
     closeInterface = NULL;
     closing = false;
 
@@ -145,6 +151,7 @@ void GObjectView::removeObject(GObject* o) {
     assert(!closing);
     _removeObject(o);
     if (closing) {
+        SAFE_POINT(closeInterface != NULL, "No close interface", );
         closeInterface->closeView();
     }
 }
@@ -153,6 +160,7 @@ void GObjectView::sl_onObjectRemovedFromDocument(GObject* o) {
     if (objects.contains(o)) {
         _removeObject(o);
         if (closing) {
+            SAFE_POINT(closeInterface != NULL, "No close interface", );
             closeInterface->closeView();
         }
     }
@@ -172,8 +180,6 @@ void GObjectView::onObjectAdded(GObject* obj) {
     }
 }
 
-
-
 void GObjectView::sl_onDocumentAdded(Document* d) {
     connect(d, SIGNAL(si_objectRemoved(GObject*)), SLOT(sl_onObjectRemovedFromDocument(GObject*)));
     connect(d, SIGNAL(si_loadedStateChanged()), SLOT(sl_onDocumentLoadedStateChanged()));
@@ -189,6 +195,7 @@ void GObjectView::sl_onDocumentRemoved(Document* d) {
             _removeObject(o);
         }
         if (closing) {
+            SAFE_POINT(closeInterface != NULL, "No close interface", );
             closeInterface->closeView();
             break;
         }
@@ -205,12 +212,16 @@ void GObjectView::sl_onObjectNameChanged(const QString& oldName) {
     onObjectRenamed(obj, oldName);
 }
 
-QWidget* GObjectView::getWidget()  {
+QWidget* GObjectView::getWidget() {
     if (widget == NULL) {
         assert(closeInterface!=NULL);
         widget = createWidget();
     }
     return widget;
+}
+
+OptionsPanel* GObjectView::getOptionsPanel() {
+    return 0;
 }
 
 void GObjectView::setClosingInterface(GObjectViewCloseInterface* i) {
@@ -255,18 +266,65 @@ void GObjectView::setName(const QString& newName) {
 //////////////////////////////////////////////////////////////////////////
 /// GObjectViewWindow
 
-GObjectViewWindow::GObjectViewWindow(GObjectView* v, const QString& _viewName, bool _persistent) 
+GObjectViewWindow::GObjectViewWindow(GObjectView* v, const QString& _viewName, bool _persistent)
 : MWMDIWindow(_viewName), view(v), persistent(_persistent)
 {
     v->setParent(this);
     v->setClosingInterface(this);
-
-    QVBoxLayout *layout = new QVBoxLayout();
-    layout->setMargin(0);
+    // Get the GObject widget and options panel
     QWidget* viewWidget = v->getWidget();
-    viewWidget->setParent(this);
-    layout->addWidget(viewWidget);
-    setLayout(layout);
+    if (NULL == viewWidget) {
+        coreLog.error("Internal error: Object View widget is not initialized");
+        v->setClosingInterface(NULL);
+        v->setParent(NULL);
+        return;
+    }
+    // Initialize the layout of the whole windows
+    QHBoxLayout *windowLayout = new QHBoxLayout();
+    windowLayout->setContentsMargins(0, 0, 0, 0);
+    windowLayout->setSpacing(0);
+
+    QWidget *objectWidget = new QWidget(this);
+    // Initialize the layout of the object part only
+    QVBoxLayout *objectLayout = new QVBoxLayout(objectWidget);
+    objectLayout->setContentsMargins(0, 0, 0, 0);
+    objectLayout->setSpacing(0);
+
+    // Add the widget to the layout and "parent" it
+    objectLayout->addWidget(viewWidget);
+
+    OptionsPanel *optionsPanel = v->getOptionsPanel();
+    if (NULL == optionsPanel) {
+        // Set the layout of the whole window
+        windowLayout->addWidget(objectWidget);
+    } else {
+        OptionsPanelWidget *optionsPanelWidget = optionsPanel->getMainWidget();
+        QSplitter *splitter = new QSplitter();
+        splitter->setOrientation(Qt::Horizontal);
+        splitter->setChildrenCollapsible(false);
+        splitter->addWidget(objectWidget);
+        splitter->addWidget(optionsPanelWidget->getOptionsWidget());
+        splitter->setStretchFactor(0, 1);
+        splitter->setStretchFactor(1, 0);
+
+        windowLayout->addWidget(splitter);
+        windowLayout->addWidget(optionsPanelWidget);
+    }
+
+    QScrollArea* windowScrollArea = new QScrollArea();
+    windowScrollArea->setFrameStyle(QFrame::NoFrame);
+    windowScrollArea->setWidgetResizable(true);
+
+    QWidget* windowContentWidget = new QWidget();
+    windowContentWidget->setLayout(windowLayout);
+    windowScrollArea->setWidget(windowContentWidget);
+
+    QHBoxLayout* l = new QHBoxLayout();
+    l->setContentsMargins(0, 0, 0, 0);
+    l->addWidget(windowScrollArea);
+    setLayout(l);
+
+    // Set the icon
     setWindowIcon(viewWidget->windowIcon());
 }
 
@@ -280,11 +338,12 @@ void GObjectViewWindow::setPersistent(bool v)  {
 
 void GObjectViewWindow::closeView() {
     AppContext::getMainWindow()->getMDIManager()->closeMDIWindow(this);
+    emit si_windowClosed(this);
 }
 
 bool GObjectViewWindow::onCloseEvent() {
     view->saveWidgetState();
-    return true;
+    return view->onCloseEvent();
 }
 
 GObjectViewFactory* GObjectViewWindow::getViewFactory() const {
@@ -293,7 +352,6 @@ GObjectViewFactory* GObjectViewWindow::getViewFactory() const {
     return f;
 }
 
-
 void GObjectViewWindow::setupMDIToolbar(QToolBar* tb) {
     view->buildStaticToolbar(tb);
 }
@@ -301,7 +359,6 @@ void GObjectViewWindow::setupMDIToolbar(QToolBar* tb) {
 void GObjectViewWindow::setupViewMenu(QMenu* m) {
     view->buildStaticMenu(m);
 }
-
 
 //////////////////////////////////////////////////////////////////////////
 /// Utils
@@ -322,7 +379,7 @@ GObjectViewWindow* GObjectViewUtils::findViewByName(const QString& name) {
 
 QString GObjectViewUtils::genUniqueViewName(const QString& name) {
     assert(!name.isEmpty());
-    QSet<QString> usedNames; //set of names is derived from acttive views & saved states
+    QSet<QString> usedNames; //set of names is derived from active views & saved states
     QList<MWMDIWindow*> windows = AppContext::getMainWindow()->getMDIManager()->getWindows();
     foreach(MWMDIWindow* w, windows) {
         usedNames.insert(w->windowTitle());
@@ -349,7 +406,12 @@ QString GObjectViewUtils::genUniqueStateName(const QString& stateName) {
 
 QString GObjectViewUtils::genUniqueViewName(const Document* doc, const GObject* obj) {
     QString objName = obj->getGObjectName();
-    QString viewName = doc->getURL().baseFileName() + " " + objName;
+    const GObjectTypeInfo& ti = GObjectTypes::getTypeInfo(obj->getGObjectType());
+    QString objType = " [" + ti.treeSign + "] ";
+    QString docSuffix = doc->getURL().lastFileSuffix();
+    QString docName = doc->getURL().fileName();
+    docName.chop(docSuffix.length() == 0 ? 0 : docSuffix.length() + 1);
+    QString viewName = docName + objType + objName;
     return genUniqueViewName(viewName);
 }
 
@@ -432,7 +494,7 @@ QList<GObjectViewState*> GObjectViewUtils::selectStates(GObjectViewFactory* f, c
             if (f->isStateInSelection(ms, s->getStateData())) {
                 result.append(s);
             }
-        } 
+        }
     }
     return result;
 }
@@ -454,7 +516,11 @@ QList<GObjectViewWindow*> GObjectViewUtils::findViewsWithAnyOfObjects(const QLis
     QList<GObjectViewWindow*> res;
     foreach(GObject* obj, objs) {
         QList<GObjectViewWindow*> tmp = findViewsWithObject(obj);
-        res+=tmp;
+        foreach(GObjectViewWindow* vw, tmp) {
+            if(!res.contains(vw)) {
+                res+=tmp;
+            }
+        }
     }
     return res;
 }
@@ -468,7 +534,7 @@ GObjectViewWindow* GObjectViewUtils::getActiveObjectViewWindow() {
 //////////////////////////////////////////////////////////////////////////
 // GObjectViewWindowContext
 
-GObjectViewWindowContext::GObjectViewWindowContext(QObject* p, const GObjectViewFactoryId& _id) : 
+GObjectViewWindowContext::GObjectViewWindowContext(QObject* p, const GObjectViewFactoryId& _id) :
 QObject(p) , id(_id), initialzed(false) {}
 
 void GObjectViewWindowContext::init() {
@@ -522,6 +588,14 @@ void GObjectViewWindowContext::sl_windowClosing(MWMDIWindow* w) {
     disconnectView(v);
 }
 
+void GObjectViewWindowContext::sl_buildContextMenu(GObjectView* v, QMenu* m) {
+    buildMenu(v, m);
+}
+
+void GObjectViewWindowContext::sl_buildStaticMenu(GObjectView* v, QMenu* m) {
+    buildMenu(v, m);
+}
+
 void GObjectViewWindowContext::disconnectView(GObjectView* v) {
     QList<QObject*> resources = viewResources[v];
     foreach(QObject* a, resources) {
@@ -540,6 +614,18 @@ void GObjectViewWindowContext::addViewResource(GObjectView* v, QObject* r) {
     viewResources[v] = resources;
 }
 
+void GObjectViewWindowContext::addViewAction(GObjectViewAction* a) {
+    addViewResource(a->getObjectView(), a);
+}
+
+GObjectViewAction * GObjectViewWindowContext::findViewAction(GObjectView* v, const QString &actionName) const {
+    foreach (GObjectViewAction *a, getViewActions(v)) {
+        if (a->objectName() == actionName) {
+            return a;
+        }
+    }
+    return NULL;
+}
 
 QList<GObjectViewAction*> GObjectViewWindowContext::getViewActions(GObjectView* v) const {
     QList<GObjectViewAction*> actions;
@@ -553,8 +639,30 @@ QList<GObjectViewAction*> GObjectViewWindowContext::getViewActions(GObjectView* 
     return actions;
 }
 
+void GObjectViewWindowContext::onObjectRemoved(GObjectView* v, GObject* obj) {
+    GObjectViewObjectHandler::onObjectRemoved(v, obj);
+    foreach (GObjectViewAction *action, getViewActions(v)) {
+        obj->disconnect(action);
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
 // GObjectViewAction
+
+GObjectViewAction::GObjectViewAction(QObject* p, GObjectView* v, const QString& text, int order)
+    : QAction(text, p), view(v), actionOrder(order)
+{
+
+}
+
+GObjectView * GObjectViewAction::getObjectView() const {
+    return view;
+}
+
+int GObjectViewAction::getActionOrder() const {
+    return actionOrder;
+}
+
 void GObjectViewAction::addToMenuWithOrder(QMenu* menu) {
     foreach(QAction* action, menu->actions()) {
         GObjectViewAction* viewAction = qobject_cast<GObjectViewAction*>(action);

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,8 +27,13 @@
 #include <U2Core/CMDLineRegistry.h>
 
 #include <QtCore/QTime>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidgetItem>
 #include <QtGui/QMainWindow>
+#else
+#include <QtWidgets/QTreeWidgetItem>
+#include <QtWidgets/QMainWindow>
+#endif
 
 namespace U2 {
 
@@ -49,10 +54,10 @@ public:
 
     virtual void setupMDIToolbar(QToolBar* tb);
     virtual void setupViewMenu(QMenu* n);
-    
+
     void killAllChildForms();
     void reporterFormClosedOutside(){reporterForm=NULL;}
-    
+
 private slots:
 
     void sl_treeCustomContextMenuRequested(const QPoint & pos);
@@ -77,33 +82,36 @@ private slots:
     void sl_setTestsDisabledAction();
     void sl_setTestsChangeExcludedAction();
     void sl_saveSelectedSuitesAction();
+    void sl_saveTest();
 
 
 protected:
     virtual bool onCloseEvent();
 
 private:
+    void togglePopupMenuItems(bool enabled);
+
     void updateState();
-    
+
     void createAndRunTask(const QList<GTestState*>& testsToRun);
     QList<TVTSItem*> getSelectedSuiteItems() const;
     QList<TVTestItem*> getSelectedTestItems() const;
-    
+
     void addTestSuiteList(QString url);
     void addTestSuite(GTestSuite* ts);
     void addFolderTests(TVTSItem* tsi, GTestRef* testRef,const QString* curPath,bool haveExcludedTests);
-    void addTest(TVTSItem* tsi, GTestRef* t,bool haveExcludedTests);
+    void addTest(TVTSItem* tsi, GTestRef* t,QString excludeReason);
     TVTSItem* findTestSuiteItem(GTestSuite* ts) const;
     TVTestItem* findTestViewItem(GTestRef* tr) const;
     TVTestItem* findTestViewItemRecursive(GTestRef* testRef,TVItem* sItem) const;
     TVTSItem* getFolder(TVItem* element,const QString* folderName)const;
 
     QList<GTestState*> getSubTestToRun(TVItem* sItem,bool runAll)const;
-    QList<GTestRef*> getSubRefToExclude(TVItem* sItem,bool runAll)const;
+    QMap<GTestRef *, QString> getSubRefToExclude(TVItem* sItem,bool runAll)const;
     bool  allSuitesIsInRoot(const QList<TVTSItem*> suitesList) const;
     void setExcludedState(TVItem* sItem,bool allSelected, bool newState);
-    void setExcludedState(TVItem* sItem,bool allSelected);
-    void saveTestSuite(const QString& url, QList<GTestRef*> testsToEx, QString& err);
+    void setExcludedState(TVItem* sItem, bool allSelected, QString reason);
+    void saveTestSuite(const QString& url, QMap<GTestRef *, QString> testsToEx, QString& err);
     QStringList findAllTestFilesInDir(const QString& dirPath, const QString& ext, bool recursive, int rec);
 
     TestRunnerService* service;
@@ -124,7 +132,7 @@ private:
     QAction* saveSelectedSuitesAction;
 
     TestRunnerTask* task;
-    TestViewReporter* reporterForm; 
+    TestViewReporter* reporterForm;
     QTime startRunTime;
     QTime endRunTime;
     int time;
@@ -135,13 +143,13 @@ private:
 
 enum TVItemType {
     TVItem_TestSuite,
-    TVItem_Test,
+    TVItem_Test
 };
 
 class TVItem : public QTreeWidgetItem {
 public:
     TVItem(TVItemType t) : type(t), excludedTests(false) {}
-    
+
     virtual void updateVisual() = 0;
 
     virtual QString getRichDesc() const = 0;
@@ -149,9 +157,11 @@ public:
     const TVItemType type;
 
     bool excludedTests;
-    
+
+    QString excludeReason;
+
     bool isSuite() const {return type == TVItem_TestSuite;}
-    
+
     bool isTest() const {return type == TVItem_Test;}
 
 };
@@ -162,9 +172,9 @@ public:
 
     TVTSItem(const QString& _name);
 
-    
+
     virtual void updateVisual();
-    
+
     virtual QString getRichDesc() const;
 
     GTestSuite* ts;
@@ -186,6 +196,8 @@ public:
     virtual void updateVisual();
 
     virtual QString getRichDesc() const;
+
+    QString getTestContent();
 
     GTestState* testState;
 };

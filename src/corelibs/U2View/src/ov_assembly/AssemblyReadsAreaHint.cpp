@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,13 +21,17 @@
 
 #include "AssemblyReadsAreaHint.h"
 #include "AssemblyReadsArea.h"
-#include "ShortReadIterator.h"
 
 #include <U2Core/U2AssemblyUtils.h>
 
-#include <QtGui/QBoxLayout>
 #include <QtGui/QMouseEvent>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
+#include <QtGui/QBoxLayout>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QBoxLayout>
+#endif
 
 namespace U2 {
 
@@ -41,38 +45,35 @@ AssemblyReadsAreaHint::AssemblyReadsAreaHint(QWidget * p): QFrame(p), label(new 
     top->addWidget(label);
     top->setSpacing(0);
     top->setSizeConstraint(QLayout::SetMinimumSize);
-    
+
     setMaximumHeight(layout()->minimumSize().height());
     setMaximumWidth(HINT_MAX_WIDTH);
-    
+
     installEventFilter(this);
     label->installEventFilter(this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
-    
+    label->setObjectName("hintLabel");
+
     {
         QPalette p(palette());
         p.setColor(QPalette::Background, QColor(245, 245, 206));
         setPalette(p);
     }
-    
-// hack: tooltip do not works on linux, popup do not work on windows
-#ifdef Q_OS_WIN
+
     setWindowFlags(Qt::ToolTip);
-#else
-    setWindowFlags(Qt::Popup);
-#endif
     setWindowOpacity(0.8);
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     setMouseTracking(true);
     setLineWidth(1);
     setFrameShape(QFrame::Box);
+    setObjectName("AssemblyReadsAreaHint");
 }
 
 static QString getCigarString(const QString & ci) {
     if(ci.isEmpty()) {
-        return AssemblyReadsAreaHint::tr("no information");
+        return QObject::tr("no information");
     }
-    
+
     QString cigar;
     for(int i = 0; i < ci.size(); ++i) {
         QChar ch = ci.at(i);
@@ -85,8 +86,8 @@ static QString getCigarString(const QString & ci) {
     return cigar;
 }
 
-static const QString DIRECT_STR(AssemblyReadsAreaHint::tr("direct"));
-static const QString COMPL_STR(AssemblyReadsAreaHint::tr("complement"));
+static const QString DIRECT_STR(QObject::tr("direct"));
+static const QString COMPL_STR(QObject::tr("complement"));
 
 QString getReadSequence(const QByteArray & bytes) {
     QString ret(bytes);
@@ -126,7 +127,7 @@ QString getReadNameWrapped(QString n) {
             int pos = sub.lastIndexOf(QRegExp("\\s+"));
             if(pos == -1) {
                 pos = sub.size();
-            } 
+            }
             ret += sub.mid(0, pos) + "<br>";
             n = n.mid(pos);
         } else {
@@ -160,7 +161,7 @@ static QString formatReadInfo(U2AssemblyRead r) {
     }
     text += QString("<tr><td><b>Read sequence</b>:&nbsp;%1</td></tr>").arg(getReadSequence(r->readSequence));
     if(ReadFlagsUtils::isUnmappedRead(r->flags)) {
-        text += QString("<tr><td><b><font color=\"red\">%1</font></b></td></tr>").arg(AssemblyReadsAreaHint::tr("Unmapped"));
+        text += QString("<tr><td><b><font color=\"red\">%1</font></b></td></tr>").arg(QObject::tr("Unmapped"));
     }
     return text;
 }

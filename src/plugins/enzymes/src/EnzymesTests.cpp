@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,14 @@
 #include "CloningUtilTasks.h"
 
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/U2DbiRegistry.h>
+#include <U2Core/U2OpStatusUtils.h>
+
 #include <U2Formats/GenbankLocationParser.h>
+#include <U2Formats/GenbankPlainTextFormat.h>
 
 namespace U2 {
 
@@ -37,21 +41,29 @@ void GTest_FindEnzymes::init(XMLTestFormat *tf, const QDomElement& el) {
     Q_UNUSED(tf);
     loadTask = NULL;
     contextIsAdded = false;
-    
+
     seqObjCtx = el.attribute("sequence");
     if (seqObjCtx.isEmpty()) {
-        stateInfo.setError(  "Sequence object context not specified" );
+        stateInfo.setError( "Sequence object context not specified");
         return;
     }
     aObjName = el.attribute("result-name");
     if (aObjName.isEmpty()) {
-        aObjName = "annotations"; 
+        aObjName = "annotations";
     }
 
-    aObj = new AnnotationTableObject(aObjName);
-    aObj->setParent(this);
+    U2OpStatusImpl os;
+    const U2DbiRef dbiRef = AppContext::getDbiRegistry()->getSessionTmpDbiRef(os);
+    SAFE_POINT_OP(os,);
+    aObj = new AnnotationTableObject(aObjName, dbiRef);
 
-
+    SAFE_POINT(AppContext::getIOAdapterRegistry() != NULL, "IOAdapter registry is NULL",);
+    IOAdapterFactory *ioFactory = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(BaseIOAdapters::LOCAL_FILE);
+    QTemporaryFile *t = new QTemporaryFile(this);
+    Document *doc = new Document(new GenbankPlainTextFormat(this), ioFactory,
+                                 GUrl(QFileInfo(*t).absoluteFilePath()), dbiRef,
+                                 QList<GObject*>() << aObj);
+    aObj->setParent(doc);
 
     QString buf = el.attribute("minHits");
     bool ok;
@@ -66,10 +78,10 @@ void GTest_FindEnzymes::init(XMLTestFormat *tf, const QDomElement& el) {
         maxHits = INT_MAX;
     }
 
-    // read url of a file with enzymes 
+    // read url of a file with enzymes
     enzymesUrl = el.attribute("url");
     if (seqObjCtx.isEmpty()) {
-        stateInfo.setError(  "Enzymes database URL not specified" );
+        stateInfo.setError( "Enzymes database URL not specified");
         return;
     }
     enzymesUrl=env->getVar("COMMON_DATA_DIR")+"/" + enzymesUrl;
@@ -86,28 +98,28 @@ void GTest_FindEnzymes::init(XMLTestFormat *tf, const QDomElement& el) {
     QString ensymesStr = el.attribute("enzymes");
     enzymeNames = ensymesStr.split(",", QString::SkipEmptyParts);
     if (enzymeNames.isEmpty()) {
-        stateInfo.setError(  QString("Invalid enzyme names: '%1'").arg(ensymesStr) );
+        stateInfo.setError( QString("Invalid enzyme names: '%1'").arg(ensymesStr));
         return;
     }
-    
+
     // read expected results
     QString resultsStr = el.attribute("result");
     if (resultsStr.isEmpty()) {
-        stateInfo.setError(  "'result' value not set" );
+        stateInfo.setError( "'result' value not set");
         return;
     }
     QStringList perEnzymeResults = resultsStr.split(";", QString::SkipEmptyParts);
     foreach(const QString& enzymeResult, perEnzymeResults) {
         int nameIdx = enzymeResult.indexOf(':');
         if (nameIdx <=0 || nameIdx+1 == enzymeResult.size()) {
-            stateInfo.setError(  QString("Error parsing results token %1").arg(enzymeResult) );
+            stateInfo.setError( QString("Error parsing results token %1").arg(enzymeResult));
             return;
         }
         QString enzymeId = enzymeResult.left(nameIdx);
         QString regions = enzymeResult.mid(nameIdx+1);
 
         if (!enzymeNames.contains(enzymeId)) {
-            stateInfo.setError(  QString("Result enzyme not in the search list %1").arg(enzymeId) );
+            stateInfo.setError( QString("Result enzyme not in the search list %1").arg(enzymeId));
             return;
         }
 
@@ -120,7 +132,7 @@ void GTest_FindEnzymes::init(XMLTestFormat *tf, const QDomElement& el) {
             pos += rx2.matchedLength();
         }
         if (!resultsPerEnzyme.contains(enzymeId)) {
-            stateInfo.setError(  QString("Can't parse regions in results token: %1").arg(enzymeResult) );
+            stateInfo.setError( QString("Can't parse regions in results token: %1").arg(enzymeResult));
             return;
         }
     }
@@ -130,20 +142,19 @@ void GTest_FindEnzymes::prepare() {
     if (hasError() || isCanceled()) {
         return;
     }
-    
+
     //get sequence object
     seqObj = getContext<U2SequenceObject>(this, seqObjCtx);
     if (seqObj == NULL) {
-        stateInfo.setError(  QString("Sequence context not found %1").arg(seqObjCtx) );
+        stateInfo.setError( QString("Sequence context not found %1").arg(seqObjCtx));
         return;
     }
 
-    aObj->addObjectRelation(seqObj, GObjectRelationRole::SEQUENCE);
+    aObj->addObjectRelation(seqObj, ObjectRole_Sequence);
 
     loadTask = new LoadEnzymeFileTask(enzymesUrl);
     addSubTask(loadTask);
 }
-
 
 QList<Task*> GTest_FindEnzymes::onSubTaskFinished(Task* subTask) {
     QList<Task*> res;
@@ -158,19 +169,19 @@ QList<Task*> GTest_FindEnzymes::onSubTaskFinished(Task* subTask) {
     foreach(const QString& enzymeId, enzymeNames) {
         SEnzymeData enzyme = EnzymesIO::findEnzymeById(enzymeId, loadTask->enzymes);
         if (enzyme.constData() == NULL) {
-            stateInfo.setError(  QString("Enzyme not found: %1").arg(enzymeId) );
+            stateInfo.setError( QString("Enzyme not found: %1").arg(enzymeId));
             return res;
         }
         enzymesToSearch.append(enzyme);
     }
-    
+
     FindEnzymesTaskConfig cfg;
     cfg.maxResults = INT_MAX;
     cfg.minHitCount = minHits;
     cfg.maxHitCount = maxHits;
     cfg.excludedRegions = excludedRegions;
 
-    FindEnzymesToAnnotationsTask* t = new FindEnzymesToAnnotationsTask(aObj, seqObj->getWholeSequence(), enzymesToSearch, cfg);
+    FindEnzymesToAnnotationsTask* t = new FindEnzymesToAnnotationsTask(aObj, seqObj->getSequenceRef(), enzymesToSearch, cfg);
     res.append(t);
     return res;
 }
@@ -182,22 +193,21 @@ Task::ReportResult GTest_FindEnzymes::report() {
     //for each enzyme from resultsPerEnzyme check that all annotations are present
     foreach(const QString& enzymeId, resultsPerEnzyme.keys()) {
         QList<U2Region> regions = resultsPerEnzyme.values(enzymeId);
-        AnnotationGroup* ag = aObj->getRootGroup()->getSubgroup(enzymeId, false);
-        if (ag == NULL) {
-            stateInfo.setError(  QString("Group not found %1").arg(enzymeId) );
+        AnnotationGroup *ag = aObj->getRootGroup()->getSubgroup(enzymeId, false);
+        if (NULL == ag) {
+            stateInfo.setError( QString("Group not found %1").arg(enzymeId));
             break;
         }
-        const QList<Annotation*> anns = ag->getAnnotations();
+        const QList<Annotation *> anns = ag->getAnnotations();
         if (anns.size() != regions.size()) {
-            stateInfo.setError( QString("Number of results not matched for :%1, results: %2, expected %3")
-                .arg(enzymeId).arg(anns.size()).arg(regions.size()) );    
+            stateInfo.setError(QString("Number of results not matched for :%1, results: %2, expected %3")
+                .arg(enzymeId).arg(anns.size()).arg(regions.size()));
             break;
         }
-        foreach(const Annotation* a, anns) {
-            U2Region r = a->getRegions().first();
+        foreach (Annotation *a, anns) {
+            const U2Region r = a->getRegions().first();
             if (!regions.contains(r)) {
-                stateInfo.setError( QString("Illegal region! Enzyme :%1, region %2..%3")
-                    .arg(enzymeId).arg(r.startPos + 1).arg(r.endPos()) );    
+                stateInfo.setError(QString("Illegal region! Enzyme :%1, region %2..%3").arg(enzymeId).arg(r.startPos + 1).arg(r.endPos()));
                 break;
             }
         }
@@ -208,7 +218,6 @@ Task::ReportResult GTest_FindEnzymes::report() {
 
     return Task::ReportResult_Finished;
 }
-
 
 void GTest_FindEnzymes::cleanup() {
     if (aObj != NULL) {
@@ -224,28 +233,28 @@ void GTest_FindEnzymes::cleanup() {
 void GTest_DigestIntoFragments::init(XMLTestFormat *tf, const QDomElement& el) {
     Q_UNUSED(tf);
     loadTask = NULL;
-    
+
     seqObjCtx = el.attribute("sequence");
     if (seqObjCtx.isEmpty()) {
-        stateInfo.setError(  "Sequence object context not specified" );
-        return;
-    }
-    
-    aObjCtx = el.attribute("annotation-table");
-    if (aObjCtx.isEmpty()) {
-        stateInfo.setError(  "Annotation object context not specified" );
+        stateInfo.setError( "Sequence object context not specified");
         return;
     }
 
-    // read url of a file with enzymes 
+    aObjCtx = el.attribute("annotation-table");
+    if (aObjCtx.isEmpty()) {
+        stateInfo.setError( "Annotation object context not specified");
+        return;
+    }
+
+    // read url of a file with enzymes
     enzymesUrl = el.attribute("url");
     if (enzymesUrl.isEmpty()) {
-        stateInfo.setError(  "Enzymes database URL not specified" );
+        stateInfo.setError( "Enzymes database URL not specified");
         return;
     }
     enzymesUrl=env->getVar("COMMON_DATA_DIR")+"/" + enzymesUrl;
 
-    
+
     QString buf = el.attribute("search-for-enzymes");
     searchForEnzymes = buf == "true" ? true : false;
 
@@ -253,12 +262,9 @@ void GTest_DigestIntoFragments::init(XMLTestFormat *tf, const QDomElement& el) {
     QString ensymesStr = el.attribute("enzymes");
     enzymeNames = ensymesStr.split(",", QString::SkipEmptyParts);
     if (enzymeNames.isEmpty()) {
-        stateInfo.setError(  QString("Invalid enzyme names: '%1'").arg(ensymesStr) );
+        stateInfo.setError( QString("Invalid enzyme names: '%1'").arg(ensymesStr));
         return;
     }
-
-
-    
 }
 
 void GTest_DigestIntoFragments::prepare() {
@@ -269,20 +275,19 @@ void GTest_DigestIntoFragments::prepare() {
     //get sequence object
     seqObj = getContext<U2SequenceObject>(this, seqObjCtx);
     if (seqObj == NULL) {
-        stateInfo.setError(  QString("Sequence context not found %1").arg(seqObjCtx) );
+        stateInfo.setError( QString("Sequence context not found %1").arg(seqObjCtx));
         return;
     }
 
     aObj = getContext<AnnotationTableObject>(this, aObjCtx);
     if (aObj == NULL) {
-        stateInfo.setError(  QString("Annotation context not found %1").arg(aObjCtx) );
+        stateInfo.setError( QString("Annotation context not found %1").arg(aObjCtx));
         return;
     }
-    
+
     loadTask = new LoadEnzymeFileTask(enzymesUrl);
     addSubTask(loadTask);
 }
-
 
 QList<Task*> GTest_DigestIntoFragments::onSubTaskFinished(Task* subTask) {
     QList<Task*> res;
@@ -297,46 +302,45 @@ QList<Task*> GTest_DigestIntoFragments::onSubTaskFinished(Task* subTask) {
     foreach(const QString& enzymeId, enzymeNames) {
         SEnzymeData enzyme = EnzymesIO::findEnzymeById(enzymeId, loadTask->enzymes);
         if (enzyme.constData() == NULL) {
-            stateInfo.setError(  QString("Enzyme not found: %1").arg(enzymeId) );
+            stateInfo.setError( QString("Enzyme not found: %1").arg(enzymeId));
             return res;
         }
         enzymesToSearch.append(enzyme);
     }
-    
-    DigestSequenceTaskConfig cfg;
-	cfg.searchForRestrictionSites = searchForEnzymes;
-	cfg.enzymeData = enzymesToSearch;
 
-	DigestSequenceTask* t = new DigestSequenceTask(seqObj, aObj, aObj, cfg);
+    DigestSequenceTaskConfig cfg;
+    cfg.searchForRestrictionSites = searchForEnzymes;
+    cfg.enzymeData = enzymesToSearch;
+
+    DigestSequenceTask* t = new DigestSequenceTask(seqObj, aObj, aObj, cfg);
     res.append(t);
     return res;
 }
-
 
 //////////////////////////////////////////////////////////////////////////
 
 void GTest_LigateFragments::init(XMLTestFormat *tf, const QDomElement& el) {
     Q_UNUSED(tf);
-    
+
     ligateTask = NULL;
     contextAdded = false;
-    
+
     resultDocName = el.attribute("index");
     if (resultDocName.isEmpty()) {
-        stateInfo.setError(  "Result document name is not specified" );
+        stateInfo.setError( "Result document name is not specified");
         return;
     }
-    
+
     QString objCtx = el.attribute("seq-context");
     if (objCtx.isEmpty()) {
-        stateInfo.setError(  "Sequence object context not specified" );
+        stateInfo.setError( "Sequence object context not specified");
         return;
     }
     seqObjNames = objCtx.split(";");
 
     objCtx = el.attribute("annotation-context");
     if (objCtx.isEmpty()) {
-        stateInfo.setError(  "Annotation object context not specified" );
+        stateInfo.setError( "Annotation object context not specified");
         return;
     }
     annObjNames = objCtx.split(";");
@@ -344,7 +348,7 @@ void GTest_LigateFragments::init(XMLTestFormat *tf, const QDomElement& el) {
 
     QString fragmentsData = el.attribute("fragments");
     if (fragmentsData.isEmpty()) {
-        stateInfo.setError(  "Fragments names are not specified" );
+        stateInfo.setError( "Fragments names are not specified");
         return;
     }
     fragmentNames = fragmentsData.split(";");
@@ -362,19 +366,19 @@ void GTest_LigateFragments::prepare() {
         return;
     }
 
-    foreach (const QString& seqObjCtx, seqObjNames ) {
+    foreach (const QString& seqObjCtx, seqObjNames) {
         GObject* seqObj = getContext<U2SequenceObject>(this, seqObjCtx);
         if (seqObj == NULL) {
-            stateInfo.setError(  QString("Sequence objext context not found %1").arg(seqObjCtx) );
+            stateInfo.setError( QString("Sequence object context not found %1").arg(seqObjCtx));
             return;
         }
         sObjs.append(seqObj);
     }
 
-    foreach (const QString& aObjCtx, annObjNames ) {
+    foreach (const QString& aObjCtx, annObjNames) {
         GObject* aObj = getContext<AnnotationTableObject>(this, aObjCtx);
         if (aObj == NULL) {
-            stateInfo.setError(  QString("Annotation context not found %1").arg(aObjCtx) );
+            stateInfo.setError( QString("Annotation context not found %1").arg(aObjCtx));
             return;
         }
         aObjs.append(aObj);
@@ -382,10 +386,10 @@ void GTest_LigateFragments::prepare() {
 
     prepareFragmentsList();
 
-    if (targetFragments.isEmpty()  ) {
-        stateInfo.setError(  QString("Target fragment list is empty!"));
+    if (targetFragments.isEmpty() ) {
+        stateInfo.setError( QString("Target fragment list is empty!"));
         return;
-    } 
+    }
 
     LigateFragmentsTaskConfig cfg;
     cfg.checkOverhangs = checkOverhangs;
@@ -395,19 +399,17 @@ void GTest_LigateFragments::prepare() {
     cfg.saveDoc = false;
     cfg.addDocToProject = false;
     cfg.annotateFragments = true;
-    
-    
+
     ligateTask = new LigateFragmentsTask(targetFragments, cfg);
     addSubTask(ligateTask);
-
 }
 
 void GTest_LigateFragments::prepareFragmentsList()
 {
     QList<DNAFragment> fragments = DNAFragment::findAvailableFragments(aObjs, sObjs);
-    
+
     foreach (const QString& searchedName, fragmentNames) {
-        QStringList nameData = searchedName.split(":");  
+        QStringList nameData = searchedName.split(":");
         QString fName = nameData.at(1);
         QString fDoc = nameData.at(0);
         bool inverted = nameData.count() > 2 && nameData.at(2) == "inverted";
@@ -423,10 +425,9 @@ void GTest_LigateFragments::prepareFragmentsList()
             }
         }
         if (!found) {
-            stateInfo.setError(QString("%1 %2 is not found. ").arg(fName).arg(fDoc) );
+            stateInfo.setError(QString("%1 %2 is not found. ").arg(fName).arg(fDoc));
         }
     }
-
 }
 
 Task::ReportResult GTest_LigateFragments::report()
@@ -436,9 +437,9 @@ Task::ReportResult GTest_LigateFragments::report()
     }
 
     if (ligateTask != NULL && ligateTask->hasError()) {
-        stateInfo.setError( ligateTask->getError() );
+        stateInfo.setError(ligateTask->getError());
     } else if (!resultDocName.isEmpty()) {
-        addContext( resultDocName, ligateTask->getResultDocument() );
+        addContext(resultDocName, ligateTask->getResultDocument());
         contextAdded = true;
     }
 

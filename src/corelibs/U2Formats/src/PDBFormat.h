@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -55,14 +55,13 @@ protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
 private:
-    
+
     QString formatName;
     static QHash<QByteArray,int> atomNumMap;
     static QHash<QByteArray, char> acronymNameMap;
-    
+
     void initUtilityMaps();
     void updateSecStructChainIndexes(BioStruct3D& biostruc);
-    void fillBioStruct3DAnnotationTable(AnnotationTableObject* ao, const BioStruct3D& bioStruct);
 
 
     class PDBParser {
@@ -79,7 +78,7 @@ private:
         QHash<char, int> chainIndexMap;
         QHash<char, QByteArray> seqResMap;
         QSet<QByteArray> resIndSet;
-        
+
         // Methods
         QByteArray getSpecValue(const QByteArray& specLine, const QByteArray& valueName);
         void parseHeader(BioStruct3D& biostruct, U2OpStatus& ti);
@@ -90,6 +89,7 @@ private:
         void parseHet(BioStruct3D& biostruct, U2OpStatus& ti);
         void parseAtomConnections(BioStruct3D& biostruct, U2OpStatus& ti);
         void parseAtom(BioStruct3D& biostruct, U2OpStatus& ti);
+        void parseSplitSection(U2OpStatus& ti);
 
         void createMolecule( char chainIdentifier, BioStruct3D &biostruct, int chainIndex );
 

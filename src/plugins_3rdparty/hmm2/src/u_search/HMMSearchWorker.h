@@ -23,9 +23,8 @@ class HMMSearchWorker : public BaseWorker {
 public:
     HMMSearchWorker(Actor* a);
     virtual void init();
-    virtual bool isReady();
+    virtual bool isReady() const;
     virtual Task* tick();
-    virtual bool isDone();
     virtual void cleanup();
     
 private slots:

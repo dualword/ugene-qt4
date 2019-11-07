@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -46,7 +46,7 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
     return plug;
 }
 
-WorkflowDumpPlugin::WorkflowDumpPlugin() 
+WorkflowDumpPlugin::WorkflowDumpPlugin()
 : Plugin(tr("Workflow Dump"), tr("Workflow Dump exports workflow data.")){
 #ifdef WORKFLOW_DUMP
     if (AppContext::getMainWindow()) {
@@ -61,7 +61,7 @@ WorkflowDumpPlugin::WorkflowDumpPlugin()
 
 class JsonWriter {
 public:
-    
+
     JsonWriter() : separator(":"), lenient(false), indent("    ") {
         stack.append(EMPTY_DOCUMENT);
     }
@@ -122,7 +122,7 @@ public:
     JsonWriter& endObject() {
         return close(EMPTY_OBJECT, NONEMPTY_OBJECT, "}");
     }
-    
+
     QByteArray& getBytes() {
         return out;
     }

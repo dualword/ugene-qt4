@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,11 @@
 #define _U2_WORKFLOW_DESIGNER_EDITOR_DELEGATES_H_
 
 #include <U2Lang/ConfigurationEditor.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QItemDelegate>
+#else
+#include <QtWidgets/QItemDelegate>
+#endif
 
 Q_DECLARE_METATYPE(U2::PropertyDelegate*)
 
@@ -48,18 +52,14 @@ public:
     void setEditorData(QWidget *editor, const QModelIndex &index) const;
 
     void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const;
-    
+
 }; // ProxyDelegate
 
 class SuperDelegate : public ProxyDelegate {
 public:
     SuperDelegate(WorkflowEditor *parent);
-    
+
     virtual bool handlePropertyValueList(const QString& name, QVariant list) const;
-        
-private:
-    WorkflowEditor* owner;
-    
 }; // SuperDelegate
 
 } // U2

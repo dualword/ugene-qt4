@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,36 +27,45 @@
 #include <U2Lang/Schema.h>
 #include <U2Lang/IntegralBusModel.h>
 #include <U2Lang/BaseTypes.h>
+#include <U2Lang/WorkflowMonitor.h>
+#include <U2Lang/WorkflowTasksRegistry.h>
+
+#include "model/actor/ActorValidator.h"
 
 namespace U2 {
 namespace Workflow {
 
-DataTypeRegistry* WorkflowEnvImpl::initDataRegistry() {
+DataTypeRegistry * WorkflowEnvImpl::initDataRegistry() {
     qRegisterMetaTypeStreamOperators<QStrStrMap>("QStrStrMap");
     qRegisterMetaTypeStreamOperators<CfgMap>("CfgMap");
     qRegisterMetaTypeStreamOperators<IterationCfg>("IterationCfg");
+    qRegisterMetaType<U2::Workflow::Monitor::FileInfo>( "U2::Workflow::Monitor::FileInfo" );
+    qRegisterMetaType<Problem>( "Problem" );
+    qRegisterMetaType<U2::Workflow::Monitor::WorkerInfo>( "U2::Workflow::Monitor::WorkerInfo" );
+    qRegisterMetaType<U2::Workflow::Monitor::LogEntry>( "U2::Workflow::Monitor::LogEntry" );
+    qRegisterMetaType<U2::ActorId>( "U2::ActorId" );
 
-    DataTypeRegistry * r = new DataTypeRegistry();
+    DataTypeRegistry *r = new DataTypeRegistry();
 
     return r;
 }
 
-DomainFactoryRegistry* WorkflowEnvImpl::initDomainRegistry() {
-    DomainFactoryRegistry* r = new DomainFactoryRegistry();
+DomainFactoryRegistry * WorkflowEnvImpl::initDomainRegistry() {
+    DomainFactoryRegistry *r = new DomainFactoryRegistry();
     return r;
 }
 
-ActorPrototypeRegistry* WorkflowEnvImpl::initProtoRegistry() {
-
-    ActorPrototypeRegistry* r = new ActorPrototypeRegistry();
+ActorPrototypeRegistry * WorkflowEnvImpl::initProtoRegistry() {
+    ActorPrototypeRegistry *r = new ActorPrototypeRegistry();
     return r;
 }
 
-DataTypeValueFactoryRegistry* WorkflowEnvImpl::initDataTypeValueFactoryRegistry() {
-    DataTypeValueFactoryRegistry* ret = new DataTypeValueFactoryRegistry();
+DataTypeValueFactoryRegistry * WorkflowEnvImpl::initDataTypeValueFactoryRegistry() {
+    DataTypeValueFactoryRegistry *ret = new DataTypeValueFactoryRegistry();
     ret->registerEntry( new StringTypeValueFactory() );
     ret->registerEntry( new BoolTypeValueFactory() );
     ret->registerEntry( new NumTypeValueFactory() );
+    ret->registerEntry( new UrlTypeValueFactory() );
     return ret;
 }
 
@@ -66,11 +75,27 @@ WorkflowEnvImpl::~WorkflowEnvImpl()
     delete proto;
     delete data;
     delete dvfReg;
+    delete actorValidatorRegistry;
 }
 
-ExternalToolCfgRegistry* WorkflowEnvImpl::initExternalToolCfgRegistry() {
+ExternalToolCfgRegistry * WorkflowEnvImpl::initExternalToolCfgRegistry() {
     ExternalToolCfgRegistry *ecfgReg = new ExternalToolCfgRegistry();
     return ecfgReg;
+}
+
+SchemaActorsRegistry * WorkflowEnvImpl::initSchemaActorsRegistry() {
+    SchemaActorsRegistry *actorsRegistry = new SchemaActorsRegistry();
+    return actorsRegistry;
+}
+
+WorkflowTasksRegistry * WorkflowEnvImpl::initWorkflowTasksRegistry() {
+    WorkflowTasksRegistry *workflowTasksRegistry = new WorkflowTasksRegistry();
+    return workflowTasksRegistry;
+}
+
+ActorValidatorRegistry * WorkflowEnvImpl::initActorValidatorRegistry() {
+    ActorValidatorRegistry *actorValidatorRegistry = new ActorValidatorRegistry();
+    return actorValidatorRegistry;
 }
 
 }//namespace Workflow

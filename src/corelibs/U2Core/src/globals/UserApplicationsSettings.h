@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_USER_APPLICATIONS_SETTINGS_H_
 
 #include <U2Core/global.h>
+#include <U2Core/U2OpStatus.h>
 
 namespace U2 {
 
@@ -44,10 +45,13 @@ public:
     bool openLastProjectAtStartup() const;
     void setOpenLastProjectAtStartup(bool v);
 
+    int getAskToSaveProject() const;
+    void setAskToSaveProject(int v);
+
     //a style selected by user
     QString getVisualStyle() const;
     void setVisualStyle(const QString& newStyle);
-    
+
     // specify dir for downloaded files
     QString getDownloadDirPath() const;
     void setDownloadDirPath(const QString& newPath) const;
@@ -64,11 +68,24 @@ public:
     // domain is used here to avoid collision between different algorithms
     QString getCurrentProcessTemporaryDirPath(const QString& domain = QString()) const;
 
+    // returns the temropary path: userTemporaryDirPath + "ugene_tmp/p" + processId + "/domain/" + tmpSubDir
+    QString createCurrentProcessTemporarySubDir(U2OpStatus &os, const QString &domain = QString()) const;
+
+    // default UGENE data dir
+    QString getDefaultDataDirPath() const;
+    void setDefaultDataDirPath(const QString& newPath);
+
     bool isStatisticsCollectionEnabled() const;
     void setEnableCollectingStatistics(bool b);
 
     bool tabbedWindowLayout() const;
     void setTabbedWindowLayout(bool b);
+
+    bool resetSettings() const;
+    void setResetSettings(bool b);
+
+    QString getFileStorageDir() const;
+    void setFileStorageDir(const QString &newPath);
 
 signals:
     void si_temporaryPathChanged();

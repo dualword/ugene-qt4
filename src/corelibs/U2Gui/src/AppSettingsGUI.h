@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,11 @@
 #define _U2_APPSETTINGS_GUI_H_
 
 #include <U2Core/global.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QWidget>
+#endif
 
 namespace U2 {
 
@@ -76,6 +80,9 @@ public:
 
     const QString& getPageId() const {return id;}
 
+    //should be pure virtual, because every page should have own help page index
+    virtual const QString& getHelpPageId() const = 0;
+
     virtual AppSettingsGUIPageState* getSavedState() = 0;
 
     virtual void saveState(AppSettingsGUIPageState* s) = 0;
@@ -91,6 +98,7 @@ private:
 #define APP_SETTINGS_GUI_NETWORK    "network"
 #define APP_SETTINGS_GUI_LOG        "log"
 #define APP_SETTINGS_USER_APPS      "user_apps"
+#define APP_SETTINGS_DIRECTORIES    "directories"
 #define APP_SETTINGS_RESOURCES      "resources"
 #define APP_SETTINGS_EXTERNAL_TOOLS "ets"
 #define APP_SETTINGS_FORMAT         "format"

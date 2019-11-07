@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,21 +23,26 @@
 #define _U2_WORKFLOW_SEQ_ACTOR_H_
 
 #include <U2Lang/Attribute.h>
-#include <U2Lang/IntegralBusModel.h>
+#include <U2Lang/ReadDbObjActorPrototype.h>
 
 #include <U2Lang/WorkflowUtils.h>
 
 namespace U2 {
 namespace Workflow {
 
-class GenericMAActorProto : public IntegralBusActorPrototype {
+class GenericReadDocProto : public ReadDbObjActorPrototype {
+public:
+    GenericReadDocProto(const Descriptor &desc);
+};
+
+class GenericMAActorProto : public GenericReadDocProto {
 public:
     static const QString TYPE;
     GenericMAActorProto();
     virtual bool isAcceptableDrop(const QMimeData*, QVariantMap*) const;
 };
 
-class GenericSeqActorProto : public IntegralBusActorPrototype {
+class GenericSeqActorProto : public GenericReadDocProto {
 public:
     enum Mode{
         SPLIT,
@@ -47,6 +52,7 @@ public:
     static const QString MODE_ATTR;
     static const QString GAP_ATTR;
     static const QString ACC_ATTR;
+    static const QString LIMIT_ATTR;
     static const QString TYPE;
 
     GenericSeqActorProto();

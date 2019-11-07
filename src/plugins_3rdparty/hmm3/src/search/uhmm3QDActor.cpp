@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -56,6 +56,7 @@ static const QString MAX_LEN("max-len");
 UHMM3QDActor::UHMM3QDActor( QDActorPrototype const* proto ) : QDActor(proto) {
     units["hmm"] = new QDSchemeUnit(this);
     cfg->setAnnotationKey("hmm_signal");
+    CHECK(NULL != proto->getEditor(), );
     PropertyDelegate* evpd = proto->getEditor()->getDelegate(DOM_E_ATTR);
     connect(evpd, SIGNAL(si_valueChanged(int)), SLOT(sl_evChanged(int)));
 }
@@ -122,7 +123,7 @@ Task* UHMM3QDActor::getAlgorithmTask( const QVector<U2Region>& location ) {
 void UHMM3QDActor::sl_onTaskFinished(Task*) {
     QString aname = cfg->getAnnotationKey();
     foreach(UHMM3SWSearchTask* t, offsets.keys()) {
-        QList<SharedAnnotationData> annotations = t->getResultsAsAnnotations(aname);
+        QList<SharedAnnotationData> annotations = t->getResultsAsAnnotations(U2FeatureTypes::MiscSignal, aname);
         int offset = offsets.value(t);
         foreach(SharedAnnotationData d, annotations) {
             U2Region r = d->location->regions.first();
@@ -142,6 +143,7 @@ void UHMM3QDActor::sl_onTaskFinished(Task*) {
 }
 
 void UHMM3QDActor::sl_evChanged(int i) {
+    CHECK(NULL != proto->getEditor(), );
     PropertyDelegate* pd = proto->getEditor()->getDelegate(DOM_E_ATTR);
     SpinBoxDelegate* evpd = qobject_cast<SpinBoxDelegate*>(pd);
     assert(evpd);

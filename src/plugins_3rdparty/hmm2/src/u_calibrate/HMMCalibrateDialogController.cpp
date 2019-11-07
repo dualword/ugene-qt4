@@ -1,16 +1,44 @@
-#include "HMMCalibrateDialogController.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
 
-#include "HMMCalibrateTask.h"
-#include <HMMIO.h>
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
 #include <U2Core/AppContext.h>
-#include <U2Core/IOAdapter.h>
 #include <U2Core/AppResources.h>
+#include <U2Core/IOAdapter.h>
 
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include "HMMCalibrateDialogController.h"
+#include "HMMCalibrateTask.h"
+#include "HMMIO.h"
 
 namespace U2 {
 
@@ -19,16 +47,22 @@ HMMCalibrateDialogController::HMMCalibrateDialogController(QWidget* w)
 {
     task = NULL;
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122365");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Calibrate"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Close"));
 
+    okButton = buttonBox->button(QDialogButtonBox::Ok);
+    cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
     connect(hmmFileButton, SIGNAL(clicked()), SLOT(sl_hmmFileButtonClicked()));
     connect(outFileButton, SIGNAL(clicked()), SLOT(sl_outFileButtonClicked()));
     connect(okButton, SIGNAL(clicked()), SLOT(sl_okButtonClicked()));
+
 }
 
 
 void HMMCalibrateDialogController::sl_hmmFileButtonClicked() {
     LastUsedDirHelper lod(HMMIO::HMM_ID);
-    lod.url = QFileDialog::getOpenFileName(this, tr("select_file_with_hmm_model"), lod, HMMIO::getHMMFileFilter());
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Select file with HMM model"), lod, HMMIO::getHMMFileFilter());
     if (lod.url.isEmpty()) {
         return;
     }
@@ -37,7 +71,7 @@ void HMMCalibrateDialogController::sl_hmmFileButtonClicked() {
 
 void HMMCalibrateDialogController::sl_outFileButtonClicked() {
     LastUsedDirHelper lod(HMMIO::HMM_ID);
-    lod.url= QFileDialog::getSaveFileName(this, tr("select_file_with_hmm_model"), lod, HMMIO::getHMMFileFilter());
+    lod.url= U2FileDialog::getSaveFileName(this, tr("Select file with HMM model"), lod, HMMIO::getHMMFileFilter());
     if (lod.url.isEmpty()) {
         return;
     }
@@ -58,13 +92,13 @@ void HMMCalibrateDialogController::sl_okButtonClicked() {
    QString inFile = hmmFileEdit->text();
    QString outFile = inFile;
    if (inFile.isEmpty() && !QFileInfo(inFile).exists()) {
-       errMsg = tr("illegal_in_file_name");
+       errMsg = tr("Incorrect HMM file!");
        hmmFileEdit->setFocus();
    }
 
    if (expertGroupBox->isChecked() && errMsg.isEmpty()) {
        if (fixedBox->value() < 0) {
-           errMsg = tr("illegal fixed value");
+           errMsg = tr("Illegal fixed length value!");
            fixedBox->setFocus();
        } else {
            s.fixedlen = fixedBox->value();
@@ -81,13 +115,13 @@ void HMMCalibrateDialogController::sl_okButtonClicked() {
    if (outputGroupBox->isChecked() && errMsg.isEmpty()) {
         outFile = outFileEdit->text();        
         if (outFile.isEmpty()) {
-            errMsg = tr("illegal_out_file_name");
+            errMsg = tr("Invalid output file name");
             outFileEdit->setFocus();
         }
    }
 
    if (!errMsg.isEmpty())  {
-       QMessageBox::critical(this, tr("error"), errMsg);
+       QMessageBox::critical(this, tr("Error"), errMsg);
        return;
    }
 
@@ -97,11 +131,11 @@ void HMMCalibrateDialogController::sl_okButtonClicked() {
    connect(task, SIGNAL(si_stateChanged()), SLOT(sl_onStateChanged()));
    connect(task, SIGNAL(si_progressChanged()), SLOT(sl_onProgressChanged()));
    AppContext::getTaskScheduler()->registerTopLevelTask(task);
-   statusLabel->setText(tr("starting_calibration_process"));
+   statusLabel->setText(tr("Starting calibration process"));
 
    //update buttons
-   okButton->setText(tr("back_button"));
-   cancelButton->setText(tr("cancel_button"));
+   okButton->setText(tr("Hide"));
+   cancelButton->setText(tr("Cancel"));
 
    // new default behavior: hide dialog and use taskview to track the progress and results
    accept(); //go to background
@@ -117,21 +151,21 @@ void HMMCalibrateDialogController::sl_onStateChanged() {
     task->disconnect(this);
     const TaskStateInfo& si = task->getStateInfo();
     if (si.hasError()) {
-        statusLabel->setText(tr("calibration_finished_with_errors_%1").arg(si.getError()));
+        statusLabel->setText(tr("Calibration finished with errors: %1").arg(si.getError()));
     } else if (task->isCanceled()) {
-        statusLabel->setText(tr("calibration_canceled"));
+        statusLabel->setText(tr("Calibration was cancelled"));
     } else {
-        statusLabel->setText(tr("calibration_finished_successfuly"));
+        statusLabel->setText(tr("Calibration finished successfuly!"));
     }
-    okButton->setText(tr("ok_button"));
-    cancelButton->setText(tr("close_button"));
+    okButton->setText(tr("Calibrate"));
+    cancelButton->setText(tr("Close"));
 
     task = NULL;
 }
 
 void HMMCalibrateDialogController::sl_onProgressChanged() {
     assert(task==sender());
-    statusLabel->setText(tr("progress_%1%").arg(task->getProgress()));
+    statusLabel->setText(tr("Progress: %1%").arg(task->getProgress()));
 }
 
 void HMMCalibrateDialogController::reject() {

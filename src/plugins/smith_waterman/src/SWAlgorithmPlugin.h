@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,11 +26,13 @@
 #include <U2Gui/ObjectViewModel.h>
 
 #include <U2View/SmithWatermanDialog.h>
+#include <U2Algorithm/PairwiseAlignmentTask.h>
 
 namespace U2 {
 
 class XMLTestFactory;
 class SWAlgorithmADVContext;
+class SWAlgorithmMSAContext;
 
 class SWAlgorithmPlugin : public Plugin {
     Q_OBJECT
@@ -43,6 +45,7 @@ public slots:
 private:
     QList<XMLTestFactory*>  fs;
     SWAlgorithmADVContext * ctxADV;
+    SWAlgorithmMSAContext * ctxMSA;
 };
 
 
@@ -64,7 +67,12 @@ private:
     SWDialogConfig dialogConfig;
 };
 
+class SWPairwiseAlignmentAlgorithm : public AlignmentAlgorithm {
+public:
+    SWPairwiseAlignmentAlgorithm();
+    bool checkAlphabet(const DNAAlphabet *alphabet) const;
+};
 
 } //namespace
 
-#endif
+#endif  //_U2_SW_ALGORITHM_PLUGIN_H_

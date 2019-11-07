@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,7 @@ namespace U2 {
 class U2CORE_EXPORT LRegionsSelection : public GSelection {
     Q_OBJECT
 public:
-    LRegionsSelection(GSelectionType type, QObject* p = NULL) : GSelection(type, p) {}
+    LRegionsSelection(GSelectionType type, QObject* p = NULL);
 
     const QVector<U2Region>& getSelectedRegions() const {return regions;}
 
@@ -40,9 +40,13 @@ public:
 
     void removeRegion(const U2Region& r);
 
+    void setRegion(const U2Region& r);
+
     virtual bool isEmpty() const {return regions.isEmpty();}
 
     virtual void clear();
+
+    static QVector<U2Region> cropSelection(qint64 sequenceLength, const QVector<U2Region> &regions);
 
 signals:
     void si_selectionChanged(LRegionsSelection* thiz, const QVector<U2Region>& added, const QVector<U2Region>& removed);

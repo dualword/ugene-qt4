@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #ifndef __U2_BASE_TYPES_H_
 #define __U2_BASE_TYPES_H_
 
+#include <U2Core/U2Type.h>
+
 #include <U2Lang/Datatype.h>
 
 namespace U2 {
@@ -33,12 +35,18 @@ public:
     static DataTypePtr ANNOTATION_TABLE_LIST_TYPE();
     static DataTypePtr ANNOTATION_TABLE_TYPE();
     static DataTypePtr MULTIPLE_ALIGNMENT_TYPE();
-    
+    static DataTypePtr VARIATION_TRACK_TYPE();
+    static DataTypePtr ASSEMBLY_TYPE();
+
     static DataTypePtr STRING_TYPE();
+    static DataTypePtr STRING_LIST_TYPE();
     static DataTypePtr BOOL_TYPE();
     static DataTypePtr NUM_TYPE();
+    static DataTypePtr URL_DATASETS_TYPE();
     static DataTypePtr ANY_TYPE();
-    
+
+    static U2DataType toDataType(const QString &typeId);
+    static QString toTypeId(const U2DataType &dataType);
 }; // BaseTypes
 
 // value factories for core datatypes
@@ -79,6 +87,15 @@ public:
     virtual QString getId() const { return BaseTypes::NUM_TYPE()->getId(); }
 
 }; // NumTypeValueFactory
+
+/**
+* Factory for datasets based url values
+*/
+class UrlTypeValueFactory : public DataTypeValueFactory {
+public:
+    virtual QVariant getValueFromString(const QString &str, bool *ok = NULL) const;
+    virtual QString getId() const;
+}; // UrlTypeValueFactory
 
 }
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,21 +27,19 @@ void ActorPrototypeRegistry::registerProto(const Descriptor& group, ActorPrototy
     // debug check for proto name
     QString id = proto->getId(); Q_UNUSED(id);
     assert(!id.contains("."));
-    
+
     groups[group].append(proto);
     emit si_registryModified();
 }
 
-ActorPrototype* ActorPrototypeRegistry::unregisterProto(const QString& id) {
-    QMap<Descriptor, QList<ActorPrototype*> >::iterator it;
-    for (it = groups.begin(); it != groups.end(); ++it)
-    {
-        QList<ActorPrototype*>& l = it.value();
-        foreach(ActorPrototype* p, l) {
+ActorPrototype * ActorPrototypeRegistry::unregisterProto(const QString &id) {
+    foreach(const Descriptor &desc, groups.keys()) {
+        QList<ActorPrototype*> &l = groups[desc];
+        foreach (ActorPrototype *p, l) {
             if (p->getId() == id) {
                 l.removeAll(p);
                 if (l.isEmpty()) {
-                    groups.remove(it.key());
+                    groups.remove(desc);
                 }
                 emit si_registryModified();
                 return p;

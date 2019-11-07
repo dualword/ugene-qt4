@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,14 +26,21 @@
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
 
-#include <QtGui/QHBoxLayout>
 #include <QtGui/QPainter>
 #include <QtGui/QBrush>
-#include <QtGui/QMessageBox>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QStyle>
+#include <QtGui/QHBoxLayout>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QStyle>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QMessageBox>
+#endif
 #include <assert.h>
 
 namespace U2 {
+
 
 AboutDialogController::AboutDialogController(QAction* visitWebAction, QWidget *p):QDialog(p) {
     setupUi(this);
@@ -157,7 +164,7 @@ AWidget::AWidget() {
     p.setPen(Qt::lightGray);
     Version v = Version::appVersion();
     QString version = v.text;
-    QString text = "Unipro UGENE v" + version + "\n" + __DATE__;
+    QString text = "Unipro UGENE v" + version + "\n" + QString("%1-bit version").arg(Version::appArchitecture) + "\n" + __DATE__;
     p.drawText(QRect(10, 20, width()-10, 60), text);
     p.end();
 
@@ -171,7 +178,10 @@ AWidget::AWidget() {
 
     density = 5;
     page = 0;
-
+    QObject *parent = new QObject(this);
+    parent->setObjectName("parent");
+    QObject *child = new QObject(parent);
+    child->setObjectName(text);
     startTimer(15);
 }
 
@@ -182,7 +192,7 @@ void AWidget::timerEvent(QTimerEvent* e) {
     page ^= 1;
 
     if (qrand()  % 128 == 0) {
-        int r = 3 + qRound(qrand() * 4 / RAND_MAX);
+        int r = 3 + qRound(qrand() * 4. / RAND_MAX);
         int h = 300 + qrand() * 200 / RAND_MAX;
         int x = 1 + r + qrand()%(image1.width() -2*r-1);
         int y = 1 + r + qrand()%(image1.height()-2*r-1);
@@ -688,7 +698,7 @@ TPiece TPiece::rotatedRight() const {
     return result;
 }
 
-NextPieceLabel::NextPieceLabel( QWidget* parent /*= 0*/ ) : QLabel(parent)
+NextPieceLabel::NextPieceLabel( QWidget* parent /* = 0*/ ) : QLabel(parent)
 {
     QPalette p = palette();
     p.setColor(QPalette::Background, Qt::white);

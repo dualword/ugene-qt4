@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,34 +19,45 @@
  * MA 02110-1301, USA.
  */
 
+#include <QColorDialog>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QPlastiqueStyle>
+#else
+#include <QProxyStyle>
+#include <QStyleFactory>
+#endif
+
+#include <U2Gui/HelpButton.h>
+
 #include "TextSettingsDialog.h"
-#include "U2View/TreeViewerUtils.h"
-#include <QtGui/QColorDialog>
 
 namespace U2 {
 
-QColor TextSettings::defaultColor = QColor(Qt::gray);
-QFont TextSettings::defaultFont = TreeViewerUtils::getFont();
-
-TextSettings::TextSettings() {
-
-    textColor = defaultColor;
-    textFont = defaultFont;
-}
-
-TextSettingsDialog::TextSettingsDialog(QWidget *parent, const TextSettings &textSettings)
-: QDialog(parent), settings(textSettings), changedSettings(textSettings) {
+TextSettingsDialog::TextSettingsDialog(QWidget *parent, const OptionsMap& settings)
+: BaseSettingsDialog(parent) {
 
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122309");
+
+    curColor = qvariant_cast<QColor>(settings[LABEL_COLOR]);
+
+#if (QT_VERSION < 0x050000) //Qt 5
+    QStyle *buttonStyle = new QPlastiqueStyle;
+#else
+    QStyle *buttonStyle = new QProxyStyle(QStyleFactory::create("fusion"));
+#endif
+    buttonStyle->setParent(colorButton);
+    colorButton->setStyle(buttonStyle);
 
     updateColorButton();
-    fontComboBox->setCurrentFont(settings.textFont);
-    sizeSpinBox->setValue(settings.textFont.pointSize());
+    QFont curFont = qvariant_cast<QFont>(settings[LABEL_FONT]);
+    fontComboBox->setCurrentFont(curFont);
+    sizeSpinBox->setValue(curFont.pointSize());
 
-    boldToolButton->setChecked(settings.textFont.bold());
-    italicToolButton->setChecked(settings.textFont.italic());
-    underlineToolButton->setChecked(settings.textFont.underline());
-    overlineToolButton->setChecked(settings.textFont.overline());
+    boldToolButton->setChecked(curFont.bold());
+    italicToolButton->setChecked(curFont.italic());
+    underlineToolButton->setChecked(curFont.underline());
+    overlineToolButton->setChecked(curFont.overline());
 
     overlineToolButton->setVisible(false);
 
@@ -54,37 +65,31 @@ TextSettingsDialog::TextSettingsDialog(QWidget *parent, const TextSettings &text
 }
 
 void TextSettingsDialog::updateColorButton() {
-
-    static const QString COLOR_STYLE("QPushButton { background-color : %1;}");
-    colorButton->setStyleSheet(COLOR_STYLE.arg(changedSettings.textColor.name()));
+    QPalette palette = colorButton->palette();
+    palette.setColor(colorButton->backgroundRole(), curColor);
+    colorButton->setPalette(palette);
 }
 
 void TextSettingsDialog::sl_colorButton() {
-
-    QColor newColor = QColorDialog::getColor(changedSettings.textColor, this);
-    if (newColor.isValid()) {
-        changedSettings.textColor = newColor;
+    curColor = QColorDialog::getColor(curColor, this);
+    if (curColor.isValid()) {
+        changedSettings[LABEL_COLOR] = curColor;
         updateColorButton();
     }
 }
 
 void TextSettingsDialog::accept() {
+    QFont curFont = fontComboBox->currentFont();
+    curFont.setPointSize(sizeSpinBox->value());
 
-    changedSettings.textFont = fontComboBox->currentFont();
-    changedSettings.textFont.setPointSize(sizeSpinBox->value());
+    curFont.setBold(boldToolButton->isChecked());
+    curFont.setItalic(italicToolButton->isChecked());
+    curFont.setUnderline(underlineToolButton->isChecked());
+    curFont.setOverline(overlineToolButton->isChecked());
 
-    changedSettings.textFont.setBold(boldToolButton->isChecked());
-    changedSettings.textFont.setItalic(italicToolButton->isChecked());
-    changedSettings.textFont.setUnderline(underlineToolButton->isChecked());
-    changedSettings.textFont.setOverline(overlineToolButton->isChecked());
+    changedSettings[LABEL_FONT] = curFont;
 
-    settings = changedSettings;
     QDialog::accept();
-}
-
-TextSettings TextSettingsDialog::getSettings() const {
-
-    return settings;
 }
 
 } //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,6 +40,12 @@ public:
                     const QString& resourceName,
                     const OpenCLHelper& openCLHelper,
                     cl_int& err);
+
+    static size_t getPreferredWorkGroupSize(
+                    cl_kernel kernel,
+                    cl_device_id deviceId,
+                    const OpenCLHelper& openCLHelper,
+                    cl_int &err); // performance hint, returnes 32 if error, ignoring err
 };
 
 }//namespace
@@ -47,4 +53,3 @@ public:
 #endif /*OPENCL_SUPPORT*/
 
 #endif //__OPENCL_UTILS_H__
-

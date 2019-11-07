@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,7 +41,7 @@ class GTest_CreateSubalignimentTask : public GTest {
 public:
     SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_CreateSubalignimentTask, "plugin_create-subalignment-task", TaskFlags_NR_FOSCOE);
     void prepare();
-    Task::ReportResult report();   
+    Task::ReportResult report();
 
 private:
     MAlignmentObject *maobj;
@@ -59,7 +59,7 @@ class GTest_RemoveAlignmentRegion : public GTest {
 public:
     SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_RemoveAlignmentRegion, "test-remove-alignment-region", TaskFlags_NR_FOSCOE);
     void prepare();
-    Task::ReportResult report();   
+    Task::ReportResult report();
 
 private:
     MAlignmentObject *maobj;
@@ -75,7 +75,7 @@ class GTest_AddSequenceToAlignment : public GTest {
 public:
     SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_AddSequenceToAlignment, "test-add-seq-to-alignment", TaskFlags_NR_FOSCOE);
     void prepare();
-    Task::ReportResult report();   
+    Task::ReportResult report();
 
 private:
     MAlignmentObject *maobj;
@@ -83,6 +83,16 @@ private:
     QString docName;
     QString expectedDocName;
     QString seqFileName;
+};
+
+
+class GTest_RemoveColumnsOfGaps : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_RemoveColumnsOfGaps, "remove-columns-of-gaps");
+    void prepare();
+private:
+    QString inputDocCtxName;
 };
 
 class CreateSubalignimentTests {

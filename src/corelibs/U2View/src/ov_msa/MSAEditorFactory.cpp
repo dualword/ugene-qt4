@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,8 +40,8 @@ namespace U2 {
 
 const GObjectViewFactoryId MSAEditorFactory::ID("MSAEditor");
 
-MSAEditorFactory::MSAEditorFactory() 
-: GObjectViewFactory(ID, tr("Alignment editor"))
+MSAEditorFactory::MSAEditorFactory()
+: GObjectViewFactory(ID, tr("Alignment Editor"))
 {
 }
 
@@ -58,7 +58,7 @@ bool MSAEditorFactory::canCreateView(const MultiGSelection& multiSelection) {
 
 Task* MSAEditorFactory::createViewTask(const MultiGSelection& multiSelection, bool single) {
     QList<GObject*> msaObjects = SelectionUtils::findObjects(GObjectTypes::MULTIPLE_ALIGNMENT, &multiSelection, UOF_LoadedAndUnloaded);
-    QSet<Document*> docsWithMSA = SelectionUtils::findDocumentsWithObjects(GObjectTypes::MULTIPLE_ALIGNMENT, 
+    QSet<Document*> docsWithMSA = SelectionUtils::findDocumentsWithObjects(GObjectTypes::MULTIPLE_ALIGNMENT,
         &multiSelection, UOF_LoadedAndUnloaded, false);
     QList<OpenMSAEditorTask*> resTasks;
 
@@ -70,7 +70,7 @@ Task* MSAEditorFactory::createViewTask(const MultiGSelection& multiSelection, bo
                     msaObjects.append(obj);
                 }
             }
-            
+
         } else {
             resTasks.append(new OpenMSAEditorTask(doc));
             if (resTasks.size() == MAX_VIEWS) {

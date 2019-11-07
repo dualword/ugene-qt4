@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,10 +31,8 @@ namespace U2 {
 
 class CMDLineHelpProvider;
 
-typedef QPair<QString, QString> StringPair;
+/*  Reads command arguments into UGENE's command line parameters
 
-/*  Reads command arguments into UGENE's command line parameters 
-    
     Convention:
     --paramName=paramValue -> (paramName, paramValue)
     -paramName paramValue -> (paramName, paramValue)
@@ -45,25 +43,25 @@ class U2CORE_EXPORT CMDLineRegistry : public QObject {
 public:
     CMDLineRegistry(const QStringList& arguments);
     virtual ~CMDLineRegistry();
-    
+
     const QList<StringPair> & getParameters() const;
     // as they were in cmdline. Empty keys also here
     QStringList getOrderedParameterNames() const;
-    
+
     // finding starts at startsWithIdx
     bool hasParameter( const QString & paramName, int startsWithIdx = 0 ) const;
     // returns value of first appearance from startWithIdx of paramName key
     QString getParameterValue( const QString & paramName, int startWithIdx = 0 ) const;
-    
+
     void registerCMDLineHelpProvider(CMDLineHelpProvider* provider);
     void unregisterCMDLineHelpProvider(CMDLineHelpProvider* provider);
 
     const QList<CMDLineHelpProvider* >& listCMDLineHelpProviders() const { return helpProviders; }
-        
+
 private:
     QList<StringPair>                   params; // pairs (paramName, paramValue) ordered as in the cmdline
     QList<CMDLineHelpProvider* >        helpProviders; // sorted by section name
-    
+
 }; // CMDLineRegistry
 
 } //namespace U2

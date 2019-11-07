@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,6 +47,10 @@ public:
 
     QMap<QString, QString> getProperties() const;
 
+    bool operator == (const UniprobeInfo &i1) const {
+        return i1.properties == properties;
+    }
+
 private:
     QMap<QString, QString> properties;
 };
@@ -54,6 +58,7 @@ private:
 //Position frequency matrix
 //Also known as PSSM - Position score-specific matrix
 class U2CORE_EXPORT PWMatrix {
+    friend class WMatrixSerializer;
 public:
     //create empty matrix
     PWMatrix() : data(QVarLengthArray<float>()), length(0), type(PWM_MONONUCLEOTIDE) {};
@@ -84,10 +89,24 @@ public:
 
     //get specified UniPROBE property
     QString getProperty (const QString& propertyName) const;
-    
+
     //get all UniPROBE properties
     QMap<QString, QString> getProperties() const;
 
+    bool operator == (const PWMatrix &m1) const {
+        //FIXME: for some reasons QT == operator didn't work for gcc compiler
+        if (m1.data.size() != data.size())
+            return false;
+        for (int i = 0; i < m1.data.size(); i++) {
+            if (m1.data.at(i) != data.at(i))
+                return false;
+        }
+        return  m1.length == length &&
+                m1.type == type &&
+                m1.minSum == minSum &&
+                m1.maxSum == maxSum &&
+                m1.info == info;
+    };
 
 private:
     QVarLengthArray<float> data;
@@ -95,7 +114,7 @@ private:
     PWMatrixType type;
     float minSum, maxSum;
     UniprobeInfo info;
-    
+
 };
 
 }//namespace

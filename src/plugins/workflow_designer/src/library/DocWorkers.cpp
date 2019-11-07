@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,139 +19,169 @@
  * MA 02110-1301, USA.
  */
 
-#include "DocWorkers.h"
+#include <QtCore/QScopedPointer>
+
 #include "CoreLib.h"
 #include "GenericReadWorker.h"
 
-#include <U2Core/QVariantUtils.h>
-#include <U2Core/Log.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/TextObject.h>
-#include <U2Core/GObjectRelationRoles.h>
-#include <U2Core/DNASequence.h>
 #include <U2Core/AnnotationData.h>
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/DNASequence.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/FailTask.h>
+#include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/IOAdapterUtils.h>
+#include <U2Core/Log.h>
+#include <U2Core/MAlignmentImporter.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/QVariantUtils.h>
+#include <U2Core/TextObject.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SequenceUtils.h>
 #include <U2Core/U2SafePoints.h>
 
-#include <U2Core/IOAdapter.h>
-#include <U2Core/IOAdapterUtils.h>
-#include <U2Core/FailTask.h>
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/AppContext.h>
-
-#include <U2Formats/EMBLGenbankAbstractDocument.h>
-#include <U2Formats/GFFFormat.h>
-
-#include <U2Lang/WorkflowEnv.h>
-#include <U2Lang/CoreLibConstants.h>
-#include <U2Lang/BaseTypes.h>
-#include <U2Lang/BaseSlots.h>
 #include <U2Lang/BaseAttributes.h>
+#include <U2Lang/BaseSlots.h>
+#include <U2Lang/BaseTypes.h>
+#include <U2Lang/CoreLibConstants.h>
+#include <U2Lang/Dataset.h>
+#include <U2Lang/SharedDbUrlUtils.h>
+#include <U2Lang/WorkflowEnv.h>
 #include <U2Lang/WorkflowUtils.h>
+
+#include "DocWorkers.h"
 
 namespace U2 {
 namespace LocalWorkflow {
 
 static int ct = 0;
 
+const int TextReader::MAX_LINE_LEN = 1024;
+const int TextReader::READ_BLOCK_SIZE = 1024;
+
 /*************************************
  * TextReader
  *************************************/
+TextReader::TextReader(Actor *a)
+    : BaseWorker(a), ch(NULL), io(NULL), urls(NULL)
+{
+    mtype = WorkflowEnv::getDataTypeRegistry()->getById(CoreLibConstants::TEXT_TYPESET_ID);
+}
+
 void TextReader::init() {
-    urls = WorkflowUtils::expandToUrls(actor->getParameter(BaseAttributes::URL_IN_ATTRIBUTE().getId())->getAttributeValue<QString>(context));
+    QList<Dataset> sets = actor->getParameter(BaseAttributes::URL_IN_ATTRIBUTE().getId())->getAttributeValue< QList<Dataset> >(context);
+    urls = new DatasetFilesIterator(sets);
 
     assert(ports.size() == 1);
     ch = ports.values().first();
 }
 
-bool TextReader::isDone() {
-    return done;
+void TextReader::cleanup() {
+    delete io;
+    delete urls;
 }
 
-bool TextReader::isReady() {
-    return !isDone();
+void TextReader::sendMessage(const QByteArray &data) {
+    QVariantMap m;
+    m[BaseSlots::TEXT_SLOT().getId()] = QString(data);
+    m[BaseSlots::URL_SLOT().getId()] = url;
+    m[BaseSlots::DATASET_SLOT().getId()] = urls->getLastDatasetName();
+    MessageMetadata metadata(url, urls->getLastDatasetName());
+    context->getMetadataStorage().put(metadata);
+    ch->put(Message(mtype, m, metadata.getId()));
 }
 
-Task *TextReader::tick() {
-    if(io && io->isOpen()) {
-        QByteArray buf;
-        buf.resize(1024);
-        buf.fill(0);
-        int read = io->readLine(buf.data(), 1024);
-        buf.resize(read);
-        QVariantMap m; 
-        m[BaseSlots::TEXT_SLOT().getId()] = QString(buf);
-        m[BaseSlots::URL_SLOT().getId()] = url;
-        ch->put( Message(mtype, m));
-        if(io->isEof()) {
-            io->close();
-        }
-    } else {
-        url = urls.takeFirst();
-        IOAdapterFactory *iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(url));
-        io = iof->createIOAdapter();
-        if(!io->open(url,IOAdapterMode_Read)) {
-            return new FailTask(tr("Can't load file %1").arg(url));
-        }
-        if(actor->getParameter(BaseAttributes::READ_BY_LINES_ATTRIBUTE().getId())->getAttributeValue<bool>(context) == false) {
-            QByteArray buf;
-            int read = 0;
-            int offs = 0;
-            static const int READ_BLOCK_SZ = 1024;
-            buf.resize(READ_BLOCK_SZ);
-            buf.fill(0);
-            do {
-                read = io->readBlock( buf.data() + offs, READ_BLOCK_SZ );
-                if( read != READ_BLOCK_SZ ) {
-                    assert(read < READ_BLOCK_SZ);
-                    buf.resize(buf.size() - READ_BLOCK_SZ + read);
-                    break;
-                }
-                offs += read;
-                buf.resize( offs + READ_BLOCK_SZ );
-            } while(read == READ_BLOCK_SZ);
-            
-            QVariantMap m; 
-            m[BaseSlots::TEXT_SLOT().getId()] = QString(buf);
-            m[BaseSlots::URL_SLOT().getId()] = url;
-            ch->put( Message(mtype, m));
-            io->close();
-        } else {
-            QByteArray buf;
-            buf.resize(1024);
-            buf.fill(0);
-            int read = io->readLine(buf.data(), 1024);
-            buf.resize(read);
-            QVariantMap m; 
-            QString str(buf);
-            m[BaseSlots::TEXT_SLOT().getId()] = QString(buf);
-            m[BaseSlots::URL_SLOT().getId()] = url;
-            ch->put( Message(mtype, m));
-            if(io->isEof()) {
-                io->close();
-            }
+Task * TextReader::tick() {
+    if(NULL != io && io->isOpen()) {
+        processNextLine();
+    } else if (urls->hasNext()) {
+        url = urls->getNextFile();
+        Task *resultTask = processUrlEntity(url);
+        if (NULL != resultTask) {
+            return resultTask;
         }
     }
-    if(urls.isEmpty() && (!io || !io->isOpen())) {
+    if (!urls->hasNext() && (NULL == io || !io->isOpen())) {
         ch->setEnded();
-        done = true;
+        setDone();
     }
     return NULL;
 }
 
-void TextReader::doc2data(Document* doc) {
-    algoLog.info(tr("Reading text from %1").arg(doc->getURLString()));
-    foreach(GObject* go, GObjectUtils::select(doc->getObjects(), GObjectTypes::TEXT, UOF_LoadedOnly)) {
-        TextObject* txtObject = qobject_cast<TextObject*>(go);
-        assert(txtObject);
-        QVariantMap m; 
-        m[BaseSlots::TEXT_SLOT().getId()] = txtObject->getText();
-        m[BaseSlots::URL_SLOT().getId()] = doc->getURLString();
-        cache << Message(mtype, m);
+Task * TextReader::processUrlEntity(const QString &url) {
+    return SharedDbUrlUtils::isDbObjectUrl(url)
+        ? processDbObject(url)
+        : processFile(url);
+}
+
+Task * TextReader::processDbObject(const QString &url) {
+    const U2DataId objDbId = SharedDbUrlUtils::getObjectIdByUrl(url);
+    CHECK(!objDbId.isEmpty(), createDbObjectReadFailTask(url));
+    const U2DbiRef dbRef = SharedDbUrlUtils::getDbRefFromEntityUrl(url);
+    CHECK(dbRef.isValid(), createDbObjectReadFailTask(url));
+    const QString objDbName = SharedDbUrlUtils::getDbObjectNameByUrl(url);
+    CHECK(!objDbName.isEmpty(), createDbObjectReadFailTask(url));
+
+    QScopedPointer<TextObject> obj(qobject_cast<TextObject *>(GObjectUtils::createObject(dbRef, objDbId, objDbName)));
+    CHECK(!obj.isNull(), createDbObjectReadFailTask(url));
+    sendMessage(obj->getText().toLocal8Bit());
+
+    return NULL;
+}
+
+Task * TextReader::createDbObjectReadFailTask(const QString &url) {
+    const QString objName = SharedDbUrlUtils::getDbObjectNameByUrl(url);
+    const QString dbShortName = SharedDbUrlUtils::getDbShortNameFromEntityUrl(url);
+    return new FailTask(tr("Can't load the object %1 from the database %2").arg(objName).arg(dbShortName));
+}
+
+Task * TextReader::processFile(const QString &url) {
+    IOAdapterFactory *iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(url));
+    io = iof->createIOAdapter();
+    if(!io->open(url,IOAdapterMode_Read)) {
+        return new FailTask(tr("Can't load file %1").arg(url));
+    }
+    if(actor->getParameter(BaseAttributes::READ_BY_LINES_ATTRIBUTE().getId())->getAttributeValue<bool>(context) == false) {
+        QByteArray buf;
+        int read = 0;
+        int offs = 0;
+        buf.resize(READ_BLOCK_SIZE);
+        buf.fill(0);
+        do {
+            read = io->readBlock(buf.data() + offs, READ_BLOCK_SIZE);
+            if (read == -1) {
+                return new FailTask(tr("Can't load file %1. %2").arg(url).arg(io->errorString()));
+            }
+            if (read != READ_BLOCK_SIZE) {
+                SAFE_POINT(read < READ_BLOCK_SIZE, "Error while reading file", NULL);
+                buf.resize(buf.size() - READ_BLOCK_SIZE + read);
+                break;
+            }
+            offs += read;
+            buf.resize(offs + READ_BLOCK_SIZE);
+        } while(read == READ_BLOCK_SIZE);
+
+        sendMessage(buf);
+        io->close();
+    } else {
+        processNextLine();
+    }
+    return NULL;
+}
+
+void TextReader::processNextLine() {
+    QByteArray buf;
+    buf.resize(MAX_LINE_LEN);
+    buf.fill(0);
+    int read = io->readLine(buf.data(), MAX_LINE_LEN);
+    buf.resize(read);
+    sendMessage(buf);
+    if(io->isEof()) {
+        io->close();
     }
 }
 
@@ -163,35 +193,46 @@ void TextWriter::data2doc(Document* doc, const QVariantMap& data) {
     QString text = list.join("\n");
     TextObject* to = qobject_cast<TextObject*>(GObjectUtils::selectOne(doc->getObjects(), GObjectTypes::TEXT, UOF_LoadedOnly));
     if (!to) {
-        to = new TextObject(text, QString("Text %1").arg(++ct));
+        U2OpStatus2Log os;
+        to = TextObject::createInstance(text, QString("Text %1").arg(++ct), context->getDataStorage()->getDbiRef(), os);
+        CHECK_OP(os, );
         doc->addObject(to);
     } else {
         to->setText(to->getText() + "\n" + text);
     }
 }
 
-static inline QString getUniqueObjectName(const Document *doc, const QString &name) {
-    QString result = name;
-    int num = 0;
-    bool found = false;
-    while (NULL != doc->findGObjectByName(result)) {
-        found = true;
-        num++;
-        result = name + QString("_%1").arg(num);
-    }
-    
-    return found ? result : name;
+bool TextWriter::hasDataToWrite(const QVariantMap &data) const {
+    return data.contains(BaseSlots::TEXT_SLOT().getId());
+}
+
+QSet<GObject *> TextWriter::getObjectsToWrite(const QVariantMap &data) const {
+    const QStringList text = data[BaseSlots::TEXT_SLOT().getId()].value<QStringList>();
+
+    U2OpStatusImpl os;
+    GObject *res = TextObject::createInstance(text.join("\n"), "Text", context->getDataStorage()->getDbiRef(), os);
+    SAFE_POINT_OP(os, QSet<GObject *>());
+    return QSet<GObject *>() << res;
+}
+
+bool TextWriter::isStreamingSupport() const {
+    return false;
+}
+
+bool TextWriter::isSupportedSeveralMessages() const {
+    return true;
 }
 
 /**
  * It can change sequence name for setting unique object name
  */
-static U2SequenceObject *addSeqObject(Document* doc, DNASequence& seq) {
-    if (seq.alphabet == NULL || seq.length() == 0) {
-        return NULL;
-    }
+static U2SequenceObject *addSeqObject(Document *doc, DNASequence &seq) {
+    SAFE_POINT(NULL != seq.alphabet, "Add sequence to document: empty alphabet", NULL);
+    SAFE_POINT(0 != seq.length(), "Add sequence to document: empty length", NULL);
+
     if (doc->findGObjectByName(seq.getName())) {
-        seq.setName(getUniqueObjectName(doc, seq.getName()));
+        QString uniqueName = BaseDocWriter::getUniqueObjectName(doc, seq.getName());
+        seq.setName(uniqueName);
     }
     algoLog.trace(QString("Adding seq [%1] to %3 doc %2").arg(seq.getName()).arg(doc->getURLString()).arg(doc->getDocumentFormat()->getFormatName()));
 
@@ -200,7 +241,6 @@ static U2SequenceObject *addSeqObject(Document* doc, DNASequence& seq) {
         U2OpStatus2Log os;
         U2EntityRef seqRef = U2SequenceUtils::import(doc->getDbiRef(), seq, os);
         CHECK_OP(os, NULL);
-
         dna = new U2SequenceObject(seq.getName(), seqRef);
         doc->addObject(dna);
     } else {
@@ -214,20 +254,55 @@ static U2SequenceObject *addSeqObject(Document* doc, DNASequence& seq) {
 * FastaWriter
 *************************************/
 void FastaWriter::data2doc(Document* doc, const QVariantMap& data) {
-    data2document(doc, data, context);
+    data2document(doc, data, context, numSplitSequences, currentSplitSequence);
+    currentSplitSequence++;
+}
+
+bool FastaWriter::hasDataToWrite(const QVariantMap &data) const {
+    return SeqWriter::hasSequence(data);
 }
 
 void FastaWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum) {
     streamingStoreEntry(format, io, data, context, entryNum);
+    currentSplitSequence++;
 }
 
-void FastaWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context) {
-    U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return;
+U2Region FastaWriter::getSplitRegion(int numSplitSequences, int currentSplitSequence, qint64 seqLen) {
+    U2Region result;
+    result.startPos = currentSplitSequence * (seqLen / numSplitSequences);
+    result.length = seqLen / numSplitSequences;
+    if (currentSplitSequence == (numSplitSequences - 1)) {
+        result.length += seqLen % numSplitSequences;
     }
-    DNASequence seq = seqObj->getWholeSequence();
+    return result;
+}
+
+static U2SequenceObject * getSeqObj(const QVariantMap &data, WorkflowContext *context, U2OpStatus &os) {
+    if (!data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId())) {
+        os.setError("Fasta writer: no sequence");
+        return NULL;
+    }
+    SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+    U2SequenceObject *seqObj = StorageUtils::getSequenceObject(context->getDataStorage(), seqId);
+    if (NULL == seqObj) {
+        os.setError("Fasta writer: NULL sequence object");
+    }
+    return seqObj;
+}
+
+void FastaWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context, int numSplitSequences, int currentSplitSequence ) {
+    U2OpStatusImpl os;
+    QScopedPointer<U2SequenceObject> seqObj(getSeqObj(data, context, os));
+    SAFE_POINT_OP(os, );
+
+    U2Region splitRegion = getSplitRegion(numSplitSequences, currentSplitSequence, seqObj->getSequenceLength());
+    QByteArray splitSequence = seqObj->getSequenceData(splitRegion, os);
+    CHECK_OP(os, );
+
+    DNASequence seq(seqObj->getSequenceName() + ((numSplitSequences == 1) ? QString("%1..%2").arg(splitRegion.startPos + 1, splitRegion.length) : ""), splitSequence, seqObj->getAlphabet());
+    seq.circular = seqObj->isCircular();
+    seq.quality = seqObj->getQuality();
+    seq.info = seqObj->getSequenceInfo();
 
     QString sequenceName = data.value(BaseSlots::FASTA_HEADER_SLOT().getId()).toString();
     if (sequenceName.isEmpty()) {
@@ -242,48 +317,49 @@ void FastaWriter::data2document(Document* doc, const QVariantMap& data, Workflow
     addSeqObject(doc, seq);
 }
 
-inline static U2SequenceObject *getCopiedSequenceObject(const QVariantMap &data, WorkflowContext *context, U2OpStatus2Log &os) {
-    U2SequenceObject *dna = NULL;
+inline static U2SequenceObject * getCopiedSequenceObject(const QVariantMap &data, WorkflowContext *context, U2OpStatus2Log &os, const U2Region &reg = U2_REGION_MAX) {
+    QScopedPointer<U2SequenceObject> seqObj(getSeqObj(data, context, os));
+    SAFE_POINT_OP(os, NULL);
 
-    if ( data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()) ) {
-        U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-        std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-        if (NULL == seqObj.get()) {
-            os.setError("Can't get sequence object");
-            return NULL;
-        }
-        DNASequence seq = seqObj->getWholeSequence();
-        U2EntityRef seqRef = U2SequenceUtils::import(seqObj->getEntityRef().dbiRef, seq, os);
+    SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+    int refCount = seqId.constData()->getReferenceCount();
+    if (refCount > 2) { // need to copy because it is used by another worker
+        DNASequence seq = seqObj->getSequence(reg, os);
+        CHECK_OP(os, NULL);
+        U2EntityRef seqRef = U2SequenceUtils::import(context->getDataStorage()->getDbiRef(), seq, os);
         CHECK_OP(os, NULL);
 
-        dna = new U2SequenceObject(seq.getName(), seqRef);
+        return new U2SequenceObject(seqObj->getSequenceName(), seqRef);
+    } else {
+        return seqObj.take();
     }
-
-    return dna;
 }
 
 void FastaWriter::streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum) {
+    CHECK(data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()), );
     U2OpStatus2Log os;
-    std::auto_ptr<U2SequenceObject> seqPtr(getCopiedSequenceObject(data, context, os));
-    CHECK_OP(os, );
-    U2SequenceObject *seq = seqPtr.get();
-    if (NULL == seq) {
-        return;
-    }
+    QScopedPointer<U2SequenceObject> seqObj(getCopiedSequenceObject(data, context, os));
+    SAFE_POINT_OP(os, );
 
-    QString sequenceName = data.value(BaseSlots::FASTA_HEADER_SLOT().getId()).toString();
+    QString sequenceName = data.value(BaseSlots::FASTA_HEADER_SLOT().getId(), QString()).toString();
     if (sequenceName.isEmpty()) {
-        sequenceName = seq->getGObjectName();
+        sequenceName = seqObj->getGObjectName();
         if (sequenceName.isEmpty()) {
             sequenceName = QString("unknown sequence %1").arg(entryNum);
         }
     } else {
-        QVariantMap info = seq->getSequenceInfo();
+        QVariantMap info = seqObj->getSequenceInfo();
         info.insert(DNAInfo::FASTA_HDR, sequenceName);
-        seq->setSequenceInfo(info);
+        seqObj->setSequenceInfo(info);
     }
-    seq->setGObjectName(sequenceName);
-    format->storeEntry(io, seq, QList<GObject*>(), os);
+    seqObj->setGObjectName(sequenceName);
+
+    QMap< GObjectType, QList<GObject*> > objectsMap;
+    {
+        QList<GObject*> seqs; seqs << seqObj.data();
+        objectsMap[GObjectTypes::SEQUENCE] = seqs;
+    }
+    format->storeEntry(io, objectsMap, os);
 }
 
 /*************************************
@@ -298,12 +374,14 @@ void FastQWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryNu
 }
 
 void FastQWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context) {
-    U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
+    CHECK(data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()), );
+    SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+    QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+    SAFE_POINT(NULL != seqObj.data(), tr("Fastq writer: NULL sequence object"), );
+
+    U2OpStatusImpl os;
+    DNASequence seq = seqObj->getWholeSequence(os);
+    SAFE_POINT_OP(os, );
 
     if (seq.getName().isEmpty()) {
         seq.setName(QString("unknown sequence %1").arg(doc->getObjects().size()));
@@ -311,18 +389,31 @@ void FastQWriter::data2document(Document* doc, const QVariantMap& data, Workflow
     addSeqObject(doc, seq);
 }
 
+bool FastQWriter::hasDataToWrite(const QVariantMap &data) const {
+    return SeqWriter::hasSequence(data);
+}
+
+QSet<GObject *> FastQWriter::getObjectsToWrite(const QVariantMap &data) const {
+    return QSet<GObject *>() << SeqWriter::getSeqObject(data, context) << SeqWriter::getAnnObject(data, context);
+
+}
+
 void FastQWriter::streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum) {
+    CHECK(data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()), );
     U2OpStatus2Log os;
-    std::auto_ptr<U2SequenceObject> seq(getCopiedSequenceObject(data, context, os));
-    CHECK_OP(os, );
-    if (NULL == seq.get()) {
-        return;
+    QScopedPointer<U2SequenceObject> seqObj(getCopiedSequenceObject(data, context, os));
+    SAFE_POINT_OP(os, );
+
+    if (seqObj->getGObjectName().isEmpty()) {
+        seqObj->setGObjectName(QString("unknown sequence %1").arg(entryNum));
     }
 
-    if (seq->getGObjectName().isEmpty()) {
-        seq->setGObjectName(QString("unknown sequence %1").arg(entryNum));
+    QMap< GObjectType, QList<GObject*> > objectsMap;
+    {
+        QList<GObject*> seqs; seqs << seqObj.data();
+        objectsMap[GObjectTypes::SEQUENCE] = seqs;
     }
-    format->storeEntry(io, seq.get(), QList<GObject*>(), os);
+    format->storeEntry(io, objectsMap, os);
 }
 
 /*************************************
@@ -338,12 +429,14 @@ void RawSeqWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryN
 
 // same as FastQWriter::data2document
 void RawSeqWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context) {
-    U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
+    CHECK(data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()), );
+    SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+    QScopedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+    SAFE_POINT(NULL != seqObj.data(), tr("Raw sequence writer: NULL sequence object"), );
+
+    U2OpStatusImpl os;
+    DNASequence seq = seqObj->getWholeSequence(os);
+    SAFE_POINT_OP(os, );
 
     if (seq.getName().isEmpty()) {
         seq.setName(QString("unknown sequence %1").arg(doc->getObjects().size()));
@@ -351,15 +444,26 @@ void RawSeqWriter::data2document(Document* doc, const QVariantMap& data, Workflo
     addSeqObject(doc, seq);
 }
 
-void RawSeqWriter::streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int) {
-    U2OpStatus2Log os;
-    std::auto_ptr<U2SequenceObject> seq(getCopiedSequenceObject(data, context, os));
-    CHECK_OP(os, );
-    if (NULL == seq.get()) {
-        return;
-    }
+bool RawSeqWriter::hasDataToWrite(const QVariantMap &data) const {
+    return SeqWriter::hasSequence(data);
+}
 
-    format->storeEntry(io, seq.get(), QList<GObject*>(), os);
+GObject * RawSeqWriter::getObjectToWrite(const QVariantMap &data) const {
+    return SeqWriter::getSeqObject(data, context);
+}
+
+void RawSeqWriter::streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int) {
+    CHECK(data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId()), );
+    U2OpStatus2Log os;
+    QScopedPointer<U2SequenceObject> seqObj(getCopiedSequenceObject(data, context, os));
+    SAFE_POINT_OP(os, );
+
+    QMap< GObjectType, QList<GObject*> > objectsMap;
+    {
+        QList<GObject*> seqs; seqs << seqObj.data();
+        objectsMap[GObjectTypes::SEQUENCE] = seqs;
+    }
+    format->storeEntry(io, objectsMap, os);
 }
 
 /*************************************
@@ -385,86 +489,125 @@ void GenbankWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entry
 }
 
 void GenbankWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context) {
-    U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (NULL == seqObj.get()) {
-        return;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
-
-    QMapIterator<QString, QVariant> it(seq.info);
-    while (it.hasNext()) {
-        it.next();
-        if ( !(it.value().type() == QVariant::String || it.value().type() == QVariant::StringList) ) {
-            seq.info.remove(it.key());
-        }
-    }
-
-
+    QScopedPointer<U2SequenceObject> seqObj(NULL);
+    U2SequenceObject *dna = NULL;
     QString annotationName;
-    if (seq.getName().isEmpty()) {
-        int num = doc->findGObjectByType(GObjectTypes::SEQUENCE).size();
-        seq.setName(QString("unknown sequence %1").arg(num));
-        int featuresNum = doc->findGObjectByType(GObjectTypes::ANNOTATION_TABLE).size();
-        annotationName = QString("unknown features %1").arg(featuresNum);
-    } else {
-        annotationName = getAnnotationName(seq.getName());
+
+    if (data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId())) {
+        SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+        seqObj.reset(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        SAFE_POINT(NULL != seqObj.data(), tr("Genbank writer: NULL sequence object"), );
+
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        SAFE_POINT_OP(os, );
+        QMapIterator<QString, QVariant> it(seq.info);
+        while (it.hasNext()) {
+            it.next();
+            if ( !(it.value().type() == QVariant::String || it.value().type() == QVariant::StringList) ) {
+                seq.info.remove(it.key());
+            }
+        }
+
+        if (seq.getName().isEmpty()) {
+            int num = doc->findGObjectByType(GObjectTypes::SEQUENCE).size();
+            seq.setName(QString("unknown sequence %1").arg(num));
+        } else {
+            annotationName = getAnnotationName(seq.getName());
+        }
+
+        dna = qobject_cast<U2SequenceObject*>(doc->findGObjectByName(seq.getName()));
+        if (!dna && !seq.isNull()) {
+            dna = addSeqObject(doc, seq);
+        }
     }
 
-    QList<SharedAnnotationData> atl = QVariantUtils::var2ftl(data.value(BaseSlots::ANNOTATION_TABLE_SLOT().getId()).toList());
-    U2SequenceObject* dna = qobject_cast<U2SequenceObject*>(doc->findGObjectByName(seq.getName()));
-    if (!dna && !seq.isNull()) {
-        dna = addSeqObject(doc, seq);
-    }
-    if (!atl.isEmpty()) {
-        AnnotationTableObject* att = NULL;
-        if (dna) {
-            QList<GObject*> relAnns = GObjectUtils::findObjectsRelatedToObjectByRole(dna, GObjectTypes::ANNOTATION_TABLE, GObjectRelationRole::SEQUENCE, doc->getObjects(), UOF_LoadedOnly);
-            att = relAnns.isEmpty() ? NULL : qobject_cast<AnnotationTableObject*>(relAnns.first());
-        }
-        if (!att) {
-            att = qobject_cast<AnnotationTableObject*>(doc->findGObjectByName(annotationName));
-            if (NULL == att) {
-                doc->addObject(att = new AnnotationTableObject(annotationName));
-                if (dna) {
-                    att->addObjectRelation(dna, GObjectRelationRole::SEQUENCE);
-                }
+    if (data.contains(BaseSlots::ANNOTATION_TABLE_SLOT().getId())) {
+        const QVariant &annsVar = data[BaseSlots::ANNOTATION_TABLE_SLOT().getId()];
+        const QList<SharedAnnotationData> atl = StorageUtils::getAnnotationTable(context->getDataStorage(), annsVar);
+
+        if (!atl.isEmpty()) {
+            AnnotationTableObject *att = NULL;
+            if (dna) {
+                QList<GObject*> relAnns = GObjectUtils::findObjectsRelatedToObjectByRole(dna,
+                    GObjectTypes::ANNOTATION_TABLE, ObjectRole_Sequence, doc->getObjects(), UOF_LoadedOnly);
+                att = relAnns.isEmpty() ? NULL : qobject_cast<AnnotationTableObject *>(relAnns.first());
             }
-            algoLog.trace(QString("Adding features [%1] to GB doc %2").arg(annotationName).arg(doc->getURLString()));
-        }
-        foreach(SharedAnnotationData sad, atl) {
-            att->addAnnotation(new Annotation(sad), QString());
+            if (!att) {
+                if (annotationName.isEmpty()) {
+                    int featuresNum = doc->findGObjectByType(GObjectTypes::ANNOTATION_TABLE).size();
+                    annotationName = QString("unknown features %1").arg(featuresNum);
+                }
+                att = qobject_cast<AnnotationTableObject *>(doc->findGObjectByName(annotationName));
+                if (NULL == att) {
+                    doc->addObject( att = new AnnotationTableObject(annotationName, context->getDataStorage()->getDbiRef()));
+                    if (dna) {
+                        att->addObjectRelation(dna, ObjectRole_Sequence);
+                    }
+                }
+                algoLog.trace(QString("Adding features [%1] to GB doc %2").arg(annotationName).arg(doc->getURLString()));
+            }
+            att->addAnnotations(atl);
         }
     }
 }
 
+bool GenbankWriter::hasDataToWrite(const QVariantMap &data) const {
+    return SeqWriter::hasSequenceOrAnns(data);
+}
+
+QSet<GObject *> GenbankWriter::getObjectsToWrite(const QVariantMap &data) const {
+    return QSet<GObject *>() << SeqWriter::getSeqObject(data, context) << SeqWriter::getAnnObject(data, context);
+}
+
 void GenbankWriter::streamingStoreEntry(DocumentFormat* format, IOAdapter *io, const QVariantMap &data, WorkflowContext *context, int entryNum) {
     U2OpStatus2Log os;
-    std::auto_ptr<U2SequenceObject> seqPtr(getCopiedSequenceObject(data, context, os));
-    CHECK_OP(os, );
-    U2SequenceObject *seq = seqPtr.get();
-
+    QScopedPointer<U2SequenceObject> seqObj(NULL);
     QString annotationName;
-    if (NULL != seq) {
-        if (seq->getGObjectName().isEmpty()) {
-            seq->setGObjectName(QString("unknown sequence %1").arg(entryNum));
+    if (data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId())) {
+        seqObj.reset(getCopiedSequenceObject(data, context, os));
+        SAFE_POINT_OP(os, );
+
+        if (seqObj->getGObjectName().isEmpty()) {
+            seqObj->setGObjectName(QString("unknown sequence %1").arg(entryNum));
             annotationName = QString("unknown features %1").arg(entryNum);
         } else {
-            annotationName = getAnnotationName(seq->getGObjectName());
+            annotationName = getAnnotationName(seqObj->getGObjectName());
         }
     }
 
-    QList<SharedAnnotationData> atl = QVariantUtils::var2ftl(data.value(BaseSlots::ANNOTATION_TABLE_SLOT().getId()).toList());
     QList<GObject*> anObjList;
-    if (!atl.isEmpty()) {
-        AnnotationTableObject* att = new AnnotationTableObject(annotationName);
-        anObjList << att;
-        foreach(SharedAnnotationData sad, atl) {
-            att->addAnnotation(new Annotation(sad), QString());
+    if (data.contains(BaseSlots::ANNOTATION_TABLE_SLOT().getId())) {
+        const QVariant &annsVar = data[BaseSlots::ANNOTATION_TABLE_SLOT().getId()];
+        const QList<SharedAnnotationData> atl = StorageUtils::getAnnotationTable(context->getDataStorage(), annsVar);
+
+        if (!atl.isEmpty()) {
+            if (annotationName.isEmpty()) {
+                annotationName = QString("unknown features %1").arg(entryNum);
+            }
+            AnnotationTableObject* att = new AnnotationTableObject(annotationName, context->getDataStorage()->getDbiRef());
+            anObjList << att;
+            att->addAnnotations(atl);
         }
     }
 
-    format->storeEntry(io, seq, anObjList, os);
+    QMap<GObjectType, QList<GObject *> > objectsMap;
+    {
+        if (NULL != seqObj.data()) {
+            QList<GObject*> seqs; seqs << seqObj.data();
+            objectsMap[GObjectTypes::SEQUENCE] = seqs;
+        }
+        if (!anObjList.isEmpty()) {
+            objectsMap[GObjectTypes::ANNOTATION_TABLE] = anObjList;
+        }
+    }
+    CHECK(!objectsMap.isEmpty(), );
+
+    format->storeEntry(io, objectsMap, os);
+
+    foreach (GObject *o, anObjList) {
+        delete o;
+    }
 }
 
 /*************************************
@@ -474,47 +617,65 @@ void GFFWriter::data2doc(Document* doc, const QVariantMap& data) {
     data2document(doc, data, context);
 }
 
+bool GFFWriter::hasDataToWrite(const QVariantMap &data) const {
+    return SeqWriter::hasSequenceOrAnns(data);
+}
+
+QSet<GObject *> GFFWriter::getObjectsToWrite(const QVariantMap &data) const {
+    return QSet<GObject *>() << SeqWriter::getSeqObject(data, context) << SeqWriter::getAnnObject(data, context);
+}
+
 void GFFWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext *context) {
-    U2DataId seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<U2DataId>();
-    std::auto_ptr<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
-    if (seqObj.get() == NULL) {
-        return;
-    }
-    DNASequence seq = seqObj->getWholeSequence();
-
+    QScopedPointer<U2SequenceObject> seqObj(NULL);
+    U2SequenceObject *dna = NULL;
     QString annotationName;
-    if (seq.getName().isEmpty()) {
-        int num = doc->findGObjectByType(GObjectTypes::SEQUENCE).size();
-        seq.setName(QString("unknown sequence %1").arg(num));
-        int featuresNum = doc->findGObjectByType(GObjectTypes::ANNOTATION_TABLE).size();
-        annotationName = QString("unknown features %1").arg(featuresNum);
-    } else {
-        annotationName = getAnnotationName(seq.getName());
+    if (data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId())) {
+        SharedDbiDataHandler seqId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+        seqObj.reset(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+        SAFE_POINT(!seqObj.isNull(), tr("GFF writer: NULL sequence object"), );
+
+        U2OpStatusImpl os;
+        DNASequence seq = seqObj->getWholeSequence(os);
+        SAFE_POINT_OP(os, );
+        if (seq.getName().isEmpty()) {
+            int num = doc->findGObjectByType(GObjectTypes::SEQUENCE).size();
+            seq.setName(QString("unknown sequence %1").arg(num));
+        } else {
+            annotationName = getAnnotationName(seq.getName());
+        }
+
+        dna = qobject_cast<U2SequenceObject*>(doc->findGObjectByName(seq.getName()));
+        if (!dna && !seq.isNull()) {
+            dna = addSeqObject(doc, seq);
+        }
     }
 
-    QList<SharedAnnotationData> atl = QVariantUtils::var2ftl(data.value(BaseSlots::ANNOTATION_TABLE_SLOT().getId()).toList());
-    U2SequenceObject* dna = qobject_cast<U2SequenceObject*>(doc->findGObjectByName(seq.getName()));
-    if (!dna && !seq.isNull()) {
-        dna = addSeqObject(doc, seq);
-    }
-    if (!atl.isEmpty()) {
-        AnnotationTableObject* att = NULL;
-        if (dna) {
-            QList<GObject*> relAnns = GObjectUtils::findObjectsRelatedToObjectByRole(dna, GObjectTypes::ANNOTATION_TABLE, GObjectRelationRole::SEQUENCE, doc->getObjects(), UOF_LoadedOnly);
-            att = relAnns.isEmpty() ? NULL : qobject_cast<AnnotationTableObject*>(relAnns.first());
-        }
-        if (!att) {
-            att = qobject_cast<AnnotationTableObject*>(doc->findGObjectByName(annotationName));
-            if (NULL == att) {
-                doc->addObject(att = new AnnotationTableObject(annotationName));
-                if (dna) {
-                    att->addObjectRelation(dna, GObjectRelationRole::SEQUENCE);
-                }
+    if (data.contains(BaseSlots::ANNOTATION_TABLE_SLOT().getId())) {
+        const QVariant &annsVar = data[BaseSlots::ANNOTATION_TABLE_SLOT().getId()];
+        const QList<SharedAnnotationData> atl = StorageUtils::getAnnotationTable(context->getDataStorage(), annsVar);
+
+        if (!atl.isEmpty()) {
+            AnnotationTableObject *att = NULL;
+            if (NULL != dna) {
+                QList<GObject*> relAnns = GObjectUtils::findObjectsRelatedToObjectByRole(dna, GObjectTypes::ANNOTATION_TABLE,
+                    ObjectRole_Sequence, doc->getObjects(), UOF_LoadedOnly);
+                att = relAnns.isEmpty() ? NULL : qobject_cast<AnnotationTableObject *>(relAnns.first());
             }
-            algoLog.trace(QString("Adding features [%1] to GFF doc %2").arg(annotationName).arg(doc->getURLString()));
-        }
-        foreach(SharedAnnotationData sad, atl) {
-            att->addAnnotation(new Annotation(sad), QString());
+            if (NULL == att) {
+                if (annotationName.isEmpty()) {
+                    int featuresNum = doc->findGObjectByType(GObjectTypes::ANNOTATION_TABLE).size();
+                    annotationName = QString("unknown features %1").arg(featuresNum);
+                }
+                att = qobject_cast<AnnotationTableObject *>(doc->findGObjectByName(annotationName));
+                if (NULL == att) {
+                    doc->addObject(att = new AnnotationTableObject(annotationName, context->getDataStorage()->getDbiRef()));
+                    if (NULL != dna) {
+                        att->addObjectRelation(dna, ObjectRole_Sequence);
+                    }
+                }
+                algoLog.trace(QString("Adding features [%1] to GFF doc %2").arg(annotationName).arg(doc->getURLString()));
+            }
+            att->addAnnotations(atl);
         }
     }
 }
@@ -523,25 +684,84 @@ void GFFWriter::data2document(Document* doc, const QVariantMap& data, WorkflowCo
 /*************************************
 * SeqWriter
 *************************************/
+SeqWriter::SeqWriter(Actor *a)
+: BaseDocWriter(a), numSplitSequences(1), currentSplitSequence(0)
+{
+
+}
+
+SeqWriter::SeqWriter(Actor *a, const DocumentFormatId &fid)
+: BaseDocWriter(a, fid), numSplitSequences(1), currentSplitSequence(0)
+{
+
+}
+
 void SeqWriter::data2doc(Document* doc, const QVariantMap& data){
-    if( format == NULL ) {
+    if (NULL == format) {
         return;
     }
     DocumentFormatId fid = format->getFormatId();
-    if( fid == BaseDocumentFormats::FASTA ) {
-        FastaWriter::data2document( doc, data, context );
-    } else if( fid == BaseDocumentFormats::PLAIN_GENBANK ) {
-        GenbankWriter::data2document( doc, data, context );
-    } else if ( fid == BaseDocumentFormats::FASTQ) {
-        FastQWriter::data2document( doc, data, context );    
-    } else if( fid == BaseDocumentFormats::RAW_DNA_SEQUENCE ) {
-        RawSeqWriter::data2document( doc, data, context );
-    }else if( fid == BaseDocumentFormats::GFF ) {
-        GFFWriter::data2document( doc, data, context );
-    }else {
+    if (BaseDocumentFormats::FASTA == fid) {
+        FastaWriter::data2document(doc, data, context, numSplitSequences, currentSplitSequence);
+        currentSplitSequence++;
+    } else if (BaseDocumentFormats::PLAIN_GENBANK == fid) {
+        GenbankWriter::data2document(doc, data, context);
+    } else if (BaseDocumentFormats::FASTQ == fid) {
+        FastQWriter::data2document(doc, data, context);
+    } else if (BaseDocumentFormats::RAW_DNA_SEQUENCE == fid) {
+        RawSeqWriter::data2document(doc, data, context);
+    } else if (BaseDocumentFormats::GFF == fid) {
+        GFFWriter::data2document(doc, data, context);
+    } else {
         assert(0);
         ioLog.error(QString("Unknown data format for writing: %1").arg(fid));
     }
+}
+
+bool SeqWriter::hasSequence(const QVariantMap &data) {
+    return data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId());
+}
+
+bool SeqWriter::hasSequenceOrAnns(const QVariantMap &data) {
+    return data.contains(BaseSlots::DNA_SEQUENCE_SLOT().getId())
+        || data.contains(BaseSlots::ANNOTATION_TABLE_SLOT().getId());
+}
+
+bool SeqWriter::hasDataToWrite(const QVariantMap &data) const {
+    if (NULL != format) {
+        DocumentFormatId fid = format->getFormatId();
+        if (BaseDocumentFormats::GFF == fid || BaseDocumentFormats::PLAIN_GENBANK == fid) {
+            return hasSequenceOrAnns(data);
+        } else {
+            return hasSequence(data);
+        }
+    } else if (dstDbiRef.isValid()) {
+        return hasSequenceOrAnns(data);
+    } else {
+        return false;
+    }
+}
+
+GObject * SeqWriter::getSeqObject(const QVariantMap &data, WorkflowContext *context) {
+    SharedDbiDataHandler objId = data[BaseSlots::DNA_SEQUENCE_SLOT().getId()].value<SharedDbiDataHandler>();
+    return StorageUtils::getSequenceObject(context->getDataStorage(), objId);
+}
+
+GObject * SeqWriter::getAnnObject(const QVariantMap &data, WorkflowContext *context) {
+    const QList<SharedAnnotationData> anns = StorageUtils::getAnnotationTable(context->getDataStorage(), data[BaseSlots::ANNOTATION_TABLE_SLOT().getId()]);
+    CHECK(!anns.isEmpty(), NULL);
+    QScopedPointer<U2SequenceObject> seqObj(qobject_cast<U2SequenceObject *>(getSeqObject(data, context)));
+    QString seqName = "Unknown";
+    if (!seqObj.isNull()) {
+        seqName = seqObj->getSequenceName();
+    }
+    AnnotationTableObject *annObj = new AnnotationTableObject(seqName + " features", context->getDataStorage()->getDbiRef());
+    annObj->addAnnotations(anns);
+    return annObj;
+}
+
+QSet<GObject *> SeqWriter::getObjectsToWrite(const QVariantMap &data) const {
+    return QSet<GObject *>() << getSeqObject(data, context) << getAnnObject(data, context);
 }
 
 void SeqWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum) {
@@ -551,6 +771,7 @@ void SeqWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum)
     DocumentFormatId fid = format->getFormatId();
     if( fid == BaseDocumentFormats::FASTA ) {
         FastaWriter::streamingStoreEntry(format, io, data, context, entryNum);
+        currentSplitSequence++;
     } else if( fid == BaseDocumentFormats::PLAIN_GENBANK ) {
         GenbankWriter::streamingStoreEntry(format, io, data, context, entryNum);
     } else if ( fid == BaseDocumentFormats::FASTQ) {
@@ -563,19 +784,96 @@ void SeqWriter::storeEntry(IOAdapter *io, const QVariantMap &data, int entryNum)
     }
 }
 
+void SeqWriter::takeParameters(U2OpStatus &os) {
+    BaseDocWriter::takeParameters(os);
+    SAFE_POINT_OP( os, );
+
+    Attribute *splitAttr = actor->getParameter(BaseAttributes::SPLIT_SEQ_ATTRIBUTE().getId());
+    if (NULL != format && format->getFormatId() == BaseDocumentFormats::FASTA && splitAttr != NULL) {
+        numSplitSequences = splitAttr->getAttributeValue<int>(context);
+    } else{
+        numSplitSequences = 1;
+    }
+}
+
+QStringList SeqWriter::takeUrlList(const QVariantMap &data, int metadataId, U2OpStatus &os) {
+    QStringList urls = BaseDocWriter::takeUrlList(data, metadataId, os);
+    CHECK_OP(os, urls);
+    SAFE_POINT(1 == urls.size(), "Several urls in the output attribute", urls);
+
+    SharedDbiDataHandler seqId = data.value(BaseSlots::DNA_SEQUENCE_SLOT().getId()).value<SharedDbiDataHandler>();
+    QSharedPointer<U2SequenceObject> seqObj(StorageUtils::getSequenceObject(context->getDataStorage(), seqId));
+
+    currentSplitSequence = 0;
+
+    if (!seqObj.data()) {
+        numSplitSequences = 1;
+    } else {
+        qint64 seqLen = seqObj.data()->getSequenceLength();
+        if (seqLen < numSplitSequences) {
+            numSplitSequences = seqLen;
+        }
+        if (0 == numSplitSequences) {
+            numSplitSequences = 1;
+        }
+    }
+
+    if (numSplitSequences > 1) {
+        QString url = urls.takeFirst();
+        for (int i = 0; i < numSplitSequences; i++) {
+            urls << GUrlUtils::insertSuffix(url, "_split" + QString::number(i+1));
+        }
+    }
+
+    return urls;
+}
+
+bool SeqWriter::isStreamingSupport() const {
+    if (numSplitSequences > 1) {
+        return false;
+    }
+    return BaseDocWriter::isStreamingSupport();
+}
+
 /*************************************
 * MSAWriter
 *************************************/
 void MSAWriter::data2doc(Document* doc, const QVariantMap& data) {
-    MAlignment ma = data.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    if (ma.isEmpty()) {
-        algoLog.error(tr("Empty alignment passed for writing to %1").arg(doc->getURLString()));
-        return; //FIXME
-    }
+    data2document(doc, data, context);
+}
+
+void MSAWriter::data2document(Document* doc, const QVariantMap& data, WorkflowContext* context) {
+    SharedDbiDataHandler msaId = data.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+    QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+    SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", );
+    MAlignment ma = msaObj->getMAlignment();
+
+    SAFE_POINT(!ma.isEmpty(), tr("Empty alignment passed for writing to %1").arg(doc->getURLString()), )
+
     if (ma.getName().isEmpty()) {
-        ma.setName( QString(MA_OBJECT_NAME + "_%1").arg(ct++) );
+        QString name = QString(MA_OBJECT_NAME + "_%1").arg(ct);
+        ma.setName(name);
+        ct++;
     }
-    doc->addObject(new MAlignmentObject(ma));
+
+    U2OpStatus2Log os;
+    MAlignmentObject* obj = MAlignmentImporter::createAlignment(doc->getDbiRef(), ma, os);
+    CHECK_OP(os, );
+
+    doc->addObject(obj);
+}
+
+bool MSAWriter::hasDataToWrite(const QVariantMap &data) const {
+    return data.contains(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId());
+}
+
+QSet<GObject *> MSAWriter::getObjectsToWrite(const QVariantMap &data) const {
+    SharedDbiDataHandler objId = data[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()].value<SharedDbiDataHandler>();
+    return QSet<GObject *>() << StorageUtils::getMsaObject(context->getDataStorage(), objId);
+}
+
+bool MSAWriter::isStreamingSupport() const {
+    return false;
 }
 
 /*************************************
@@ -583,17 +881,17 @@ void MSAWriter::data2doc(Document* doc, const QVariantMap& data) {
 *************************************/
 Worker* DataWorkerFactory::createWorker(Actor* a) {
     // TODO: wtf is this??
-    //  each actor must have own factory 
+    //  each actor must have own factory
 
     BaseWorker* w = NULL;
     QString protoId = a->getProto()->getId();
     if (CoreLibConstants::READ_TEXT_PROTO_ID == protoId ) {
         TextReader* t = new TextReader(a);
         w = t;
-    } 
+    }
     else if (CoreLibConstants::WRITE_TEXT_PROTO_ID == protoId) {
         w = new TextWriter(a);
-    } 
+    }
     else if (CoreLibConstants::WRITE_FASTA_PROTO_ID == protoId) {
         w = new FastaWriter(a);
     }
@@ -611,19 +909,19 @@ Worker* DataWorkerFactory::createWorker(Actor* a) {
     }
     else if (CoreLibConstants::GENERIC_READ_SEQ_PROTO_ID == protoId) {
         w = new GenericSeqReader(a);
-    } 
+    }
     else if(CoreLibConstants::WRITE_MSA_PROTO_ID == protoId ) {
         w = new MSAWriter(a);
     }
     else if(CoreLibConstants::WRITE_SEQ_PROTO_ID == protoId ) {
         w = new SeqWriter(a);
-    } 
+    }
     else if (CoreLibConstants::WRITE_FASTQ_PROTO_ID == protoId ) {
         w = new FastQWriter(a);
     } else {
         assert(0);
     }
-    return w;    
+    return w;
 }
 
 void DataWorkerFactory::init() {

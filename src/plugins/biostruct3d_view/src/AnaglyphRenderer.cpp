@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -143,9 +143,15 @@ void AnaglyphRenderer::setOrthoProjection() {
 void AnaglyphRenderer::createEmptyTextures() {
     CHECK_GL_ERROR
 
-    glDeleteTextures(1, &anaglyphRenderTextureLeft);
-    glDeleteTextures(1, &anaglyphRenderTextureRight);
-    glDeleteTextures(1, &tempAnaglyphRenderTexture);
+    if(anaglyphRenderTextureLeft != 0) {
+        glDeleteTextures(1, &anaglyphRenderTextureLeft);
+    }
+    if(anaglyphRenderTextureRight != 0) {
+        glDeleteTextures(1, &anaglyphRenderTextureRight);
+    }
+    if(tempAnaglyphRenderTexture != 0) {
+        glDeleteTextures(1, &tempAnaglyphRenderTexture);
+    }
 
     // TODO : check for NPOT sizes
     GLuint texwidth = width, texheight = height;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -74,7 +74,7 @@ protected:
 
   // Creates instance of TLSContext. By default invokes in prepare()
   virtual TLSContext* createContextInstance()=0;
-  
+
   TLSContext* taskContext;
   bool deleteContext;
 };

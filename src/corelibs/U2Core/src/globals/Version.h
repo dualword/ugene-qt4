@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,6 +37,12 @@ public:
     // Current QT version
     static Version qtVersion();
 
+    // Minimum UGENE version whose SQLite databases are compatible with this version
+    static Version minVersionForSQLite();
+
+    // minimum UGENE version whose MySQL databases are compatible with this version
+    static Version minVersionForMySQL();
+
     static Version parseVersion(const QString& text);
 
     bool operator  >  (const Version& v) const;
@@ -49,10 +55,14 @@ public:
     int         major;
     int         minor;
     int         patch;
+
     bool        debug;
     QString     text;
     QString     suffix;
     bool        isDevVersion;
+    const static int         appArchitecture;
+    const static QString     buildDate;
+    const static QString     distributionInfo;
 };
 
 } //namespace

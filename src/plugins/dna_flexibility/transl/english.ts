@@ -1,67 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0">
+<TS version="2.0" language="en_US">
 <context>
     <name>DNAFlexDialog</name>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="32"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="26"/>
         <source>DNA Flexibility</source>
-        <translation></translation>
+        <translation>DNA Flexibility</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="38"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="32"/>
         <source>The DNA Flexibility plugin allows searching for high DNA flexibility regions.</source>
-        <translation></translation>
+        <translation>The DNA Flexibility plugin allows searching for high DNA flexibility regions.</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="42"/>
+        <source>Search Settings</source>
+        <translation>Search Settings</translation>
     </message>
     <message>
         <location filename="../src/ui/DNAFlexDialog.ui" line="48"/>
-        <source>Search Settings</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="60"/>
         <source>High DNA Flexibility Regions Settings</source>
-        <translation></translation>
+        <translation>High DNA Flexibility Regions Settings</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="75"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="56"/>
         <source>Window size</source>
-        <translation></translation>
+        <translation>Window size</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="98"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="79"/>
         <source>Window step</source>
-        <translation></translation>
+        <translation>Window step</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="118"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="99"/>
         <source>Threshold</source>
-        <translation></translation>
+        <translation>Threshold</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="172"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="150"/>
         <source>Remember Settings</source>
-        <translation></translation>
+        <translation>Remember Settings</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="179"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="157"/>
         <source>Restore Defaults</source>
-        <translation></translation>
+        <translation>Restore Defaults</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="203"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="185"/>
         <source>Output</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="236"/>
-        <source>Search</source>
-        <translation></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="243"/>
-        <source>Cancel</source>
-        <translation></translation>
+        <translation>Output</translation>
     </message>
 </context>
 <context>
@@ -69,17 +59,41 @@
     <message>
         <location filename="../src/HighFlexSettings.cpp" line="89"/>
         <source>Invalid high flex setting window size is stored in the application settings.</source>
-        <translation></translation>
+        <translation>Invalid high flex setting window size is stored in the application settings.</translation>
     </message>
     <message>
         <location filename="../src/HighFlexSettings.cpp" line="101"/>
         <source>Invalid high flex setting window step is stored in the application settings.</source>
-        <translation></translation>
+        <translation>Invalid high flex setting window step is stored in the application settings.</translation>
     </message>
     <message>
         <location filename="../src/HighFlexSettings.cpp" line="113"/>
         <source>Invalid high flex setting threshold is stored in the application settings.</source>
-        <translation></translation>
+        <translation>Invalid high flex setting threshold is stored in the application settings.</translation>
+    </message>
+</context>
+<context>
+    <name>U2::DNAFlexDialog</name>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="47"/>
+        <source>Search</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="48"/>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="99"/>
+        <location filename="../src/DNAFlexDialog.cpp" line="104"/>
+        <source>Error</source>
+        <translation>Error</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="104"/>
+        <source>Cannot create an annotation object. Please check settings</source>
+        <translation>Cannot create an annotation object. Please check settings</translation>
     </message>
 </context>
 <context>
@@ -87,7 +101,7 @@
     <message>
         <location filename="../src/DNAFlexGraph.cpp" line="40"/>
         <source>DNA Flexibility</source>
-        <translation type="unfinished"></translation>
+        <translation>DNA Flexibility</translation>
     </message>
 </context>
 <context>
@@ -95,25 +109,25 @@
     <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="49"/>
         <source>DNA Flexibility</source>
-        <translation></translation>
+        <translation>DNA Flexibility</translation>
     </message>
     <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="50"/>
         <source>Searches a DNA sequence for regions of high DNA helix flexibility.</source>
-        <translation></translation>
+        <translation>Searches a DNA sequence for regions of high DNA helix flexibility.</translation>
     </message>
 </context>
 <context>
     <name>U2::DNAFlexTask</name>
     <message>
-        <location filename="../src/DNAFlexTask.cpp" line="43"/>
+        <location filename="../src/DNAFlexTask.cpp" line="44"/>
         <source>DNA Flexibility task</source>
-        <translation></translation>
+        <translation>DNA Flexibility task</translation>
     </message>
     <message>
         <location filename="../src/DNAFlexTask.cpp" line="67"/>
         <source>The annotations object is not available!</source>
-        <translation></translation>
+        <translation>The annotations object is not available!</translation>
     </message>
 </context>
 <context>
@@ -121,12 +135,12 @@
     <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="89"/>
         <source>Unsupported sequence alphabet, only standard DNA alphabet is supported</source>
-        <translation type="unfinished"></translation>
+        <translation>Unsupported sequence alphabet, only standard DNA alphabet is supported</translation>
     </message>
     <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="112"/>
         <source>Find high DNA flexibility regions...</source>
-        <translation></translation>
+        <translation>Find high DNA flexibility regions...</translation>
     </message>
 </context>
 <context>

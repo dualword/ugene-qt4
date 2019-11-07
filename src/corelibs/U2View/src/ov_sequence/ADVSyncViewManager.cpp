@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,7 +31,7 @@
 
 namespace U2 {
 
-ADVSyncViewManager::ADVSyncViewManager(AnnotatedDNAView* v) : QObject(v), adv(v) 
+ADVSyncViewManager::ADVSyncViewManager(AnnotatedDNAView* v) : QObject(v), adv(v)
 {
     assert(v->getSequenceContexts().isEmpty());
 
@@ -39,17 +39,20 @@ ADVSyncViewManager::ADVSyncViewManager(AnnotatedDNAView* v) : QObject(v), adv(v)
     selectionRecursion = false;
 
     lockByStartPosAction = new QAction(tr("Lock scales: visible range start"), this);
+    lockByStartPosAction->setObjectName("Lock scales: visible range start");
     connect(lockByStartPosAction, SIGNAL(triggered()), SLOT(sl_lock()));
     lockByStartPosAction->setCheckable(true);
-    
+
     lockBySeqSelAction = new QAction(tr("Lock scales: selected sequence"), this);
+    lockBySeqSelAction->setObjectName("Lock scales: selected sequence");
     connect(lockBySeqSelAction, SIGNAL(triggered()), SLOT(sl_lock()));
     lockBySeqSelAction->setCheckable(true);
 
     lockByAnnSelAction = new QAction(tr("Lock scales: selected annotation"), this);
+    lockByAnnSelAction->setObjectName("Lock scales: selected annotation");
     connect(lockByAnnSelAction, SIGNAL(triggered()), SLOT(sl_lock()));
     lockByAnnSelAction->setCheckable(true);
-    
+
     lockActionGroup = new QActionGroup(this);
     lockActionGroup->addAction(lockByStartPosAction);
     lockActionGroup->addAction(lockBySeqSelAction);
@@ -57,61 +60,71 @@ ADVSyncViewManager::ADVSyncViewManager(AnnotatedDNAView* v) : QObject(v), adv(v)
     lockActionGroup->setExclusive(true);
 
     syncByStartPosAction = new QAction(tr("Adjust scales: visible range start"), this);
+    syncByStartPosAction->setObjectName("Adjust scales: visible range start");
     connect(syncByStartPosAction, SIGNAL(triggered()), SLOT(sl_sync()));
 
     syncBySeqSelAction = new QAction(tr("Adjust scales: selected sequence"), this);
+    syncBySeqSelAction->setObjectName("Adjust scales: selected sequence");
     connect(syncBySeqSelAction, SIGNAL(triggered()), SLOT(sl_sync()));
 
     syncByAnnSelAction = new QAction(tr("Adjust scales: selected annotation"), this);
+    syncByAnnSelAction->setObjectName("Adjust scales: selected annotation");
     connect(syncByAnnSelAction, SIGNAL(triggered()), SLOT(sl_sync()));
 
     lockMenu = new QMenu(tr("Lock scales"));
     lockMenu->setIcon(QIcon(":core/images/lock_scales.png"));
     lockMenu->addActions(lockActionGroup->actions());
-    
+
     syncMenu = new QMenu(tr("Adjust scales"));
     syncMenu->setIcon(QIcon(":core/images/sync_scales.png"));
     syncMenu->addAction(syncByStartPosAction);
     syncMenu->addAction(syncBySeqSelAction);
     syncMenu->addAction(syncByAnnSelAction);
-    
+
     lockButton = new QToolButton();
+    lockButton->setObjectName("Lock scales");
     lockButton->setCheckable(true);
     connect(lockButton, SIGNAL(clicked()), SLOT(sl_lock()));
     lockButton->setDefaultAction(lockMenu->menuAction());
     lockButton->setCheckable(true);
 
     syncButton = new QToolButton();
+    syncButton->setObjectName("Adjust scales");
     connect(syncButton, SIGNAL(clicked()), SLOT(sl_sync()));
     syncButton->setDefaultAction(syncMenu->menuAction());
 
     lockButtonTBAction = NULL;
     syncButtonTBAction = NULL;
-    
+
     // auto-annotations highlighting ops
-        
+
     toggleAutoAnnotationsMenu = new QMenu("Global automatic annotation highlighting");
     toggleAutoAnnotationsMenu->setIcon(QIcon(":core/images/predefined_annotation_groups.png"));
     connect( toggleAutoAnnotationsMenu, SIGNAL(aboutToShow()), SLOT(sl_updateAutoAnnotationsMenu()) );
-     
+
     toggleAutoAnnotationsButton = new QToolButton();
+    toggleAutoAnnotationsButton->setObjectName("toggleAutoAnnotationsButton");
     toggleAutoAnnotationsButton->setDefaultAction(toggleAutoAnnotationsMenu->menuAction());
     toggleAutoAnnotationsButton->setPopupMode(QToolButton::InstantPopup);
-    
+
     toggleAutoAnnotationsAction = NULL;
-    
-    
+
+
     // visual mode ops
     toggleAllAction = new QAction("Toggle All sequence views", this);
+    toggleAllAction->setObjectName("toggleAllSequenceViews");
     connect(toggleAllAction, SIGNAL(triggered()), SLOT(sl_toggleVisualMode()));
 
     toggleOveAction = new QAction("Toggle Overview", this);
+    toggleOveAction->setObjectName("toggleOverview");
     connect(toggleOveAction, SIGNAL(triggered()), SLOT(sl_toggleVisualMode()));
 
     togglePanAction = new QAction("Toggle Zoom view", this);
+    togglePanAction->setObjectName("toggleZoomView");
     connect(togglePanAction, SIGNAL(triggered()), SLOT(sl_toggleVisualMode()));
-    
+
     toggleDetAction = new QAction("Toggle Details view", this);
+    toggleDetAction->setObjectName("toggleDetailsView");
     connect(toggleDetAction, SIGNAL(triggered()), SLOT(sl_toggleVisualMode()));
 
     toggleViewButtonAction = NULL;
@@ -123,11 +136,12 @@ ADVSyncViewManager::ADVSyncViewManager(AnnotatedDNAView* v) : QObject(v), adv(v)
     toggleViewButtonMenu->addAction(togglePanAction);
     toggleViewButtonMenu->addAction(toggleDetAction);
     connect(toggleViewButtonMenu, SIGNAL(aboutToShow()), SLOT(sl_updateVisualMode()));
-    
+
     toggleViewButton = new QToolButton();
+    toggleViewButton->setObjectName("toggleViewButton");
     toggleViewButton->setDefaultAction(toggleViewButtonMenu->menuAction());
     toggleViewButton->setPopupMode(QToolButton::InstantPopup);
-    
+
     updateEnabledState();
 
     connect(adv, SIGNAL(si_sequenceWidgetAdded(ADVSequenceWidget*)), SLOT(sl_sequenceWidgetAdded(ADVSequenceWidget*)));
@@ -139,7 +153,7 @@ ADVSyncViewManager::~ADVSyncViewManager() {
     delete syncButton;
     delete syncMenu;
     delete lockMenu;
-    
+
     delete toggleAutoAnnotationsButton;
     delete toggleAutoAnnotationsMenu;
 
@@ -244,7 +258,7 @@ void ADVSyncViewManager::sl_rangeChanged() {
         assert(newStart >= 0 && newStart + nVisible <= seqLen);
         pan->setVisibleRange(U2Region(newStart, nVisible));
     }
-    
+
     recursion = false;
 }
 
@@ -252,7 +266,7 @@ void ADVSyncViewManager::sl_lock() {
 
     QObject* s = sender();
     bool buttonClicked = (s == lockButton);
-    
+
     SyncMode m = SyncMode_Start;
     if (lockButton->isChecked()) {
         unlock();
@@ -265,10 +279,10 @@ void ADVSyncViewManager::sl_lock() {
             m = detectSyncMode();
         }
         sync(true, m);
-    } 
-    
+    }
+
     if (buttonClicked) {
-        QAction* checkedAction = lockActionGroup->checkedAction();  
+        QAction* checkedAction = lockActionGroup->checkedAction();
         if (NULL == checkedAction) {
             toggleCheckedAction(m);
         } else {
@@ -278,8 +292,8 @@ void ADVSyncViewManager::sl_lock() {
     } else {
         lockButton->setChecked(lockActionGroup->checkedAction() != NULL);
     }
-     
-   
+
+
 }
 
 void ADVSyncViewManager::sl_sync() {
@@ -303,11 +317,11 @@ void ADVSyncViewManager::sync(bool lock, SyncMode m) {
 
     QList<ADVSingleSequenceWidget*> seqs = getViewsFromADV();
     QVector<int> offsets(seqs.size());
-    
+
     //offset here ==> new panview start pos
     //dOffset is used to keep focused sequence unchanged
     U2Region focusedRange;
-    int dOffset = 0; 
+    int dOffset = 0;
     for (int i=0; i< seqs.size(); i++ ){
         int offset = 0;
         ADVSingleSequenceWidget* seqW = seqs[i];
@@ -320,7 +334,7 @@ void ADVSyncViewManager::sync(bool lock, SyncMode m) {
         if (seqW == focusedW) {
             focusedRange = focusedW->getVisibleRange();
             dOffset = offset - focusedRange.startPos;
-        } 
+        }
     }
     assert(!focusedRange.isEmpty());
     for (int i=0; i< seqs.size(); i++ ){
@@ -333,13 +347,13 @@ void ADVSyncViewManager::sync(bool lock, SyncMode m) {
         }
         if (lock) {
             DNASequenceSelection* selection = seqW->getSequenceContext()->getSequenceSelection();
-            connect(selection, 
+            connect(selection,
                 SIGNAL(si_selectionChanged(LRegionsSelection*, const QVector<U2Region>&, const QVector<U2Region>& )),
                 SLOT(sl_onSelectionChanged(LRegionsSelection*, const QVector<U2Region>&, const QVector<U2Region>& )) );
             pan->setSyncOffset(offset);
             connect(pan, SIGNAL(si_visibleRangeChanged()), SLOT(sl_rangeChanged()));
             views.append(seqW);
-        } 
+        }
     }
 }
 
@@ -361,11 +375,12 @@ int ADVSyncViewManager::offsetByAnnSel(ADVSingleSequenceWidget* w) const {
 
 int ADVSyncViewManager::findSelectedAnnotationPos(ADVSingleSequenceWidget* w) const {
     AnnotationSelection* as = w->getSequenceContext()->getAnnotationsSelection();
-    const QSet<AnnotationTableObject*>& objs = w->getSequenceContext()->getAnnotationObjects(true);
+    const QSet<AnnotationTableObject *> &objs = w->getSequenceContext()->getAnnotationObjects(true);
     foreach(const AnnotationSelectionData& d , as->getSelection()) {
-        AnnotationTableObject* obj = d.annotation->getGObject();
+        AnnotationTableObject *obj = d.annotation->getGObject();
         if (objs.contains(obj)) {
-            return d.annotation->getStrand().isCompementary() ? d.getSelectedRegions().last().endPos() : d.getSelectedRegions().first().startPos;
+            return d.annotation->getStrand().isCompementary()
+                ? d.getSelectedRegions().last().endPos() : d.getSelectedRegions().first().startPos;
         }
     }
     return -1;
@@ -401,7 +416,7 @@ ADVSyncViewManager::SyncMode ADVSyncViewManager::detectSyncMode() const {
 
 void ADVSyncViewManager::sl_updateVisualMode() {
     //if have at least 1 visible -> hide all
-    bool haveVisiblePan = false;    
+    bool haveVisiblePan = false;
     bool haveVisibleDet = false;
     bool haveVisibleView = false;
     bool haveVisibleOve = false;
@@ -420,10 +435,10 @@ void ADVSyncViewManager::sl_updateVisualMode() {
 void ADVSyncViewManager::sl_toggleVisualMode() {
     //if have at least 1 visible -> hide all
     bool haveVisibleNav= false;
-    bool haveVisiblePan = false;    
+    bool haveVisiblePan = false;
     bool haveVisibleDet = false;
     bool haveVisibleView = false;
-    
+
     QList<ADVSingleSequenceWidget*> views = getViewsFromADV();
     foreach(ADVSingleSequenceWidget* sw, views) {
         haveVisibleDet = haveVisibleDet || !sw->isDetViewCollapsed();
@@ -466,7 +481,7 @@ void ADVSyncViewManager::sl_onSelectionChanged( LRegionsSelection* sel, const QV
         }
 
         int offset = focusedW->getVisibleRange().startPos - w->getVisibleRange().startPos;
-        
+
         DNASequenceSelection* selection = w->getSequenceSelection();
         selection->clear();
         qint64 seqLen = w->getSequenceLength();
@@ -476,7 +491,7 @@ void ADVSyncViewManager::sl_onSelectionChanged( LRegionsSelection* sel, const QV
             if (r.startPos < 0) {
                 r.startPos = 0;
             }
-                
+
             if (r.endPos() > seqLen) {
                 r.length = seqLen - r.startPos;
             }
@@ -485,7 +500,7 @@ void ADVSyncViewManager::sl_onSelectionChanged( LRegionsSelection* sel, const QV
             }
         }
 
-    } 
+    }
 
     selectionRecursion = false;
 }
@@ -521,9 +536,9 @@ void ADVSyncViewManager::updateAutoAnnotationActions() {
             }
         }
     }
-    
+
     toggleAutoAnnotationsButton->setEnabled(!aaActionMap.isEmpty());
-    
+
     QSet<QString> actionNames = aaActionMap.keys().toSet();
 
     foreach (const QString& aName, actionNames) {
@@ -545,7 +560,7 @@ void ADVSyncViewManager::sl_toggleAutoAnnotationHighlighting() {
     assert(val.isValid());
     bool haveEnabledAutoAnnotations = val.toBool();
     QList<QAction*> aaActions = aaActionMap.values(menuAction->objectName());
-    foreach (QAction* aaAction, aaActions ) 
+    foreach (QAction* aaAction, aaActions )
     {
         aaAction->setChecked(!haveEnabledAutoAnnotations);
     }
@@ -554,10 +569,10 @@ void ADVSyncViewManager::sl_toggleAutoAnnotationHighlighting() {
 
 void ADVSyncViewManager::sl_updateAutoAnnotationsMenu() {
     QList<QAction*> menuActions = toggleAutoAnnotationsMenu->actions();
-    
+
     foreach (QAction* menuAction, menuActions) {
-        QString aName = menuAction->objectName(); 
-        bool haveEnabledAutoAnnotations = false;   
+        QString aName = menuAction->objectName();
+        bool haveEnabledAutoAnnotations = false;
         //if have at least 1 checked  -> uncheck all
         QList<QAction*> aaActions = aaActionMap.values(aName);
         foreach(QAction* aaAction, aaActions ) {
@@ -566,7 +581,7 @@ void ADVSyncViewManager::sl_updateAutoAnnotationsMenu() {
                 break;
             }
         }
-        
+
         if (haveEnabledAutoAnnotations) {
             menuAction->setText(tr("Hide %1").arg(aName));
         } else {

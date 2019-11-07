@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,6 +31,7 @@
 #include <U2Core/U2Type.h>
 #include <U2Core/DNATranslation.h>
 #include <U2Core/TextUtils.h>
+#include <U2Core/U2SafePoints.h>
 #include <U2Core/AppContext.h>
 
 #include <QtCore/QObject>
@@ -48,11 +49,13 @@ public:
 template <typename CompareFN>
 class FindEnzymesAlgorithm {
 public:
-    void run(const DNASequence& sequence, const U2Region& range, const SEnzymeData& enzyme, FindEnzymesAlgListener* l, TaskStateInfo& ti) {
-    
+    void run(const DNASequence& sequence, const U2Region& range, const SEnzymeData& enzyme, FindEnzymesAlgListener* l, TaskStateInfo& ti, int resultPosShift=0) {
+
+        SAFE_POINT(enzyme->alphabet != NULL, "No enzyme alphabet", );
+
         // look for results in direct strand
-        run(sequence, range, enzyme, enzyme->seq.constData(), U2Strand::Direct, l, ti);
-        
+        run(sequence, range, enzyme, enzyme->seq.constData(), U2Strand::Direct, l, ti, resultPosShift);
+
         // if enzyme is not symmetric - look in complementary strand too
         DNATranslation* tt = AppContext::getDNATranslationRegistry()->lookupComplementTranslation(enzyme->alphabet);
         if (tt == NULL) {
@@ -64,12 +67,12 @@ public:
         if (revCompl == enzyme->seq) {
             return;
         }
-        run(sequence, range, enzyme, revCompl.constData(), U2Strand::Complementary, l, ti);
+        run(sequence, range, enzyme, revCompl.constData(), U2Strand::Complementary, l, ti, resultPosShift);
     }
 
 
-    void run(const DNASequence& sequence, const U2Region& range, const SEnzymeData& enzyme, 
-        const char* pattern, U2Strand stand, FindEnzymesAlgListener* l, TaskStateInfo& ti) 
+    void run(const DNASequence& sequence, const U2Region& range, const SEnzymeData& enzyme,
+        const char* pattern, U2Strand stand, FindEnzymesAlgListener* l, TaskStateInfo& ti, int resultPosShift=0)
     {
         CompareFN fn(sequence.alphabet, enzyme->alphabet);
         const char* seq = sequence.constData();
@@ -78,7 +81,7 @@ public:
         for (int s = range.startPos, n = range.endPos() - plen + 1; s < n && !ti.cancelFlag; s++) {
             bool match = matchSite(seq + s, pattern, plen, unknownChar, fn);
             if (match) {
-                l->onResult(s, enzyme, stand);
+                l->onResult(resultPosShift + s, enzyme, stand);
             }
         }
         if (sequence.circular) {
@@ -92,11 +95,11 @@ public:
                 for (int s = 0; s < size; s++) {
                     bool match = matchSite(buf.constData() + s, pattern, plen, unknownChar, fn);
                     if (match) {
-                        l->onResult(s + startPos, enzyme, stand);
+                        l->onResult(resultPosShift + s + startPos, enzyme, stand);
                     }
                 }
-                
-            } 
+
+            }
         }
     }
 

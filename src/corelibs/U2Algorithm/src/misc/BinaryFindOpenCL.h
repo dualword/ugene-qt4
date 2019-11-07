@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #ifndef _U2_BINARYFINDOPENCL_H_
 #define _U2_BINARYFINDOPENCL_H_
 
+#ifdef OPENCL_SUPPORT
+
 #include <U2Core/AppContext.h>
 
 #include <U2Algorithm/OpenCLGpuRegistry.h>
@@ -33,37 +35,48 @@ typedef cl_long NumberType;
 
 class U2ALGORITHM_EXPORT BinaryFindOpenCL {
 public:
-    BinaryFindOpenCL(const NumberType* _numbers, const int _numbersSize, const NumberType* _findNumbers, const int _findNumbersSize, const NumberType filter = CL_LONG_MAX);
+    BinaryFindOpenCL(const NumberType* _haystack, const int _haystackSize, const NumberType* _needles, const int _needlesSize, const int *_windowSizes);
     ~BinaryFindOpenCL();
     NumberType* launch();
     bool hasError() {return isError;}
 private:
+    int initOpenCL();
+    int createBuffers();
+
+    int runBinaryFindKernel();
+
     bool hasOPENCLError(cl_int err, QString errorMessage);
-    void prepareBinarySearch(const NumberType* arr, int lowerBound, int upperBound,
-                             NumberType* resBounds, NumberType* resValues, const int depthNum);
+    void logProfilingInfo(const cl_event &event, const QString &msgPrefix);
+
+    int checkCreateBuffer(const QString &bufferName, cl_mem &buf, cl_mem_flags flags, size_t thisBufferSize, void *ptr, size_t &usageGPUMem);
+
     bool isError;
 
-    const NumberType* numbers;
-    const int numbersSize;
-    const NumberType* findNumbers;
-    const size_t findNumbersSize;
-    const NumberType filter;
+    OpenCLGpuModel* device;
+    cl_ulong deviceGlobalMemSize;
+    cl_ulong maxAllocateBufferSize;
 
+    const NumberType* haystack;
+    const int haystackSize;
+    const NumberType* needles;
+    const size_t needlesSize;
+    const int *windowSizes;
+
+    cl_device_id deviceId;
     cl_event clEvent1;
     cl_event clEvent2;
-    cl_kernel clKernel;
+    cl_kernel binaryFindKernel;
     cl_program clProgram;
     cl_command_queue clCommandQueue;
     cl_context clContext;
 
-    cl_mem buf_sortedArray;
-    cl_mem buf_findMeArray;
-    cl_mem buf_outPutArray;
-    cl_mem buf_preSaveBounds;
-    cl_mem buf_preSaveValues;
+    cl_mem buf_sortedHaystackArray;
+    cl_mem buf_needlesArray;
+    cl_mem buf_windowSizesArray;
 };
 
 }//namespace
 
-#endif // _U2_BINARYFINDOPENCL_H_
+#endif /*OPENCL_SUPPORT*/
 
+#endif // _U2_BINARYFINDOPENCL_H_

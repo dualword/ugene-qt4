@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,6 @@
 #define _REMOTE_SERVICE_UTIL_TASKS_H_
 
 #include <U2Core/Task.h>
-#include <memory>
 
 namespace U2 {
 
@@ -36,9 +35,9 @@ struct RemoteTaskInfo {
     QString result;
 };
 
- 
+
 class GetUserTasksInfoTask: public Task {
-	Q_OBJECT
+    Q_OBJECT
 public:
     GetUserTasksInfoTask(RemoteServiceMachine* machine);
     virtual void run();
@@ -50,7 +49,7 @@ private:
 };
 
 class FetchRemoteTaskResultTask : public Task {
-	Q_OBJECT
+    Q_OBJECT
 public:
     FetchRemoteTaskResultTask(RemoteServiceMachine* machine, const QStringList& resultUrls, qint64 taskId);
     virtual void run();
@@ -59,7 +58,7 @@ private:
     QStringList resultUrls;
     qint64 taskId;
 };
-  
+
 
 class DeleteRemoteDataTask : public Task {
 public:

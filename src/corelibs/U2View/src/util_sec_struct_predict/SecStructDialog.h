@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,13 +28,12 @@
 namespace U2 {
 
 class ADVSequenceObjectContext;
-class SecStructPredictTask;  
+class SecStructPredictTask;
 class SecStructPredictAlgRegistry;
 class Task;
 
-class U2VIEW_EXPORT SecStructDialog : public QDialog, private Ui::SecStructDialog    {
+class U2VIEW_EXPORT SecStructDialog : public QDialog, private Ui::SecStructDialog {
     Q_OBJECT
-
 public:
     SecStructDialog(ADVSequenceObjectContext* ctx, QWidget *p = NULL);
 
@@ -49,9 +48,12 @@ private:
     int rangeStart;
     int rangeEnd;
     QList<SharedAnnotationData> results;
-    ADVSequenceObjectContext* ctx;
-    SecStructPredictTask* task;
-    SecStructPredictAlgRegistry* sspr;
+    ADVSequenceObjectContext *ctx;
+    SecStructPredictTask *task;
+    SecStructPredictAlgRegistry *sspr;
+    QPushButton *saveAnnotationButton;
+    QPushButton *startButton;
+    QPushButton *cancelButton;
     void connectGUI();
     void updateState();
     void showResults();

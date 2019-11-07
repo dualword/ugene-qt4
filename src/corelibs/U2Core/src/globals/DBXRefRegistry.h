@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,8 +35,8 @@ namespace U2 {
 class U2CORE_EXPORT DBXRefInfo {
 public:
     DBXRefInfo(){};
-    DBXRefInfo(const QString& _name, const QString& _url, 
-               const QString& _fileUrl, const QString& _comment) 
+    DBXRefInfo(const QString& _name, const QString& _url,
+               const QString& _fileUrl, const QString& _comment)
                : name(_name), url(_url), fileUrl(_fileUrl), comment(_comment){}
 
     QString name;
@@ -45,7 +45,7 @@ public:
     QString comment;
 
     static void setupToEngine(QScriptEngine *engine);
-private:    
+private:
     static QScriptValue toScriptValue(QScriptEngine *engine, DBXRefInfo const &in);
     static void fromScriptValue(const QScriptValue &object, DBXRefInfo &out);
 };

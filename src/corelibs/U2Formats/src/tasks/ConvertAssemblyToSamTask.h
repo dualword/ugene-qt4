@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,13 +23,11 @@
 #define _U2_CONVERT_ASSEMBLY_TO_SAM_TASK_H_
 
 #include <U2Core/AssemblyObject.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/Task.h>
 #include <U2Core/GUrl.h>
 
 namespace U2 {
 
-class LoadDocumentTask;
 class DbiConnection;
 
 class U2FORMATS_EXPORT ConvertAssemblyToSamTask : public Task {
@@ -37,12 +35,18 @@ class U2FORMATS_EXPORT ConvertAssemblyToSamTask : public Task {
 public:
     ConvertAssemblyToSamTask(GUrl dbFileUrl, GUrl samFileUrl);
     ConvertAssemblyToSamTask(const DbiConnection *handle, GUrl samFileUrl);
+
+    /** Converts only one assembly object to a SAM file */
+    ConvertAssemblyToSamTask(const U2EntityRef& entityRef, GUrl samFileUrl);
+
     void run();
     QString generateReport() const;
 
 private:
     GUrl dbFileUrl;
     GUrl samFileUrl;
+
+    U2EntityRef assemblyEntityRef;
 
     const DbiConnection *handle;
 };

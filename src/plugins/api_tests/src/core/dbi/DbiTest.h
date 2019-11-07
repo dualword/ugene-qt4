@@ -2,26 +2,31 @@
 #define DBITEST_H
 
 #include <U2Core/U2Dbi.h>
-#include <U2Test/TestRunnerSettings.h>
-#include <gtest/gtest.h>
-#include <memory>
-
+#include <unittest.h>
 
 namespace U2 {
 
-class BaseDbiTest : public ::testing::TestWithParam<APITestData> {
+/*Helper to provide dbi for tests tests.
+In case you need to open a connection within your test useConnectionPool must be true to use the connection pool
+if you don't need to open connections within your test useConnectionPool must be false to use created dbi without the pool*/
+
+class TestDbiProvider{
 public:
-    static const QString DB_URL;
+    TestDbiProvider();
+    ~TestDbiProvider();
 
-protected:
-    virtual void SetUp();
-    virtual void TearDown();
-
-protected:
-    std::auto_ptr<U2Dbi> dbi;
-    QHash<QString, QString> properties;
-    APITestData testData;
+    bool init(const QString& dbiFileName, bool useConnectionPool);
+    void close();
+    U2Dbi* getDbi();
+private:
+    bool initialized;
+    bool useConnectionPool;
+    QString dbUrl;
+    U2Dbi* dbi;
 };
+
+template<> inline QString toString<U2DataId>(const U2DataId &a) { return "0x" + QString(a.toHex()); }
+template<> inline QString toString<U2Region>(const U2Region &r) { return r.toString(); }
 
 } // namespace U2
 

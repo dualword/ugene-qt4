@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -39,8 +39,8 @@ public:
     BAMInfo(const BAMInfo& src) : header(src.header), selected(src.selected), index(src.index), _hasIndex(src._hasIndex), unmappedSelected(src.unmappedSelected) {}
 
     inline QList<bool>& getSelected() { return selected; }
-    inline bool hasIndex() { return _hasIndex; }
-    inline bool isReferenceSelected(int id) { if(id == -1) return unmappedSelected; else return selected.at(id); } 
+    inline bool hasIndex() const { return _hasIndex; }
+    inline bool isReferenceSelected(int id) { if(id == -1) return unmappedSelected; else return selected.at(id); }
     inline Index& getIndex() { return index; }
     inline const Header& getHeader() { return header; }
     inline bool isUnmappedSelected() { return unmappedSelected; }
@@ -63,7 +63,7 @@ public:
     inline BAMInfo& getInfo() { return bamInfo; }
     const GUrl& getSourceUrl() const;
     bool isSam() const { return sam; }
-private:    
+private:
     const GUrl sourceUrl;
     BAMInfo bamInfo;
     bool sam;

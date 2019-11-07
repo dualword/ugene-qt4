@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,8 +26,11 @@
 
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
+#include <QtCore/QReadWriteLock>
 
 namespace U2 {
+
+#define MAX_CACHE_SIZE 5000
 
 class U2CORE_EXPORT LogFilterItem {
 public:
@@ -47,22 +50,24 @@ public:
 };
 
 
-class U2CORE_EXPORT LogCache : public QObject {
+class U2CORE_EXPORT LogCache : public QObject, public LogListener {
     Q_OBJECT
 public:
-    LogCache();
+    LogCache(int maxLogMessages = MAX_CACHE_SIZE);
     virtual ~LogCache();
 
     static void setAppGlobalInstance(LogCache* cache);
     static LogCache* getAppGlobalInstance() {return appGlobalCache;}
-    
-protected slots:
-    virtual void sl_onMessage(const LogMessage& msg);
+
+    virtual void onMessage(const LogMessage& msg);
+    QList<LogMessage> getLastMessages(int count = -1);
 
 private:
     static LogCache* appGlobalCache;
     void updateSize();
 
+    QReadWriteLock lock;
+    int maxLogMessages;
 public:
     QList<LogMessage*> messages;
     LogFilter filter;
@@ -74,15 +79,16 @@ class U2CORE_EXPORT LogCacheExt : public LogCache {
     Q_OBJECT
 public:
     LogCacheExt();
-    
+
     void setConsoleOutputEnabled(bool enabled) {consoleEnabled = enabled;}
     bool isConsoleOutputEnabled() const {return consoleEnabled;}
 
     bool setFileOutputEnabled(const QString& file);
+    void setFileOutputDisabled();
     bool isFileOutputEnabled() const {return fileEnabled;}
     QString getFileOutputPath() const {return QFileInfo(file).canonicalFilePath();}
-protected slots:
-    virtual void sl_onMessage(const LogMessage& msg);
+
+    virtual void onMessage(const LogMessage& msg);
 
 
 private:

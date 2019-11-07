@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,28 +26,29 @@
 #include <U2Core/GUrl.h>
 #include <U2Core/U2Region.h>
 #include <U2Core/MAlignmentObject.h>
-#include <U2Core/LoadDocumentTask.h>
-
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentProviderTask.h>
 
 namespace U2{
 
-
 class U2ALGORITHM_EXPORT CreateSubalignmentSettings {
 public:
-    CreateSubalignmentSettings(const U2Region& w, const QStringList& sNames, const GUrl& path, bool save, bool add) 
-        : window(w), seqNames(sNames), url(path), saveImmediately(save), addToProject(add) {}
-    
-    U2Region    window;
-    QStringList seqNames;
-    GUrl        url;
-    bool        saveImmediately;
-    bool        addToProject;
+    CreateSubalignmentSettings(){}
+    CreateSubalignmentSettings(const U2Region& w, const QStringList& sNames, const GUrl& path, bool save, bool add, DocumentFormatId formatId)
+        : window(w), seqNames(sNames), url(path), saveImmediately(save), addToProject(add), formatIdToSave(formatId) {}
+
+    U2Region         window;
+    QStringList      seqNames;
+    GUrl             url;
+    bool             saveImmediately;
+    bool             addToProject;
+    DocumentFormatId formatIdToSave;
 };
-   
-    
+
+
 class U2ALGORITHM_EXPORT CreateSubalignmentTask : public DocumentProviderTask {
     Q_OBJECT
-public:    
+public:
     CreateSubalignmentTask(MAlignmentObject* _maObj, const CreateSubalignmentSettings& settings );
 
     virtual void prepare();
@@ -57,10 +58,32 @@ private:
     Document*                   origDoc;
     MAlignmentObject*           origMAObj;
     MAlignmentObject*           resultMAObj;
-    
+
     CreateSubalignmentSettings  cfg;
     bool                        createCopy;
 };
+
+class U2ALGORITHM_EXPORT SubalignmentToClipboardTask : public Task {
+    Q_OBJECT
+public:
+    SubalignmentToClipboardTask(MAlignmentObject* _maObj, const QRect& selectionRect, const DocumentFormatId& formatId);
+    virtual void prepare();
+
+protected:
+    virtual QList<Task*> onSubTaskFinished(Task* subTask);
+
+private:
+    CreateSubalignmentSettings defineSettings(MAlignmentObject* _maObj, const QRect& selectionRect, const DocumentFormatId& formatId, U2OpStatus& os);
+
+private:
+    MAlignmentObject *       maObj;
+    QRect                    selectionRect;
+    DocumentFormatId         formatId;
+    CreateSubalignmentTask*  createSubalignmentTask;
+
+
+};
+
 
 }
 

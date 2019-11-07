@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,6 +26,8 @@
 #include "InvalidFormatException.h"
 #include "SamReader.h"
 #include "CigarValidator.h"
+
+#include <SamtoolsAdapter.h>
 
 namespace U2 {
 namespace BAM {
@@ -200,6 +202,7 @@ Alignment SamReader::parseAlignmentString(QByteArray line) {
             }
             alignment.setNextReferenceId(referencesMap[nextReference]);
         }
+        alignment.setNextReferenceName(nextReference);
     }
     {
         bool ok = false;
@@ -241,21 +244,17 @@ Alignment SamReader::parseAlignmentString(QByteArray line) {
         }
     }
     {
+        QByteArray samAuxString;
+        bool first = true;
         QMap<QByteArray, QVariant> optionalFields;
         for (int i = 11; i < tokens.length(); i++) {
-            QList<QByteArray> opt = tokens[i].split(':');
-            if(opt.length() != 3) {
-                throw InvalidFormatException(BAMDbiPlugin::tr("Invalid optional field: %1").arg(QString(tokens[i])));
+            if (!first) {
+                samAuxString += '\t';
             }
-            QByteArray tag = opt[0];
-            if(!QRegExp("[A-Za-z][A-Za-z0-9]").exactMatch(tag)) {
-                throw InvalidFormatException(BAMDbiPlugin::tr("Invalid optional field tag: %1").arg(QString(tag)));
-            }
-
-            QVariant value = opt[2];
-            optionalFields.insert(tag, value);
+            samAuxString += tokens[i];
+            first = false;
         }
-        alignment.setOptionalFields(optionalFields);
+        alignment.setAuxData(SamtoolsAdapter::samString2aux(samAuxString));
     }
     {
         // Validation of the CIGAR string.
@@ -319,6 +318,10 @@ void SamReader::readHeader() {
         QList<Header::Program> programs;
         QList<QByteArray> previousProgramIds;
         while((len = ioAdapter.readLine(buff, READ_BUFF_SIZE, &lineOk)) >= 0) {
+            if(isEof()){
+                break;
+            }
+
             QByteArray line = QByteArray::fromRawData(buff, len);
             if(line.isEmpty()) {
                 continue;
@@ -356,7 +359,8 @@ void SamReader::readHeader() {
                     if(!QRegExp("[A-Za-z][A-Za-z]").exactMatch(fieldTag) && "M5" != fieldTag) { //workaround for bug in the spec
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid header field tag: %1").arg(QString(fieldTag)));
                     }
-                    if(!QRegExp("[ -~]+").exactMatch(fieldValue)) {
+                    // CL and PN tags of can contain any string
+                    if(fieldTag!="CL" && fieldTag!="PN" && !QRegExp("[ -~]+").exactMatch(fieldValue)) {
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid %1-%2 value: %3").arg(QString(recordTag)).arg(QString(fieldTag)).arg(QString(fieldValue)));
                     }
                     if(!fields.contains(fieldTag)) {
@@ -425,7 +429,7 @@ void SamReader::readHeader() {
                 if(fields.contains("M5")) {
                     QByteArray value = fields["M5"];
                     //[a-f] is a workaround (not matching to SAM-1.3 spec) to open 1000 Genomes project BAMs
-                    if(!QRegExp("[0-9A-Fa-f]+").exactMatch(value)) { 
+                    if(!QRegExp("[0-9A-Fa-f]+").exactMatch(value)) {
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid SQ-M5 value: %1").arg(QString(value)));
                     }
                     reference->setMd5(fields["M5"]);

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,16 +25,24 @@
 #include <U2Lang/ActorModel.h>
 #include <U2Lang/ActorPrototypeRegistry.h>
 
+#include <ui/ui_PaletteWidget.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QTreeWidget>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QTreeWidget>
+#endif
 
 namespace U2 {
 using namespace Workflow;
+class NameFilterLayout;
 class WorkflowView;
 class WorkflowScene;
+class WorkflowPaletteElements;
 
-
-class WorkflowPalette : public QTreeWidget
+class WorkflowPalette : public QWidget, Ui_PaletteWidget
 {
     Q_OBJECT
 
@@ -42,7 +50,8 @@ public:
     static const QString MIME_TYPE;
 
     WorkflowPalette(ActorPrototypeRegistry* reg, QWidget *parent = 0);
-    QMenu* createMenu(const QString& name);
+    QMenu * createMenu(const QString &name);
+    void createMenu(QMenu *menu);
 
     QVariant saveState() const;
     void restoreState(const QVariant&);
@@ -54,7 +63,35 @@ signals:
     void processSelected(Workflow::ActorPrototype*);
     void si_protoDeleted(const QString &);
     void si_protoChanged();
-    
+    void si_protoListModified();
+private:
+    NameFilterLayout *nameFilter;
+    WorkflowPaletteElements *elementsList;
+    friend class PaletteDelegate;
+};
+
+class WorkflowPaletteElements : public QTreeWidget {
+    Q_OBJECT
+
+public:
+
+    WorkflowPaletteElements(ActorPrototypeRegistry* reg, QWidget *parent = 0);
+    QMenu * createMenu(const QString &name);
+    void createMenu(QMenu *menu);
+
+    QVariant saveState() const;
+    void restoreState(const QVariant&);
+
+public slots:
+    void resetSelection();
+    void sl_nameFilterChanged(const QString &filter);
+
+signals:
+    void processSelected(Workflow::ActorPrototype*);
+    void si_protoDeleted(const QString &);
+    void si_protoChanged();
+    void si_protoListModified();
+
 protected:
     void contextMenuEvent(QContextMenuEvent *e);
     void mouseMoveEvent ( QMouseEvent * event );
@@ -73,12 +110,20 @@ private:
     QAction* createItemAction(Workflow::ActorPrototype* item);
     void setContent(ActorPrototypeRegistry*);
     void sortTree();
+    QVariant changeState(const QVariant& v);
+
 private:
     QMap<QString,QList<QAction*> > categoryMap;
     QMap<QAction*, QTreeWidgetItem*> actionMap;
     QTreeWidgetItem *overItem;
     QAction* currentAction;
     QPoint dragStartPosition;
+    QString nameFilter;
+    QString oldNameFilter;
+
+    ActorPrototypeRegistry *protoRegistry;
+    QVariantMap expandState;
+
     friend class PaletteDelegate;
 };
 

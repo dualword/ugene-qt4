@@ -1,8 +1,33 @@
-#include "ExpertDiscoveryExtSigWiz.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
+#include <QMessageBox>
+
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include "ExpertDiscoveryAdvSetDialog.h"
-
-#include <QtGui/QMessageBox>
+#include "ExpertDiscoveryExtSigWiz.h"
 
 namespace U2 {
 
@@ -12,6 +37,8 @@ ExpertDiscoveryExtSigWiz::ExpertDiscoveryExtSigWiz(QWidget *parent, CSFolder* f,
 ,folder(NULL){
 
     setupUi(this);
+    new U2::HelpButton(this, button(QWizard::HelpButton), "8093716");
+
 //1 page
     connect(advancedButton, SIGNAL(clicked()), SLOT(sl_advButton()));
     state.setDefaultState();
@@ -37,7 +64,7 @@ ExpertDiscoveryExtSigWiz::ExpertDiscoveryExtSigWiz(QWidget *parent, CSFolder* f,
     samplesBoundEdit->setValidator(d0_maxValid);
     levelBoundEdit->setValidator(d0_1Valid);
 
-//2 page 
+//2 page
     initSet();
 
     predicatesTree->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -65,7 +92,7 @@ ExpertDiscoveryExtSigWiz::ExpertDiscoveryExtSigWiz(QWidget *parent, CSFolder* f,
     connect(createSubfolderButton, SIGNAL(clicked()), SLOT(sl_createSubfolder()));
 
     connect(this, SIGNAL(currentIdChanged ( int )), this, SLOT( sl_idChanged(int )));
-    
+
     hideParameters();
 }
 
@@ -78,7 +105,7 @@ ExpertDiscoveryExtSigWiz::~ExpertDiscoveryExtSigWiz(){
 }
 
 void ExpertDiscoveryExtSigWiz::sl_advButton(){
-    ExpertDiscoveryAdvSetDialog adv (this,
+    QObjectScopedPointer<ExpertDiscoveryAdvSetDialog> adv = new ExpertDiscoveryAdvSetDialog(this,
         state.dIntProbability,
         state.dIntFisher,
         state.nMinComplexity,
@@ -88,10 +115,7 @@ void ExpertDiscoveryExtSigWiz::sl_advButton(){
         state.dMinNegCorrelation,
         state.dMaxNegCorrelation,
         state.bCorrelationImportant);
-    if(adv.exec()){
-
-    }
-
+    adv->exec();
 }
 
 void ExpertDiscoveryExtSigWiz::sl_distButton(){
@@ -99,7 +123,7 @@ void ExpertDiscoveryExtSigWiz::sl_distButton(){
     QTreeWidgetItem *op = new QTreeWidgetItem(distItem);
     op->setText(0, QString::fromStdString(pOp->getDescription()));
     void* pointer = (void*)pOp;
-    QVariant variant = qVariantFromValue<void*>(pointer);
+    QVariant variant = QVariant::fromValue(pointer);
     op->setData(0, Qt::UserRole, variant);
 
     predicatesTree->setCurrentItem(op);
@@ -111,7 +135,7 @@ void ExpertDiscoveryExtSigWiz::sl_repetButton(){
     QTreeWidgetItem *op = new QTreeWidgetItem(repetItem);
     op->setText(0, QString::fromStdString(pOp->getDescription()));
     void* pointer = (void*)pOp;
-    QVariant variant = qVariantFromValue<void*>(pointer);
+    QVariant variant = QVariant::fromValue(pointer);
     op->setData(0, Qt::UserRole, variant);
     //predicatesTree->clearSelection();
     predicatesTree->setCurrentItem(op);
@@ -123,7 +147,7 @@ void ExpertDiscoveryExtSigWiz::sl_intervButton(){
     QTreeWidgetItem *op = new QTreeWidgetItem(intervItem);
     op->setText(0, QString::fromStdString(pOp->getDescription()));
     void* pointer = (void*)pOp;
-    QVariant variant = qVariantFromValue<void*>(pointer);
+    QVariant variant = QVariant::fromValue(pointer);
     op->setData(0, Qt::UserRole, variant);
     //predicatesTree->clearSelection();
     predicatesTree->setCurrentItem(op);
@@ -136,8 +160,8 @@ void ExpertDiscoveryExtSigWiz::sl_deleteButton(){
     }
     QTreeWidgetItem* item = predicatesTree->selectedItems().first();
     QVariant variant = item->data(0, Qt::UserRole);
-    void* pointer = qVariantValue<void*>(variant);
-    Operation* pOp = (Operation*) pointer;
+    void* pointer = variant.value<void*>();
+    Operation* pOp = static_cast<Operation *>(pointer);
     if (pOp == NULL)
         return;
     if (sigSetLayout->currentIndex() != T_UNDEFINED) {
@@ -159,9 +183,9 @@ void ExpertDiscoveryExtSigWiz::sl_idChanged(int id){
 
             if(minCom>maxCom || minCom<0){
                 back();
-                QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr("Minimal complexity must not be grater then maximal complexity and positive"));
-                mb.exec();
-                break;
+                QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr("Minimal complexity must not be grater then maximal complexity and positive"));
+                mb->exec();
+                return;
             }else{
                 if(!(checkD(condProbLevEdit) && checkD(coverBoundEdit)
                     && checkD(fishCritEdit) && checkD(levelBoundEdit)
@@ -175,8 +199,9 @@ void ExpertDiscoveryExtSigWiz::sl_idChanged(int id){
             sl_selectionChanged(predicatesTree->currentItem(), predicatesTree->currentItem());
             if((intervItem->childCount() == 0 ) && (repetItem->childCount() == 0 ) && (distItem->childCount() == 0 ) && !alignedCheck->isChecked()){
                 back();
-                QMessageBox mb(QMessageBox::Critical, tr("No predicates"), tr("Create a predicate to perform signal generation"));
-                mb.exec();
+                QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("No predicates"), tr("Create a predicate to perform signal generation"));
+                mb->exec();
+                return;
             }
     }
 }
@@ -185,12 +210,13 @@ void ExpertDiscoveryExtSigWiz::sl_createSubfolder(){
     QString folderName = folderNameEdit->text();
 
     if(folderName.isEmpty()){
-        QMessageBox mb(QMessageBox::Critical, tr("Specify folder name"), tr("Please specify a name for your folder"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Specify folder name"), tr("Please specify a name for your folder"));
+        mb->exec();
+        CHECK(!mb.isNull(), );
         folderNameEdit->setFocus();
         return;
     }
-    
+
     QTreeWidgetItem* csItem = treeFoldersWidget->topLevelItem(0);
     assert(csItem!=NULL);
 
@@ -204,8 +230,9 @@ void ExpertDiscoveryExtSigWiz::sl_createSubfolder(){
     }
 
     if(!isUniqueName){
-        QMessageBox mb(QMessageBox::Critical, tr("Specify folder name"), tr("Item with the same name already exist. Please enter another name"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Specify folder name"), tr("Item with the same name already exist. Please enter another name"));
+        mb->exec();
+        CHECK(!mb.isNull(), );
         folderNameEdit->setFocus();
         return;
     }
@@ -221,7 +248,7 @@ void ExpertDiscoveryExtSigWiz::predicatesByDefault(bool isLetters){
             QTreeWidgetItem *op = new QTreeWidgetItem(distItem);
             op->setText(0, QString::fromStdString(pOp->getDescription()));
             void* pointer = (void*)pOp;
-            QVariant variant = qVariantFromValue<void*>(pointer);
+            QVariant variant = QVariant::fromValue(pointer);
             op->setData(0, Qt::UserRole, variant);
             distItem->setExpanded(true);
         }
@@ -232,7 +259,7 @@ void ExpertDiscoveryExtSigWiz::predicatesByDefault(bool isLetters){
             QTreeWidgetItem *op = new QTreeWidgetItem(distItem);
             op->setText(0, QString::fromStdString(pOp->getDescription()));
             void* pointer = (void*)pOp;
-            QVariant variant = qVariantFromValue<void*>(pointer);
+            QVariant variant = QVariant::fromValue(pointer);
             op->setData(0, Qt::UserRole, variant);
             distItem->setExpanded(true);
         }
@@ -249,8 +276,8 @@ void ExpertDiscoveryExtSigWiz::accept(){
     QList<QTreeWidgetItem*> ch = distItem->takeChildren();
     foreach(QTreeWidgetItem* item, ch){
         variant = item->data(0, Qt::UserRole);
-        pointer = qVariantValue<void*>(variant);
-        pOp = (Operation*) pointer;
+        pointer = variant.value<void*>();
+        pOp = static_cast<Operation *>(pointer);
         predicates.push_back(pOp);
         delete item;
     }
@@ -258,8 +285,8 @@ void ExpertDiscoveryExtSigWiz::accept(){
     ch = repetItem->takeChildren();
     foreach(QTreeWidgetItem* item, ch){
         variant = item->data(0, Qt::UserRole);
-        pointer = qVariantValue<void*>(variant);
-        pOp = (Operation*) pointer;
+        pointer = variant.value<void*>();
+        pOp = static_cast<Operation *>(pointer);
         predicates.push_back(pOp);
         delete item;
     }
@@ -267,8 +294,8 @@ void ExpertDiscoveryExtSigWiz::accept(){
     ch = intervItem->takeChildren();
     foreach(QTreeWidgetItem* item, ch){
         variant = item->data(0, Qt::UserRole);
-        pointer = qVariantValue<void*>(variant);
-        pOp = (Operation*) pointer;
+        pointer = variant.value<void*>();
+        pOp = static_cast<Operation *>(pointer);
         predicates.push_back(pOp);
         delete item;
     }
@@ -277,13 +304,14 @@ void ExpertDiscoveryExtSigWiz::accept(){
         for(int i = 0; i < posSize; i++){
             OpInterval *pOp = new OpInterval;
             pOp->setInt(Interval(i, i));
-            predicates.push_back((Operation*)pOp);
+            predicates.push_back(pOp);
         }
     }
-    
+
     if(predicates.empty()){
-        QMessageBox mb(QMessageBox::Critical, tr("No predicates"), tr("Create a predicate to perform signal generation"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("No predicates"), tr("Create a predicate to perform signal generation"));
+        mb->exec();
+        CHECK(!mb.isNull(), );
     }else{
         //page 1
         state.dProbability = condProbLevEdit->text().toDouble();
@@ -299,17 +327,15 @@ void ExpertDiscoveryExtSigWiz::accept(){
 
         //page 3
         if(!treeFoldersWidget->selectedItems().isEmpty()){
-            QTreeWidgetItem* item = treeFoldersWidget->selectedItems().first();    
+            QTreeWidgetItem* item = treeFoldersWidget->selectedItems().first();
             QVariant variant = item->data(0, Qt::UserRole);
-            void* pointer = qVariantValue<void*>(variant);
-            CSFolder* f = (CSFolder*) pointer;
+            void* pointer = variant.value<void*>();
+            CSFolder* f = static_cast<CSFolder *>(pointer);
             folder = f;
         }
 
         QWizard::accept();
     }
-    
-
 }
 
 void ExpertDiscoveryExtSigWiz::hideParameters(){
@@ -323,7 +349,6 @@ void ExpertDiscoveryExtSigWiz::hideParameters(){
     label_6->hide();
     levelBoundEdit->hide();
     advancedButton->hide();
-   
 }
 
 bool ExpertDiscoveryExtSigWiz::checkD(const QLineEdit* lineE) const{
@@ -335,8 +360,8 @@ bool ExpertDiscoveryExtSigWiz::checkD(const QLineEdit* lineE) const{
         QString textValue=lineE->text();
         if(validator->validate(textValue,pos)!=QValidator::Acceptable){
         QString msg = QString("Entered value must be from %1 to %2").arg(validator->bottom()).arg(validator->top());
-        QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr(msg.toStdString().c_str()));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr(msg.toStdString().c_str()));
+        mb->exec();
         return false;
     }
     return true;
@@ -350,14 +375,14 @@ void ExpertDiscoveryExtSigWiz::updateTree(const CSFolder* pFolder, QTreeWidgetIt
         pFolder = folder;
         strName = tr("Complex signals");
         nTreeItem = new QTreeWidgetItem(treeFoldersWidget);
- 
+
     }else{
         strName = pFolder->getName();
         nTreeItem = new QTreeWidgetItem(treeItem);
     }
     nTreeItem->setText(0,strName);
     void* pointer = (void*)pFolder;
-    QVariant variant = qVariantFromValue<void*>(pointer);
+    QVariant variant = QVariant::fromValue(pointer);
     nTreeItem->setData(0, Qt::UserRole, variant);
     int nFolderNum = pFolder->getFolderNumber();
     for (int i=0; i<nFolderNum; i++){
@@ -379,11 +404,11 @@ void ExpertDiscoveryExtSigWiz::sl_selectionChanged (QTreeWidgetItem * current, Q
 
     if(previous != distItem && previous != intervItem && previous != repetItem && sigSet[curIndex]->isReadyToClose() && curIndex != T_UNDEFINED){
         QVariant variant = previous->data(0, Qt::UserRole);
-        void* pointer = qVariantValue<void*>(variant);
-        Operation* pOp = (Operation*) pointer;
+        void* pointer = variant.value<void*>();
+        Operation* pOp = static_cast<Operation *>(pointer);
         sigSet[curIndex]->saveData(pOp);
         previous->setText(0, QString::fromStdString(pOp->getDescription()));
-        variant = qVariantFromValue<void*>(pointer);
+        variant = QVariant::fromValue(pointer);
         previous->setData(0, Qt::UserRole, variant);
         sigSetLayout->setCurrentIndex(T_UNDEFINED);
     }
@@ -395,18 +420,18 @@ void ExpertDiscoveryExtSigWiz::sl_selectionChanged (QTreeWidgetItem * current, Q
     }else if(current->parent()==distItem){
         sigSetLayout->setCurrentIndex(T_DISTANCE);
         QVariant variant = current->data(0,Qt::UserRole);
-        void* dataP = qVariantValue<void*>(variant);
-        ((DistanceSet*)sigSet[T_DISTANCE])->loadData(dataP);
+        void* dataP = variant.value<void*>();
+        static_cast<DistanceSet *>(sigSet[T_DISTANCE])->loadData(dataP);
     }else if(current->parent()==intervItem){
         sigSetLayout->setCurrentIndex(T_INTERVAL);
         QVariant variant = current->data(0,Qt::UserRole);
-        void* dataP = qVariantValue<void*>(variant);
-        ((IntervalSet*)sigSet[T_INTERVAL])->loadData(dataP);
+        void* dataP = variant.value<void*>();
+        static_cast<IntervalSet *>(sigSet[T_INTERVAL])->loadData(dataP);
     }else if(current->parent()==repetItem){
         sigSetLayout->setCurrentIndex(T_REITERATION);
         QVariant variant = current->data(0,Qt::UserRole);
-        void* dataP = qVariantValue<void*>(variant);
-        ((RepetitionSet*)sigSet[T_REITERATION])->loadData(dataP);
+        void* dataP = variant.value<void*>();
+        static_cast<RepetitionSet *>(sigSet[T_REITERATION])->loadData(dataP);
     }
 }
 
@@ -476,7 +501,7 @@ DistanceSet::DistanceSet (QWidget* parent)
 }
 
 void DistanceSet::loadData(void *pData){
-    OpDistance *pOp = reinterpret_cast<OpDistance*>(pData);
+    OpDistance *pOp = static_cast<OpDistance*>(pData);
     Interval i = pOp->getDistance();
     from = i.getFrom();
     to = i.getTo();
@@ -487,7 +512,7 @@ void DistanceSet::loadData(void *pData){
     updateData(false);
 }
 void DistanceSet::saveData(void *pData){
-    OpDistance *pOp = reinterpret_cast<OpDistance*>(pData);
+    OpDistance *pOp = static_cast<OpDistance*>(pData);
     updateData();
     if (isMaxUNL) to = PINF;
     pOp->setDistance( Interval(from, to) );
@@ -498,8 +523,8 @@ bool DistanceSet::isReadyToClose(){
     updateData();
     if (isMaxUNL) to = PINF;
     if ( from > to ) {
-        QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
+        mb->exec();
         return false;
     }
     else return true;
@@ -560,7 +585,7 @@ IntervalSet::IntervalSet (QWidget* parent)
 }
 
 void IntervalSet::loadData(void *pData){
-    OpInterval *pOp = reinterpret_cast<OpInterval*>(pData);
+    OpInterval *pOp = static_cast<OpInterval*>(pData);
     Interval i = pOp->getInt();
     from = i.getFrom();
     to = i.getTo();
@@ -570,7 +595,7 @@ void IntervalSet::loadData(void *pData){
     updateData(false);
 }
 void IntervalSet::saveData(void *pData){
-    OpInterval *pOp = reinterpret_cast<OpInterval*>(pData);
+    OpInterval *pOp = static_cast<OpInterval*>(pData);
     updateData();
     if (isMaxUNL) to = PINF;
     pOp->setInt( Interval(from, to) );
@@ -580,8 +605,8 @@ bool IntervalSet::isReadyToClose(){
     updateData();
     if (isMaxUNL) to = PINF;
     if ( from > to ) {
-        QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
+        mb->exec();
         return false;
     }
     else return true;
@@ -651,7 +676,7 @@ RepetitionSet::RepetitionSet (QWidget* parent)
 }
 
 void RepetitionSet::loadData(void *pData){
-    OpReiteration *pOp = reinterpret_cast<OpReiteration*>(pData);
+    OpReiteration *pOp = static_cast<OpReiteration*>(pData);
     Interval i = pOp->getCount();
     nmin = i.getFrom();
     nmax = i.getTo();
@@ -664,7 +689,7 @@ void RepetitionSet::loadData(void *pData){
     updateData(false);
 }
 void RepetitionSet::saveData(void *pData){
-    OpReiteration *pOp = reinterpret_cast<OpReiteration*>(pData);
+    OpReiteration *pOp = static_cast<OpReiteration*>(pData);
     updateData();
     if (isMaxUNL) max = PINF;
     pOp->setCount( Interval(nmin, nmax) );
@@ -675,14 +700,14 @@ bool RepetitionSet::isReadyToClose(){
     updateData();
     if ( isMaxUNL ) max = PINF;
     if ( min > max ) {
-        QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
+        mb->exec();
         return false;
     }
     else
     if ( nmin > nmax ) {
-        QMessageBox mb(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
-        mb.exec();
+        QObjectScopedPointer<QMessageBox> mb = new QMessageBox(QMessageBox::Critical, tr("Wrong parameters"), tr("Higher bound must be grater then lower bound"));
+        mb->exec();
         return false;
     }
     else return true;

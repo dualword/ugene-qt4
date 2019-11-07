@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,48 +22,53 @@
 #ifndef _U2_DNA_SEQUENCE_OBJECT_H_
 #define _U2_DNA_SEQUENCE_OBJECT_H_
 
-#include <U2Core/GObject.h>
-#include <U2Core/U2Type.h>
 #include <U2Core/DNASequence.h>
+#include <U2Core/GObject.h>
+#include <U2Core/U2Region.h>
+#include <U2Core/U2Type.h>
 
 namespace U2 {
 
 class DNAAlphabet;
-class U2Region;
 class U2OpStatus;
-
 
 class U2CORE_EXPORT U2SequenceObject : public GObject {
     Q_OBJECT
 public:
     U2SequenceObject(const QString& name, const U2EntityRef& seqRef, const QVariantMap& hintsMap = QVariantMap());
-    
+
     U2EntityRef getSequenceRef() const {return getEntityRef();}
 
     qint64 getSequenceLength() const;
 
-    QString getSequenceName() const ;
+    QString getSequenceName() const;
 
-    DNASequence getWholeSequence() const;
-    
-    QByteArray getWholeSequenceData() const;
-    
+    DNASequence getSequence(const U2Region &region, U2OpStatus& os) const;
+    DNASequence getWholeSequence(U2OpStatus& os) const;
+
+    QByteArray getWholeSequenceData(U2OpStatus& os) const;
+
+    /** Obsolete, use the next method instead */
     QByteArray getSequenceData(const U2Region& r) const;
+
+    QByteArray getSequenceData(const U2Region& r, U2OpStatus& os) const;
 
     /** Checks whether getting object from dbi can be performed correctly, error returned through U2OpStatus */
     bool isValidDbiObject(U2OpStatus &os);
-    
+
     void setWholeSequence(const DNASequence& seq);
 
+    virtual void setGObjectName(const QString& newName);
+
     bool isCircular() const;
-    
+
     void setCircular(bool v);
 
-    DNAAlphabet* getAlphabet() const;
+    const DNAAlphabet* getAlphabet() const;
 
     void replaceRegion(const U2Region& region, const DNASequence& seq, U2OpStatus& os);
 
-    GObject* clone(const U2DbiRef& ref, U2OpStatus& os) const;
+    GObject* clone(const U2DbiRef& ref, U2OpStatus& os, const QVariantMap &hints = QVariantMap()) const;
 
     bool checkConstraints(const GObjectConstraints* c) const;
 
@@ -71,37 +76,46 @@ public:
 
     DNAQuality getQuality() const;
 
-	void setSequenceInfo(const QVariantMap& info);
+    void setSequenceInfo(const QVariantMap& info);
 
-	QVariantMap getSequenceInfo() const;
+    QVariantMap getSequenceInfo() const;
 
-	QString getStringAttribute(const QString& seqAttr) const;
+    QString getStringAttribute(const QString& seqAttr) const;
 
-	void setStringAttribute(const QString& newStringAttributeValue, const QString& type);
+    void setStringAttribute(const QString& newStringAttributeValue, const QString& type);
 
-	qint64 getIntegerAttribute(const QString& seqAttr) const;
+    qint64 getIntegerAttribute(const QString& seqAttr) const;
 
-	void setIntegerAttribute(int newIntegerAttributeValue, const QString& type);
+    void setIntegerAttribute(int newIntegerAttributeValue, const QString& type);
 
-	double getRealAttribute(const QString& seqAttr) const;
+    double getRealAttribute(const QString& seqAttr) const;
 
-	void setRealAttribute(double newRealAttributeValue, const QString& type);
+    void setRealAttribute(double newRealAttributeValue, const QString& type);
 
-	QByteArray getByteArrayAttribute(const QString& seqAttr) const;
+    QByteArray getByteArrayAttribute(const QString& seqAttr) const;
 
-	void setByteArrayAttribute(const QByteArray& newByteArrayAttributeValue, const QString& type);
+    void setByteArrayAttribute(const QByteArray& newByteArrayAttributeValue, const QString& type);
 
-	
+    static bool lessThan( const U2SequenceObject *one, const U2SequenceObject *two){return one->name < two->name;}
+
+    static qint64 getMaxSeqLengthForX86Os();
+
+    static const QString MAX_SEQ_32_ERROR_MESSAGE;
 
 signals:
     void si_sequenceChanged();
+    void si_sequenceCircularStateChanged();
 
 protected:
-    mutable DNAAlphabet*    cachedAlphabet;
-    mutable qint64          cachedLength;
-    mutable QString         cachedName;
-    mutable TriState        cachedCircular;
+    static const qint64 MAX_SEQ_32;
 
+    void updateCachedValues() const;
+
+    mutable const DNAAlphabet*          cachedAlphabet;
+    mutable qint64                      cachedLength;
+    mutable QString                     cachedName;
+    mutable TriState                    cachedCircular;
+    mutable QPair<U2Region, QByteArray> cachedLastAccessedRegion;
 };
 
 

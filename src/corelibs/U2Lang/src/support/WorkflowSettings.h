@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,8 @@ signals:
 
 #define SETTINGS QString("workflowview/")
 
-class U2LANG_EXPORT WorkflowSettings {
+class U2LANG_EXPORT WorkflowSettings : public QObject {
+    Q_OBJECT
 public:
     static bool showGrid();
     static void setShowGrid(bool v);
@@ -50,8 +51,8 @@ public:
     static bool monitorRun();
     static void setMonitorRun(bool v);
 
-    /*static bool failFast();
-    static void setFailFast(bool v);*/
+    static bool isDebuggerEnabled();
+    static void setDebuggerEnabled(bool v);
 
     static QString defaultStyle();
     static void setDefaultStyle(const QString&);
@@ -64,23 +65,29 @@ public:
 
     static QColor getBGColor();
     static void setBGColor(const QColor &color);
-    
+
     static int getRunMode();
     static void setRunMode(int md);
-    
+
     static bool getScriptingMode();
     static void setScriptingMode(bool md);
-    
-    static bool runInSeparateProcess();
-    static void setRunInSeparateProcess(bool m);
-    static bool hasRunInSeparateProcess();
-    
-    static void setCmdlineUgenePath(const QString & path);
+
     static QString getCmdlineUgenePath();
 
     static void setExternalToolDirectory(const QString &newDir);
     static const QString getExternalToolDirectory();
-    
+
+    static void setIncludedElementsDirectory(const QString &newDir);
+    static const QString getIncludedElementsDirectory();
+
+    static bool isOutputDirectorySet();
+    static void setWorkflowOutputDirectory(const QString &newDir);
+    static const QString getWorkflowOutputDirectory();
+
+    /** Specifies whether hint for load schema button on the dashboard should be shown or not */
+    static bool isShowLoadButtonHint();
+    static void setShowLoadButtonHint(bool value);
+
     static Watcher * const watcher;
 };
 

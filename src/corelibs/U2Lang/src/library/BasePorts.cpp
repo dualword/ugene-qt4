@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -54,6 +54,22 @@ const QString BasePorts::OUT_TEXT_PORT_ID() {
 
 const QString BasePorts::IN_TEXT_PORT_ID() {
     return "in-text";
+}
+
+const QString BasePorts::OUT_VARIATION_TRACK_PORT_ID() {
+    return "out-variations";
+}
+
+const QString BasePorts::IN_VARIATION_TRACK_PORT_ID() {
+    return "in-variations";
+}
+
+const QString BasePorts::OUT_ASSEMBLY_PORT_ID() {
+    return "out-assembly";
+}
+
+const QString BasePorts::IN_ASSEMBLY_PORT_ID() {
+    return "in-assembly";
 }
 
 } // Workflow

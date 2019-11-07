@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 
 #include <U2Core/Task.h>
 #include <U2Core/DNASequence.h>
-
+#include <U2Core/U2Sequence.h>
 
 namespace U2 {
 
@@ -39,9 +39,9 @@ class SaveDocumentTask;
 class DNASequenceGeneratorConfig {
 public:
     DNASequenceGeneratorConfig()
-        : addToProj(false), saveDoc(true), format(NULL), alphabet(NULL), length(0), numSeqs(1), useRef(true), window() {}
+        : addToProj(false), saveDoc(true), format(NULL), alphabet(NULL), length(0), numSeqs(1), useRef(true), window(0), seed(0) {}
 
-    DNAAlphabet* getAlphabet() const { assert(alphabet); return alphabet; }
+    const DNAAlphabet* getAlphabet() const { assert(alphabet); return alphabet; }
 
     bool useReference() const { return useRef; }
 
@@ -68,7 +68,7 @@ public:
     // output document format
     DocumentFormat* format;
     // output sequence alphabet
-    DNAAlphabet* alphabet;
+    const DNAAlphabet* alphabet;
     // output sequence length
     int length;
     // number of sequences to generate
@@ -107,22 +107,25 @@ public:
 
     QMap<char, qreal> getResult() const { return result; }
 
-    DNAAlphabet* getAlphabet() const { return alp; }
+    const DNAAlphabet* getAlphabet() const { return alp; }
 
 private:
     GObject* _obj;
-    DNAAlphabet* alp;
+    const DNAAlphabet* alp;
     QMap<char, qreal> result;
 };
 
 class GenerateDNASequenceTask : public Task {
     Q_OBJECT
 public:
-    GenerateDNASequenceTask(const QMap<char, qreal>& baseContent_, int length_, int window_, int count_, int seed_);
+    GenerateDNASequenceTask( const QMap<char, qreal>& baseContent_, int length_, int window_,
+        int count_, int seed_ );
 
-    void run();
+    void prepare( );
+    void run( );
 
-    QList< QByteArray > getResult() const { return result; }
+    QList<U2Sequence> getResults( ) const { return results; }
+    U2DbiRef getDbiRef( ) const { return dbiRef; }
 
 private:
     QMap<char, qreal> baseContent;
@@ -130,7 +133,8 @@ private:
     int window;
     int count;
     int seed;
-    QList< QByteArray > result;
+    QList<U2Sequence> results;
+    U2DbiRef dbiRef;
 };
 
 class DNASequenceGeneratorTask : public Task {
@@ -139,9 +143,18 @@ public:
     DNASequenceGeneratorTask(const DNASequenceGeneratorConfig& cfg_);
     QList<Task*> onSubTaskFinished(Task* subTask);
     QList<DNASequence> getSequences() const { return results; }
+
 private:
+    QList<Task*> onLoadRefTaskFinished( );
+    QList<Task*> onEvalTaskFinished( );
+    QList<Task*> onGenerateTaskFinished( );
+    QList<Task*> onSaveTaskFinished( );
+
+    void addSequencesToMsaDoc( Document *source );
+    void addSequencesToSeqDoc( Document *source );
+
     static EvaluateBaseContentTask* createEvaluationTask(Document* doc, QString& err);
-private:
+
     DNASequenceGeneratorConfig cfg;
     LoadDocumentTask* loadRefTask;
     EvaluateBaseContentTask* evalTask;

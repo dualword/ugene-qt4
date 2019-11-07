@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -54,8 +54,8 @@ DNAFlexGraphFactory::DNAFlexGraphFactory(QObject* parent)
 /**
  * Verifies that the sequence alphabet is standard DNA alphabet
  */
-bool DNAFlexGraphFactory::isEnabled(U2SequenceObject* sequenceObject) const {
-    DNAAlphabet* alphabet = sequenceObject->getAlphabet();
+bool DNAFlexGraphFactory::isEnabled(const U2SequenceObject* sequenceObject) const {
+    const DNAAlphabet* alphabet = sequenceObject->getAlphabet();
     return alphabet->getId() == BaseDNAAlphabetIds::NUCL_DNA_DEFAULT();
 }
 
@@ -63,12 +63,12 @@ bool DNAFlexGraphFactory::isEnabled(U2SequenceObject* sequenceObject) const {
 /**
  * Initializes graph data
  */
-QList<GSequenceGraphData*> DNAFlexGraphFactory::createGraphs(GSequenceGraphView* view)
+QList<QSharedPointer<GSequenceGraphData> > DNAFlexGraphFactory::createGraphs(GSequenceGraphView* view)
 {
     Q_UNUSED(view);
-    QList<GSequenceGraphData*> res;
+    QList<QSharedPointer<GSequenceGraphData> > res;
     assert(isEnabled(view->getSequenceObject()));
-    GSequenceGraphData* data = new GSequenceGraphData(getGraphName());
+    QSharedPointer<GSequenceGraphData> data = QSharedPointer<GSequenceGraphData>(new GSequenceGraphData(getGraphName()));
     data->ga = new DNAFlexGraphAlgorithm();
     res.append(data);
     return res;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,465 +19,52 @@
  * MA 02110-1301, USA.
  */
 
-#include "CreateExternalProcessDialog.h"
+#include <QMessageBox>
+#include <QWizardPage>
 
-#include <QtGui/QMessageBox>
-
-#include <U2Core/DocumentModel.h>
-#include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/AppContext.h>
-
-#include <U2Lang/WorkflowEnv.h>
-#include <U2Lang/BaseTypes.h>
-#include <U2Lang/ExternalToolCfg.h>
-
-#include <U2Lang/HRSchemaSerializer.h>
-#include <U2Lang/WorkflowSettings.h>
-#include <U2Lang/ConfigurationEditor.h>
-#include <U2Lang/WorkflowEnv.h>
-#include <U2Lang/ActorPrototypeRegistry.h>
-
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2Designer/DelegateEditors.h>
 
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+
+#include <U2Lang/ActorPrototypeRegistry.h>
+#include <U2Lang/BaseTypes.h>
+#include <U2Lang/ConfigurationEditor.h>
+#include <U2Lang/ExternalToolCfg.h>
+#include <U2Lang/HRSchemaSerializer.h>
+#include <U2Lang/WorkflowEnv.h>
+#include <U2Lang/WorkflowSettings.h>
+
+#include "CfgExternalToolModel.h"
+#include "CreateExternalProcessDialog.h"
 #include "WorkflowEditorDelegates.h"
+#include "../util/WorkerNameValidator.h"
 
 namespace U2 {
 
-class CreateExternalProcessDialog;
-
-class CfgExternalToolItem {
+class ExecStringValidator : public QValidator {
 public:
-    CfgExternalToolItem()  {
-        dfr = AppContext::getDocumentFormatRegistry();
-        dtr = Workflow::WorkflowEnv::getDataTypeRegistry();
-
-        delegateForTypes = NULL;
-        delegateForFormats = NULL;
-        itemData.type = BaseTypes::DNA_SEQUENCE_TYPE()->getId();
-        itemData.format = BaseDocumentFormats::FASTA;
+    ExecStringValidator(QObject *parent = 0)
+        : QValidator(parent) {}
+    State validate(QString &input, int &/*pos*/) const {
+        if (input.contains("\"")) {
+            return Invalid;
+        }
+        return Acceptable;
     }
-    ~CfgExternalToolItem() {
-        delete delegateForTypes;
-        delete delegateForFormats;
-    }
-
-    QString getDataType() const {return itemData.type;}
-    void setDataType(const QString& id) {
-        itemData.type = id;
-    }
-
-    QString getName() const {return itemData.attrName;}
-    void setName(const QString &_name) {itemData.attrName = _name;}
-
-    QString getFormat() const {return itemData.format;}
-    void setFormat(const QString & f) {itemData.format = f;}
-
-    QString getDescription() const {return itemData.description;}
-    void setDescription(const QString & _descr) {itemData.description = _descr;}
-
-    PropertyDelegate *delegateForTypes;
-    PropertyDelegate *delegateForFormats;
-
-    DataConfig itemData;
-
-private:
-    DocumentFormatRegistry *dfr;
-    DataTypeRegistry *dtr;
 };
 
-
-class CfgExternalToolModel: public QAbstractTableModel {
-public:
-    CfgExternalToolModel(QObject *obj = NULL): QAbstractTableModel(obj) {
-        init();
-        /*CfgListItem *newItem = new CfgListItem();
-        newItem->delegateForTypes = new ComboBoxDelegate(types);
-        items.append(newItem);*/
-    }
-
-    int rowCount(const QModelIndex & /* = QModelIndex */) const{
-        return items.size();
-    }
-
-    int columnCount(const QModelIndex & /* = QModelIndex */) const {
-        return 4;
-    }
-
-    Qt::ItemFlags flags(const QModelIndex &) const{
-        return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    }   
-
-    CfgExternalToolItem* getItem(const QModelIndex &index) const {
-        return items.at(index.row());
-    }
-
-    QList<CfgExternalToolItem*> getItems() const {
-        return items;
-    }
-
-    QVariant data(const QModelIndex &index, int role /* = Qt::DisplayRole */) const {
-        CfgExternalToolItem *item = getItem(index);
-        int col = index.column();
-
-        switch(role) {
-            case Qt::DisplayRole:
-            case Qt::ToolTipRole:
-                if(col == 0) return item->getName();
-                else if(col == 1) return item->delegateForTypes->getDisplayValue(item->getDataType());
-                else if(col == 2) return item->delegateForFormats->getDisplayValue(item->getFormat());
-                else if(col == 3) return item->getDescription();
-                else return QVariant();
-            case DelegateRole:
-                if(col == 1) return qVariantFromValue<PropertyDelegate*>(item->delegateForTypes);
-                else if(col == 2) return qVariantFromValue<PropertyDelegate*>(item->delegateForFormats);
-                else return QVariant();
-            case Qt::EditRole:
-            case ConfigurationEditor::ItemValueRole:
-                if(col == 1) return item->getDataType();
-                else if(col == 2) return item->getFormat();
-                else return QVariant();
-            default:
-                return QVariant();
-        }
-    }
-
-    void createFormatDelegate(const QString &newType, CfgExternalToolItem *item) {
-        PropertyDelegate *delegate;
-        QString format;
-        if(newType == BaseTypes::DNA_SEQUENCE_TYPE()->getId()) {
-            delegate =  new ComboBoxDelegate(seqFormatsW);
-            format = seqFormatsW.values().first().toString();
-        } else if(newType == BaseTypes::MULTIPLE_ALIGNMENT_TYPE()->getId()) {
-            delegate =  new ComboBoxDelegate(msaFormatsW);
-            format = msaFormatsW.values().first().toString();
-        } else if(newType == BaseTypes::ANNOTATION_TABLE_TYPE()->getId()) {
-            delegate =  new ComboBoxDelegate(annFormatsW);
-            format = annFormatsW.values().first().toString();
-        } else if(newType == SEQ_WITH_ANNS){
-            delegate =  new ComboBoxDelegate(annFormatsW);
-            format = annFormatsW.values().first().toString();
-        } else if(newType == BaseTypes::STRING_TYPE()->getId()) {
-            delegate = new ComboBoxDelegate(textFormat);
-            format = textFormat.values().first().toString();
-        } else{
-            return;
-        }
-        item->setFormat(format);
-        item->delegateForFormats = delegate;
-    }
-
-    bool setData(const QModelIndex &index, const QVariant &value, int role) {
-        int col = index.column();
-        CfgExternalToolItem * item = getItem(index);
-        switch (role) {
-        case Qt::EditRole:
-        case ConfigurationEditor::ItemValueRole:
-            if(col == 0) {
-                if(item->getName() != value.toString()) {
-                    item->setName(value.toString());
-                } 
-            }else if(col == 1) {
-                QString newType = value.toString();
-                if(item->getDataType() != newType) {
-                    if(!newType.isEmpty()) {
-                        item->setDataType(newType);
-                        createFormatDelegate(newType, item);
-                    }
-                }
-            } else if(col == 2) {
-                if(item->getFormat() != value.toString() && !value.toString().isEmpty())  {
-                    item->setFormat(value.toString());
-                }
-            } else if(col == 3) {
-                if(item->getDescription() != value.toString()) {
-                    item->setDescription(value.toString());
-                }
-            }
-            emit dataChanged(index, index);
-        }
-        return true;
-    }
-
-    QVariant headerData ( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const {
-        if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
-            switch(section) {
-                case 0: return CreateExternalProcessDialog::tr("Name for command line parameter");
-                case 1: return CreateExternalProcessDialog::tr("Type");
-                case 2: return CreateExternalProcessDialog::tr("Format");
-                case 3: return CreateExternalProcessDialog::tr("Description");
-                default: return QVariant();
-            }
-        }
-        return QVariant();
-    }
-
-    bool insertRows ( int row, int count = 0, const QModelIndex & parent = QModelIndex() )  {
-        Q_UNUSED(row);
-        Q_UNUSED(count);
-        beginInsertRows(parent, items.size(), items.size());
-        CfgExternalToolItem *newItem = new CfgExternalToolItem();
-        newItem->delegateForTypes = new ComboBoxDelegate(types);
-        newItem->delegateForFormats = new ComboBoxDelegate(seqFormatsW);
-        items.append(newItem);
-        endInsertRows();
-        return true;
-    }
-
-    bool removeRows(int row, int count = 0, const QModelIndex & parent = QModelIndex()) {
-        Q_UNUSED(count);
-        if(row >= 0 && row < items.size()) {
-            beginRemoveRows(parent, row, row);
-            items.removeAt(row);
-            endRemoveRows();
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    void init() {
-        initTypes();
-        initFormats();
-    }
-    void initFormats() {
-        QList<DocumentFormatId> ids = AppContext::getDocumentFormatRegistry()->getRegisteredFormats();
-
-        DocumentFormatConstraints seqWrite;
-        seqWrite.supportedObjectTypes+=GObjectTypes::SEQUENCE;
-        seqWrite.addFlagToSupport(DocumentFormatFlag_SupportWriting);
-        seqWrite.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        DocumentFormatConstraints seqRead;
-        seqRead.supportedObjectTypes+=GObjectTypes::SEQUENCE;
-        seqRead.addFlagToSupport(DocumentFormatFlag_SupportStreaming);
-        seqRead.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        DocumentFormatConstraints msaWrite;
-        msaWrite.supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
-        msaWrite.addFlagToSupport(DocumentFormatFlag_SupportWriting);
-        msaWrite.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        DocumentFormatConstraints msaRead;
-        msaRead.supportedObjectTypes+=GObjectTypes::MULTIPLE_ALIGNMENT;
-        msaRead.addFlagToSupport(DocumentFormatFlag_SupportStreaming);
-        msaRead.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        DocumentFormatConstraints annWrite;
-        annWrite.supportedObjectTypes+=GObjectTypes::ANNOTATION_TABLE;
-        annWrite.addFlagToSupport(DocumentFormatFlag_SupportWriting);
-        annWrite.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        DocumentFormatConstraints annRead;
-        annRead.supportedObjectTypes+=GObjectTypes::ANNOTATION_TABLE;
-        annRead.addFlagToSupport(DocumentFormatFlag_SupportStreaming);
-        annRead.addFlagToExclude(DocumentFormatFlag_SingleObjectFormat);
-
-        foreach(const DocumentFormatId& id, ids) {
-            DocumentFormat* df = AppContext::getDocumentFormatRegistry()->getFormatById(id);
-
-            if (df->checkConstraints(seqWrite)) {
-                seqFormatsW[df->getFormatName()] = df->getFormatId();
-            }
-
-            if (df->checkConstraints(seqRead)) {
-                seqFormatsR[df->getFormatName()] = df->getFormatId();
-            }
-
-            if (df->checkConstraints(msaWrite)) {
-                msaFormatsW[df->getFormatName()] = df->getFormatId();
-            }
-
-            if (df->checkConstraints(msaRead)) {
-                msaFormatsR[df->getFormatName()] = df->getFormatId();
-            } 
-
-            if (df->checkConstraints(annWrite)) {
-                annFormatsW[df->getFormatName()] = df->getFormatId();
-            }
-
-            if (df->checkConstraints(annRead)) {
-                annFormatsR[df->getFormatName()] = df->getFormatId();
-            }
-        }
-
-        DocumentFormat *df = AppContext::getDocumentFormatRegistry()->getFormatById(BaseDocumentFormats::PLAIN_TEXT);
-        textFormat[df->getFormatName()] = df->getFormatId();
-    }
-
-    void initTypes() {
-        DataTypePtr ptr = BaseTypes::DNA_SEQUENCE_TYPE();
-        types[ptr->getDisplayName()] = ptr->getId();
-
-        ptr = BaseTypes::ANNOTATION_TABLE_TYPE();
-        types[ptr->getDisplayName()] = ptr->getId();
-
-        ptr = BaseTypes::MULTIPLE_ALIGNMENT_TYPE();
-        types[ptr->getDisplayName()] = ptr->getId();
-
-        ptr = BaseTypes::STRING_TYPE();
-        types[ptr->getDisplayName()] = ptr->getId();
-
-        types["Sequence with annotations"] = SEQ_WITH_ANNS;
-    }
-
-private:
-    QList<CfgExternalToolItem*> items;
-    QVariantMap types;
-    QVariantMap seqFormatsW;
-    QVariantMap msaFormatsW;
-    QVariantMap annFormatsW;
-    QVariantMap seqFormatsR;
-    QVariantMap msaFormatsR;
-    QVariantMap annFormatsR;
-    QVariantMap textFormat;
-};
-
-
-class AttributeItem {
-public:
-    QString getName() const {return name;}
-    void setName(const QString& _name) {name = _name;}
-    QString getDataType() const {return type;}
-    void setDataType(const QString &_type) {type = _type;}
-    QString getDescription() const {return description;}
-    void setDescription(const QString &_description) {description = _description;}
-private:
-    QString name;
-    QString type;
-    QString description;
-
-};
-
-class CfgExternalToolModelAttributes: public QAbstractTableModel {
-public:
-    CfgExternalToolModelAttributes() {
-        types["URL"] = "URL";
-        types["String"] = "String";
-        types["Number"] = "Number";
-        types["Boolean"] = "Boolean";
-        delegate = new ComboBoxDelegate(types);
-    }
-    ~CfgExternalToolModelAttributes() {
-        foreach(AttributeItem* item, items) {
-            delete item;
-        }
-    }
-    int rowCount(const QModelIndex & /* = QModelIndex */) const{
-        return items.size();
-    }
-
-    int columnCount(const QModelIndex & /* = QModelIndex */) const {
-        return 3;
-    }
-
-    Qt::ItemFlags flags(const QModelIndex &) const{
-        return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    }   
-
-    AttributeItem* getItem(const QModelIndex &index) const {
-        return items.at(index.row());
-    }
-
-    QList<AttributeItem*> getItems() const {
-        return items;
-    }
-
-    QVariant data(const QModelIndex &index, int role /* = Qt::DisplayRole */) const {
-        AttributeItem *item = getItem(index);
-        int col = index.column();
-
-        switch(role) {
-            case Qt::DisplayRole:
-            case Qt::ToolTipRole:
-                if(col == 0) return item->getName();
-                else if(col == 1) return delegate->getDisplayValue(item->getDataType());
-                else if(col == 2) return item->getDescription();
-                else return QVariant();
-            case DelegateRole:
-                if(col == 1) return qVariantFromValue<PropertyDelegate*>(delegate);
-                else return QVariant();
-            case Qt::EditRole:
-            case ConfigurationEditor::ItemValueRole:
-                if(col == 1) return item->getDataType();
-                else return QVariant();
-            default:
-                return QVariant();
-        }
-    }
-
-    bool setData(const QModelIndex &index, const QVariant &value, int role) {
-        int col = index.column();
-        AttributeItem * item = getItem(index);
-        switch (role) {
-        case Qt::EditRole:
-        case ConfigurationEditor::ItemValueRole:
-            if(col == 0) {
-                if(item->getName() != value.toString()) {
-                    item->setName(value.toString());
-                } 
-            }else if(col == 1) {
-                QString newType = value.toString();
-                if(item->getDataType() != newType) {
-                    if(!newType.isEmpty()) {
-                        item->setDataType(newType);
-                    }
-                }
-            } else if(col == 2) {
-                if(item->getDescription() != value.toString()) {
-                    item->setDescription(value.toString());
-                }
-            }
-            emit dataChanged(index, index);
-        }
-        return true;
-    }
-
-    QVariant headerData ( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const {
-        if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
-            switch(section) {
-                case 0: return CreateExternalProcessDialog::tr("Name");
-                case 1: return CreateExternalProcessDialog::tr("Type");
-                case 2: return CreateExternalProcessDialog::tr("Description");
-                default: return QVariant();
-            }
-        }
-        return QVariant();
-    }
-
-    bool insertRows ( int row, int count = 0, const QModelIndex & parent = QModelIndex() )  {
-        Q_UNUSED(row);
-        Q_UNUSED(count);
-        beginInsertRows(parent, items.size(), items.size());
-        AttributeItem *newItem = new AttributeItem();
-        newItem->setDataType("String");
-        items.append(newItem);
-        endInsertRows();
-        return true;
-    }
-
-    bool removeRows(int row, int count = 0, const QModelIndex & parent = QModelIndex()) {
-        Q_UNUSED(count);
-        if(row >= 0 && row < items.size()) {
-            beginRemoveRows(parent, row, row);
-            items.removeAt(row);
-            endRemoveRows();
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-private:
-    QList<AttributeItem*> items;
-    PropertyDelegate *delegate;
-    QVariantMap types;
-};
-
-
-
-CreateExternalProcessDialog::CreateExternalProcessDialog(QWidget *p, ExternalProcessConfig *cfg):QWizard(p), initialCfg(NULL) {
+CreateExternalProcessDialog::CreateExternalProcessDialog(QWidget *p, ExternalProcessConfig *cfg, bool lastPage)
+: QWizard(p), initialCfg(NULL), lastPage(lastPage) {
     ui.setupUi(this);
+
+    new U2::HelpButton(this, button(QWizard::HelpButton), "2097199");
+
     connect(ui.addInputButton, SIGNAL(clicked()), SLOT(sl_addInput()));
     connect(ui.addOutputButton, SIGNAL(clicked()), SLOT(sl_addOutput()));
     connect(ui.deleteInputButton, SIGNAL(clicked()), SLOT(sl_deleteInput()));
@@ -495,8 +82,8 @@ CreateExternalProcessDialog::CreateExternalProcessDialog(QWidget *p, ExternalPro
     ui.descr3TextEdit->setFixedHeight(info.height() * INFO_STRINGS_NUM);
     ui.descr4TextEdit->setFixedHeight(info.height() * INFO_STRINGS_NUM);
 
-    ui.inputTableView->setModel(new CfgExternalToolModel());
-    ui.outputTableView->setModel(new CfgExternalToolModel());
+    ui.inputTableView->setModel(new CfgExternalToolModel(true));
+    ui.outputTableView->setModel(new CfgExternalToolModel(false));
     ui.attributesTableView->setModel(new CfgExternalToolModelAttributes());
 
     ui.inputTableView->setItemDelegate(new ProxyDelegate());
@@ -512,6 +99,8 @@ CreateExternalProcessDialog::CreateExternalProcessDialog(QWidget *p, ExternalPro
     QFontMetrics fm(ui.inputTableView->font());
     ui.inputTableView->setColumnWidth(1, fm.width(SEQ_WITH_ANNS)*1.5);
     ui.outputTableView->setColumnWidth(1, fm.width(SEQ_WITH_ANNS)*1.5);
+    ui.templateLineEdit->setValidator(new ExecStringValidator(this));
+    ui.nameLineEdit->setValidator(new WorkerNameValidator(this));
 
     initialCfg = new ExternalProcessConfig(*cfg);
     init(cfg);
@@ -524,6 +113,8 @@ CreateExternalProcessDialog::CreateExternalProcessDialog(QWidget *p, ExternalPro
     connect(ui.attributesTableView->model(), SIGNAL(dataChanged ( const QModelIndex &, const QModelIndex &)), SLOT(validateAttributeModel(const QModelIndex &, const QModelIndex &)));
     descr1 = ui.descr1TextEdit->toHtml();
     //validateNextPage();
+
+    DialogUtils::setWizardMinimumSize(this);
 }
 
 static void clearModel(QAbstractItemModel *model) {
@@ -617,8 +208,12 @@ void CreateExternalProcessDialog::sl_deleteAttribute() {
     validateAttributeModel();
 }
 
-CreateExternalProcessDialog::CreateExternalProcessDialog( QWidget *p /* = NULL*/ ): QWizard(p), initialCfg(NULL) {
+CreateExternalProcessDialog::CreateExternalProcessDialog( QWidget *p /* = NULL*/ )
+: QWizard(p), initialCfg(NULL), lastPage(false) {
     ui.setupUi(this);
+
+    new U2::HelpButton(this, button(QWizard::HelpButton), "2097199");
+
     connect(ui.addInputButton, SIGNAL(clicked()), SLOT(sl_addInput()));
     connect(ui.addOutputButton, SIGNAL(clicked()), SLOT(sl_addOutput()));
     connect(ui.deleteInputButton, SIGNAL(clicked()), SLOT(sl_deleteInput()));
@@ -633,8 +228,8 @@ CreateExternalProcessDialog::CreateExternalProcessDialog( QWidget *p /* = NULL*/
     connect(ui.nameLineEdit, SIGNAL(textChanged(const QString &)), this, SLOT(sl_validateName(const QString &)));
     connect(ui.templateLineEdit, SIGNAL(textChanged(const QString &)), this, SLOT(sl_validateCmdLine(const QString &)));
 
-    ui.inputTableView->setModel(new CfgExternalToolModel());
-    ui.outputTableView->setModel(new CfgExternalToolModel());
+    ui.inputTableView->setModel(new CfgExternalToolModel(true));
+    ui.outputTableView->setModel(new CfgExternalToolModel(false));
     ui.attributesTableView->setModel(new CfgExternalToolModelAttributes());
 
     connect(ui.inputTableView->model(), SIGNAL(dataChanged ( const QModelIndex &, const QModelIndex &)), SLOT(validateDataModel(const QModelIndex &, const QModelIndex &)));
@@ -664,10 +259,24 @@ CreateExternalProcessDialog::CreateExternalProcessDialog( QWidget *p /* = NULL*/
     ui.descr4TextEdit->setFixedHeight(info.height() * INFO_STRINGS_NUM);
     descr1 = ui.descr1TextEdit->toHtml();
     editing = false;
+
+    ui.templateLineEdit->setValidator(new ExecStringValidator(this));
+    ui.nameLineEdit->setValidator(new WorkerNameValidator(this));
+
+    DialogUtils::setWizardMinimumSize(this);
 }
 
 CreateExternalProcessDialog::~CreateExternalProcessDialog() {
     delete initialCfg;
+}
+
+void CreateExternalProcessDialog::showEvent(QShowEvent *event) {
+    QDialog::showEvent(event);
+    if (lastPage) {
+        for (int i=0; i<(pageIds().size()-1); i++) {
+            next();
+        }
+    }
 }
 
 void CreateExternalProcessDialog::accept() {
@@ -717,16 +326,17 @@ void CreateExternalProcessDialog::accept() {
             }
         }
     }
-    
+
     QString str = HRSchemaSerializer::actor2String(cfg);
     QString dir = WorkflowSettings::getExternalToolDirectory();
     QDir d(dir);
     if(!d.exists()) {
         d.mkdir(dir);
     }
-    QFile file(dir + cfg->name + ".etc");
+    cfg->filePath = dir + cfg->name + ".etc";
+    QFile file(cfg->filePath);
     file.open(QIODevice::WriteOnly);
-    file.write(str.toAscii());
+    file.write(str.toLatin1());
     file.close();
 
     done(QDialog::Accepted);
@@ -766,7 +376,7 @@ bool CreateExternalProcessDialog::validate() {
         if(dc.attrName.isEmpty()) {
             QMessageBox::critical(this, title, tr("For one or more parameter name was not set."));
             return false;
-        } 
+        }
         if(dc.attrName.contains(invalidSymbols)) {
             QMessageBox::critical(this, title, tr("Invalid symbols in a name.").arg(dc.attrName));
             return false;
@@ -777,7 +387,7 @@ bool CreateExternalProcessDialog::validate() {
         if(dc.attrName.isEmpty()) {
             QMessageBox::critical(this, title, tr("For one or more parameter name was not set."));
             return false;
-        } 
+        }
         if(dc.attrName.contains(invalidSymbols)) {
             QMessageBox::critical(this, title, tr("Invalid symbols in a name.").arg(dc.attrName));
             return false;
@@ -788,7 +398,7 @@ bool CreateExternalProcessDialog::validate() {
         if(ac.attrName.isEmpty()) {
             QMessageBox::critical(this, title, tr("For one or more parameter name was not set."));
             return false;
-        } 
+        }
         if(ac.attrName.contains(invalidSymbols)) {
             QMessageBox::critical(this, title, tr("Invalid symbols in a name.").arg(ac.attrName));
             return false;
@@ -803,13 +413,14 @@ bool CreateExternalProcessDialog::validate() {
 
     foreach(const QString &str, nameList) {
         if(!cfg->cmdLine.contains("$" + str)) {
-            QMessageBox msgBox(this);
-            msgBox.setWindowTitle(title);
-            msgBox.setText(tr("You don't use parameter %1 in template string. Continue?").arg(str));
-            msgBox.addButton(tr("Continue"), QMessageBox::ActionRole);
-            QPushButton *cancel = msgBox.addButton(tr("Abort"), QMessageBox::ActionRole);
-            msgBox.exec();
-            if(msgBox.clickedButton() == cancel) {
+            QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox(this);
+            msgBox->setWindowTitle(title);
+            msgBox->setText(tr("You don't use parameter %1 in template string. Continue?").arg(str));
+            msgBox->addButton(tr("Continue"), QMessageBox::ActionRole);
+            QPushButton *cancel = msgBox->addButton(tr("Abort"), QMessageBox::ActionRole);
+            msgBox->exec();
+            CHECK(!msgBox.isNull(), false);
+            if(msgBox->clickedButton() == cancel) {
                 return false;
             }
         }
@@ -877,7 +488,7 @@ void CreateExternalProcessDialog::sl_validateName( const QString &text) {
     if (res) {
         statusStr = statusTemplate.arg("green").arg(tr("It is the correct name"));
     } else {
-        statusStr = statusTemplate.arg("red").arg(error);
+        statusStr = statusTemplate.arg("#A6392E").arg(error);
     }
     ui.descr1TextEdit->setText(descr1.arg(statusStr));
 }
@@ -921,7 +532,7 @@ void CreateExternalProcessDialog::validateDataModel(const QModelIndex &, const Q
         }
         nameList << item->itemData.attrName;
     }
-    
+
 
 
     if(nameList.removeDuplicates() > 0) {
@@ -966,13 +577,13 @@ void CreateExternalProcessDialog::validateAttributeModel(const QModelIndex &, co
         }
         nameList << item->itemData.attrName;
     }
-    
+
     CfgExternalToolModelAttributes *aModel = static_cast<CfgExternalToolModelAttributes*>(ui.attributesTableView->model());
     foreach(AttributeItem *item, aModel->getItems()) {
         if(item->getName().isEmpty()) {
             //QMessageBox::critical(this, title, tr("For one or more parameter name was not set."));
             res = false;
-        } 
+        }
         if(item->getName().contains(invalidSymbols)) {
             //QMessageBox::critical(this, title, tr("Invalid symbols in a name.").arg(ac.attrName));
             res = false;

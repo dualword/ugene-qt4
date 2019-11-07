@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -108,7 +108,7 @@ bool XMLTestFormat::unregisterTestFactory(XMLTestFactory* tf) {
 void XMLTestFormat::registerBuiltInFactories() {
     { // multitest
         QList<XMLTestFactory*> fs = XMLTestUtils::createTestFactories();
-        foreach(XMLTestFactory* f, fs) { 
+        foreach(XMLTestFactory* f, fs) {
             bool res = registerTestFactory(f);
             assert(res); Q_UNUSED(res);
         }

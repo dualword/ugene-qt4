@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,13 +23,14 @@
 #include <U2Core/CMDLineCoreOptions.h>
 #include <U2Core/CMDLineRegistry.h>
 #include <U2Core/CMDLineUtils.h>
+#include <U2Core/PasswordStorage.h>
 #include <U2Core/DataBaseRegistry.h>
 #include <U2Core/DBXRefRegistry.h>
 #include <U2Core/DNAAlphabetRegistryImpl.h>
 #include <U2Core/DNATranslation.h>
-#include <U2Core/DocumentFormatConfigurators.h>
 #include <U2Core/ExternalToolRegistry.h>
 #include <U2Core/U2DbiRegistry.h>
+#include <U2Core/UdrSchemaRegistry.h>
 #include <U2Core/GObjectTypes.h>
 #include <U2Core/LoadRemoteDocumentTask.h>
 #include <U2Core/Log.h>
@@ -39,13 +40,22 @@
 #include <U2Core/UserApplicationsSettings.h>
 #include <U2Core/Version.h>
 #include <U2Core/VirtualFileSystem.h>
+#include "U2Core/TmpDirChecker.h"
+#include <U2Core/AppFileStorage.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/DataPathRegistry.h>
+#include <U2Core/DASSource.h>
+#include <U2Core/ScriptingToolRegistry.h>
+#include <U2Core/ConsoleShutdownTask.h>
+#include <U2Core/Counter.h>
 
 #include <U2Algorithm/CudaGpuRegistry.h>
 #include <U2Algorithm/DnaAssemblyAlgRegistry.h>
+#include <U2Algorithm/GenomeAssemblyRegistry.h>
 #include <U2Algorithm/MolecularSurfaceFactoryRegistry.h>
-#include <U2Algorithm/MSAAlignAlgRegistry.h>
 #include <U2Algorithm/MSAConsensusAlgorithmRegistry.h>
 #include <U2Algorithm/MSADistanceAlgorithmRegistry.h>
+#include <U2Algorithm/AssemblyConsensusAlgorithmRegistry.h>
 #include <U2Algorithm/OpenCLGpuRegistry.h>
 #include <U2Algorithm/PhyTreeGeneratorRegistry.h>
 #include <U2Algorithm/PWMConversionAlgorithmRegistry.h>
@@ -56,13 +66,14 @@
 #include <U2Algorithm/SWResultFilterRegistry.h>
 #include <U2Algorithm/CDSearchTaskFactoryRegistry.h>
 #include <U2Algorithm/StructuralAlignmentAlgorithmRegistry.h>
+#include <U2Algorithm/SplicedAlignmentTaskRegistry.h>
+#include <U2Algorithm/AlignmentAlgorithmsRegistry.h>
 
+#include <U2Formats/ConvertFileTask.h>
 #include <U2Formats/DocumentFormatUtils.h>
 
 #include <U2Test/GTestFrameworkComponents.h>
 #include <U2Test/TestRunnerTask.h>
-
-#include <U2Gui/BaseDocumentFormatConfigurators.h>
 
 #include <U2Remote/DistributedComputingUtil.h>
 
@@ -80,12 +91,12 @@
 #include <ServiceRegistryImpl.h>
 #include <TaskSchedulerImpl.h>
 #include <AppSettingsImpl.h>
+#include <ConsoleLogDriver.h>
 #include <CrashHandler.h>
+#include <CredentialsAskerCli.h>
 
 // local project imports
 #include "ForeverTask.h"
-#include "LogDriver.h"
-#include "ShutdownTask.h"
 #include "TestStarter.h"
 #include "TaskStatusBar.h"
 #include "DumpLicenseTask.h"
@@ -103,26 +114,21 @@ using namespace U2;
 static void registerCoreServices() {
     ServiceRegistry* sr = AppContext::getServiceRegistry();
     TaskScheduler* ts = AppContext::getTaskScheduler();
-    Q_UNUSED(sr); Q_UNUSED(ts);
+    Q_UNUSED(sr);
+    Q_UNUSED(ts);
     // unlike ugene's UI Main.cpp we don't create PluginViewerImpl, ProjectViewImpl
-//    ts->registerTopLevelTask(sr->registerServiceTask(new ScriptRegistryService()));
 }
-
-// we will run task that don't die
-//static void setCongeneStayAlive() {
-//    AppContext::getTaskScheduler()->registerTopLevelTask( new ForeverTask() );
-//}
 
 static bool openDocs() {
     bool ret = false;
     QStringList suiteUrls = CMDLineRegistryUtils::getParameterValuesByWords( CMDLineCoreOptions::SUITE_URLS );
     if( suiteUrls.size() > 0 ) {
         TestStarter* ts=new TestStarter( suiteUrls );
-        
+
         GTestEnvironment* envs=ts->getEnv();
         envs->setVar(TIME_OUT_VAR, AppContext::getSettings()->getValue(TR_SETTINGS_ROOT + TIME_OUT_VAR,QString("0")).toString());
         envs->setVar(NUM_THREADS_VAR, AppContext::getSettings()->getValue(TR_SETTINGS_ROOT + NUM_THREADS_VAR,QString("5")).toString());
-        
+
         QObject::connect(AppContext::getPluginSupport(), SIGNAL(si_allStartUpPluginsLoaded()), new TaskStarter(ts), SLOT(registerTask()));
         ret = true;
     }
@@ -139,7 +145,7 @@ static void setScriptsSearchPath() {
     const static char * RELATIVE_SCRIPTS_DIR = "/scripts";
     const static char * RELATIVE_DEV_SCRIPTS_DIR = "/../../scripts";
 
-    QString appDirPath = QCoreApplication::applicationDirPath();
+    QString appDirPath = AppContext::getWorkingDirectoryPath();
     if( QDir(appDirPath+RELATIVE_SCRIPTS_DIR).exists() ) {
         scriptsSearchPath.push_back( appDirPath+RELATIVE_SCRIPTS_DIR );
     } else if( QDir(appDirPath+RELATIVE_DEV_SCRIPTS_DIR).exists() ) {
@@ -157,24 +163,26 @@ static void setDataSearchPaths() {
     const static char * RELATIVE_DATA_DIR = "/data";
     const static char * RELATIVE_DEV_DATA_DIR = "/../../data";
     //on windows data is normally located in the application directory
-    QString appDirPath = QCoreApplication::applicationDirPath();
-    
+    QString appDirPath = AppContext::getWorkingDirectoryPath();
+
     if( QDir(appDirPath+RELATIVE_DATA_DIR).exists() ) {
         dataSearchPaths.push_back( appDirPath+RELATIVE_DATA_DIR );
     } else if( QDir(appDirPath+RELATIVE_DEV_DATA_DIR).exists() ) {          //data location for developers
+        printf("ADDED PATH %s \n", qPrintable(appDirPath+RELATIVE_DEV_DATA_DIR) );
         dataSearchPaths.push_back( appDirPath+RELATIVE_DEV_DATA_DIR );
     }
-    if( dataSearchPaths.empty() ) {
-        dataSearchPaths.push_back("/");
-    }
 
-#if (defined(Q_OS_LINUX) || defined(Q_OS_UNIX)) && defined( UGENE_DATA_DIR )
+#if (defined(Q_OS_UNIX)) && defined( UGENE_DATA_DIR )
     //using directory which is set during installation process on linux
     QString ugene_data_dir( UGENE_DATA_DIR );
     if( QDir(ugene_data_dir).exists() ) {
         dataSearchPaths.push_back( QString(UGENE_DATA_DIR) );
     }
 #endif
+
+    if( dataSearchPaths.empty() ) {
+        dataSearchPaths.push_back("/");
+    }
 
     QDir::setSearchPaths( PATH_PREFIX_DATA, dataSearchPaths );
     //now data files may be opened using QFile( "data:some_data_file" )
@@ -208,7 +216,7 @@ public:
 
 };
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
 #if defined(USE_CRASHHANDLER) && defined(NDEBUG)
     CrashHandler::setupHandler();
@@ -231,33 +239,35 @@ int main(int argc, char **argv)
             "Hint: Use 'ugene -ui' command to run GUI version of UGENE\n"
             "Hint: Run 'ugene --usage', 'ugene --help' or 'ugene --help=<sectionName>' for more information\n"
 #endif
-            , version.text.toAscii().constData());
-        return -1;   
+            , version.text.toLatin1().constData());
+        return -1;
     }
 
     GTIMER(c1, t1, "main()->QApp::exec");
 
     GApplication app(argc, argv);
-    QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
-    QString devPluginsPath = QDir(QCoreApplication::applicationDirPath()+"/../../installer/windows").absolutePath();
+
+    AppContextImpl* appContext = AppContextImpl::getApplicationContext();
+    appContext->setWorkingDirectoryPath(QCoreApplication::applicationDirPath());
+
+    QCoreApplication::addLibraryPath(AppContext::getWorkingDirectoryPath());
+    QString devPluginsPath = QDir(AppContext::getWorkingDirectoryPath()+"/../../installer/windows").absolutePath();
     QCoreApplication::addLibraryPath(devPluginsPath); //dev version
 
     setSearchPaths();
 
-    AppContextImpl* appContext = AppContextImpl::getApplicationContext();
-    
     // parse all cmdline arguments
-    CMDLineRegistry* cmdLineRegistry = new CMDLineRegistry(app.arguments()); 
+    CMDLineRegistry* cmdLineRegistry = new CMDLineRegistry(app.arguments());
     appContext->setCMDLineRegistry(cmdLineRegistry);
-    
+
     //1 create settings
     SettingsImpl* globalSettings = new SettingsImpl(QSettings::SystemScope);
     appContext->setGlobalSettings(globalSettings);
 
     SettingsImpl * settings = new SettingsImpl( QSettings::UserScope );
     appContext->setSettings( settings );
-    
-    
+
+
     AppSettings* appSettings = new AppSettingsImpl();
     appContext->setAppSettings(appSettings);
 
@@ -280,8 +290,8 @@ int main(int argc, char **argv)
         if((i == 0 && skipFirst) || (i == 1 && skipSecond)) {
             continue;
         }
-        if (!translator.load(transFile[i], QCoreApplication::applicationDirPath())) {
-            fprintf(stderr, "Translation not found: %s\n", transFile[i].toAscii().constData());
+        if (!translator.load(transFile[i], AppContext::getWorkingDirectoryPath())) {
+            fprintf(stderr, "Translation not found: %s\n", transFile[i].toLatin1().constData());
         } else {
             trOK = true;
             break;
@@ -289,15 +299,16 @@ int main(int argc, char **argv)
     }
     if (!trOK) {
         fprintf(stderr, "No translations found, exiting\n");
-        return 1;   
+        return 1;
     }
-    
+
     app.installTranslator(&translator);
     updateStaticTranslations();
-    
+
     // 2 create functional components of congene
-    LogDriver logs;
+    ConsoleLogDriver logs;
     coreLog.details(AppContextImpl::tr("UGENE initialization started"));
+    GCOUNTER( cvar, tvar, "ugenecl" );
 
     ResourceTracker* resTrack = new ResourceTracker();
     appContext->setResourceTracker(resTrack);
@@ -310,7 +321,7 @@ int main(int argc, char **argv)
 
     TestFramework* tf = new TestFramework();
     appContext->setTestFramework(tf);
-    
+
     RepeatFinderTaskFactoryRegistry* rfr = new RepeatFinderTaskFactoryRegistry();
     appContext->setRepeatFinderTaskFactoryRegistry(rfr);
 
@@ -320,30 +331,32 @@ int main(int argc, char **argv)
     CMDLineUtils::init();
     DumpLicenseTask::initHelp();
     DumpVersionTask::initHelp();
-    
+
     PhyTreeGeneratorRegistry* phyreg = new PhyTreeGeneratorRegistry();
     appContext->setPhyTreeGeneratorRegistry(phyreg);
-    
+
     // unlike ugene's main.cpp we don't create MainWindowImpl, AppSettingsGUI and GObjectViewFactoryRegistry
+
+    ScriptingToolRegistry* str = new ScriptingToolRegistry();
+    appContext->setScriptingToolRegistry(str);
 
     ExternalToolRegistry* etr = new ExternalToolRegistry();
     appContext->setExternalToolRegistry(etr);
 
+    UdrSchemaRegistry *schemaRegistry = new UdrSchemaRegistry();
+    appContext->setUdrSchemaRegistry(schemaRegistry);
+
     U2DbiRegistry *dbiRegistry = new U2DbiRegistry();
     appContext->setDbiRegistry(dbiRegistry);
-    
+
     DocumentFormatRegistryImpl* dfr = new DocumentFormatRegistryImpl();
     appContext->setDocumentFormatRegistry(dfr);
-    
+
     PluginSupportImpl* psp = new PluginSupportImpl();
     appContext->setPluginSupport(psp);
-    
+
     ServiceRegistryImpl* sreg = new ServiceRegistryImpl() ;
     appContext->setServiceRegistry(sreg);
-
-    DocumentFormatConfigurators* dfc = new DocumentFormatConfigurators();
-    appContext->setDocumentFormatConfigurators(dfc);
-    BaseDocumentFormatConfigurators::initBuiltInConfigurators();
 
     IOAdapterRegistryImpl* io = new IOAdapterRegistryImpl();
     appContext->setIOAdapterRegistry(io);
@@ -364,6 +377,9 @@ int main(int argc, char **argv)
     MSADistanceAlgorithmRegistry* msaDistReg = new MSADistanceAlgorithmRegistry();
     appContext->setMSADistanceAlgorithmRegistry(msaDistReg);
 
+    AssemblyConsensusAlgorithmRegistry* assemblyConsReg = new AssemblyConsensusAlgorithmRegistry();
+    appContext->setAssemblyConsensusAlgorithmRegistry(assemblyConsReg);
+
     PWMConversionAlgorithmRegistry* pwmConvReg = new PWMConversionAlgorithmRegistry();
     appContext->setPWMConversionAlgorithmRegistry(pwmConvReg);
 
@@ -383,83 +399,140 @@ int main(int argc, char **argv)
     appContext->setSecStructPedictAlgRegistry(sspar);
 
     CudaGpuRegistry * cgr = new CudaGpuRegistry();
-    appContext->setCudaGpuRegistry( cgr ); 
+    appContext->setCudaGpuRegistry( cgr );
+
+    AlignmentAlgorithmsRegistry *pwr = new AlignmentAlgorithmsRegistry();
+    appContext->setAlignmentAlgorithmsRegistry(pwr);
 
 #ifdef OPENCL_SUPPORT
     OpenCLGpuRegistry * oclgr = new OpenCLGpuRegistry();
     appContext->setOpenCLGpuRegistry( oclgr );
 #endif
-    
+
     RecentlyDownloadedCache* rdc = new RecentlyDownloadedCache();
     appContext->setRecentlyDownloadedCache(rdc);
-    
+
     DistributedComputingUtil * distrUtil = new DistributedComputingUtil();
-    
+
     VirtualFileSystemRegistry * vfsReg = new VirtualFileSystemRegistry();
     appContext->setVirtualFileSystemRegistry( vfsReg );
-    
+
     Workflow::WorkflowEnv::init(new Workflow::WorkflowEnvImpl());
     Workflow::WorkflowEnv::getDomainRegistry()->registerEntry(new LocalWorkflow::LocalDomainFactory());
 
     DnaAssemblyAlgRegistry* assemblyReg = new DnaAssemblyAlgRegistry();
     appContext->setDnaAssemblyAlgRegistry(assemblyReg);
 
-    MSAAlignAlgRegistry* alignReg = new MSAAlignAlgRegistry();
-    appContext->setMSAAlignAlgRegistry(alignReg);
+    GenomeAssemblyAlgRegistry* genomeAssemblyReg = new GenomeAssemblyAlgRegistry();
+    appContext->setGenomeAssemblyAlgRegistry(genomeAssemblyReg);
 
     DataBaseRegistry* dbr = new DataBaseRegistry();
     appContext->setDataBaseRegistry(dbr);
 
     CDSearchFactoryRegistry* cdsfr = new CDSearchFactoryRegistry();
     appContext->setCDSearchFactoryRegistry(cdsfr);
-    
+
     StructuralAlignmentAlgorithmRegistry *saar = new StructuralAlignmentAlgorithmRegistry();
     appContext->setStructuralAlignmentAlgorithmRegistry(saar);
 
+    ConvertFactoryRegistry* convertFactoryRegistry = new ConvertFactoryRegistry();
+    appContext->setConvertFactoryRegistry(convertFactoryRegistry);
+
+    SplicedAlignmentTaskRegistry* splicedAlignmentTaskRegistry = new SplicedAlignmentTaskRegistry();
+    appContext->setSplicedAlignmentTaskRegistry(splicedAlignmentTaskRegistry);
+
+    WorkflowScriptRegistry* workflowScriptRegistry = new WorkflowScriptRegistry();
+    appContext->setWorkflowScriptRegistry(workflowScriptRegistry);
+
+    PasswordStorage* passwordStorage = new PasswordStorage();
+    appContext->setPasswordStorage(passwordStorage);
+    AppSettingsImpl::addPublicDbCredentials2Settings();
+
+    CredentialsAsker* credentialsAsker = new CredentialsAskerCli();
+    appContext->setCredentialsAsker(credentialsAsker);
+
+    AppFileStorage *appFileStorage = new AppFileStorage();
+    U2OpStatusImpl os;
+    appFileStorage->init(os);
+    if (os.hasError()) {
+        coreLog.error(os.getError());
+        delete appFileStorage;
+    } else {
+        appContext->setAppFileStorage(appFileStorage);
+    }
+
+    U2DataPathRegistry* dpr = new U2DataPathRegistry();
+    appContext->setDataPathRegistry(dpr);
+
+    DASSourceRegistry* dsr = new DASSourceRegistry();
+    appContext->setDASSourceRegistry(dsr);
+
     TaskStatusBarCon* tsbc=new TaskStatusBarCon();
-    
+
     // show help if need
-    bool showHelp = cmdLineRegistry->hasParameter(CMDLineCoreOptions::HELP) || 
+    bool showHelp = cmdLineRegistry->hasParameter(CMDLineCoreOptions::HELP) ||
         cmdLineRegistry->hasParameter(CMDLineCoreOptions::USAGE) ||
         cmdLineRegistry->hasParameter(CMDLineCoreOptions::HELP_SHORT);
-    
+
     if( showHelp ) {
         QObject::connect( psp, SIGNAL( si_allStartUpPluginsLoaded()), new TaskStarter(new DumpHelpTask()), SLOT(registerTask()));
     }
-    
+
     bool showLicense = cmdLineRegistry->hasParameter(DumpLicenseTask::LICENSE_CMDLINE_OPTION);
     if( showLicense ) {
         QObject::connect(psp, SIGNAL(si_allStartUpPluginsLoaded()), new TaskStarter(new DumpLicenseTask()), SLOT(registerTask()));
     }
-    
+
     bool showVersion = cmdLineRegistry->hasParameter(DumpVersionTask::VERSION_CMDLINE_OPTION);
     showVersion = showVersion || cmdLineRegistry->hasParameter(DumpVersionTask::VERSION_CMDLINE_OPTION_SHORT);
     if(showVersion) {
         QObject::connect(psp, SIGNAL(si_allStartUpPluginsLoaded()), new TaskStarter(new DumpVersionTask()), SLOT(registerTask()));
     }
-    
+
+    bool hasNewTmpDir = cmdLineRegistry->hasParameter(CMDLineCoreOptions::TMP_DIR);
+    if (hasNewTmpDir) {
+        QString newTmpDir = cmdLineRegistry->getParameterValue(CMDLineCoreOptions::TMP_DIR);
+        AppContext::getAppSettings()->getUserAppsSettings()->setUserTemporaryDirPath(newTmpDir);
+    }
+
+    if (!showHelp && !showLicense && !showVersion) {
+        QObject::connect(psp, SIGNAL(si_allStartUpPluginsLoaded()), new TaskStarter(new TmpDirChecker()), SLOT(registerTask()));
+    }
+
     openDocs();
     registerCoreServices();
 
     GReportableCounter launchCounter("ugenecl launch", "", 1);
     ++launchCounter.totalCount;
-    
-    //3 run QT 
+
+    //3 run QT
     t1.stop();
-    coreLog.info(AppContextImpl::tr("UGENE started"));
-    ShutdownTask watchQuit(&app);
+    coreLog.info(AppContextImpl::tr("%1-bit version of UGENE started").arg(Version::appArchitecture));
+    ConsoleShutdownTask watchQuit(&app);
     int rc = app.exec();
 
     //4 deallocate resources
     Workflow::WorkflowEnv::shutdown();
-    
+
     delete tsbc;
-    
+
     delete distrUtil;
-    
+
+    appContext->setCredentialsAsker(NULL);
+    delete credentialsAsker;
+
+    appContext->setPasswordStorage(NULL);
+    delete passwordStorage;
+
+    appContext->setDASSourceRegistry(NULL);
+    delete dsr;
+
+    appContext->setDataPathRegistry(NULL);
+    delete dpr;
+
     appContext->setVirtualFileSystemRegistry( NULL );
     delete vfsReg;
-    
+
     appContext->setRecentlyDownloadedCache(NULL);
     delete rdc;
 
@@ -496,14 +569,14 @@ int main(int argc, char **argv)
     delete io;
     appContext->setIOAdapterRegistry(NULL);
 
-    delete dfc;
-    appContext->setDocumentFormatConfigurators(NULL);
-
     delete dfr;
     appContext->setDocumentFormatRegistry(NULL);
 
     delete dbiRegistry;
     appContext->setDbiRegistry(NULL);
+
+    delete schemaRegistry;
+    appContext->setUdrSchemaRegistry(NULL);
 
     delete ts;
     appContext->setTaskScheduler(NULL);
@@ -522,8 +595,8 @@ int main(int argc, char **argv)
 #endif
     appContext->setOpenCLGpuRegistry(NULL);
 
-    delete appSettings;
     appContext->setAppSettings(NULL);
+    delete appSettings;
 
     delete settings;
     appContext->setSettings(NULL);
@@ -533,18 +606,24 @@ int main(int argc, char **argv)
 
     delete cmdLineRegistry;
     appContext->setCMDLineRegistry(NULL);
-    
+
     delete sspar;
     appContext->setSecStructPedictAlgRegistry(NULL);
 
     appContext->setExternalToolRegistry(NULL);
     delete etr;
 
+    appContext->setScriptingToolRegistry(NULL);
+    delete str;
+
     delete msaConsReg;
     appContext->setMSAConsensusAlgorithmRegistry(NULL);
 
     delete msaDistReg;
     appContext->setMSADistanceAlgorithmRegistry(NULL);
+
+    delete assemblyConsReg;
+    appContext->setAssemblyConsensusAlgorithmRegistry(NULL);
 
     appContext->setPWMConversionAlgorithmRegistry(NULL);
     delete pwmConvReg;
@@ -560,6 +639,15 @@ int main(int argc, char **argv)
 
     appContext->setStructuralAlignmentAlgorithmRegistry(NULL);
     delete saar;
+
+    appContext->setConvertFactoryRegistry(NULL);
+    delete convertFactoryRegistry;
+
+    delete splicedAlignmentTaskRegistry;
+    appContext->setSplicedAlignmentTaskRegistry(NULL);
+
+    delete pwr;
+    appContext->setAlignmentAlgorithmsRegistry(NULL);
 
     return rc;
 }

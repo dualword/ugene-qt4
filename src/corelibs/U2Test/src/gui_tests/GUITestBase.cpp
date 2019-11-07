@@ -1,28 +1,95 @@
 #include "GUITestBase.h"
 
-
 namespace U2 {
 
-bool GUITestBase::registerTest(GUITest *t) {
-    if(!findTestByName(t->getName())) {
-        tests.insert(t->getName(), t);
+const QString GUITestBase::unnamedTestsPrefix = "test";
+
+GUITestBase::~GUITestBase() {
+
+    qDeleteAll(tests);
+    qDeleteAll(preAdditional);
+    qDeleteAll(postAdditionalActions);
+    qDeleteAll(postAdditionalChecks);
+}
+
+bool GUITestBase::registerTest(GUITest *test, TestType testType) {
+
+    Q_ASSERT(test);
+
+    test->setName(nameUnnamedTest(test, testType));
+
+    if (isNewTest(test, testType)) {
+        addTest(test, testType);
         return true;
     }
+
     return false;
 }
-GUITest *GUITestBase::findTestByName(const QString &name) {
-    QMap<QString, GUITest*>::const_iterator i = tests.find(name);
-    if(i == tests.end()) {
-        return NULL;
-    } else {
-        return i.value();
+
+QString GUITestBase::nameUnnamedTest(GUITest* test, TestType testType) {
+
+    Q_ASSERT(test);
+    if (!test) {
+        return "";
+    }
+
+    QString testName = test->getName();
+    if (testName.isEmpty()) {
+        testName = getNextTestName(testType);
+    }
+
+    return testName;
+}
+
+bool GUITestBase::isNewTest(GUITest *test, TestType testType) {
+
+    return test && !findTest(test->getName(), testType);
+}
+
+void GUITestBase::addTest(GUITest *test, TestType testType) {
+
+    if (test) {
+        getMap(testType).insert(test->getName(), test);
     }
 }
-QList<GUITest*> GUITestBase::getTests() {
-    return tests.values();
+
+QString GUITestBase::getNextTestName(TestType testType) {
+
+    int testsCount = getMap(testType).size();
+    return unnamedTestsPrefix + QString::number(testsCount);
 }
 
-
-
-
+GUITest *GUITestBase::findTest(const QString &name, TestType testType) {
+    GUITestMap map = getMap(testType);
+    return map.value(name);
 }
+
+GUITest *GUITestBase::getTest(const QString &name, TestType testType) {
+
+    return getMap(testType).take(name);
+}
+
+GUITestMap& GUITestBase::getMap(TestType testType) {
+
+    switch(testType) {
+    case PreAdditional:
+        return preAdditional;
+    case PostAdditionalChecks:
+        return postAdditionalChecks;
+    case PostAdditionalActions:
+        return postAdditionalActions;
+
+    default:
+    case Normal: return tests;
+    }
+}
+
+GUITests GUITestBase::getTests(TestType testType) {
+
+    GUITests testList = getMap(testType).values();
+    getMap(testType).clear();
+
+    return testList;
+}
+
+} // namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include "MAFFTSupportRunDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QToolButton>
+#endif
+
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/GUrlUtils.h>
 
 #include <U2Gui/DialogUtils.h>
-#include <QtGui/QFileDialog>
-#include <QtGui/QToolButton>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
+
+#include "MAFFTSupportRunDialog.h"
 
 namespace U2 {
 
@@ -33,8 +48,18 @@ MAFFTSupportRunDialog::MAFFTSupportRunDialog(MAFFTSupportTaskSettings& _settings
         QDialog(_parent), settings(_settings)
 {
     setupUi(this);
-    connect(this->cancelButton,SIGNAL(clicked()),this,SLOT(reject()));
-    connect(this->alignButton,SIGNAL(clicked()),this,SLOT(sl_align()));
+    new HelpButton(this, buttonBox, "16122399");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Align"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    inputGroupBox->setVisible(false);
+    this->adjustSize();
+    QPushButton* cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
+    QPushButton* alignButton = buttonBox->button(QDialogButtonBox::Ok);
+
+    connect(cancelButton,SIGNAL(clicked()),this,SLOT(reject()));
+    connect(alignButton,SIGNAL(clicked()),this,SLOT(sl_align()));
+
 }
 
 void MAFFTSupportRunDialog::sl_align(){
@@ -55,32 +80,44 @@ MAFFTWithExtFileSpecifySupportRunDialog::MAFFTWithExtFileSpecifySupportRunDialog
         QDialog(_parent), settings(_settings)
 {
     setupUi(this);
-    QWidget * widget = new QWidget(_parent);
-    inputFileLineEdit= new FileLineEdit(DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::MULTIPLE_ALIGNMENT, true),
-        "", false, widget);
-    inputFileLineEdit->setText("");
-    QToolButton * selectToolPathButton = new QToolButton(widget);
-    selectToolPathButton->setVisible(true);
-    selectToolPathButton->setText("...");
-    connect(selectToolPathButton, SIGNAL(clicked()), inputFileLineEdit, SLOT(sl_onBrowse()));
-    connect(inputFileLineEdit,SIGNAL(textChanged(QString)),this, SLOT(sl_inputFileLineEditChanged(QString)));
+    new HelpButton(this, buttonBox, "16122399");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Align"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
 
-    QHBoxLayout* layout = new QHBoxLayout(widget);
-    layout->addWidget(inputFileLineEdit);
-    layout->addWidget(selectToolPathButton);
+    //this->adjustSize();
+    connect(inputFilePathButton, SIGNAL(clicked()), SLOT(sl_inputPathButtonClicked()));
+    connect(outputFilePathButton, SIGNAL(clicked()), SLOT(sl_outputPathButtonClicked()));
 
-    QGroupBox* inputFileGroupBox=new QGroupBox(tr("Select input file"),widget);
-    inputFileGroupBox->setLayout(layout);
-    QBoxLayout* parentLayout = qobject_cast<QBoxLayout*>(this->layout());
-    assert(parentLayout);
-    parentLayout->insertWidget(0, inputFileGroupBox);
-    alignButton->setEnabled(false);
-    connect(this->cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
-    connect(this->alignButton, SIGNAL(clicked()), this, SLOT(sl_align()));
+    QPushButton* cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
+    QPushButton* alignButton = buttonBox->button(QDialogButtonBox::Ok);
+
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    connect(alignButton, SIGNAL(clicked()), this, SLOT(sl_align()));
 }
 
-void MAFFTWithExtFileSpecifySupportRunDialog::sl_inputFileLineEditChanged(const QString& str){
-    alignButton->setEnabled(!str.isEmpty());
+void MAFFTWithExtFileSpecifySupportRunDialog::sl_inputPathButtonClicked() {
+    LastUsedDirHelper lod;
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Open an alignment file"), lod.dir,
+        DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::MULTIPLE_ALIGNMENT, true));
+    if (lod.url.isEmpty()) {
+        return;
+    }
+    inputFileLineEdit->setText(lod.url);
+}
+
+void MAFFTWithExtFileSpecifySupportRunDialog::sl_outputPathButtonClicked() {
+    LastUsedDirHelper lod;
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Save an multiple alignment file"), lod.dir);
+    if (lod.url.isEmpty()) {
+        return;
+    }
+    outputFileLineEdit->setText(lod.url);
+    buildMultipleAlignmentUrl(lod.url);
+}
+
+void MAFFTWithExtFileSpecifySupportRunDialog::buildMultipleAlignmentUrl(const GUrl &alnUrl) {
+    GUrl url = GUrlUtils::rollFileName(alnUrl.dirPath() + "/" + alnUrl.baseFileName()+ ".aln", DocumentUtils::getNewDocFileNameExcludesHint());
+    outputFileLineEdit->setText(url.getURLString());
 }
 
 void MAFFTWithExtFileSpecifySupportRunDialog::sl_align(){
@@ -93,13 +130,19 @@ void MAFFTWithExtFileSpecifySupportRunDialog::sl_align(){
     if(maxNumberIterRefinementCheckBox->isChecked()){
         settings.maxNumberIterRefinement = maxNumberIterRefinementSpinBox->value();
     }
-    if(!inputFileLineEdit->text().isEmpty()){
-        settings.inputFilePath=inputFileLineEdit->text();
-    }else{
-        assert(NULL);
-        reject();
-    }
-    accept();
+    if(inputFileLineEdit->text().isEmpty()){
+        QMessageBox::information(this, tr("Kalign with Align"),
+            tr("Input file is not set!") );
+        }else if(outputFileLineEdit->text().isEmpty()){
+            QMessageBox::information(this, tr("Kalign with Align"),
+                tr("Output file is not set!") );
+        }
+        else{
+            settings.outputFilePath=outputFileLineEdit->text();
+            settings.inputFilePath=inputFileLineEdit->text();
+            QDialog::accept();
+            }
+
 }
 
 }//namespace

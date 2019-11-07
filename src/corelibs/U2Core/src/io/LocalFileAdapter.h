@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -76,14 +76,17 @@ public:
     virtual qint64 writeBlock(const char* data, qint64 size);
 
     virtual bool skip(qint64 nBytes);
-    
+
     virtual qint64 left() const;
     virtual int getProgress() const;
-    
+
     virtual qint64 bytesRead() const;
-    
+
     virtual GUrl getURL() const;
-    
+
+    virtual QString errorString() const;
+
+
 private:
     QFile* f;
 

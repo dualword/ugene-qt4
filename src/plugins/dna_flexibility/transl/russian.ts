@@ -1,67 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0">
+<TS version="2.0" language="ru_RU">
 <context>
     <name>DNAFlexDialog</name>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="32"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="26"/>
         <source>DNA Flexibility</source>
         <translation>ДНК флексибильность</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="38"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="32"/>
         <source>The DNA Flexibility plugin allows searching for high DNA flexibility regions.</source>
         <translation>Модуль &quot;ДНК флексибильность&quot; позволяет искать в ДНК районы высокой флексибильности.</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="48"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="42"/>
         <source>Search Settings</source>
         <translation>Параметры поиска</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="60"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="48"/>
         <source>High DNA Flexibility Regions Settings</source>
         <translation>Параметры районов высокой флексибильности</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="75"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="56"/>
         <source>Window size</source>
         <translation>Размер окна</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="98"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="79"/>
         <source>Window step</source>
         <translation>Шаг</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="118"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="99"/>
         <source>Threshold</source>
         <translation>Пороговая величина</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="172"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="150"/>
         <source>Remember Settings</source>
         <translation>Запомнить</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="179"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="157"/>
         <source>Restore Defaults</source>
         <translation>По умолчанию</translation>
     </message>
     <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="203"/>
+        <location filename="../src/ui/DNAFlexDialog.ui" line="185"/>
         <source>Output</source>
         <translation>Выходные параметры</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="236"/>
-        <source>Search</source>
-        <translation>Искать</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/DNAFlexDialog.ui" line="243"/>
-        <source>Cancel</source>
-        <translation>Отмена</translation>
     </message>
 </context>
 <context>
@@ -83,11 +73,35 @@
     </message>
 </context>
 <context>
+    <name>U2::DNAFlexDialog</name>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="47"/>
+        <source>Search</source>
+        <translation>Искать</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="48"/>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="99"/>
+        <location filename="../src/DNAFlexDialog.cpp" line="104"/>
+        <source>Error</source>
+        <translation>Ошибка</translation>
+    </message>
+    <message>
+        <location filename="../src/DNAFlexDialog.cpp" line="104"/>
+        <source>Cannot create an annotation object. Please check settings</source>
+        <translation>Невозможно создать аннотацию. Проверьте настройки</translation>
+    </message>
+</context>
+<context>
     <name>U2::DNAFlexGraphFactory</name>
     <message>
         <location filename="../src/DNAFlexGraph.cpp" line="40"/>
         <source>DNA Flexibility</source>
-        <translation type="unfinished">ДНК флексибильность</translation>
+        <translation>ДНК флексибильность</translation>
     </message>
 </context>
 <context>
@@ -106,7 +120,7 @@
 <context>
     <name>U2::DNAFlexTask</name>
     <message>
-        <location filename="../src/DNAFlexTask.cpp" line="43"/>
+        <location filename="../src/DNAFlexTask.cpp" line="44"/>
         <source>DNA Flexibility task</source>
         <translation>Задача анализа ДНК флексибильности</translation>
     </message>
@@ -119,13 +133,9 @@
 <context>
     <name>U2::DNAFlexViewContext</name>
     <message>
-        <source>The input sequence must contain only A, C, G and T characters!</source>
-        <translation type="obsolete">Входная последовательность должна состоять из букв A, C, G и T!</translation>
-    </message>
-    <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="89"/>
         <source>Unsupported sequence alphabet, only standard DNA alphabet is supported</source>
-        <translation type="unfinished"></translation>
+        <translation>Неподдерживаемый алфавит, входная последовательность должна состоять из букв A, C, G и T</translation>
     </message>
     <message>
         <location filename="../src/DNAFlexPlugin.cpp" line="112"/>

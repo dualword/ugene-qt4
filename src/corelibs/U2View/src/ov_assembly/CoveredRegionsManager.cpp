@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,8 @@
 
 namespace U2 {
 
+const int CoveredRegionsManager::DESIRED_REGION_LENGTH = 100;
+
 CoveredRegionsManager::CoveredRegionsManager(const U2Region & visibleRegion_, const QVector<qint64> & coverageInfo) :
 visibleRegion(visibleRegion_)  {
     assert(!coverageInfo.empty());
@@ -33,9 +35,23 @@ visibleRegion(visibleRegion_)  {
     //convert coverage info to covered regions
     //splitting visible region to coverageInfo.size() "covered" regions
     double step = double(visibleRegion.length)/coverageInfo.size(); //precise length of the region
-    for(int i = 0; i < coverageInfo.size(); ++i) {
-        U2Region region(step*i, qint64(step)); 
-        CoveredRegion coveredRegion(region, coverageInfo[i]);
+    // But if regions are too small, reduce their number by joining
+    int regionsToJoin = 1;
+    int regionsCount = coverageInfo.size();
+    if(step < DESIRED_REGION_LENGTH) {
+        regionsToJoin = qRound(DESIRED_REGION_LENGTH/step);
+        regionsCount /= regionsToJoin;
+        step *= regionsToJoin;
+    }
+    for(int i = 0; i < regionsCount; ++i) {
+        qint64 maxCoverage = 0;
+        for(int j = 0; j < regionsToJoin; ++j) {
+            maxCoverage = qMax(maxCoverage, coverageInfo[i*regionsToJoin + j]);
+        }
+        U2Region region(step*i, qint64(step));
+        CoveredRegion coveredRegion(region, maxCoverage);
+        //coreLog.trace(QString("Assembly: adding covered region %1 - %2, coverage %3").arg(region.startPos).arg(region.endPos()).arg(maxCoverage));
+
         allRegions.push_back(coveredRegion);
     }
 

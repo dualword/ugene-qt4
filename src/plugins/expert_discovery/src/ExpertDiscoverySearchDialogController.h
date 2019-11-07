@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,11 @@
 #include <ui/ui_ExpertDiscoverySearchDialog.h>
 
 #include <QtCore/QList>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 #include <QtGui/QCloseEvent>
 #include <QtCore/QTimer>
 
@@ -55,7 +59,7 @@ protected:
     bool eventFilter(QObject *obj, QEvent *ev);
 
 private slots:
-    
+
     //buttons:
 //    void sl_selectModelFile();
     void sl_onSaveAnnotations();
@@ -68,13 +72,13 @@ private slots:
     void sl_onTimer();
 
     void sl_onResultActivated(QTreeWidgetItem* i, int col);
-    
+
 private:
     void connectGUI();
     void updateState();
     void updateStatus();
     //void updateModel(const SiteconModel& m);
-    
+
     bool checkPrevSettings();
     void savePrevSettings();
 
@@ -85,12 +89,14 @@ private:
 private:
     ADVSequenceObjectContext*   ctx;
     U2Region                     initialSelection;
-    
+
     ExpertDiscoveryData&       edData;
 
     ExpertDiscoverySearchTask* task;
     QTimer* timer;
     RegionSelector* rs;
+    QPushButton* pbSearch;
+    QPushButton* pbClose;
 };
 
 }//namespace

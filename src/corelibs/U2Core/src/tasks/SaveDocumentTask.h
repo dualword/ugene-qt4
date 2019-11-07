@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,9 +37,12 @@ class DocumentFormat;
 
 enum SaveDocFlag {
     SaveDoc_Overwrite = 0x0,
-    SaveDoc_Append = 0x1, 
-    SaveDoc_Roll = 0x2, 
-    SaveDoc_DestroyAfter = 0x4
+    SaveDoc_Append = 0x1,
+    SaveDoc_Roll = 0x2,
+    SaveDoc_DestroyAfter = 0x4,
+    SaveDoc_DestroyButDontUnload = 0x8,
+    SaveDoc_OpenAfter = 0x16,
+    SaveDoc_UnloadAfter = 0x80
 };
 
 typedef QFlags<SaveDocFlag>  SaveDocFlags;
@@ -47,7 +50,7 @@ typedef QFlags<SaveDocFlag>  SaveDocFlags;
 class U2CORE_EXPORT SaveDocumentTask : public Task {
     Q_OBJECT
 public:
-    SaveDocumentTask(Document* doc, IOAdapterFactory* iof = NULL, const GUrl& url = GUrl());
+    SaveDocumentTask(Document* doc, IOAdapterFactory* iof = NULL, const GUrl& url = GUrl(), SaveDocFlags flags = SaveDoc_Overwrite);
     SaveDocumentTask(Document* doc, SaveDocFlags flags, const QSet<QString>& excludeFileNames = QSet<QString>());
 
     virtual void prepare();
@@ -76,14 +79,19 @@ private:
     QSet<QString>       excludeFileNames;
 };
 
+enum SavedNewDocFlag {
+    SavedNewDoc_Open = true,
+    SavedNewDoc_DoNotOpen = false
+};
 
-class U2CORE_EXPORT SaveMiltipleDocuments: public Task {
+class U2CORE_EXPORT SaveMultipleDocuments: public Task {
     Q_OBJECT
 public:
-
-    SaveMiltipleDocuments(const QList<Document*>& docs, bool askBeforeSave);
+    SaveMultipleDocuments(const QList<Document*>& docs, bool askBeforeSave, SavedNewDocFlag openFlag = SavedNewDoc_DoNotOpen);
 
     static QList<Document*> findModifiedDocuments(const QList<Document*>& docs);
+private:
+    GUrl chooseAnotherUrl(Document* doc);
 };
 
 class U2CORE_EXPORT SaveCopyAndAddToProjectTask : public Task {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,30 +19,31 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/SaveDocumentTask.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/DocumentUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
-#include <U2Core/DocumentUtils.h>
+#include <U2Core/SaveDocumentTask.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
 
-#include "ExportSequencesDialog.h"
 #include "ExportSequenceTask.h"
+#include "ExportSequencesDialog.h"
+#include "ExportTasks.h"
 #include "ExportUtils.h"
 
 namespace U2 {
 
-void ExportUtils::loadDNAExportSettingsFromDlg(ExportSequenceTaskSettings& s, const ExportSequencesDialog& d)  {
-    s.fileName = d.file;
-    s.merge = d.merge;
-    s.mergeGap = d.mergeGap;
-    s.allAminoFrames = d.translateAllFrames;
-    s.strand = d.strand;
-    s.formatId = d.formatId;
-    s.mostProbable = d.mostProbable;
-    s.saveAnnotations = d.withAnnotations;
+void ExportUtils::loadDNAExportSettingsFromDlg(ExportSequenceTaskSettings& s, ExportSequencesDialog *d)  {
+    s.fileName = d->file;
+    s.merge = d->merge;
+    s.mergeGap = d->mergeGap;
+    s.allAminoFrames = d->translateAllFrames;
+    s.strand = d->strand;
+    s.formatId = d->formatId;
+    s.mostProbable = d->mostProbable;
+    s.saveAnnotations = d->withAnnotations;
+    s.sequenceName = d->sequenceName;
 }
 
 Task* ExportUtils::wrapExportTask(DocumentProviderTask* t, bool addToProject) {
@@ -51,8 +52,6 @@ Task* ExportUtils::wrapExportTask(DocumentProviderTask* t, bool addToProject) {
     }
     return new AddExportedDocumentAndOpenViewTask(t);
 }
-
-
 
 QString ExportUtils::genUniqueName(const QSet<QString>& names, QString prefix) {
     if (!names.contains(prefix)) {
@@ -67,33 +66,6 @@ QString ExportUtils::genUniqueName(const QSet<QString>& names, QString prefix) {
         name = prefix + "_" + QString::number(++i);
     } while(true);
     return name;
-}
-
-Task * ExportUtils::saveAnnotationsTask(const QString & filepath, const DocumentFormatId & format, const QList<Annotation*> & annList) {
-    SaveDocFlags fl(SaveDoc_Roll);
-    fl |= SaveDoc_DestroyAfter;
-    IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(filepath));
-    DocumentFormat * df = AppContext::getDocumentFormatRegistry()->getFormatById(format);
-    U2OpStatus2Log os;
-    Document * doc = df->createNewLoadedDocument(iof, filepath, os);
-    CHECK_OP(os, NULL);
-    
-    // object and annotations will be deleted when savedoc task will delete doc
-    AnnotationTableObject * att = new AnnotationTableObject("exported_annotations");
-    bool setAttName = false;
-    foreach(Annotation * a, annList) {
-        if(!setAttName && a->getGObject() != NULL) {
-            QString newName = a->getGObject()->getGObjectName();
-            assert(!newName.isEmpty());
-            att->setGObjectName(newName);
-            setAttName = true;
-        }
-        QString groupName = a->getGroups().isEmpty() ? "" : a->getGroups().first()->getGroupName();
-        att->addAnnotation(new Annotation(a->data()), groupName);
-    }
-    att->setModified(false);
-    doc->addObject(att);
-    return new SaveDocumentTask(doc, fl, DocumentUtils::getNewDocFileNameExcludesHint());
 }
 
 }//namespace

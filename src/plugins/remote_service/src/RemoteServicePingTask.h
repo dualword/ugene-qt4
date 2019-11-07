@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,26 +22,24 @@
 #ifndef _REMOTE_SERVICE_PING_TASK_H_
 #define _REMOTE_SERVICE_PING_TASK_H_
 
+#include "RemoteServiceMachine.h"
+
 #include <U2Core/Task.h>
-#include <memory>
 
 namespace U2 {
 
- class RemoteServiceMachine;
- class RemoteServiceMachineFactory;
-
 class RemoteServicePingTask : public Task {
-	Q_OBJECT
+    Q_OBJECT
 public:
     RemoteServicePingTask(const QString& url);
     virtual void prepare();
     virtual void run();
 private:
     QString machinePath;
-    std::auto_ptr<RemoteServiceMachine> machine;
-    std::auto_ptr<RemoteServiceMachineFactory> machineFactory;
+    QScopedPointer<RemoteServiceMachine> machine;
+    QScopedPointer<RemoteServiceMachineFactory> machineFactory;
 };
-  
+
 
 } // namespace U2
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,7 +42,7 @@ const QString SslConfig::SSLV2 = "SslV2";
 const QString SslConfig::SSLV3 = "SslV3";
 
 const int RemoteRequestConfig::DEFAULT_REMOTE_REQUEST_TIMEOUT_SECONDS = 60;
-
+const QString RemoteRequestConfig::HTTP_BODY_SEPARATOR("HTTP_BODY_SEPARATOR");
 
 NetworkConfiguration::NetworkConfiguration() {
     Settings * s = AppContext::getSettings();
@@ -51,7 +51,7 @@ NetworkConfiguration::NetworkConfiguration() {
 
     QString httpProxyHost = s->getValue( SETTINGS_HTTP_PROXY_HOST ).toString();
     int httpProxyPort = s->getValue( SETTINGS_HTTP_PROXY_PORT ).toInt();
-    
+
     if( !httpProxyHost.isEmpty() && httpProxyPort ) {
         QNetworkProxy httpProxy( QNetworkProxy::HttpProxy, httpProxyHost, httpProxyPort );
 
@@ -81,14 +81,14 @@ NetworkConfiguration::~NetworkConfiguration() {
     s->setValue( SETTINGS_REMOTE_REQUEST_TIMEOUT, rrConfig.remoteRequestTimeout );
 
     QNetworkProxy httpP = getProxy( QNetworkProxy::HttpProxy );
-    
+
     if( !httpP.hostName().isEmpty() ) {
         s->setValue( SETTINGS_HTTP_PROXY_HOST, httpP.hostName() );
         s->setValue( SETTINGS_HTTP_PROXY_PORT, httpP.port() );
         s->setValue( SETTINGS_HTTP_PROXY_USER, httpP.user());
-        s->setValue( SETTINGS_HTTP_PROXY_PASSWORD, httpP.password().toAscii().toBase64());
+        s->setValue( SETTINGS_HTTP_PROXY_PASSWORD, httpP.password().toLatin1().toBase64());
         s->setValue( SETTINGS_HTTP_PROXY_ENABLED, isProxyUsed(QNetworkProxy::HttpProxy) );
-        
+
     }
 }
 
@@ -106,7 +106,7 @@ QNetworkProxy NetworkConfiguration::getProxyByUrl( const QUrl & url ) const
     if( pc.proxyz.contains( prtype ) ) {
         assert( pc.proxyz_usage.contains(prtype) );
         if( pc.proxyz_usage[prtype] ) {
-            return ( pc.excepted_addr_enabled && pc.excepted_addr.contains( url.toString() ) ? 
+            return ( pc.excepted_addr_enabled && pc.excepted_addr.contains( url.toString() ) ?
                 QNetworkProxy() : pc.proxyz[prtype] );
         }
     }
@@ -138,7 +138,7 @@ void NetworkConfiguration::setProxyUsed( Proxy_t prtype, bool flag ) {
 Proxy_t NetworkConfiguration::url2type( const QUrl & url ) {
     if( "http" == url.scheme() || "https" == url.scheme() ) {
         return QNetworkProxy::HttpProxy;
-    } 
+    }
     if( "ftp" == url.scheme() ) {
         return QNetworkProxy::FtpCachingProxy;
     }
@@ -161,7 +161,11 @@ QSsl::SslProtocol NetworkConfiguration::getSslProtocol() const
     } else if (sslConfig.currentProtocol == SslConfig::SSLV3) {
         return QSsl::SslV3;
     } else if (sslConfig.currentProtocol == SslConfig::TLSV1) {
+#if (QT_VERSION >= QT_VERSION_CHECK(5,0,0))
+        return QSsl::TlsV1_0;
+#else
         return QSsl::TlsV1;
+#endif
     } else {
         return QSsl::SslV3;
     }
@@ -180,10 +184,10 @@ QString NetworkConfiguration::getSslProtocolName() const
 
 void NetworkConfiguration::setSslProtocol( const QString& name )
 {
-    sslConfig.currentProtocol = name;    
+    sslConfig.currentProtocol = name;
 }
 
-void NetworkConfiguration::setRequestTimeout( const int timeout ) 
+void NetworkConfiguration::setRequestTimeout( const int timeout )
 {
     rrConfig.remoteRequestTimeout = timeout;
 }

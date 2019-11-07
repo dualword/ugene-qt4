@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,8 +26,8 @@
 
 #include "GSequenceLineView.h"
 
+#include <U2Core/DNAAlphabet.h>
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/GObjectTypes.h>
 #include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectUtils.h>
@@ -40,67 +40,101 @@
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QApplication>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
+#endif
+
 #include <QtCore/QSet>
 
-namespace U2 {
+static const int SEQ_OBJS_PER_VIEW = 10;
 
-/* TRANSLATOR U2::AnnotatedDNAView */
-/* TRANSLATOR U2::ObjectViewTask */
+namespace U2 {
 
 //////////////////////////////////////////////////////////////////////////
 /// open new view
 
 //opens a single view for all sequence object in the list of sequence objects related to the objects in the list
-OpenAnnotatedDNAViewTask::OpenAnnotatedDNAViewTask(const QList<GObject*>& objects) 
-: ObjectViewTask(AnnotatedDNAViewFactory::ID)
+OpenAnnotatedDNAViewTask::OpenAnnotatedDNAViewTask( const QList<GObject *> &objects )
+: ObjectViewTask( AnnotatedDNAViewFactory::ID )
 {
     //  remember only sequence objects -> other added automatically
     //  load all objects
-
-    QList<Document*> docsToLoadSet;
-    QSet<GObject*>  refsAdded;
-    QList<GObject*> allSequenceObjects = GObjectUtils::findAllObjects(UOF_LoadedAndUnloaded, GObjectTypes::SEQUENCE);
-    foreach(GObject* obj, objects) {
-        uiLog.trace("Object to open sequence view: '" + obj->getGObjectName()+"'");
-        Document* doc = obj->getDocument();
-        if (!doc->isLoaded()) {
-            docsToLoadSet.append(doc);
+    QList<Document *> docsToLoadSet;
+    QSet<GObject *> refsAdded;
+    int displayedSeqCount = 0;
+    foreach ( GObject *obj, objects ) {
+        // check the limit count of simultaneously displayed sequences
+        if ( SEQ_OBJS_PER_VIEW <= displayedSeqCount ) {
+            break;
         }
-        if (GObjectUtils::hasType(obj, GObjectTypes::SEQUENCE)) {
-            sequenceObjectRefs.append(GObjectReference(doc->getURLString(), obj->getGObjectName(), GObjectTypes::SEQUENCE));
-            refsAdded.insert(obj);
-            continue;
+        Document *doc = obj->getDocument( );
+        uiLog.trace( "Object to open sequence view: '" + obj->getGObjectName( ) + "'" );
+        if ( !doc->isLoaded( ) ) {
+            docsToLoadSet.append( doc );
         }
-        
-    
-        //look for sequence object using relations
-        QList<GObject*> objWithSeqRelation = GObjectUtils::selectRelations(obj, GObjectTypes::SEQUENCE, 
-                                        GObjectRelationRole::SEQUENCE, allSequenceObjects, UOF_LoadedAndUnloaded);
-
-        foreach(GObject* robj, objWithSeqRelation) {
-            if (!GObjectUtils::hasType(robj, GObjectTypes::SEQUENCE)) {
-                continue;
-            }
-            if (refsAdded.contains(robj)) {
-                continue;
-            }
-            Document* rdoc = robj->getDocument();
-            if (!rdoc->isLoaded()) {
-                docsToLoadSet.append(rdoc);
-            }
-            refsAdded.insert(robj);
-            sequenceObjectRefs.append(GObjectReference(rdoc->getURLString(), robj->getGObjectName(), GObjectTypes::SEQUENCE));
-
+        populateSeqObjectRefs( obj, docsToLoadSet, refsAdded );
+        if ( GObjectUtils::hasType( obj, GObjectTypes::SEQUENCE ) ) {
+            ++displayedSeqCount;
         }
     }
-    foreach(Document* doc, docsToLoadSet) {
-        uiLog.trace("Document to load: '" + doc->getURLString()+"'");
-        documentsToLoad.append(doc);
+    foreach ( Document *doc, docsToLoadSet ) {
+        uiLog.trace( "Document to load: '" + doc->getURLString( ) + "'" );
+        documentsToLoad.append( doc );
     }
 }
 
-#define MAX_SEQ_OBJS_PER_VIEW 50
+void OpenAnnotatedDNAViewTask::populateSeqObjectRefs( GObject *object, QList<Document *> &docsToLoad,
+    QSet<GObject *> &refsAdded )
+{
+    const QList<GObject *> allSequenceObjects = GObjectUtils::findAllObjects( UOF_LoadedAndUnloaded,
+        GObjectTypes::SEQUENCE );
 
+    Document *doc = object->getDocument( );
+    SAFE_POINT( NULL != doc, "Invalid document detected!", );
+
+    QList<GObject *> objWithSeqRelation;
+    if ( GObjectUtils::hasType( object, GObjectTypes::SEQUENCE ) ) {
+        QList<GObject *> allAnnotations = GObjectUtils::findAllObjects( UOF_LoadedAndUnloaded,
+            GObjectTypes::ANNOTATION_TABLE );
+        QList<GObject *> annotations = GObjectUtils::findObjectsRelatedToObjectByRole( object,
+            GObjectTypes::ANNOTATION_TABLE, ObjectRole_Sequence, allAnnotations,
+            UOF_LoadedAndUnloaded );
+        foreach ( GObject* ao, annotations ) {
+            objWithSeqRelation.append( ao );
+        }
+
+        GObjectReference reference( doc->getURLString( ), object->getGObjectName( ), GObjectTypes::SEQUENCE );
+        reference.entityRef = object->getEntityRef( );
+        sequenceObjectRefs.append( reference );
+        refsAdded.insert( object );
+        if ( objWithSeqRelation.isEmpty( ) ) {
+            return;
+        }
+    }
+    //look for sequence object using relations
+    objWithSeqRelation.append( GObjectUtils::selectRelations( object, GObjectTypes::SEQUENCE,
+        ObjectRole_Sequence, allSequenceObjects, UOF_LoadedAndUnloaded ) );
+
+    foreach ( GObject *robj, objWithSeqRelation ) {
+        if ( ( !GObjectUtils::hasType( robj, GObjectTypes::SEQUENCE ) && !GObjectUtils::hasType(robj, GObjectTypes::ANNOTATION_TABLE ) )
+            || refsAdded.contains( robj ) )
+        {
+            continue;
+        }
+        Document *rdoc = robj->getDocument( );
+        if ( !rdoc->isLoaded( ) ) {
+            docsToLoad.append( rdoc );
+        }
+        refsAdded.insert( robj );
+        GObjectReference reference( rdoc->getURLString( ), robj->getGObjectName( ), GObjectTypes::SEQUENCE );
+        reference.entityRef = robj->getEntityRef( );
+        sequenceObjectRefs.append( reference );
+    }
+}
 
 static QString deriveViewName(const QList<U2SequenceObject*>& seqObjects) {
     QString viewName;
@@ -125,6 +159,45 @@ static QString deriveViewName(const QList<U2SequenceObject*>& seqObjects) {
     return viewName;
 }
 
+static const int MAX_SEQS_COUNT = 5;
+static void showAlphabetWarning(const QList<U2SequenceObject*> &seqObjects) {
+    QStringList rawSeqs;
+    foreach (U2SequenceObject *seqObj, seqObjects) {
+        const DNAAlphabet *alphabet = seqObj->getAlphabet();
+        if (DNAAlphabet_RAW == alphabet->getType()) {
+            rawSeqs << seqObj->getSequenceName();
+        }
+    }
+
+    if (!rawSeqs.isEmpty()) {
+        QString warning(QObject::tr("The following sequences contain unrecognizable symbols:\n"));
+        int seqCount = 0;
+        foreach (const QString &seqName, rawSeqs) {
+            warning.append(seqName).append("\n");
+            seqCount++;
+            if (MAX_SEQS_COUNT == seqCount) {
+                break;
+            }
+        }
+        if (seqCount < rawSeqs.size()) {
+            warning.append(QObject::tr("and others...\n"));
+        }
+
+        warning.append(QObject::tr("Some algorithms will not work for these sequences."));
+        QMessageBox::warning(QApplication::activeWindow(), QObject::tr("Warning"), warning);
+    }
+
+    QSet<Document*> docs;
+    foreach(const GObject* obj, seqObjects){
+        docs.insert(obj->getDocument());
+    }
+    foreach(const Document* doc, docs){
+        if(!doc->getGHintsMap()[ProjectLoaderHint_MergeMode_DifferentAlphabets].toString().isEmpty()){
+            QMessageBox::warning(QApplication::activeWindow(), QObject::tr("Warning"),
+               doc->getGHintsMap()[ProjectLoaderHint_MergeMode_DifferentAlphabets].toString());
+        }
+    }
+}
 
 void OpenAnnotatedDNAViewTask::open() {
     if (stateInfo.hasError() || sequenceObjectRefs.isEmpty()) {
@@ -139,10 +212,10 @@ void OpenAnnotatedDNAViewTask::open() {
             U2OpStatusImpl status;
             seqObj->isValidDbiObject(status);
             CHECK_OP_EXT(status, stateInfo.setError(tr("Error reading sequence object from dbi! URL: '%1'', name: '%2', error: %3").arg(r.docUrl).arg(r.objName).arg(status.getError())), );
-            
+
             seqObjects.append(seqObj);
-            if (seqObjects.size() > MAX_SEQ_OBJS_PER_VIEW) {
-                uiLog.details(tr("Maximum number of objects per view reached: %1").arg(MAX_SEQ_OBJS_PER_VIEW));
+            if (seqObjects.size() > SEQ_OBJS_PER_VIEW) {
+                uiLog.details(tr("Maximum number of objects per view reached: %1").arg(SEQ_OBJS_PER_VIEW));
                 break;
             }
         } else {
@@ -150,7 +223,9 @@ void OpenAnnotatedDNAViewTask::open() {
         }
     }
     if (seqObjects.isEmpty()) { //object was removed asynchronously with the task
-        stateInfo.setError(tr("No sequence objects found"));
+        if(0 == stateInfo.cancelFlag) {
+            stateInfo.setError(tr("No sequence objects found"));
+        }
         return;
     }
     QString viewName = deriveViewName(seqObjects);
@@ -159,6 +234,7 @@ void OpenAnnotatedDNAViewTask::open() {
     MWMDIManager* mdiManager =  AppContext::getMainWindow()->getMDIManager();
     mdiManager->addMDIWindow(w);
 
+    showAlphabetWarning(seqObjects);
 }
 
 void OpenAnnotatedDNAViewTask::updateTitle(AnnotatedDNAView* v) {
@@ -189,7 +265,7 @@ static QSet<Document*> selectDocuments(Project* p, const QList<GObjectReference>
     return res;
 }
 
-OpenSavedAnnotatedDNAViewTask::OpenSavedAnnotatedDNAViewTask(const QString& viewName, const QVariantMap& stateData) 
+OpenSavedAnnotatedDNAViewTask::OpenSavedAnnotatedDNAViewTask(const QString& viewName, const QVariantMap& stateData)
 : ObjectViewTask(AnnotatedDNAViewFactory::ID, viewName, stateData)
 {
     AnnotatedDNAViewState state(stateData);
@@ -209,12 +285,12 @@ OpenSavedAnnotatedDNAViewTask::OpenSavedAnnotatedDNAViewTask(const QString& view
                 return;
             }
         }
-        
+
         if (!doc->isLoaded()) {
             documentsToLoad.append(doc);
         }
     }
-    
+
     QSet<Document*> adocs = selectDocuments(AppContext::getProject(), state.getAnnotationObjects(), stateInfo);
     foreach(Document* adoc, adocs) {
         if (!adoc->isLoaded()) {
@@ -236,7 +312,12 @@ void OpenSavedAnnotatedDNAViewTask::open() {
             stateInfo.setError(L10N::errorDocumentNotFound(ref.docUrl));
             return;
         }
-        GObject* obj = doc->findGObjectByName(ref.objName);
+        GObject* obj = NULL;
+        if (doc->isDatabaseConnection() && ref.entityRef.isValid()) {
+            obj = doc->getObjectById(ref.entityRef.entityId);
+        } else {
+            obj = doc->findGObjectByName(ref.objName);
+        }
         if (obj == NULL || obj->getGObjectType() != GObjectTypes::SEQUENCE) {
             stateIsIllegal = true;
             stateInfo.setError(tr("DNA sequence object not found: %1").arg(ref.objName));
@@ -255,7 +336,7 @@ void OpenSavedAnnotatedDNAViewTask::open() {
 
 //////////////////////////////////////////////////////////////////////////
 // update
-UpdateAnnotatedDNAViewTask::UpdateAnnotatedDNAViewTask(AnnotatedDNAView* v, const QString& stateName, const QVariantMap& stateData) 
+UpdateAnnotatedDNAViewTask::UpdateAnnotatedDNAViewTask(AnnotatedDNAView* v, const QString& stateName, const QVariantMap& stateData)
 : ObjectViewTask(v, stateName, stateData)
 {
 }
@@ -267,11 +348,9 @@ void UpdateAnnotatedDNAViewTask::update() {
 
     AnnotatedDNAView* aview = qobject_cast<AnnotatedDNAView*>(view.data());
     assert(aview!=NULL);
-    
+
     AnnotatedDNAViewState state(stateData);
     aview->updateState(state);
 }
-
-
 
 } // namespace

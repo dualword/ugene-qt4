@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -46,25 +46,25 @@ public:
             " or more CMDLineHelpProvider with the same fullName. They will be"
             " placed on different lines in the options list."));
     }
-        
-    QString getHelpSectionFullName() const {return fullName;}    
+
+    QString getHelpSectionFullName() const {return fullName;}
     QString getHelpSectionShortDescription() const { return shortDescription; }
     QString getHelpSectionFullDescription() const { return fullDescription; }
     QString getHelpSectionArgsDescription() const { return argsDescription; }
     QString getHelpSectionShortName() const {return shortName;}
-    QString getHelpSectionNames() const { 
-        QString ret = fullName; 
-        if (!shortName.isEmpty()) { ret += " | -" + shortName; } 
-        return ret; 
+    QString getHelpSectionNames() const {
+        QString ret = fullName;
+        if (!shortName.isEmpty()) { ret += " | -" + shortName; }
+        return ret;
     }
-    
+
 private:
-    QString fullName;    
+    QString fullName;
     QString shortDescription;
     QString fullDescription;
     QString argsDescription;
     QString shortName;
-    
+
 }; // CMDLineHelpProvider
 
 }//namespace

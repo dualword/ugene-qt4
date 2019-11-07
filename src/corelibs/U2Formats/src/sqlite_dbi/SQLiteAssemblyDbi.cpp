@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,16 +25,17 @@
 #include "assembly/RTreeAssemblyAdapter.h"
 #include "assembly/MultiTableAssemblyAdapter.h"
 
+#include <SamtoolsAdapter.h>
+
+#include <QtCore/QVarLengthArray>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/Timer.h>
 #include <U2Core/U2AssemblyUtils.h>
 #include <U2Core/U2SqlHelpers.h>
 #include <U2Core/U2SafePoints.h>
 
-#include <QtCore/QVarLengthArray>
-
-#include <U2Core/Timer.h>
-#include <U2Core/AppContext.h>
-
-#include <memory>
+#include <U2Formats/BAMUtils.h>
 
 namespace U2 {
 
@@ -55,10 +56,7 @@ void SQLiteAssemblyDbi::initSqlSchema(U2OpStatus& os) {
     // cmethod - method used to handle compression of reads data
     // idata - additional indexing method data
     // cdata - additional compression method data
-    SQLiteQuery("CREATE TABLE Assembly (object INTEGER, reference INTEGER, imethod TEXT NOT NULL, cmethod TEXT NOT NULL, "
-        "idata BLOB, cdata BLOB, " 
-        " FOREIGN KEY(object) REFERENCES Object(id), "
-        " FOREIGN KEY(reference) REFERENCES Sequence(object) )", db, os).execute();
+    SQLiteQuery(getCreateAssemblyTableQuery(), db, os).execute();
 }
 
 void SQLiteAssemblyDbi::shutdown(U2OpStatus& os) {
@@ -70,16 +68,16 @@ void SQLiteAssemblyDbi::shutdown(U2OpStatus& os) {
 }
 
 AssemblyAdapter* SQLiteAssemblyDbi::getAdapter(const U2DataId& assemblyId, U2OpStatus& os) {
-    qint64 sqliteId = SQLiteUtils::toDbiId(assemblyId);
+    qint64 sqliteId = U2DbiUtils::toDbiId(assemblyId);
     AssemblyAdapter* res = adaptersById.value(sqliteId);
     if (res != NULL) {
         return res;
     }
-    
+
     SQLiteQuery q("SELECT imethod, cmethod FROM Assembly WHERE object = ?1", db, os);
     q.bindDataId(1, assemblyId);
     if (!q.step()) {
-        os.setError(SQLiteL10N::tr("There is no assembly object with the specified id."));
+        os.setError(U2DbiL10n::tr("There is no assembly object with the specified id."));
         return NULL;
     }
     QString indexMethod = q.getString(0);
@@ -95,7 +93,7 @@ AssemblyAdapter* SQLiteAssemblyDbi::getAdapter(const U2DataId& assemblyId, U2OpS
     } else if (indexMethod == SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_RTREE) {
         res = new RTreeAssemblyAdapter(dbi, assemblyId, NULL, db, os);
     } else {
-        os.setError(SQLiteL10N::tr("Unsupported reads storage type: %1").arg(indexMethod));
+        os.setError(U2DbiL10n::tr("Unsupported reads storage type: %1").arg(indexMethod));
         return NULL;
     }
     adaptersById[sqliteId] = res;
@@ -111,15 +109,15 @@ U2Assembly SQLiteAssemblyDbi::getAssemblyObject(const U2DataId& assemblyId, U2Op
 
     CHECK_OP(os, res);
 
-    SQLiteQuery q("SELECT Assembly.reference FROM Assembly "
-                " WHERE Assembly.object = ?1", db, os);
+    SQLiteQuery q("SELECT Assembly.reference, Object.type, '' FROM Assembly, Object "
+                  " WHERE Assembly.object = ?1 AND Object.id = Assembly.reference", db, os);
+
     q.bindDataId(1, assemblyId);
     if (q.step())  {
-        res.referenceId = q.getDataId(0, U2Type::Assembly);
+        res.referenceId = q.getDataIdExt(0);
         q.ensureDone();
-    } else if (!os.hasError()) {
-        os.setError(SQLiteL10N::tr("Assembly object not found."));
     }
+
     return res;
 }
 
@@ -133,18 +131,18 @@ qint64 SQLiteAssemblyDbi::countReads(const U2DataId& assemblyId, const U2Region&
 }
 
 
-U2DbiIterator<U2AssemblyRead>* SQLiteAssemblyDbi::getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os) {
+U2DbiIterator<U2AssemblyRead>* SQLiteAssemblyDbi::getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os, bool sortedHint) {
     GTIMER(c2, t2, "SQLiteAssemblyDbi::getReadsAt");
     AssemblyAdapter* a = getAdapter(assemblyId, os);
     if ( a != NULL ) {
-        return a->getReads(r, os);
+        return a->getReads(r, os, sortedHint);
     }
     return NULL;
 }
 
 U2DbiIterator<U2AssemblyRead>* SQLiteAssemblyDbi::getReadsByRow(const U2DataId& assemblyId, const U2Region& r, qint64 minRow, qint64 maxRow, U2OpStatus& os) {
     GTIMER(c2, t2, "SQLiteAssemblyDbi::getReadsAt");
-    
+
     quint64 t0 = GTimer::currentTimeMicros();
     AssemblyAdapter* a = getAdapter(assemblyId, os);
 
@@ -172,14 +170,14 @@ U2DbiIterator<U2AssemblyRead>* SQLiteAssemblyDbi::getReadsByName(const U2DataId&
 
 qint64 SQLiteAssemblyDbi::getMaxPackedRow(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os) {
     quint64 t0 = GTimer::currentTimeMicros();
-    
+
     AssemblyAdapter* a = getAdapter(assemblyId, os);
 
     if ( a == NULL ) {
         return -1;
     }
     qint64 res = a->getMaxPackedRow(r, os);
-    
+
     perfLog.trace(QString("Assembly: get max packed row: %1 seconds").arg((GTimer::currentTimeMicros() - t0) / (1000*1000)));
     return res;
 }
@@ -194,21 +192,21 @@ qint64 SQLiteAssemblyDbi::getMaxEndPos(const U2DataId& assemblyId, U2OpStatus& o
         return -1;
     }
     quint64 res = a->getMaxEndPos(os);
-    
+
     perfLog.trace(QString("Assembly: get max end pos: %1 seconds").arg((GTimer::currentTimeMicros() - t0) / (1000*1000)));
     return res;
 }
 
 
 
-void SQLiteAssemblyDbi::createAssemblyObject(U2Assembly& assembly, const QString& folder,  
-                                             U2DbiIterator<U2AssemblyRead>* it, 
-                                             U2AssemblyReadsImportInfo& importInfo, 
-                                             U2OpStatus& os) 
+void SQLiteAssemblyDbi::createAssemblyObject(U2Assembly& assembly, const QString& folder,
+                                             U2DbiIterator<U2AssemblyRead>* it,
+                                             U2AssemblyReadsImportInfo& importInfo,
+                                             U2OpStatus& os)
 {
-    dbi->getSQLiteObjectDbi()->createObject(assembly, folder, SQLiteDbiObjectRank_TopLevel, os);
+    dbi->getSQLiteObjectDbi()->createObject(assembly, folder, U2DbiObjectRank_TopLevel, os);
     SAFE_POINT_OP(os,);
-    
+
     //QString elenMethod = dbi->getProperty(SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_KEY, SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_RTREE, os);
     QString elenMethod = dbi->getProperty(SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_KEY, SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_MULTITABLE_V1, os);
     //QString elenMethod = dbi->getProperty(SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_KEY, SQLITE_DBI_ASSEMBLY_READ_ELEN_METHOD_SINGLE_TABLE, os);
@@ -226,28 +224,50 @@ void SQLiteAssemblyDbi::createAssemblyObject(U2Assembly& assembly, const QString
 
     a->createReadsTables(os);
     SAFE_POINT_OP(os,);
-    
+
     if (it != NULL) {
         addReads(a, it, importInfo, os);
         SAFE_POINT_OP(os,);
     }
+}
+
+void SQLiteAssemblyDbi::finalizeAssemblyObject(U2Assembly &assembly, U2OpStatus &os) {
+    const quint64 t0 = GTimer::currentTimeMicros();
+
+    AssemblyAdapter* a = getAdapter(assembly.id, os);
+    SAFE_POINT_OP(os,);
 
     a->createReadsIndexes(os);
     SAFE_POINT_OP(os,);
+
+    perfLog.trace(QString("Assembly: re-indexing pack time: %1 seconds").arg((GTimer::currentTimeMicros() - t0) / float(1000 * 1000)));
 }
 
- 
+void SQLiteAssemblyDbi::removeAssemblyData(const U2DataId &assemblyId, U2OpStatus &os) {
+    SQLiteTransaction t(db, os);
+    Q_UNUSED(t);
+    CHECK_OP(os, );
+
+    removeTables(assemblyId, os);
+    CHECK_OP(os, );
+    removeAssemblyEntry(assemblyId, os);
+}
+
 void SQLiteAssemblyDbi::updateAssemblyObject(U2Assembly& assembly, U2OpStatus& os) {
     SQLiteTransaction t(db, os);
-    
+    Q_UNUSED(t);
+
     SQLiteQuery q("UPDATE Assembly SET reference = ?1 WHERE object = ?2", db, os);
     q.bindDataId(1, assembly.referenceId);
     q.bindDataId(2, assembly.id);
     q.execute();
-
     SAFE_POINT_OP(os, );
 
     dbi->getSQLiteObjectDbi()->updateObject(assembly, os);
+    SAFE_POINT_OP(os, );
+
+    SQLiteObjectDbi::incrementVersion(assembly.id, db, os);
+    SAFE_POINT_OP(os, );
 }
 
 void SQLiteAssemblyDbi::removeReads(const U2DataId& assemblyId, const QList<U2DataId>& rowIds, U2OpStatus& os){
@@ -255,6 +275,13 @@ void SQLiteAssemblyDbi::removeReads(const U2DataId& assemblyId, const QList<U2Da
     if ( a != NULL ) {
         a->removeReads(rowIds, os);
     }
+}
+
+QString SQLiteAssemblyDbi::getCreateAssemblyTableQuery(const QString &tableAlias) {
+    return QString("CREATE TABLE %1 (object INTEGER PRIMARY KEY, "
+        "reference INTEGER, imethod TEXT NOT NULL, cmethod TEXT NOT NULL, idata BLOB, cdata BLOB, "
+        "FOREIGN KEY(object) REFERENCES Object(id), "
+        "FOREIGN KEY(reference) REFERENCES Object(id) ON DELETE SET NULL)").arg(tableAlias);
 }
 
 void SQLiteAssemblyDbi::addReads(AssemblyAdapter* a, U2DbiIterator<U2AssemblyRead>* it, U2AssemblyReadsImportInfo& ii, U2OpStatus& os) {
@@ -266,7 +293,21 @@ void SQLiteAssemblyDbi::addReads(AssemblyAdapter* a, U2DbiIterator<U2AssemblyRea
 
     t2.stop();
     perfLog.trace(QString("Assembly: %1 reads added in %2 seconds. Auto-packing: %3")
-        .arg(ii.nReads).arg((GTimer::currentTimeMicros() - t0) / float(1000*1000)).arg(ii.packStat.readsCount > 0 ? "yes" : "no"));
+                  .arg(ii.nReads).arg((GTimer::currentTimeMicros() - t0) / float(1000*1000)).arg(ii.packStat.readsCount > 0 ? "yes" : "no"));
+}
+
+void SQLiteAssemblyDbi::removeTables(const U2DataId &assemblyId, U2OpStatus &os) {
+    AssemblyAdapter* adapter = getAdapter(assemblyId, os);
+    CHECK(NULL != adapter, );
+    adapter->dropReadsTables(os);
+}
+
+void SQLiteAssemblyDbi::removeAssemblyEntry(const U2DataId &assemblyId, U2OpStatus &os) {
+    static const QString queryString("DELETE FROM Assembly WHERE object = ?1");
+    SQLiteQuery q(queryString, db, os);
+    CHECK_OP(os, );
+    q.bindDataId(1, assemblyId);
+    q.execute();
 }
 
 void SQLiteAssemblyDbi::addReads(const U2DataId& assemblyId, U2DbiIterator<U2AssemblyRead>* it, U2OpStatus& os) {
@@ -303,29 +344,42 @@ void SQLiteAssemblyDbi::calculateCoverage(const U2DataId& assemblyId, const U2Re
         return;
     }
     a->calculateCoverage(region, c, os);
-    perfLog.trace(QString("Assembly: full coverage calculation time: %1 seconds").arg((GTimer::currentTimeMicros() - t0) / float(1000*1000)));
+    perfLog.trace(QString("Assembly: full coverage calculation time for %2..%3: %1 seconds").arg((GTimer::currentTimeMicros() - t0) / float(1000*1000)).arg(region.startPos).arg(region.endPos()));
 }
 
-//////////////////////////////////////////////////////////////////////////
-// AssemblyAdapter
-
-AssemblyAdapter::AssemblyAdapter(const U2DataId& _assemblyId, const AssemblyCompressor* _compressor, DbRef* _db) 
-:assemblyId(_assemblyId), compressor(_compressor), db(_db)
-{
-}
 
 //////////////////////////////////////////////////////////////////////////
 // SQLiteAssemblyUtils
 
-QByteArray SQLiteAssemblyUtils::packData(SQLiteAssemblyDataMethod method, const QByteArray& name, const QByteArray& seq, const QByteArray& cigarText, 
-                           const QByteArray& qualityString, U2OpStatus& os)
+static QByteArray getQuality(const U2AssemblyRead &read) {
+    if (read->readSequence.length() == read->quality.length()) {
+        return read->quality;
+    }
+    return QByteArray(read->readSequence.length(), char(0xFF));
+}
+
+QByteArray SQLiteAssemblyUtils::packData(SQLiteAssemblyDataMethod method, const U2AssemblyRead &read, U2OpStatus& os)
 {
+    const QByteArray &name = read->name;
+    const QByteArray &seq = read->readSequence;
+    QByteArray cigarText = U2AssemblyUtils::cigar2String(read->cigar);
+    QByteArray qualityString = getQuality(read);
+    const QByteArray &rnext = read->rnext;
+    QByteArray pnext = QByteArray::number(read->pnext);
+    QByteArray aux = SamtoolsAdapter::aux2string(read->aux);
+
     assert(method == SQLiteAssemblyDataMethod_NSCQ);
     if (method != SQLiteAssemblyDataMethod_NSCQ) {
-        os.setError(SQLiteL10N::tr("Packing method is not supported: %1").arg(method));
+        os.setError(U2DbiL10n::tr("Packing method is not supported: %1").arg(method));
         return QByteArray();
     }
     int nBytes = 1 + name.length() + 1  + seq.length() + 1 + cigarText.length() + 1 + qualityString.length();
+    nBytes += 1 + rnext.length() + 1 + pnext.length();
+    if (!aux.isEmpty()) {
+        if (!aux.isEmpty()) {
+            nBytes += 1 + aux.length();
+        }
+    }
 #if QT_VERSION >= QT_VERSION_CHECK(4, 7, 0)
     QByteArray res(nBytes, Qt::Uninitialized);
 #else
@@ -333,81 +387,159 @@ QByteArray SQLiteAssemblyUtils::packData(SQLiteAssemblyDataMethod method, const 
 #endif
     char* data = res.data();
     int pos = 0;
-    
+
     // packing type
     data[pos] = '0';
     pos++;
 
     // name
-    qMemCopy(data + pos, name.constData(), name.length());
+    memcpy(data + pos, name.constData(), name.length());
     pos+=name.length();
     data[pos] = '\n';
     pos++;
 
     // sequence
-    qMemCopy(data + pos, seq.constData(), seq.length());
+    memcpy(data + pos, seq.constData(), seq.length());
     pos+=seq.length();
     data[pos] = '\n';
     pos++;
 
     // cigar
-    qMemCopy(data + pos, cigarText.constData(), cigarText.length());
+    memcpy(data + pos, cigarText.constData(), cigarText.length());
     pos+=cigarText.length();
     data[pos] = '\n';
     pos++;
 
     // quality
-    qMemCopy(data + pos, qualityString.constData(), qualityString.length());
+    memcpy(data + pos, qualityString.constData(), qualityString.length());
+    pos+=qualityString.length();
+    data[pos] = '\n';
+    pos++;
+
+    // rnext
+    memcpy(data + pos, rnext.constData(), rnext.length());
+    pos+=rnext.length();
+    data[pos] = '\n';
+    pos++;
+
+    // pnext
+    memcpy(data + pos, pnext.constData(), pnext.length());
+    if (!aux.isEmpty()) {
+        pos+=pnext.length();
+        data[pos] = '\n';
+        pos++;
+
+        // aux
+        memcpy(data + pos, aux.constData(), aux.length());
+    }
 
 //#define _SQLITE_CHECK_ASSEMBLY_DATA_PACKING_
 #ifdef _SQLITE_CHECK_ASSEMBLY_DATA_PACKING_
-    QByteArray n, s, c, q;
-    unpackData(res, n, s, c, q, os);
-    assert(n == name);
-    assert(s == seq);
-    assert(c == cigarText);
-    assert(q == qualityString);
+    U2AssemblyRead tmp(new U2AssemblyReadData());
+    unpackData(res, tmp, os);
+    QByteArray tmpCigar = U2AssemblyUtils::cigar2String(tmp->cigar);
+    QByteArray tmpAux = SamtoolsAdapter::aux2string(tmp->aux);
+    QByteArray tmpQual = getQuality(tmp);
+    assert(tmp->name == name);
+    assert(tmp->readSequence == seq);
+    assert(tmpCigar == cigarText);
+    assert(tmpQual == qualityString);
+    assert(tmp->rnext == read->rnext);
+    assert(tmp->pnext == read->pnext);
+    assert(tmpAux == aux);
+    assert(!os.hasError());
 #endif
     return res;
 }
 
-void SQLiteAssemblyUtils::unpackData(const QByteArray& packedData, QByteArray& name, QByteArray& sequence, QByteArray& cigarText, QByteArray& qualityString, U2OpStatus& os) {
+void SQLiteAssemblyUtils::unpackData(const QByteArray& packedData, U2AssemblyRead &read, U2OpStatus& os) {
+    QByteArray &name = read->name;
+    QByteArray &sequence = read->readSequence;
+    QByteArray &qualityString = read->quality;
+
     if (packedData.isEmpty()) {
-        os.setError(SQLiteL10N::tr("Packed data is empty!"));
+        os.setError(U2DbiL10n::tr("Packed data is empty!"));
         return;
     }
     const char* data = packedData.constData();
+
+    // packing type
     if (data[0] != '0') {
-        os.setError(SQLiteL10N::tr("Packing method prefix is not supported: %1").arg(data));
+        os.setError(U2DbiL10n::tr("Packing method prefix is not supported: %1").arg(data));
         return;
     }
+
+    // name
     int nameStart = 1;
     int nameEnd = packedData.indexOf('\n', nameStart);
     if (nameEnd == -1) {
-        os.setError(SQLiteL10N::tr("Data is corrupted, no name end marker found: %1").arg(data));
+        os.setError(U2DbiL10n::tr("Data is corrupted, no name end marker found: %1").arg(data));
         return;
     }
     name.append(QByteArray(data + nameStart, nameEnd - nameStart));
 
+    // sequence
     int sequenceStart = nameEnd + 1;
     int sequenceEnd = packedData.indexOf('\n', sequenceStart);
     if (sequenceEnd == -1) {
-        os.setError(SQLiteL10N::tr("Data is corrupted, no sequence end marker found: %1").arg(data));
+        os.setError(U2DbiL10n::tr("Data is corrupted, no sequence end marker found: %1").arg(data));
         return;
     }
     sequence.append(data + sequenceStart, sequenceEnd - sequenceStart);
-    
+
+    // cigar
     int cigarStart = sequenceEnd + 1;
     int cigarEnd = packedData.indexOf('\n', cigarStart);
-    if (sequenceEnd == -1) {
-        os.setError(SQLiteL10N::tr("Data is corrupted, no CIGAR end marker found: %1").arg(data));
+    if (cigarEnd == -1) {
+        os.setError(U2DbiL10n::tr("Data is corrupted, no CIGAR end marker found: %1").arg(data));
         return;
     }
-    cigarText.append(data + cigarStart, cigarEnd - cigarStart);
+    QByteArray cigarText(data + cigarStart, cigarEnd - cigarStart);
 
+    // quality
     int qualityStart = cigarEnd + 1;
-    if (qualityStart < packedData.length()) {
-        qualityString.append(data + qualityStart, packedData.length() - qualityStart);
+    int qualityEnd = qualityStart + sequence.length();
+    if (qualityEnd > packedData.length()) {
+        assert(packedData.length() == qualityStart);
+        qualityEnd = packedData.length();
+    }
+    qualityString.append(data + qualityStart, qualityEnd - qualityStart);
+
+    if (qualityEnd != packedData.length()) {
+        // rnext
+        int rnextStart = qualityEnd + 1;
+        int rnextEnd = packedData.indexOf('\n', rnextStart);
+        if (rnextEnd == -1) {
+            os.setError(U2DbiL10n::tr("Data is corrupted, no rnext end marker found: %1").arg(data));
+            return;
+        }
+        read->rnext = QByteArray(data + rnextStart, rnextEnd - rnextStart);
+
+        // pnext
+        int pnextStart = rnextEnd + 1;
+        int pnextEnd = packedData.indexOf('\n', pnextStart);
+        if (pnextEnd == -1) {
+            pnextEnd = packedData.length();
+        }
+        QByteArray pnext(data + pnextStart, pnextEnd - pnextStart);
+        bool ok = false;
+        read->pnext = pnext.toLongLong(&ok);
+        if (!ok) {
+            os.setError(U2DbiL10n::tr("Can not convert pnext to a number: %1").arg(pnext.data()));
+            return;
+        }
+
+        // aux
+        int auxStart = pnextEnd + 1;
+        int auxEnd = packedData.length();
+        read->aux = SamtoolsAdapter::string2aux(QByteArray(data + auxStart, auxEnd - auxStart));
+    }
+
+    // parse cigar
+    QString err;
+    read->cigar = U2AssemblyUtils::parseCigar(cigarText, err);
+    if (!err.isEmpty()) {
+        os.setError(err);
     }
 }
 
@@ -426,7 +558,7 @@ void SQLiteAssemblyUtils::calculateCoverage(SQLiteQuery& q, const U2Region& r, U
         if (readCroppedRegion.isEmpty()) {
             continue;
         }
-        
+
         int firstCoverageIdx = (int)((readCroppedRegion.startPos - r.startPos)/ basesPerRange);
         int lastCoverageIdx = (int)((readCroppedRegion.startPos + readCroppedRegion.length - 1 - r.startPos ) / basesPerRange);
         for (int i = firstCoverageIdx; i <= lastCoverageIdx && i < csize; i++) {
@@ -436,7 +568,7 @@ void SQLiteAssemblyUtils::calculateCoverage(SQLiteQuery& q, const U2Region& r, U
     }
 }
 
-void SQLiteAssemblyUtils::addToCoverage(U2AssemblyCovereageImportInfo& ii, const U2AssemblyRead& read) {
+void SQLiteAssemblyUtils::addToCoverage(U2AssemblyCoverageImportInfo& ii, const U2AssemblyRead& read) {
     if (!ii.computeCoverage) {
         return;
     }
@@ -473,15 +605,8 @@ U2AssemblyRead SimpleAssemblyReadLoader::load(SQLiteQuery* q) {
     if (q->hasError()) {
         return U2AssemblyRead();
     }
-    QByteArray cigarText;
-    SQLiteAssemblyUtils::unpackData(data, read->name, read->readSequence, cigarText, read->quality, q->getOpStatus());
+    SQLiteAssemblyUtils::unpackData(data, read, q->getOpStatus());
     if (q->hasError()) {
-        return U2AssemblyRead();
-    }
-    QString err;
-    read->cigar = U2AssemblyUtils::parseCigar(cigarText, err);
-    if (!err.isEmpty()) {
-        q->setError(err);
         return U2AssemblyRead();
     }
 #ifdef _DEBUG

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -42,7 +42,18 @@ public:
     QString format;
     QString description;
 
+    bool isStringValue() const;
+    bool isFileUrl() const;
+    bool isSequence() const;
+    bool isAnnotations() const;
+    bool isAnnotatedSequence() const;
+    bool isAlignment() const;
+    bool isText() const;
+
     bool operator ==(const DataConfig &other) const;
+
+    static DocumentFormatId StringValue;
+    static DocumentFormatId OutputFileUrl;
 };
 
 class U2LANG_EXPORT AttributeConfig {
@@ -64,6 +75,7 @@ public:
     QString name;
     QString description;
     QString templateDescription;
+    QString filePath;
 
     bool operator ==(const ExternalProcessConfig &other) const;
 };
@@ -101,6 +113,5 @@ private:
 };
 
 }
-
 
 #endif // ExternalToolCfg_h__

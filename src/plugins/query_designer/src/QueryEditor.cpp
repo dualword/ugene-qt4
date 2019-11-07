@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -47,7 +47,11 @@ QueryEditor::QueryEditor(QWidget* parent/* =0 */) : QWidget(parent), current(NUL
 
     cfgModel = new QueryProcCfgModel(this);
     table->setModel(cfgModel);
+#if (QT_VERSION < 0x050000)
     table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
+#else
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+#endif
     table->horizontalHeader()->setStretchLastSection(true);
     table->verticalHeader()->hide();
     table->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 6);
@@ -185,7 +189,7 @@ void QueryEditor::edit(QDActor* a) {
         } else {
             directionCombo->setDisabled(true);
         }
-        
+
         setDescriptor(&a->getProto()->getDescriptor(),
             tr("To configure the algorithm element parameters go to the \"Parameters\" area below."));
         cfgModel->setConfiguration(a->getParameters());

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,11 @@
 
 #include <U2Gui/DialogUtils.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QApplication>
+#else
+#include <QtWidgets/QApplication>
+#endif
 
 
 namespace U2 {
@@ -47,7 +51,7 @@ namespace U2 {
 WMQDTask::WMQDTask(const QString& url, const WeightMatrixSearchCfg& cfg,
                    const DNASequence&  sqnc, const QString& resName, const QVector<U2Region>& location)
 : Task(tr("Weight matrix query"), TaskFlag_NoRun), settings(cfg), dnaSeq(sqnc),
-resultName(resName), location(location) 
+resultName(resName), location(location)
 {
     readTask = new PWMatrixReadTask(url);
     addSubTask(readTask);
@@ -118,7 +122,7 @@ QString QDWMActor::getText() const {
     profileUrl = QString("<a href=%1>%2</a>").arg(PROFILE_URL_ATTR).arg(profileUrl);
     int score = params.value(SCORE_ATTR)->getAttributeValueWithoutScript<int>();
     QString scoreStr = QString("<a href=%1>%2%</a>").arg(SCORE_ATTR).arg(score);
-    
+
     QString doc = tr("Searches TFBS with all profiles from <u>%1</u> "
         "<br> Recognizes sites with <u>similarity %2</u>, processes <u>%3</u>.")
         .arg(profileUrl)
@@ -137,12 +141,12 @@ Task* QDWMActor::getAlgorithmTask(const QVector<U2Region>& location) {
     config.minPSUM = params.value(SCORE_ATTR)->getAttributeValueWithoutScript<int>();
     const QString& modelUrl = params.value(PROFILE_URL_ATTR)->getAttributeValueWithoutScript<QString>();
 
-    if (dnaSeq.alphabet->getType() == DNAAlphabet_NUCL) {        
+    if (dnaSeq.alphabet->getType() == DNAAlphabet_NUCL) {
         config.complOnly = strand == QDStrand_ComplementOnly;
         if (strand == QDStrand_Both || strand == QDStrand_ComplementOnly) {
-            QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->lookupTranslation(dnaSeq.alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-            if (!compTTs.isEmpty()) {
-                config.complTT = compTTs.first();
+            DNATranslation* compTT = AppContext::getDNATranslationRegistry()->lookupComplementTranslation(dnaSeq.alphabet);
+            if (compTT  != NULL) {
+                config.complTT = compTT;
             }
         }
         t = new WMQDTask(modelUrl, config, dnaSeq, "", location);
@@ -178,10 +182,10 @@ void QDWMActor::sl_onAlgorithmTaskFinished(Task* t) {
 
 QDWMActorPrototype::QDWMActorPrototype() {
     descriptor.setId("wsearch");
-    descriptor.setDisplayName(QObject::tr("WeightMatrix"));
+    descriptor.setDisplayName(QObject::tr("Weight Matrix"));
     descriptor.setDocumentation(QObject::tr("Searches the sequence for transcription factor binding sites significantly similar to the specified weight matrix."));
 
-    Descriptor scd(SCORE_ATTR, QObject::tr("Min score"), QApplication::translate("PWMSearchDialog", "min_err_tip", 0, QApplication::UnicodeUTF8));
+    Descriptor scd(SCORE_ATTR, QObject::tr("Min score"), QApplication::translate("PWMSearchDialog", "Minimum score to detect transcription factor binding site", 0));
     Descriptor mx(PROFILE_URL_ATTR, QObject::tr("Matrix"), QObject::tr("Path to profile"));
 
     attributes << new Attribute(scd, BaseTypes::NUM_TYPE(), false, 85);

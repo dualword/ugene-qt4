@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,9 +36,9 @@
 namespace U2 {
 static QString nameByType(CumulativeSkewGraphFactory::GCumulativeSkewType t) {
     if (t == CumulativeSkewGraphFactory::AT) {
-        return CumulativeSkewGraphFactory::tr("at_cumulative_skew_not_optimal_version");
+        return CumulativeSkewGraphFactory::tr("AT Cumulative Skew");
     }
-    return CumulativeSkewGraphFactory::tr("gc_cumulative_skew_not_optimal_version");
+    return CumulativeSkewGraphFactory::tr("GC Cumulative Skew");
 
 }
 
@@ -52,24 +52,19 @@ CumulativeSkewGraphFactory::CumulativeSkewGraphFactory(GCumulativeSkewType t, QO
     }
 }
 
-bool CumulativeSkewGraphFactory::isEnabled(U2SequenceObject* o) const {
-    DNAAlphabet* al = o->getAlphabet();
+bool CumulativeSkewGraphFactory::isEnabled(const U2SequenceObject* o) const {
+    const DNAAlphabet* al = o->getAlphabet();
     return al->isNucleic();
 }
 
-QList<GSequenceGraphData*> CumulativeSkewGraphFactory::createGraphs(GSequenceGraphView* v) {
+QList<QSharedPointer<GSequenceGraphData> > CumulativeSkewGraphFactory::createGraphs(GSequenceGraphView* v) {
     Q_UNUSED(v);
-    QList<GSequenceGraphData*> res;
+    QList<QSharedPointer<GSequenceGraphData> > res;
     assert(isEnabled(v->getSequenceObject()));
-    GSequenceGraphData* d = new GSequenceGraphData(getGraphName());
+    QSharedPointer<GSequenceGraphData> d = QSharedPointer<GSequenceGraphData>(new GSequenceGraphData(getGraphName()));
     d->ga = new CumulativeSkewGraphAlgorithm(cumPair);
     res.append(d);
     return res;
-}
-
-GSequenceGraphDrawer* CumulativeSkewGraphFactory::getDrawer(GSequenceGraphView* v) {
-    GSequenceGraphWindowData wd(199, 199);
-    return new GSequenceGraphDrawer(v, wd);
 }
 
 
@@ -106,14 +101,15 @@ float CumulativeSkewGraphAlgorithm::getValue(int begin, int end, const QByteArra
     return resultValue;
 }
 
-void CumulativeSkewGraphAlgorithm::calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& vr, const GSequenceGraphWindowData* d) {
+void CumulativeSkewGraphAlgorithm::calculate(QVector<float>& res, U2SequenceObject* o, const U2Region& vr, const GSequenceGraphWindowData* d, U2OpStatus &os) {
     assert(d!=NULL);
     int nSteps = GSequenceGraphUtils::getNumSteps(vr, d->window, d->step);
     res.reserve(nSteps);
 
-    QByteArray seq = o->getWholeSequenceData();
+    const QByteArray& seq = getSequenceData(o);
 
-    for (int i = 0; i < nSteps; i++)    {
+    for (int i = 0; i < nSteps; i++) {
+        CHECK_OP(os, );
         int start = vr.startPos + i * d->step;
         int end = start + d->window;
         float result = getValue(start, end, seq);

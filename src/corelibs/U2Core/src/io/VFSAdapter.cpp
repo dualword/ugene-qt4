@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -60,7 +60,7 @@ bool VFSAdapter::open(const GUrl& _url, IOAdapterMode m) {
     if( NULL == vfs ) {
         return false; // no such vfs registered
     }
-    
+
     if( !vfs->fileExists( urlArgs[1] ) ) {
         if( IOAdapterMode_Read == m ) {
             return false;
@@ -68,7 +68,7 @@ bool VFSAdapter::open(const GUrl& _url, IOAdapterMode m) {
             vfs->createFile( urlArgs[1], QByteArray() );
         }
     }
-    
+
     buffer = new QBuffer( &vfs->getFileByName( urlArgs[1] ) );
     QIODevice::OpenMode iomode = m == IOAdapterMode_Read ? QIODevice::ReadOnly : QIODevice::WriteOnly | QIODevice::Truncate;
     if (!buffer->open(iomode)) {
@@ -118,6 +118,10 @@ int VFSAdapter::getProgress() const {
 
 qint64 VFSAdapter::bytesRead() const {
     return buffer->pos();
+}
+
+QString VFSAdapter::errorString() const{
+    return buffer->errorString();
 }
 
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,26 +31,48 @@ namespace U2 {
 
 class Document;
 
+
+
+class U2ALGORITHM_EXPORT ShortReadSet {
+public:
+    enum LibraryType {
+        SingleEndReads, PairedEndReads
+    };
+
+    enum MateOrder {
+        UpstreamMate, DownstreamMate
+    };
+
+    GUrl url;
+    LibraryType type;
+    MateOrder order;
+    ShortReadSet(const GUrl& _url) : url(_url), type(SingleEndReads), order(UpstreamMate) {}
+    ShortReadSet(const GUrl& _url, LibraryType t, MateOrder m) : url(_url), type(t), order(m) {}
+
+};
+
+
 class U2ALGORITHM_EXPORT DnaAssemblyToRefTaskSettings {
 public:
     DnaAssemblyToRefTaskSettings() : prebuiltIndex(false), openView(false), samOutput(true) {}
-    
+
     void setCustomSettings(const QMap<QString, QVariant>& settings);
     QVariant getCustomValue(const QString& optionName, const QVariant& defaultVal) const;
     bool hasCustomValue(const QString & name) const;
     void setCustomValue(const QString& optionName, const QVariant& val);
-    
+    QList<GUrl> getShortReadUrls() const;
+
 public:
-    QList<DNASequence> shortReads;
-    QList<GUrl> shortReadUrls;
+    QList<ShortReadSet> shortReadSets;
     GUrl refSeqUrl;
     GUrl resultFileName;
     QString indexFileName;
     QString algName;
+    bool pairedReads;
     bool prebuiltIndex;
     bool openView;
     bool samOutput;
-    
+
 private:
     QMap<QString, QVariant> customSettings;
 };
@@ -58,12 +80,19 @@ private:
 class U2ALGORITHM_EXPORT DnaAssemblyToReferenceTask : public Task {
     Q_OBJECT
 public:
-    DnaAssemblyToReferenceTask(const DnaAssemblyToRefTaskSettings& settings, TaskFlags flags = TaskFlags_FOSCOE, bool justBuildIndex = false);
-    virtual ~DnaAssemblyToReferenceTask() {}
+    DnaAssemblyToReferenceTask(const DnaAssemblyToRefTaskSettings &settings, TaskFlags flags = TaskFlags_FOSCOE, bool justBuildIndex = false);
+
     bool isHaveResult() const {return haveResults;}
-    
+    const DnaAssemblyToRefTaskSettings& getSettings() const{return settings;}
+
+    static bool isIndexUrl(const QString &url, const QStringList &indexSuffixes);
+    static QString getBaseUrl(const QString &url, const QStringList &indexSuffixes);
+    static bool isPrebuiltIndex(const QString &baseFileName, const QStringList& indexExtensions);
+
 protected:
-    const DnaAssemblyToRefTaskSettings& settings;
+    void setUpIndexBuilding(const QStringList& indexExtensions);
+
+    DnaAssemblyToRefTaskSettings settings;
     bool justBuildIndex;
     bool haveResults;
 };

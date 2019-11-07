@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -46,9 +46,9 @@ TestStarter::~TestStarter() {
 }
 
 void TestStarter::prepare() {
-    
-    
-    
+
+
+
     if (urls.isEmpty()) {
         readSavedSuites();
     } else {
@@ -93,7 +93,7 @@ void TestStarter::addTestSuite(GTestSuite *ts) {
     assert(!findTestSuiteByURL(ts->getURL()));
     assert(!suites.contains(ts));
     suites.append(ts);
-    
+
     GTestEnvironment * tsEnv = ts->getEnv();
     const QStringList & tsEnvKeys = tsEnv->getVars().keys();
     QStringList tsEnvResultedKeys;
@@ -105,7 +105,7 @@ void TestStarter::addTestSuite(GTestSuite *ts) {
     }
     readEnvForKeys(tsEnvResultedKeys);
     updateDefaultEnvValues(ts);
-    
+
     emit si_testSuiteAdded(ts);
 }
 
@@ -242,7 +242,7 @@ TestRunnerTask* TestStarter::createRunTask()
 }
 
 Task::ReportResult TestStarter::report() {
-    int numPassed=0, numFailed=0;    
+    int numPassed=0, numFailed=0;
     uiLog.info(tr("Testing report:"));
     uiLog.info(tr("---------------"));
     if (ttask->isFinished() && !ttask->hasError()) {

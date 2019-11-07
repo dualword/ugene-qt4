@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,43 +19,43 @@
  * MA 02110-1301, USA.
  */
 
+#include <limits.h>
 
-#include "EMBLGenbankAbstractDocument.h"
+#include <QBuffer>
+#include <QScopedPointer>
 
-#include "GenbankLocationParser.h"
-#include "GenbankFeatures.h"
-#include "DocumentFormatUtils.h"
-
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/GObjectRelationRoles.h>
-
-#include <U2Core/IOAdapter.h>
-#include <U2Core/U2OpStatus.h>
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/DNAAlphabet.h>
-#include <U2Core/L10n.h>
-#include <U2Core/U2DbiUtils.h>
 #include <U2Core/DNAInfo.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/GenbankFeatures.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
 #include <U2Core/TextUtils.h>
 #include <U2Core/U1AnnotationUtils.h>
-#include <U2Core/U2SafePoints.h>
-#include <U2Core/U2SequenceUtils.h>
-#include <U2Core/U2SequenceDbi.h>
+#include <U2Core/U2AlphabetUtils.h>
+#include <U2Core/U2DbiUtils.h>
 #include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
 #include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2SequenceDbi.h>
+#include <U2Core/U2SequenceUtils.h>
 
-#include <U2Formats/GenbankFeatures.h>
-
-#include <memory>
+#include "DocumentFormatUtils.h"
+#include "EMBLGenbankAbstractDocument.h"
+#include "GenbankLocationParser.h"
 
 namespace U2 {
 
-/* TRANSLATOR U2::EMBLGenbankAbstractDocument */    
+/* TRANSLATOR U2::EMBLGenbankAbstractDocument */
 //TODO: local8bit or ascii??
 
-EMBLGenbankAbstractDocument::EMBLGenbankAbstractDocument(const DocumentFormatId& _id, const QString& _formatName, int mls, 
-                                                         DocumentFormatFlags flags, QObject* p) 
-: DocumentFormat(p, flags), id(_id), formatName(_formatName), maxAnnotationLineLen(mls)
+EMBLGenbankAbstractDocument::EMBLGenbankAbstractDocument(const DocumentFormatId& _id, const QString& _formatName, int mls,
+                                                         DocumentFormatFlags flags, QObject* p)
+: DocumentFormat(p, flags), id(_id), formatName(_formatName), maxAnnotationLineLen(mls), savedInUgene(false)
 {
     supportedObjectTypes+=GObjectTypes::ANNOTATION_TABLE;
     supportedObjectTypes+=GObjectTypes::SEQUENCE;
@@ -72,39 +72,41 @@ Document* EMBLGenbankAbstractDocument::loadDocument(IOAdapter* io, const U2DbiRe
     load(dbiRef, io, objects, fs, os, writeLockReason);
 
     CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
-    
+
     DocumentFormatUtils::updateFormatHints(objects, fs);
     Document* doc = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs, writeLockReason);
     return doc;
 }
 
-
-
 const QString EMBLGenbankAbstractDocument::UGENE_MARK("UNIMARK");
 const QString EMBLGenbankAbstractDocument::DEFAULT_OBJ_NAME("unnamed");
-
+const QString EMBLGenbankAbstractDocument::LOCUS_TAG_CIRCULAR("circular");
+const QString EMBLGenbankAbstractDocument::LOCUS_TAG_LINEAR("linear");
 
 void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QList<GObject*>& objects, QVariantMap& fs, U2OpStatus& os, QString& writeLockReason) {
+    DbiOperationsBlock opBlock(dbiRef, os);
+    CHECK_OP(os, );
+    Q_UNUSED(opBlock);
     writeLockReason.clear();
 
     //get settings
     int gapSize = qBound(-1, DocumentFormatUtils::getMergeGap(fs), 1000*1000);
     bool merge = gapSize!=-1;
 
-    QByteArray  gapSequence((merge ? gapSize : 0), 0);
-    std::auto_ptr<AnnotationTableObject> mergedAnnotations(NULL);
+    QScopedPointer<AnnotationTableObject> mergedAnnotations(NULL);
     QStringList contigs;
     QVector<U2Region> mergedMapping;
 
-    U2SequenceImporter seqImporter(fs);
+    // Sequence loading is 'lazy', so, if there is no sequence, it won't be created and there is no need to remove it.
+    U2SequenceImporter seqImporter(fs, true);
+    const QString folder = fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
 
     QSet<QString> usedNames;
-    bool toolMark = false;
-    
+
     GObjectReference sequenceRef(GObjectReference(io->getURL().getURLString(), "", GObjectTypes::SEQUENCE));
 
     QByteArray readBuffer(ParserState::READ_BUFF_SIZE, '\0');
-    ParserState st(getFormatId() == BaseDocumentFormats::PLAIN_GENBANK ? 12 : 5, io, NULL, os);
+    ParserState st(isNcbiLikeFormat() ? 12 : 5, io, NULL, os);
     st.buff = readBuffer.data();
 
     TmpDbiObjects dbiObjects(dbiRef, os);
@@ -113,19 +115,33 @@ void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QL
     qint64 sequenceStart = 0;
     int sequenceSize = 0;
     int fullSequenceSize = 0;
+    const int objectsCountLimit = fs.contains(DocumentReadingMode_MaxObjectsInDoc) ? fs[DocumentReadingMode_MaxObjectsInDoc].toInt() : -1;
 
     for (int i=0; !os.isCoR(); i++, ++num_sequence) {
+        if (objectsCountLimit > 0 && objects.size() >= objectsCountLimit) {
+            os.setError(EMBLGenbankAbstractDocument::tr("File \"%1\" contains too many sequences to be displayed. "
+                "However, you can process these data using instruments from the menu <i>Tools -> NGS data analysis</i> "
+                "or pipelines built with Workflow Designer.")
+                .arg(io->getURL().getURLString()));
+            break;
+        }
+
+        //TODO: reference to a local variable??? Such a pointer will become invalid
         EMBLGenbankDataEntry data;
         st.entry = &data;
 
         if (num_sequence == 0 || merge == false){
-            seqImporter.startSequence(dbiRef,"",false,os); //change name and circularity after finalize method
-            CHECK_OP(os,);
+            seqImporter.startSequence(dbiRef, folder, "default sequence name", false, os); //change name and circularity after finalize method
+            CHECK_OP(os, );
         }
 
         sequenceSize = 0;
         os.setDescription(tr("Reading entry header"));
-        if (!readEntry(&st,seqImporter,sequenceSize,fullSequenceSize,merge, (num_sequence > 0) ? gapSize : 0, os)) {
+        int offset = 0;
+        if (merge && num_sequence > 0) {
+            offset = gapSize;
+        }
+        if (!readEntry(&st,seqImporter,sequenceSize,fullSequenceSize,merge,offset, os)) {
             break;
         }
 
@@ -143,29 +159,46 @@ void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QL
             st.io->skip(-1);
         }
 
-        toolMark = data.tags.contains(UGENE_MARK);
-        AnnotationTableObject* annotationsObject  = NULL;
+        AnnotationTableObject *annotationsObject = NULL;
 
         if (data.hasAnnotationObjectFlag) {
             QString annotationName = genObjectName(usedNames, data.name, data.tags, i+1, GObjectTypes::ANNOTATION_TABLE);
-            if (merge && mergedAnnotations.get() == NULL) {
-                mergedAnnotations.reset(new AnnotationTableObject(annotationName));
+
+            QVariantMap hints;
+            hints.insert(DBI_FOLDER_HINT, fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER));
+            if (Q_UNLIKELY(merge && NULL == mergedAnnotations)) {
+                mergedAnnotations.reset(new AnnotationTableObject(annotationName, dbiRef, hints));
             }
-            annotationsObject = merge ? mergedAnnotations.get() : new AnnotationTableObject(annotationName);
+            annotationsObject = merge ? mergedAnnotations.data() : new AnnotationTableObject(annotationName, dbiRef, hints);
 
             QStringList groupNames;
-            foreach(SharedAnnotationData d, data.features) {
+            QMap<QString, QList<SharedAnnotationData> > groupName2Annotations;
+            for (int i = 0, n = data.features.size(); i < n; ++i) {
+                SharedAnnotationData &d = data.features[i];
+                if (!d->location->regions.isEmpty()) {
+                    for (int i = 0, n = d->location->regions.size(); i < n; ++i) {
+                        // for some reason larger numbers cannot be stored within rtree SQLite tables
+                        if (d->location->regions[i].endPos() > 9223371036854775807LL) {
+                            d->location->regions[i].length = 9223371036854775807LL - d->location->regions[i].startPos;
+                        }
+                    }
+                }
                 groupNames.clear();
                 d->removeAllQualifiers(GBFeatureUtils::QUALIFIER_GROUP, groupNames);
                 if (groupNames.isEmpty()) {
-                    annotationsObject->addAnnotation(new Annotation(d));
+                    groupName2Annotations[""].append(d);
                 } else {
-                    Annotation* a = new Annotation(d);
-                    foreach(const QString& gName, groupNames) {
-                        annotationsObject->getRootGroup()->getSubgroup(gName, true)->addAnnotation(a);
+                    foreach(const QString &gName, groupNames) {
+                        groupName2Annotations[gName].append(d);
                     }
                 }
+                CHECK_OP(os, );
             }
+            foreach (const QString &groupName, groupName2Annotations.keys()) {
+                annotationsObject->addAnnotations(groupName2Annotations[groupName], groupName);
+            }
+
+            createCommentAnnotation(data.tags.value(DNAInfo::COMMENT).toStringList(), sequenceSize, annotationsObject);
 
             if (!merge) {
                 objects.append(annotationsObject);
@@ -173,48 +206,50 @@ void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QL
         } else{
             assert(data.features.isEmpty());
         }
-        
+
         if (!os.isCoR()) {
             QString sequenceName = genObjectName(usedNames, data.name, data.tags, i+1, GObjectTypes::SEQUENCE);
             if (merge && sequenceSize == 0 && annotationsObject!=NULL) {
                 os.setError(tr("Merge error: found annotations without sequence"));
                 break;
-            } 
+            }
             else if (merge) {
                 contigs.append(sequenceName);
                 mergedMapping.append(U2Region(sequenceStart, sequenceSize));
-            } 
-            else { 
+            }
+            else {
                 U2Sequence u2seq = seqImporter.finalizeSequence(os);
-
                 CHECK_OP(os,);
-                u2seq.visualName = sequenceName;
-                u2seq.circular = data.circular;
-                DbiConnection con(dbiRef, os);
-                con.dbi->getSequenceDbi()->updateSequenceObject(u2seq,os);
 
-                if(sequenceSize != 0){
+                if(sequenceSize != 0) {
+                    u2seq.visualName = sequenceName;
+                    u2seq.circular = data.circular;
+                    DbiConnection con(dbiRef, os);
+                    con.dbi->getSequenceDbi()->updateSequenceObject(u2seq,os);
+
                     fullSequenceSize = 0;
-                    
+
                     U2SequenceObject* seqObj =  new U2SequenceObject(sequenceName, U2EntityRef(dbiRef, u2seq.id));
+                    QString translation = U1AnnotationUtils::guessAminoTranslation(annotationsObject, seqObj->getAlphabet());
+                    if(!translation.isEmpty()){
+                        seqObj->setStringAttribute(translation , Translation_Table_Id_Attribute);
+                    }
+
                     objects << seqObj;
                     dbiObjects.objects << u2seq.id;
 
                     SAFE_POINT(seqObj != NULL, "DocumentFormatUtils::addSequenceObject returned NULL but didn't set error",);
 
+                    sequenceRef.objName = seqObj->getGObjectName();
+                    sequenceRef.entityRef = seqObj->getEntityRef();
                     if (annotationsObject!=NULL) {
-                        sequenceRef.objName = seqObj->getGObjectName();
-                        annotationsObject->addObjectRelation(GObjectRelation(sequenceRef, GObjectRelationRole::SEQUENCE));
-                    } else {
-                        sequenceRef.objName = seqObj->getGObjectName();
+                        annotationsObject->addObjectRelation(GObjectRelation(sequenceRef, ObjectRole_Sequence));
                     }
-                    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, annotationsObject);
+                    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, annotationsObject, fs);
 
                     readHeaderAttributes(data.tags, con, seqObj);
-                    toolMark = data.tags.contains(UGENE_MARK); //the mark might be added in the readHeaderAttributes method
-                } else {
-                    con.dbi->getObjectDbi()->removeObject(u2seq.id, os);
-                    LOG_OP(os);
+
+                    // try to guess relevant translation from a CDS feature (if any)
                 }
             }
         }
@@ -223,16 +258,13 @@ void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QL
     CHECK_EXT(!objects.isEmpty() || merge, os.setError(Document::tr("Document is empty.")), );
     SAFE_POINT(contigs.size() == mergedMapping.size(), "contigs <-> regions mapping failed!", );
 
-    if (!toolMark) {
-        writeLockReason = DocumentFormat::CREATED_NOT_BY_UGENE;
-    } else if (merge) {
+    if (merge) {
         writeLockReason = DocumentFormat::MERGED_SEQ_LOCK;
-    }
-    
-    if (!merge) {
+    } else {
         return;
     }
-    U2Sequence u2seq = seqImporter.finalizeSequence(os);
+
+    U2Sequence u2seq = seqImporter.finalizeSequenceAndValidate(os);
     dbiObjects.objects << u2seq.id;
 
     CHECK_OP(os,);
@@ -241,19 +273,67 @@ void EMBLGenbankAbstractDocument::load(const U2DbiRef& dbiRef, IOAdapter* io, QL
     DbiConnection con(dbiRef, os);
     con.dbi->getSequenceDbi()->updateSequenceObject(u2seq,os);
 
+    sequenceRef.objName = u2seq.visualName;
+    sequenceRef.entityRef = U2EntityRef(dbiRef, u2seq.id);
+
     CHECK_OP(os,);
     U2SequenceObject* so = new U2SequenceObject(u2seq.visualName, U2EntityRef(dbiRef, u2seq.id));
     objects << so;
-    objects << DocumentFormatUtils::addAnnotationsForMergedU2Sequence(io->getURL(), contigs, u2seq, mergedMapping, os);
-    AnnotationTableObject * mergedAnnotationsPtr = mergedAnnotations.release();
-    if (mergedAnnotationsPtr!=NULL) {
-        sequenceRef.objName = so->getGObjectName();
-        mergedAnnotations->addObjectRelation(GObjectRelation(sequenceRef, GObjectRelationRole::SEQUENCE));
+    objects << DocumentFormatUtils::addAnnotationsForMergedU2Sequence(sequenceRef, dbiRef, contigs, mergedMapping, fs);
+    AnnotationTableObject *mergedAnnotationsPtr = mergedAnnotations.take( );
+    if ( NULL != mergedAnnotationsPtr ) {
+        sequenceRef.entityRef = U2EntityRef(dbiRef, u2seq.id);
+        mergedAnnotationsPtr->addObjectRelation(GObjectRelation(sequenceRef, ObjectRole_Sequence));
         objects.append(mergedAnnotationsPtr);
     }
-    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, mergedAnnotationsPtr);
-
+    U1AnnotationUtils::addAnnotations(objects, seqImporter.getCaseAnnotations(), sequenceRef, mergedAnnotationsPtr, fs);
 }
+
+DNASequence* EMBLGenbankAbstractDocument::loadSequence(IOAdapter* io, U2OpStatus& os) {
+    QSet<QString> usedNames;
+
+    QByteArray sequenceData;
+    U2MemorySequenceImporter seqImporter(sequenceData);
+    QByteArray readBuffer(ParserState::READ_BUFF_SIZE, '\0');
+    ParserState st(isNcbiLikeFormat() ? 12 : 5, io, NULL, os);
+    st.buff = readBuffer.data();
+
+    int sequenceSize = 0;
+    int fullSequenceSize = 0;
+
+    EMBLGenbankDataEntry data;
+    st.entry = &data;
+
+    sequenceSize = 0;
+    os.setDescription(tr("Reading entry header"));
+    int offset = 0;
+    bool merge = false;
+    if (!readEntry(&st,seqImporter,sequenceSize,fullSequenceSize,merge,offset, os)) {
+        return NULL;
+    }
+
+    // tolerate blank lines between records
+    char ch;
+    bool b;
+    while ((b = st.io->getChar(&ch)) && (ch == '\n' || ch == '\r')){}
+    if (b) {
+        st.io->skip(-1);
+    }
+
+    if (os.isCoR()) {
+        return NULL;
+    }
+    QString sequenceName = genObjectName(usedNames, data.name, data.tags, 1, GObjectTypes::SEQUENCE);
+
+    if (sequenceSize != 0){
+        DNASequence* seq = new DNASequence(sequenceName, sequenceData, U2AlphabetUtils::getById(seqImporter.getAlphabet()));
+        return seq;
+    }
+
+    return NULL;
+}
+
+
 
 //column annotation data starts with
 #define A_COL 21
@@ -269,28 +349,68 @@ static bool isNewQStart(const char* s, int l) {
     }
     const QBitArray& WHITES = TextUtils::WHITES;
     int i = QN_COL;
+    bool hasWhites = false;
+    bool hasEqualitySign = false; // qualifier with '=' char if true and without otherwise
+    bool hasWhitesBeforeVal = false;
     for (; i < l; i++) {
         char c = s[i];
         if (c == '=' && i > QN_COL) {
-            return true;
+            hasEqualitySign = true;
+            if(WHITES [s[i+1]]  ){ // there is whites between potential qual and val
+                hasWhitesBeforeVal = true;
+            }
+            break;
         }
         if (WHITES[(uchar)c]) {
-            return false;
+            hasWhites = true;
+        }
+        if(hasWhites && !WHITES[(uchar)c]){ // there is !whites characters after qualifier without '=' char
+            hasWhitesBeforeVal = true;
+            break;
         }
     }
-    if (i == l){
-        return true; // qualifier without '=' char
+
+    if(hasEqualitySign){
+        if(hasWhites ){ // whites between qual and '=' char
+            return false;
+        }
+        return true;
     }
-    return false;
+    else if(hasWhitesBeforeVal){
+        return false;
+    }
+
+    return true; // qualifier without '=' char
+}
+
+static int numQuotesInLine(char* cbuff, int len){
+    QString line = QString(QByteArray(cbuff,len));
+    int pos = 0;
+    int numQuotes = 0;
+    while((pos = line.indexOf('\"',pos+1)) != -1){
+        if ( line[pos + 1] == '\"') { // skip ""
+            pos++;
+            continue;
+        }
+        numQuotes++;
+    }
+    return numQuotes;
 }
 
 //TODO: make it IO active -> read util the end. Otherwise qualifier is limited in size by maxSize
-int EMBLGenbankAbstractDocument::readMultilineQualifier(IOAdapter* io, char* cbuff, int maxSize, bool _prevLineHasMaxSize) {
+int EMBLGenbankAbstractDocument::readMultilineQualifier(IOAdapter* io, char* cbuff, int maxSize, bool _prevLineHasMaxSize, int lenFirstLine,
+                                                        U2OpStatus& os) {
     int len = 0;
     bool lineOk = true;
     static const int MAX_LINE = 256;
     int sizeToSkip = maxSize - MAX_LINE;
     const QBitArray& LINE_BREAKS = TextUtils::LINE_BREAKS;
+
+    int numQuotes = 0;
+    numQuotes += numQuotesInLine(cbuff,lenFirstLine);
+
+    cbuff += lenFirstLine;
+
     bool breakWords = !_prevLineHasMaxSize; //todo: create a parameter and make it depends on annotation name.
     do {
         if (len >= sizeToSkip) {
@@ -303,10 +423,14 @@ int EMBLGenbankAbstractDocument::readMultilineQualifier(IOAdapter* io, char* cbu
                 }
                 int lineLen = readLen;
                 for (; A_COL < lineLen && LINE_BREAKS[(uchar)skipBuff[lineLen-1]]; lineLen--){}; //remove line breaks
-                if (lineLen == 0 || lineLen < A_COL || skip[0]!=fPrefix[0] || skip[1]!=fPrefix[1] 
-                    || skip[K_COL]!=' ' || (skip[A_COL]=='/' && isNewQStart(skip, lineLen))) {
+                if (lineLen == 0 || lineLen < A_COL || skip[0]!=fPrefix[0] || skip[1]!=fPrefix[1]
+                    || skip[K_COL]!=' ' || (skip[A_COL]=='/' && isNewQStart(skip, lineLen) && (numQuotes%2) == 0))
+                {
                     io->skip(-readLen);
                     break;
+                }
+                else{
+                    numQuotes += numQuotesInLine(skipBuff,lineLen);
                 }
             } while (true);
             break;
@@ -315,20 +439,32 @@ int EMBLGenbankAbstractDocument::readMultilineQualifier(IOAdapter* io, char* cbu
         int readLen = io->readUntil(lineBuf, maxSize-len, TextUtils::LINE_BREAKS, IOAdapter::Term_Include, &lineOk);
         int lineLen = readLen;
         for (; A_COL < lineLen && LINE_BREAKS[(uchar)lineBuf[lineLen-1]]; lineLen--){}; //remove line breaks
-        if (!lineOk || lineLen == 0 || lineLen < A_COL || lineBuf[0]!=fPrefix[0]  
-            || lineBuf[1]!=fPrefix[1] || lineBuf[K_COL]!=' ' || (lineBuf[A_COL]=='/' && isNewQStart(lineBuf, lineLen))) 
+        if (!lineOk || lineLen == 0 || lineLen < A_COL || lineBuf[0]!=fPrefix[0]
+            || lineBuf[1]!=fPrefix[1] || lineBuf[K_COL]!=' ' || (lineBuf[A_COL]=='/' && isNewQStart(lineBuf, lineLen) && (numQuotes%2) == 0))
         {
             io->skip(-readLen);
             break;
         }
-        if (breakWords && lineLen-A_COL > 0 && lineBuf[A_COL]!=' ') { //add space to separate words
+        else{
+            numQuotes += numQuotesInLine(lineBuf,lineLen);
+        }
+
+        if (breakQualifierOnSpaceOnly(cbuff) && breakWords && lineLen - A_COL > 0) { //add space to separate words
             cbuff[len] = ' ';
             len++;
         }
-        qMemCopy(cbuff + len, lineBuf + A_COL, lineLen - A_COL);
+
+        memmove(cbuff + len, lineBuf + A_COL, lineLen - A_COL);
         len+=lineLen-A_COL;
         breakWords = breakWords || lineLen < maxAnnotationLineLen;
     } while (true);
+
+    // ignore that error if the file was saved by UGENE (version <1.14.1)
+    if (numQuotes != 2 && numQuotes != 0 && !savedInUgene) {
+        os.setError(tr("The file contains an incorrect data that describes a qualifier value. ") +
+                    tr("The value cannot contain a single quote character. The qualifier is \'%1\'").arg(QByteArray(cbuff - lenFirstLine, len + lenFirstLine).data()));
+        return 0;
+    }
     return len;
 }
 
@@ -355,15 +491,21 @@ QString EMBLGenbankAbstractDocument::genObjectName(QSet<QString>& usedNames, con
                 name = EMBLGenbankAbstractDocument::DEFAULT_OBJ_NAME;
             }
         }
-        if(t == GObjectTypes::ANNOTATION_TABLE) {
-            name+=" features";
-        }
+    }
+
+    const QString featuresPostfix = "features";
+    const QString annotsPostfix = "annotations";
+    if (t == GObjectTypes::ANNOTATION_TABLE && !name.endsWith(featuresPostfix, Qt::CaseInsensitive)
+        && !name.endsWith(annotsPostfix, Qt::CaseInsensitive))
+    {
+        name += " " + featuresPostfix;
     }
     //now variate name if there are duplicates
     int n2 = 1;
     QString res = name;
     while (usedNames.contains(res)) {
-        res =  name + " " + QString::number(n) + (n2 == 1 ? QString("") : ("."+QString::number(n2)));
+        res =  name + " " + QString::number(n) + (n2 == 1 ? QString("") : ("." + QString::number(n2)));
+        ++n2;
     }
     usedNames.insert(res);
     return res;
@@ -381,44 +523,41 @@ static void checkQuotes(const char* str, int len, bool& outerQuotes, bool& doubl
     }
 }
 
-SharedAnnotationData EMBLGenbankAbstractDocument::readAnnotation(IOAdapter* io, char* cbuff, int len, 
-                                                                 int READ_BUFF_SIZE, U2OpStatus& si, int offset, int seqLen) 
+SharedAnnotationData EMBLGenbankAbstractDocument::readAnnotation(IOAdapter* io, char* cbuff, int len,
+                                                                 int READ_BUFF_SIZE, U2OpStatus& si, int offset, int seqLen)
 {
     AnnotationData* a = new AnnotationData();
     SharedAnnotationData f(a);
-    QString key = QString::fromAscii(cbuff+5, 15).trimmed();
+    QString key = QString::fromLatin1(cbuff+5, 15).trimmed();
     if (key.isEmpty()) {
         si.setError(EMBLGenbankAbstractDocument::tr("Annotation name is empty"));
         return SharedAnnotationData();
     }
     a->name = key;
-    
-    //qualifier starts on offset 22;
-    int qlen = len + readMultilineQualifier(io, cbuff+len, READ_BUFF_SIZE - len, true);
-    if (qlen < 21) {
-        si.setError(EMBLGenbankAbstractDocument::tr("Error parsing qualifier"));
-        return SharedAnnotationData();
-    }
+    a->type = getFeatureType(key);
 
-    Genbank::LocationParser::parseLocation(cbuff+21, qlen-21, a->location, seqLen);
-    if (a->location->isEmpty()) {
+    //qualifier starts on offset 22;
+    int qlen = len + readMultilineQualifier(io, cbuff, READ_BUFF_SIZE - len, true, len, si);
+    if (qlen < 21) {
         si.setError(EMBLGenbankAbstractDocument::tr("Error parsing location"));
         return SharedAnnotationData();
     }
-    // omit sorting because of splitted annotations 
+
+    QString errorReport = Genbank::LocationParser::parseLocation(cbuff+21, qlen-21, a->location, seqLen);
+    if (a->location->isEmpty()) {
+        si.setError(errorReport);
+        return SharedAnnotationData();
+    }
+    // omit sorting because of splitted annotations
     /*if (a->location->isMultiRegion()) {
         qSort(a->location->regions);
     }*/
-    if (offset!=0) {
+    if (offset>0) {
         U2Region::shift(offset, a->location->regions);
     }
 
     const QBitArray& LINE_BREAKS = TextUtils::LINE_BREAKS;
-    const QByteArray& aminoQ = GBFeatureUtils::QUALIFIER_AMINO_STRAND;
-    //const QByteArray& aminoQYes = GBFeatureUtils::QUALIFIER_AMINO_STRAND_YES;
-    //const QByteArray& aminoQNo = GBFeatureUtils::QUALIFIER_AMINO_STRAND_NO;
-    const QByteArray& nameQ = GBFeatureUtils::QUALIFIER_NAME;
-    
+
     //here we have valid key and location;
     //reading qualifiers
     bool lineOk = true;
@@ -432,7 +571,8 @@ SharedAnnotationData EMBLGenbankAbstractDocument::readAnnotation(IOAdapter* io, 
             break;
         }
         for (; QN_COL < len && LINE_BREAKS[(uchar)cbuff[len-1]]; len--){}; //remove line breaks
-        int flen = len + readMultilineQualifier(io, cbuff+len, READ_BUFF_SIZE-len, len >= maxAnnotationLineLen);
+
+        int flen = len + readMultilineQualifier(io, cbuff, READ_BUFF_SIZE-len, len >= maxAnnotationLineLen, len, si);
         //now the whole feature is in cbuff
         int valStart = A_COL + 1;
         for (; valStart < flen && cbuff[valStart] != '='; valStart++){}; //find '==' and valStart
@@ -459,18 +599,18 @@ SharedAnnotationData EMBLGenbankAbstractDocument::readAnnotation(IOAdapter* io, 
             qval++;
             qvalLen-=2;
         }
-        if (qnameLen == aminoQ.length() && TextUtils::equals(qname, aminoQ.constData(), qnameLen)) {
-            //a->aminoFrame = qvalLen == aminoQYes.length() && TextUtils::equals(qval, aminoQYes.constData(), qvalLen) ? TriState_Yes
-            //             :  (qvalLen == aminoQNo.length()  && TextUtils::equals(qval, aminoQNo.constData(), qvalLen) ? TriState_No : TriState_Unknown);
-        } else if (qnameLen == nameQ.length() && TextUtils::equals(qname, nameQ.constData(), qnameLen)) {
-            a->name = QString::fromLocal8Bit(qval, qvalLen);
+
+        QString nameQStr = QString::fromLocal8Bit(qname, qnameLen);
+        QString valQStr = QString::fromLocal8Bit(qval, qvalLen);
+
+        if (!breakQualifierOnSpaceOnly(QString::fromLocal8Bit(qname, qnameLen))) {
+            valQStr.replace("\\ ", " ");
+        }
+
+        if (nameQStr == GBFeatureUtils::QUALIFIER_NAME) {
+            a->name = valQStr;
         } else {
-            QString nameQStr = QString::fromLocal8Bit(qname, qnameLen);
-            QString valQStr = QString::fromLocal8Bit(qval, qvalLen);
-            if (containsDoubleQuotes) {
-                valQStr = valQStr.replace("\"\"", "\"");
-            }
-            a->qualifiers.append(U2Qualifier(nameQStr, valQStr));
+            a->qualifiers << createQualifier(nameQStr, valQStr, containsDoubleQuotes);
         }
     }
     return f;
@@ -488,19 +628,19 @@ bool EMBLGenbankAbstractDocument::readSequence(ParserState* st, U2SequenceImport
     QByteArray readBuffer(READ_BUFF_SIZE, '\0');
     char* buff  = readBuffer.data();
 
-    //reading sequence      
+    //reading sequence
     QBuffer writer(&res);
     writer.open( QIODevice::WriteOnly);
     bool ok = true;
     int len;
     int dataOffset = 0;
-    bool numIsPrefix = getFormatId() == BaseDocumentFormats::PLAIN_GENBANK;
+    bool numIsPrefix = isNcbiLikeFormat();
     while (ok && (len = io->readLine(buff, READ_BUFF_SIZE)) > 0) {
         if (si.isCoR()) {
             res.clear();
             break;
         }
-        
+
         if (len <= 0)  {
             si.setError(tr("Error parsing sequence: unexpected empty line"));
             break;
@@ -509,7 +649,7 @@ bool EMBLGenbankAbstractDocument::readSequence(ParserState* st, U2SequenceImport
         if (buff[0] == '/') { //end of the sequence
             break;
         }
-        
+
         //compute data offset
         bool foundNum = false;
         bool foundSpaceAfterNum = false;
@@ -520,23 +660,23 @@ bool EMBLGenbankAbstractDocument::readSequence(ParserState* st, U2SequenceImport
             if (!isSpace && (!isNum || foundSpaceAfterNum)) {
                 if (!foundSpaceAfterNum) {
                     //unknown character -> stop iteration
-                    dataOffset = len;   
+                    dataOffset = len;
                 }
                 break;
             }
             foundNum = foundNum || isNum;
             foundSpaceAfterNum = foundSpaceAfterNum || (isSpace && foundNum);
         }
-        
+
         if (dataOffset == len) {
-            si.setError(tr("Error reading sequence: invalid sequence format"));    
+            si.setError(tr("Error reading sequence: invalid sequence format"));
             break;
         }
 
         bool isSeek = writer.seek(0);
                 assert(isSeek);Q_UNUSED(isSeek);
 
-        //add buffer to result	
+        //add buffer to result
         for (int i= (numIsPrefix ? dataOffset : 0), n = (numIsPrefix ? len : len -  dataOffset) ; i < n; i++) {
             char c = buff[i];
             if (c != ' ' && c != '\t') {
@@ -550,7 +690,7 @@ bool EMBLGenbankAbstractDocument::readSequence(ParserState* st, U2SequenceImport
             si.setError(tr("Error reading sequence: memory allocation failed"));
             break;
         }
-        
+
         seqImporter.addBlock(res.data(),res.size(),os);
         if(os.isCoR()){
             break;
@@ -558,7 +698,7 @@ bool EMBLGenbankAbstractDocument::readSequence(ParserState* st, U2SequenceImport
         sequenceLen += res.size();
         fullSequenceLen += res.size();
         res.clear();
-                
+
         si.setProgress(io->getProgress());
     }
     if (!si.isCoR() && buff[0] != '/') {
@@ -593,6 +733,30 @@ void EMBLGenbankAbstractDocument::readAnnotations(ParserState* st, int offset) {
     } while (st->readNextLine());
 }
 
+bool EMBLGenbankAbstractDocument::isNcbiLikeFormat() const {
+    return false;
+}
+
+void EMBLGenbankAbstractDocument::createCommentAnnotation(const QStringList & /*comments*/, int /*sequenceLength*/, AnnotationTableObject * /*annTable*/) const {
+    // Do nothing
+}
+
+U2FeatureType EMBLGenbankAbstractDocument::getFeatureType(const QString & /*typeString*/) const {
+    return U2FeatureTypes::MiscFeature;
+}
+
+U2Qualifier EMBLGenbankAbstractDocument::createQualifier(const QString &qualifierName, const QString &qualifierValue, bool containsDoubleQuotes) const {
+    QString parsedQualifierValue = qualifierValue;
+    if (containsDoubleQuotes) {
+        parsedQualifierValue = parsedQualifierValue.replace("\"\"", "\"");
+    }
+    return U2Qualifier(qualifierName, parsedQualifierValue);
+}
+
+bool EMBLGenbankAbstractDocument::breakQualifierOnSpaceOnly(const QString & /*qualifierName*/) const {
+    return true;
+}
+
 bool ParserState::hasKey( const char* key, int slen ) const {
     assert(slen <= valOffset);
     if (slen <= len && TextUtils::equals(key, buff, slen)) {
@@ -625,7 +789,7 @@ bool ParserState::readNextLine(bool emptyOK) {
     return (len > 0 || (emptyOK && ok));
 }
 
-QString ParserState::key() const {   
+QString ParserState::key() const {
     //assert(len > 0);
     return QString::fromLocal8Bit(buff, qMin(valOffset - 1, len));
 }

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,6 @@
 
 #include "bwaTests.h"
 
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/SaveDocumentTask.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/BaseDocumentFormats.h>
@@ -37,8 +36,10 @@
 #include <U2Core/DNATranslation.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/U2SafePoints.h>
+#include <U2Core/GUrlUtils.h>
 
 #include <U2Formats/SAMFormat.h>
+#include <U2Formats/BAMUtils.h>
 
 #include <U2View/DnaAssemblyUtils.h>
 
@@ -70,14 +71,13 @@ namespace U2 {
 #define BEST_HITS_ATTR "best-hits"
 #define QUALITY_THRESHOLD_ATTR "quality-threshold"
 #define BARCODE_LENGTH_ATTR "barcode-length"
-#define COLORSPACE_ATTR "colorspace"
 #define LONG_SCALED_GAP_PENALTY_FOR_LONG_DELETIONS_ATTR "long-scaled-gap-penalty-for-long-deletions"
 #define NON_ITERATIVE_MODE_ATTR "non-iterative-mode"
+#define ALG_NAME_ATTR   "alg"
 
 void GTest_Bwa::init(XMLTestFormat *tf, const QDomElement& el) {
     Q_UNUSED(tf);
     bwaTask = NULL;
-    resultLoadTask = NULL;
     indexName = "";
     readsFileName = "";
     patternFileName = "";
@@ -112,6 +112,15 @@ void GTest_Bwa::init(XMLTestFormat *tf, const QDomElement& el) {
         const QString attr = INDEX_ALGORITHM_ATTR;
         if(!el.attribute(attr).isEmpty()) {
             config.setCustomValue(BwaTask::OPTION_INDEX_ALGORITHM, el.attribute(attr));
+        }
+    }
+    {
+        const QString attr = ALG_NAME_ATTR;
+        const QString algName = el.attribute(attr);
+        if(algName == BwaTask::ALGORITHM_BWA_SW) {
+            config.setCustomValue(BwaTask::OPTION_SW_ALIGNMENT, true);
+        }else if (algName == BwaTask::ALGORITHM_BWA_MEM){
+            config.setCustomValue(BwaTask::OPTION_MEM_ALIGNMENT, true);
         }
     }
     {
@@ -233,13 +242,6 @@ void GTest_Bwa::init(XMLTestFormat *tf, const QDomElement& el) {
         }
     }
     {
-        const QString attr = COLORSPACE_ATTR;
-
-        if(!el.attribute(attr).isEmpty()) {
-            config.setCustomValue(BwaTask::OPTION_COLORSPACE, true);
-        }
-    }
-    {
         const QString attr = LONG_SCALED_GAP_PENALTY_FOR_LONG_DELETIONS_ATTR;
 
         if(!el.attribute(attr).isEmpty()) {
@@ -282,11 +284,19 @@ void GTest_Bwa::prepare() {
         setError("Can't create tmp data dir!");
         return;
     }
-    
-    config.shortReadUrls.append(readsFileUrl);
+
+    resultDirPath = tmpDataDir + "/" + QString::number(getTaskId());
+    GUrlUtils::prepareDirLocation(resultDirPath,stateInfo);
+    if (hasError()) {
+        setError("Failed to create result data dir!");
+        return;
+    }
+
+    config.shortReadSets.append(readsFileUrl);
     config.refSeqUrl = GUrl(env->getVar("COMMON_DATA_DIR") + "/" + indexName);
     config.prebuiltIndex = usePrebuildIndex;
-    config.resultFileName = GUrl(tmpDataDir + "/" + QString::number(getTaskId()));
+    config.pairedReads = false;
+    config.resultFileName = GUrl(resultDirPath + "/result.sam");
     config.algName = BwaTask::taskName;
     config.openView = false;
     bwaTask = new BwaTask(config);
@@ -312,44 +322,6 @@ QList<Task*> GTest_Bwa::onSubTaskFinished(Task* subTask) {
             bwaTask->setError("Reference assembly failed - no possible alignment found");
             return res;
         }
-        IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(config.resultFileName));
-        // SAM format is removed from supported formats list and supported only by BAM plugin
-        // Create it manually and provide to LoadDocumentTask
-        SAMFormat* samFormat = new SAMFormat();
-        resultLoadTask = new LoadDocumentTask(samFormat, config.resultFileName,iof);
-        samFormat->setParent(resultLoadTask);
-        res << resultLoadTask;
-
-    } else if (subTask == resultLoadTask) {
-
-        Document* doc = resultLoadTask->getDocument();
-        CHECK_EXT(doc != NULL, setError("Failed to load result document"), res);
-        ma1 =  qobject_cast<MAlignmentObject*> (doc->getObjects().first())->getMAlignment();
-        QFileInfo patternFile(env->getVar("COMMON_DATA_DIR")+"/"+patternFileName);
-        IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(patternFile.absoluteFilePath()));
-
-        // SAM format is removed from supported formats list and supported only by BAM plugin
-        // Create it manually and provide to LoadDocumentTask
-        SAMFormat* samFormat = new SAMFormat();
-        patternLoadTask = new LoadDocumentTask(samFormat, patternFile.absoluteFilePath(), iof);
-        samFormat->setParent(patternLoadTask);
-
-        patternLoadTask->setSubtaskProgressWeight(0);
-        res << patternLoadTask;
-
-    } else if(subTask == patternLoadTask) {
-        if(patternLoadTask->hasError()) {
-            subTaskFailed = true;
-            return res;
-        }
-        Document *doc = patternLoadTask->getDocument();
-        assert(doc!=NULL);
-
-        QList<GObject*> list = doc->findGObjectByType(GObjectTypes::MULTIPLE_ALIGNMENT);
-        CHECK_EXT(list.size() > 0, setError(  QString("container of object with type \"%1\" is empty").arg(GObjectTypes::MULTIPLE_ALIGNMENT) ), res);
-        MAlignmentObject* ma2Obj = qobject_cast<MAlignmentObject*>(list.first());
-        CHECK_EXT(ma2Obj != NULL, setError(QString("Can't cast GObject to MAlignmentObject")), res);
-        ma2 = ma2Obj->getMAlignment();
     }
     return res;
 }
@@ -359,47 +331,8 @@ void GTest_Bwa::run() {
     if(subTaskFailed) {
         return;
     }
-
-    const QList<MAlignmentRow> &alignedSeqs1 = ma1.getRows();
-    const QList<MAlignmentRow> &alignedSeqs2 = ma2.getRows();
-
-    if(alignedSeqs1.count() != alignedSeqs2.count()) {
-        stateInfo.setError(QString("Aligned sequences number not matched \"%1\", expected \"%2\"").arg(alignedSeqs1.count()).arg(alignedSeqs2.count()));
-        return;
-    }
-
-    foreach(const MAlignmentRow &maItem1, alignedSeqs1) {
-        bool nameFound = false;
-        if(maItem1.getName().compare("reference", Qt::CaseInsensitive)==0) continue;
-        foreach(const MAlignmentRow &maItem2, alignedSeqs2) {
-            if (maItem1.getName() == maItem2.getName()) {
-                nameFound = true;
-                int l1 = maItem1.getCoreLength();
-                int l2 = maItem2.getCoreLength();
-                if (l1 != l2) {
-                    stateInfo.setError(  QString("Aligned sequences \"%1\" length not matched \"%2\", expected \"%3\"").arg(maItem1.getName()).arg(l1).arg(l2) );
-                    return;
-                }
-                if (maItem1.getCore() != maItem2.getCore()) {
-                    stateInfo.setError(  QString("Aligned sequences \"%1\" not matched \"%2\", expected \"%3\"").arg(maItem1.getName()).arg(QString(maItem1.getCore())).arg(QString(maItem2.getCore())) );
-                    return;
-                }
-
-                DNAQuality qual1 = maItem1.getCoreQuality();
-                DNAQuality qual2 = maItem1.getCoreQuality();
-                if(qual1.type != qual2.type) {
-                    stateInfo.setError(  QString("Aligned sequences quality type \"%1\" not matched \"%2\", expected \"%3\"").arg(maItem1.getName()).arg(qual1.type).arg(qual2.type) );
-                }
-                if(qual1.qualCodes != qual2.qualCodes) {
-                    stateInfo.setError(  QString("Aligned sequences quality \"%1\" not matched \"%2\", expected \"%3\"").arg(maItem1.getName()).arg(QString(qual1.qualCodes)).arg(QString(qual2.qualCodes)) );
-                    return;
-                }
-            }
-        }
-        if (!nameFound) {
-            stateInfo.setError(  QString("aligned sequence not found \"%1\"").arg(maItem1.getName()) );
-        }
-    }
+    QFileInfo patternFile(env->getVar("COMMON_DATA_DIR")+"/"+patternFileName);
+    BAMUtils::isEqualByLength(config.resultFileName, patternFile.absoluteFilePath(), stateInfo);
 }
 
 Task::ReportResult GTest_Bwa::report() {
@@ -431,16 +364,13 @@ void GTest_Bwa::cleanup() {
             }
         }
     }
+
     //delete tmp result
-    QFileInfo tmpResult(config.resultFileName.getURLString());
-    if (tmpResult.exists()) {
-        ioLog.trace(QString("Deleting tmp result file :%1").arg(tmpResult.absoluteFilePath()));
-        QFile::remove(tmpResult.absoluteFilePath());
-        QFile::remove(tmpResult.absoluteFilePath() + ".sai");
+    if (QFileInfo(resultDirPath).exists()) {
+        ioLog.trace(QString("Deleting tmp result dir %1").arg(resultDirPath));
+        GUrlUtils::removeDir(resultDirPath, stateInfo);
     }
 
-    ma1.clear();
-    ma2.clear();
 }
 
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <U2Core/global.h>
 #include <U2Core/MAlignment.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QUndoStack>
+#else
+#include <QtWidgets/QUndoStack>
+#endif
 
 namespace U2 {
 
@@ -44,11 +48,13 @@ public:
 public slots:
     void sl_alignmentChanged(const MAlignment& aliBefore, const MAlignmentModInfo& modInfo);
     void sl_lockedStateChanged();
-    
+    void sl_completeStateChanged(bool complete);
+
 private:
     MAlignmentObject*   maObj;
     int                 lastSavedObjectVersion;
     int                 maxMemUse;//in bytes;
+    bool                stateComplete;
 
     QAction*            uAction;
     QAction*            rAction;
@@ -68,9 +74,9 @@ protected:
 class MSAEditorUndoWholeAliCommand : public MSAEditorUndoCommand {
 public:
     MSAEditorUndoWholeAliCommand(const MAlignment& _maBefore, const MAlignment& _maAfter) : maBefore(_maBefore), maAfter(_maAfter){}
-    
+
     virtual int getMemUsage() const {return maBefore.estimateMemorySize();}
-    
+
     virtual void redo();
     virtual void undo();
 

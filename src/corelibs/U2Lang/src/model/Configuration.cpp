@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,7 +41,7 @@ QMap<QString, Attribute*> Configuration::getParameters() const {
 }
 
 Attribute * Configuration::getParameter(const QString & name) const {
-    return params.value(name);
+    return params.value(name, NULL);
 }
 
 Attribute * Configuration::removeParameter( const QString & name ) {
@@ -70,11 +70,19 @@ void Configuration::setParameters(const QVariantMap& cfg) {
     }
 }
 
+QVariantMap Configuration::getValues() const {
+    QVariantMap result;
+    foreach (Attribute *attr, params) {
+        result[attr->getId()] = attr->getAttributePureValue();
+    }
+    return result;
+}
+
 bool Configuration::hasParameter(const QString & name) const {
     return params.contains(name);
 }
 
-ConfigurationEditor * Configuration::getEditor() {
+ConfigurationEditor * Configuration::getEditor() const {
     return editor;
 }
 
@@ -92,25 +100,39 @@ void Configuration::setValidator(ConfigurationValidator* v) {
     validator = v;
 }
 
-bool Configuration::validate(QStringList& errorList) const {
+bool Configuration::validate(ProblemList &problemList) const {
     bool good = true;
     foreach(Attribute* a, getParameters()) {
-        if( !a->isRequiredAttribute() ) {
+        if (!isAttributeVisible(a)) {
             continue;
         }
-        if( (a->isEmpty() || a->isEmptyString()) &&a->getAttributeScript().isEmpty()) {
-            good = false;
-            errorList.append(U2::WorkflowUtils::tr("Required parameter is not set: %1").arg(a->getDisplayName()));
-        }
+        good &= a->validate(problemList);
     }
     if (validator) {
-        good &= validator->validate(this, errorList);
+        good &= validator->validate(this, problemList);
     }
     return good;
 }
 
 QList<Attribute*> Configuration::getAttributes() const {
-    return /*params.values()*/attrs;;
+    return /*params.values()*/attrs;
+}
+
+bool Configuration::isAttributeVisible(Attribute *attribute) const {
+    bool isVisible = true;
+    SAFE_POINT(NULL != attribute, "NULL attribute", false);
+    foreach (const AttributeRelation *relation, attribute->getRelations()) {
+        if (VISIBILITY != relation->getType()) {
+            continue;
+        }
+
+        Attribute *masterAttribute = getParameter(relation->getRelatedAttrId());
+        SAFE_POINT(NULL != masterAttribute, QString("Invalid attribute relation: can't get master attribute '%1'").arg(relation->getRelatedAttrId()), false);
+
+        isVisible &= isAttributeVisible(masterAttribute);
+        isVisible &= relation->getAffectResult(masterAttribute->getAttributePureValue(), attribute->getAttributePureValue()).toBool();
+    }
+    return isVisible;
 }
 
 } // U2

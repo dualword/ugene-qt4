@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,36 +22,35 @@
 #ifndef _U2_EDIT_ANNOTATION_DIALOG_CONTROLLER_H_
 #define _U2_EDIT_ANNOTATION_DIALOG_CONTROLLER_H_
 
-#include "ui/ui_EditAnnotationDialog.h"
+#include <U2Core/AnnotationData.h>
 
-#include <U2Core/U2Region.h>
-#include <U2Core/AnnotationTableObject.h>
+#include "ui/ui_EditAnnotationDialog.h"
 
 namespace U2{
 
 class U2VIEW_EXPORT EditAnnotationDialogController : public QDialog, public Ui_EditAnnotationDialog {
     Q_OBJECT
 public:
-    EditAnnotationDialogController(Annotation* a, U2Region _seqRange, QWidget* p = NULL);
+    EditAnnotationDialogController(const SharedAnnotationData &a, const U2Region &seqRange, QWidget *p = NULL);
 
-    virtual void accept ();
+    virtual void accept();
 
     QString getName() const {return currentName;}
     U2Location getLocation() const {return location;}
-    
+
 private slots:
-    void sl_onTextChanged(const QString&);
+    void sl_onTextChanged(const QString &);
     void sl_setPredefinedAnnotationName();
     void sl_complementLocation();
 
 private:
-    QMenu* createAnnotationNamesMenu(QWidget* p, QObject* receiver);
+    QMenu* createAnnotationNamesMenu(QWidget *p, QObject *receiver);
 
     U2Region            seqRange;
     U2Location          location;
     QString             currentName;
 };
 
-}//ns
+} // namespace U2
 
 #endif //_U2_EDIT_ANNOTATION_DIALOG_CONTROLLER_H_

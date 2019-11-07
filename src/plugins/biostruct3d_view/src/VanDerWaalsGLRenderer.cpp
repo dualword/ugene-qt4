@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@
 #include "VanDerWaalsGLRenderer.h"
 
 
-namespace U2 { 
+namespace U2 {
 
 const QString VanDerWaalsGLRenderer::ID(QObject::tr("Space Fill"));
 
@@ -49,7 +49,7 @@ void VanDerWaalsGLRenderer::drawAtoms( const BioStruct3DColorScheme* colorScheme
 {
     static float tolerance = 0.45f;
     int numSlices = 10 * settings->detailLevel;
-    GLUquadricObj *pObj = gluNewQuadric();  
+    GLUquadricObj *pObj = gluNewQuadric();
     gluQuadricNormals(pObj, GLU_SMOOTH);
 
 
@@ -57,7 +57,7 @@ void VanDerWaalsGLRenderer::drawAtoms( const BioStruct3DColorScheme* colorScheme
 
     foreach (const SharedMolecule mol, bioStruct.moleculeMap) {
         foreach (int index, shownModels) {
-            const Molecule3DModel& model = mol->models.at(index);
+            const Molecule3DModel& model = mol->models.value(index);
             foreach(const SharedAtom atom, model.atoms) {
                 float radius = AtomConstants::getAtomCovalentRadius(atom->atomicNumber);
                 Vector3D pos = atom->coord3d;
@@ -73,7 +73,7 @@ void VanDerWaalsGLRenderer::drawAtoms( const BioStruct3DColorScheme* colorScheme
     gluDeleteQuadric(pObj);
 
 }
-  
+
 VanDerWaalsGLRenderer::VanDerWaalsGLRenderer( const BioStruct3D& struc, const BioStruct3DColorScheme* s, const QList<int> &shownModels, const BioStruct3DRendererSettings *settings)
     : BioStruct3DGLRenderer(struc,s,shownModels,settings)
 {

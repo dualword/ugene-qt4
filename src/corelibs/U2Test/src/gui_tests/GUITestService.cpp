@@ -1,182 +1,521 @@
-#include "GUITestService.h"
-#include "GUITestBase.h"
+/**
+ * UGENE - Integrated Bioinformatics Tools.
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
+ * http://ugene.unipro.ru
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMainWindow>
+#include <QtGui/QPixmap>
+#else
+#include <QtWidgets/QMainWindow>
+#include <QtGui/QScreen>
+#endif
 
 #include <U2Core/AppContext.h>
+#include <U2Core/CMDLineCoreOptions.h>
 #include <U2Core/CMDLineRegistry.h>
-#include <U2Core/TaskStarter.h>
-#include <U2Gui/ProjectTreeController.h>
 #include <U2Core/DocumentModel.h>
+#include <U2Core/ExternalToolRegistry.h>
 #include <U2Core/GObject.h>
+#include <U2Core/Log.h>
+#include <U2Core/TaskStarter.h>
+#include <U2Core/Timer.h>
+#include <U2Core/U2SafePoints.h>
+
+#include "GUITestBase.h"
+#include "GUITestService.h"
+#include "GUITestTeamcityLogger.h"
+#include "GUITestWindow.h"
+#include "GUITestOpStatus.h"
+
+/**************************************************** to use qt file dialog *************************************************************/
+#ifdef Q_OS_LINUX
+#if (QT_VERSION < 0x050000) //Qt 5
+typedef QStringList(*_qt_filedialog_open_filenames_hook)(QWidget * parent, const QString &caption, const QString &dir,
+                                                          const QString &filter, QString *selectedFilter, QFileDialog::Options options);
+typedef QString(*_qt_filedialog_open_filename_hook)     (QWidget * parent, const QString &caption, const QString &dir,
+                                                          const QString &filter, QString *selectedFilter, QFileDialog::Options options);
+typedef QString(*_qt_filedialog_save_filename_hook)     (QWidget * parent, const QString &caption, const QString &dir,
+                                                          const QString &filter, QString *selectedFilter, QFileDialog::Options options);
+typedef QString(*_qt_filedialog_existing_directory_hook)(QWidget *parent, const QString &caption, const QString &dir,
+                                                          QFileDialog::Options options);
+
+extern Q_GUI_EXPORT _qt_filedialog_open_filename_hook qt_filedialog_open_filename_hook;
+extern Q_GUI_EXPORT _qt_filedialog_open_filenames_hook qt_filedialog_open_filenames_hook;
+extern Q_GUI_EXPORT _qt_filedialog_save_filename_hook qt_filedialog_save_filename_hook;
+extern Q_GUI_EXPORT _qt_filedialog_existing_directory_hook qt_filedialog_existing_directory_hook;
+#endif
+#endif
+/******************************************************************************************************************************************/
+
+#define GUITESTING_REPORT_PREFIX "GUITesting"
 
 
 namespace U2 {
 
-GUITestService::GUITestService(QObject *): Service(Service_GUITesting, tr("GUI test viewer"), tr("Service to support UGENE GUI testing")) {
-    testLauncher = NULL;
-    connect(AppContext::getPluginSupport(), SIGNAL(si_allStartUpPluginsLoaded()), SLOT(sl_registerSevice()));
-    GUITestBase *tb = AppContext::getGUITestBase();
-//    TestProjectView *test1 = new TestProjectView("E:/Files/_1.003.fa", "E:/Files/_1.002.fa", "3INS chain 3 sequence", "Add object to view test");
-//    TestTaskView *test2 = new TestTaskView("E:/Files/ecoli.gbk", "Cancel task test");
-//    ComplexTest *test3 = new ComplexTest("E:/Files/_1.002.fa", "Lock-unlock test");
-    Test1AboutDialog* test1AboutDialog=new Test1AboutDialog("AboutDialog_test1");
-    Test2AboutDialog* test2AboutDialog=new Test2AboutDialog("AboutDialog_test2");
-    Test3AboutDialog* test3AboutDialog=new Test3AboutDialog("AboutDialog_test3");
-    Test4AboutDialog* test4AboutDialog=new Test4AboutDialog("AboutDialog_test4");
-    Test5AboutDialog* test5AboutDialog=new Test5AboutDialog("AboutDialog_test5");
-    /*tb->registerTest(test1);
-    tb->registerTest(test2);
-    tb->registerTest(test3);*/
-    tb->registerTest(test1AboutDialog);
-    tb->registerTest(test2AboutDialog);
-    tb->registerTest(test3AboutDialog);
-    tb->registerTest(test4AboutDialog);
-    tb->registerTest(test5AboutDialog);
-//    tb->registerTest(new LongTest());
+#define ULOG_CAT_TEAMCITY "Teamcity Log"
+static Logger log(ULOG_CAT_TEAMCITY);
+
+GUITestService::GUITestService(QObject *) : Service(Service_GUITesting, tr("GUI test viewer"), tr("Service to support UGENE GUI testing")),
+runTestsAction(NULL), testLauncher(NULL) {
+    connect(AppContext::getPluginSupport(), SIGNAL(si_allStartUpPluginsLoaded()), SLOT(sl_allStartUpPluginsLoaded()));
+    setQtFileDialogView();
 }
 
-void GUITestService::sl_registerSevice() {
-    CMDLineRegistry* cmdLine = AppContext::getCMDLineRegistry();
-    if(cmdLine && cmdLine->hasParameter("gui-test")) {
-        testLauncher = new TestLauncher();
-        GUITestBase *tb = AppContext::getGUITestBase();
-        GUITest *t = tb->findTestByName(cmdLine->getParameterValue("gui-test"));
-        if(t) {
-            LaunchTestTask *task = new LaunchTestTask(t);
-            AppContext::getTaskScheduler()->registerTopLevelTask(task);
-        }
-    } else {
-        AppContext::getTaskScheduler()->registerTopLevelTask(AppContext::getServiceRegistry()->registerServiceTask(this));
+GUITestService::~GUITestService() {
+    delete runTestsAction;
+}
+
+void GUITestService::sl_registerService() {
+
+    const LaunchOptions launchedFor = getLaunchOptions(AppContext::getCMDLineRegistry());
+
+    switch (launchedFor) {
+        case RUN_ONE_TEST:
+
+            QTimer::singleShot(1000, this, SLOT(runGUITest()));
+            break;
+
+        case RUN_ALL_TESTS:
+            registerAllTestsTask();
+            break;
+
+        case RUN_TEST_SUITE:
+            registerTestSuiteTask();
+            break;
+
+        case RUN_ALL_TESTS_BATCH:
+            QTimer::singleShot(1000, this, SLOT(runAllGUITests()));
+            break;
+
+        case RUN_CRAZY_USER_MODE:
+            QTimer::singleShot(1000, this, SLOT(runGUICrazyUserTest()));
+            break;
+
+        case CREATE_GUI_TEST:
+            new GUITestingWindow();
+            break;
+
+        case RUN_ALL_TESTS_NO_IGNORED:
+            registerAllTestsTaskNoIgnored();
+            break;
+
+        case NONE:
+        default:
+            registerServiceTask();
+            break;
     }
 }
 
+GUITestService::LaunchOptions GUITestService::getLaunchOptions(CMDLineRegistry* cmdLine) const {
+    CHECK(cmdLine, NONE);
 
-void GUITestService::serviceStateChangedCallback(ServiceState , bool enabledStateChanged) {
+    if(cmdLine->hasParameter(CMDLineCoreOptions::CREATE_GUI_TEST)){
+        return CREATE_GUI_TEST;
+    }
+
+
+    if (cmdLine->hasParameter(CMDLineCoreOptions::LAUNCH_GUI_TEST)) {
+        QString paramValue = cmdLine->getParameterValue(CMDLineCoreOptions::LAUNCH_GUI_TEST);
+        if (!paramValue.isEmpty()) {
+            return RUN_ONE_TEST;
+        }
+        return RUN_ALL_TESTS;
+    }
+
+    if (cmdLine->hasParameter(CMDLineCoreOptions::LAUNCH_GUI_TEST_BATCH)) {
+        return RUN_ALL_TESTS_BATCH;
+    }
+
+    if (cmdLine->hasParameter(CMDLineCoreOptions::LAUNCH_GUI_TEST_SUITE)) {
+        return RUN_TEST_SUITE;
+    }
+
+    if (cmdLine->hasParameter(CMDLineCoreOptions::LAUNCH_GUI_TEST_NO_IGNORED)) {
+        return RUN_ALL_TESTS_NO_IGNORED;
+    }
+
+    if (cmdLine->hasParameter(CMDLineCoreOptions::LAUNCH_GUI_TEST_CRAZY_USER)) {
+        return RUN_CRAZY_USER_MODE;
+    }
+
+    return NONE;
+}
+
+void GUITestService::registerAllTestsTask() {
+
+    testLauncher = createTestLauncherTask();
+    AppContext::getTaskScheduler()->registerTopLevelTask(testLauncher);
+
+    connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), SLOT(sl_taskStateChanged(Task*)));
+}
+
+void GUITestService::registerAllTestsTaskNoIgnored() {
+
+    testLauncher = createTestLauncherTask(0, true);
+    AppContext::getTaskScheduler()->registerTopLevelTask(testLauncher);
+
+    connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), SLOT(sl_taskStateChanged(Task*)));
+}
+
+Task* GUITestService::createTestLauncherTask(int suiteNumber, bool noIgnored) const {
+    SAFE_POINT(NULL == testLauncher,"",NULL);
+
+    Task *task = new GUITestLauncher(suiteNumber, noIgnored);
+    return task;
+}
+
+void GUITestService::registerTestSuiteTask(){
+    testLauncher = createTestSuiteLauncherTask();
+    AppContext::getTaskScheduler()->registerTopLevelTask(testLauncher);
+
+    connect(AppContext::getTaskScheduler(), SIGNAL(si_stateChanged(Task*)), this, SLOT(sl_taskStateChanged(Task*)));
+}
+
+Task* GUITestService::createTestSuiteLauncherTask() const {
+
+    Q_ASSERT(!testLauncher);
+
+    CMDLineRegistry* cmdLine = AppContext::getCMDLineRegistry();
+    Q_ASSERT(cmdLine);
+
+    bool ok;
+    int suiteNumber = cmdLine->getParameterValue(CMDLineCoreOptions::LAUNCH_GUI_TEST_SUITE).toInt(&ok);
+    if(!ok){
+        QString pathToSuite = cmdLine->getParameterValue(CMDLineCoreOptions::LAUNCH_GUI_TEST_SUITE);
+        Task *task = new GUITestLauncher(pathToSuite);
+        Q_ASSERT(task);
+        return task;
+    }
+
+    Task *task = new GUITestLauncher(suiteNumber);
+    Q_ASSERT(task);
+
+    return task;
+}
+
+GUITests GUITestService::preChecks() {
+
+    GUITestBase* tb = AppContext::getGUITestBase();
+    SAFE_POINT(NULL != tb,"",GUITests());
+
+    GUITests additionalChecks = tb->getTests(GUITestBase::PreAdditional);
+    SAFE_POINT(additionalChecks.size()>0,"",GUITests());
+
+    return additionalChecks;
+}
+
+GUITests GUITestService::postChecks() {
+
+    GUITestBase* tb = AppContext::getGUITestBase();
+    SAFE_POINT(NULL != tb,"",GUITests());
+
+    GUITests additionalChecks = tb->getTests(GUITestBase::PostAdditionalChecks);
+    SAFE_POINT(additionalChecks.size()>0,"",GUITests());
+
+    return additionalChecks;
+}
+
+GUITests GUITestService::postActions() {
+
+    GUITestBase* tb = AppContext::getGUITestBase();
+    SAFE_POINT(NULL != tb,"",GUITests());
+
+    GUITests additionalChecks = tb->getTests(GUITestBase::PostAdditionalActions);
+    SAFE_POINT(additionalChecks.size()>0,"",GUITests());
+
+    return additionalChecks;
+}
+
+void GUITestService::sl_allStartUpPluginsLoaded() {
+    if (!connect(AppContext::getExternalToolRegistry()->getManager(), SIGNAL(si_startupChecksFinish()), SLOT(sl_registerService()))) {
+        coreLog.error(tr("Can't connect external tool manager signal"));
+        sl_registerService();
+    }
+}
+
+void GUITestService::runAllGUITests() {
+
+    GUITests initTests = preChecks();
+    GUITests postChecksTests = postChecks();
+    GUITests postActiosTests = postActions();
+
+    GUITests tests = AppContext::getGUITestBase()->getTests();
+    SAFE_POINT(false == tests.isEmpty(),"",);
+
+    foreach(GUITest* t, tests) {
+        SAFE_POINT(NULL != t,"",);
+        if (!t) {
+            continue;
+        }
+        QString testName = t->getName();
+
+        if (t->isIgnored()) {
+            GUITestTeamcityLogger::testIgnored(testName, t->getIgnoreMessage());
+            continue;
+        }
+
+        qint64 startTime = GTimer::currentTimeMicros();
+        GUITestTeamcityLogger::testStarted(testName);
+
+        TaskStateInfo os;
+        log.trace("GTRUNNER - runAllGUITests - going to run initial checks before " + testName);
+        foreach(GUITest* t, initTests) {
+            if (t) {
+                t->run(os);
+            }
+        }
+
+        clearSandbox();
+        log.trace("GTRUNNER - runAllGUITests - going to run test " + testName);
+        t->run(os);
+        log.trace("GTRUNNER - runAllGUITests - finished running test " + testName);
+
+        foreach(GUITest* t, postChecksTests) {
+            if (t) {
+                t->run(os);
+            }
+        }
+
+        TaskStateInfo os2;
+        foreach(GUITest* t, postActiosTests) {
+            if (t) {
+                t->run(os2);
+            }
+        }
+
+        QString testResult = os.hasError() ? os.getError() : GUITestTeamcityLogger::successResult;
+
+        qint64 finishTime = GTimer::currentTimeMicros();
+        GUITestTeamcityLogger::teamCityLogResult(testName, testResult, GTimer::millisBetween(startTime, finishTime));
+    }
+
+    log.trace("GTRUNNER - runAllGUITests - shutting down UGENE");
+    AppContext::getTaskScheduler()->cancelAllTasks();
+    AppContext::getMainWindow()->getQMainWindow()->close();
+}
+
+void GUITestService::runGUITest() {
+
+    CMDLineRegistry* cmdLine = AppContext::getCMDLineRegistry();
+    SAFE_POINT(NULL != cmdLine,"",);
+    QString testName = cmdLine->getParameterValue(CMDLineCoreOptions::LAUNCH_GUI_TEST);
+
+    GUITestBase *tb = AppContext::getGUITestBase();
+    SAFE_POINT(NULL != tb,"",);
+    GUITest *t = tb->getTest(testName);
+
+    runGUITest(t);
+}
+
+void GUITestService::runGUICrazyUserTest() {
+    GUITestBase *tb = AppContext::getGUITestBase();
+    SAFE_POINT(tb,"",);
+    GUITest *t = tb->getTest("simple_crazy_user");
+
+    runGUITest(t);
+}
+
+void GUITestService::runGUITest(GUITest* t) {
+    SAFE_POINT(NULL != t,"",);
+    GUITestOpStatus os;
+
+    GUITests tests = preChecks();
+    if (!t) {
+        os.setError("GUITestService __ Test not found");
+    }
+    tests.append(t);
+    tests.append(postChecks());
+
+    clearSandbox();    
+
+    QTimer::singleShot(t->getTimeout(), this, SLOT(sl_testTimeOut()));
+    try {
+        foreach (GUITest* t, tests) {
+            if (t) {
+                t->run(os);
+            }
+        }
+    } catch(GUITestOpStatus *) {
+
+    }
+
+#if (QT_VERSION < 0x050000) // deprecated method
+    QPixmap originalPixmap = QPixmap::grabWindow(QApplication::desktop()->winId());
+#else
+    QPixmap originalPixmap = QGuiApplication::primaryScreen()->grabWindow(QApplication::desktop()->winId());
+#endif
+    originalPixmap.save(GUITest::screenshotDir + t->getName() + ".jpg");
+
+    foreach(GUITest* t, postActions()){
+        TaskStateInfo os1;
+        t->run(os1);
+    }
+
+    QString testResult = os.hasError() ? os.getError() : GUITestTeamcityLogger::successResult;
+    writeTestResult(testResult);
+
+    exit(0);
+}
+
+void GUITestService::registerServiceTask() {
+
+    Task *registerServiceTask = AppContext::getServiceRegistry()->registerServiceTask(this);
+    SAFE_POINT(NULL != registerServiceTask,"",);
+
+    AppContext::getTaskScheduler()->registerTopLevelTask(registerServiceTask);
+}
+
+void GUITestService::serviceStateChangedCallback(ServiceState, bool enabledStateChanged) {
+
     if (!enabledStateChanged) {
         return;
     }
 
     if (isEnabled()) {
-        testLauncher = NULL;
-        runTestsAction = new QAction(tr("GUI testing"), this);
-        runTestsAction->setObjectName("action_guitest");
-        connect(runTestsAction, SIGNAL(triggered()), SLOT(sl_registerTask()));
-        AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS)->addAction(runTestsAction);
+        addServiceMenuItem();
     } else {
-        assert(runTestsAction!=NULL);
-        delete runTestsAction;
-        runTestsAction = NULL;
-
-        //delete testLauncher;
-        testLauncher = NULL;
+        deleteServiceMenuItem();
     }
 }
 
-void GUITestService::sl_registerTask() {
-    testLauncher = new TestLauncher();
-    AppContext::getTaskScheduler()->registerTopLevelTask(testLauncher);
+void GUITestService::deleteServiceMenuItem() {
+
+    delete runTestsAction; runTestsAction = NULL;
 }
 
-//Test examples
-void TestProjectView::execute() {
-    openFile(path1);
-    openFile(path2);
+void GUITestService::addServiceMenuItem() {
 
-    if(!isWidgetExists(projectViewName)) {
-        keyClick("left_dock_bar", Qt::Key_1, Qt::AltModifier);
-        waitForWidget(projectViewName, true);
+    deleteServiceMenuItem();
+    runTestsAction = new QAction(tr("GUI testing"), this);
+    SAFE_POINT(NULL != runTestsAction,"",);
+    runTestsAction->setObjectName("action_guitest");
+
+    connect(runTestsAction, SIGNAL(triggered()), SLOT(sl_registerTestLauncherTask()));
+    AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS)->addAction(runTestsAction);
+}
+
+void GUITestService::sl_registerTestLauncherTask() {
+
+    registerAllTestsTask();
+}
+
+void GUITestService::sl_taskStateChanged(Task* t) {
+
+    if (t != testLauncher) {
+        return;
     }
-    addObjectToView("[s] " + seqName);
-    waitForWidget("ADV_single_sequence_widget_1", true);
-}
-
-void TestProjectView::checkResult() {
-//    QWidget *w1 = findWidgetByName("ADV_single_sequence_widget_0", "_1 3INS chain 2 sequence");
-//    QWidget *w2 = findWidgetByName("ADV_single_sequence_widget_1", "_1 3INS chain 2 sequence");
-
-    /*ADVSingleSequenceWidget * sw1 = qobject_cast<ADVSingleSequenceWidget*>(w1);
-    ADVSingleSequenceWidget * sw2 = qobject_cast<ADVSingleSequenceWidget*>(w2);
-    QString str1 = sw1->getSequenceObject()->getGObjectName();
-    QString str2 = sw2->getSequenceObject()->getGObjectName();
-    if(!(str1 == "3INS chain 2 sequence" && str2 == "3INS chain 3 sequence")) {
-        throw TestException(tr("Not expected result"));
-    }*/
-}
-
-void TestTaskView::execute() {
-    OpenDocumentTest t(path, "tttt");
-    t.launch();
-    if(!isWidgetExists(taskViewWidgetName)) {
-        keyClick("bottom_dock_bar", Qt::Key_2, Qt::AltModifier);
-        waitForWidget("bottom_dock_bar", true);
+    if (!t->isFinished()) {
+        return;
     }
-    waitForTreeItem("Open project/document", taskViewWidgetName, true);
-    cancelTask("Open project/document");
-    waitForTreeItem("Open project/document", taskViewWidgetName, false);
-}
 
-void TestTaskView::checkResult() {
-    if(isItemExists("Open project/document", taskViewWidgetName)) {
-        throw TestException(tr("Not expected result"));
+    testLauncher = NULL;
+    AppContext::getTaskScheduler()->disconnect(this);
+
+    LaunchOptions launchedFor = getLaunchOptions(AppContext::getCMDLineRegistry());
+    if (launchedFor == RUN_ALL_TESTS || RUN_TEST_SUITE) {
+        AppContext::getTaskScheduler()->cancelAllTasks();
+        AppContext::getMainWindow()->getQMainWindow()->close();
     }
 }
 
-void LockDocumentTest::execute(){
-    QPoint pos = getItemPosition(document, projectViewName);
-    moveTo(projectViewName, pos);
-    mouseClickOnItem(projectViewName, Qt::LeftButton, pos);
-    contextMenuOnItem(projectViewName, pos);
-    waitForMenuWithAction("Lock document for editing");
-    clickContextMenu("Lock document for editing");
-    sleep(50);
+void GUITestService::writeTestResult(const QString& result) {
+    printf("%s\n", (QString(GUITESTING_REPORT_PREFIX) + ": " + result).toUtf8().data());
 }
 
-void LockDocumentTest::checkResult() {
-    QTreeWidget * projectTree = static_cast<QTreeWidget*>(findWidgetByName(projectViewName));
-    QList<QTreeWidgetItem*> items = projectTree->findItems(document, Qt::MatchRecursive | Qt::MatchExactly);
-    if(!items.isEmpty()) {
-        ProjViewDocumentItem *docItem = static_cast<ProjViewDocumentItem*>(items.first());
-        if(!docItem->doc->isStateLocked()) {
-            throw TestException(tr("Document %1 not locked").arg(document));
+void GUITestService::setQtFileDialogView()
+{
+#ifdef Q_OS_LINUX
+#if (QT_VERSION < 0x050000) //Qt 5
+    if (!qgetenv("UGENE_USE_NATIVE_DIALOGS").isEmpty()) {//this condition does not controls native dialogs
+    //if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+        qt_filedialog_open_filename_hook = 0;
+        qt_filedialog_open_filenames_hook = 0;
+        qt_filedialog_save_filename_hook = 0;
+        qt_filedialog_existing_directory_hook = 0;
+    }
+#endif
+#endif
+}
+
+void GUITestService::clearSandbox()
+{
+    log.trace("GUITestService __ clearSandbox");
+
+    QString pathToSandbox = GUITest::testDir + "_common_data/scenarios/sandbox/";
+    QDir sandbox(pathToSandbox);
+
+    foreach (QString fileName, sandbox.entryList()) {
+        if (fileName != "." && fileName != "..") {
+            if(QFile::remove(pathToSandbox + fileName))
+                continue;
+            else{
+                QDir dir(pathToSandbox + fileName);
+                removeDir(dir.absolutePath());
+            }
         }
-    } else {
-        throw TestException(tr("Not expected result"));
     }
 }
 
-void UnlockDocumentTest::execute(){
-    QPoint pos = getItemPosition(document, projectViewName);
-    moveTo(projectViewName, pos);
-    mouseClickOnItem(projectViewName, Qt::LeftButton, pos);
-    contextMenuOnItem(projectViewName, pos);
-    waitForMenuWithAction("Unlock document for editing");
-    clickContextMenu("Unlock document for editing");
-    sleep(50);
-}
+void GUITestService::removeDir(QString dirName)
+{
+    QDir dir(dirName);
 
-void UnlockDocumentTest::checkResult() {
-    QTreeWidget * projectTree = static_cast<QTreeWidget*>(findWidgetByName(projectViewName));
-    QList<QTreeWidgetItem*> items = projectTree->findItems(document, Qt::MatchRecursive | Qt::MatchExactly);
-    if(!items.isEmpty()) {
-        ProjViewDocumentItem *docItem = static_cast<ProjViewDocumentItem*>(items.first());
-        if(docItem->doc->isStateLocked()) {
-            throw TestException(tr("Document %1 not locked").arg(document));
+
+    foreach (QFileInfo fileInfo, dir.entryInfoList()) {
+        QString fileName = fileInfo.fileName();
+        QString filePath = fileInfo.filePath();
+        if (fileName != "." && fileName != "..") {
+            if(QFile::remove(filePath))
+                continue;
+            else{
+                QDir dir(filePath);
+                if(dir.rmdir(filePath))
+                    continue;
+                else
+                    removeDir(filePath);
+            }
+
         }
-    } else {
-        throw TestException(tr("Not expected result"));
-    }
+    }dir.rmdir(dir.absoluteFilePath(dirName));
 }
 
-void ComplexTest::execute() {
-    openFile(path);
-    sleep(1000);
-    if(!isWidgetExists(projectViewName)) {
-        keyClick("left_dock_bar", Qt::Key_1, Qt::AltModifier);
-        waitForWidget("left_dock_bar", true);
-    }
-    LockDocumentTest lock(path.split("/").last(), "lock");
-    UnlockDocumentTest unlock(path.split("/").last(), "unlock");
-    lock.launch();
-    unlock.launch();
-}
+void GUITestService::sl_testTimeOut(){
+    CMDLineRegistry* cmdLine = AppContext::getCMDLineRegistry();
+    SAFE_POINT(NULL != cmdLine,"",);
+    QString testName = cmdLine->getParameterValue(CMDLineCoreOptions::LAUNCH_GUI_TEST);
 
+#if (QT_VERSION < 0x050000) // deprecated method
+    QPixmap originalPixmap = QPixmap::grabWindow(QApplication::desktop()->winId());
+#else
+    QPixmap originalPixmap = QGuiApplication::primaryScreen()->grabWindow(QApplication::desktop()->winId());
+#endif
+    originalPixmap.save(GUITest::screenshotDir + testName + ".jpg");
+
+    foreach(GUITest* t, postActions()){
+        TaskStateInfo os1;
+        t->run(os1);
+    }
+
+    writeTestResult("test timed out");
+
+    exit(0);
+}
 }

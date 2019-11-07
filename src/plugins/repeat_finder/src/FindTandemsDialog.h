@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,21 +22,19 @@
 #ifndef _U2_FIND_TANDEMS_DIALOG_H_
 #define _U2_FIND_TANDEMS_DIALOG_H_
 
-#include <ui/ui_FindTandemsDialog.h>
-#include "RF_SArray_TandemFinder.h"
-
-#include <U2Core/PluginModel.h>
-#include <U2Gui/ObjectViewModel.h>
-#include <U2Gui/RegionSelector.h>
 #include <U2Core/U2Region.h>
 
-#include <QtGui/QDialog>
-#include <QtGui/QCheckBox>
-#include <QtGui/QToolButton>
+#include "RF_SArray_TandemFinder.h"
+
+#include "ui/ui_FindTandemsDialog.h"
+
+class QToolButton;
 
 namespace U2 {
+
 class CreateAnnotationWidgetController;
 class ADVSequenceObjectContext;
+class RegionSelector;
 
 class FindTandemsDialog : public QDialog, public Ui_FindTandemsDialog {
     Q_OBJECT
@@ -44,19 +42,14 @@ public:
     FindTandemsDialog(ADVSequenceObjectContext* seq);
 
     static FindTandemsTaskSettings defaultSettings();
-    
+
     virtual void accept();
 
 protected slots:
-    //void sl_setPredefinedAnnotationName();
-    void sl_onRegionChanged(const U2Region&);
     void minPeriodChanged(int min);
     void maxPeriodChanged(int max);
     void presetSelected(int preset);
     void customization();
-    //void sl_hundredPercent();
-    //void sl_repeatParamsChanged(int);
-    //void sl_minMaxToggle(bool);
 
 private:
     U2Region getActiveRange(bool *ok = NULL) const;
@@ -64,7 +57,6 @@ private:
     QStringList getAvailableAnnotationNames() const;
     bool getRegions(QCheckBox* cb, QLineEdit* le, QVector<U2Region>& res);
     void prepareAMenu(QToolButton* tb, QLineEdit* le, const QStringList& names);
-    void updateStatus();
 
     //methods for results count estimation
     quint64 areaSize() const ;

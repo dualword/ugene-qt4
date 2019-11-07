@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,133 +19,47 @@
  * MA 02110-1301, USA.
  */
 
-#include "DialogUtils.h"
+#include <QCoreApplication>
+#include <QDir>
+#include <QMessageBox>
+#include <QWizard>
 
 #include <U2Core/AppContext.h>
-#include <U2Core/DocumentModel.h>
 #include <U2Core/DocumentImport.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/FormatUtils.h>
 #include <U2Core/Settings.h>
 #include <U2Core/Task.h>
 
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtCore/QFileInfo>
-#include <QtCore/QDir>
-#include <QtCore/QCoreApplication>
-#include <QtCore/QCoreApplication>
-
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#include "DialogUtils.h"
 
 namespace U2 {
-
-static bool isKDE() {
-    static bool result = false;
-
-#if defined Q_WS_X11
-    static bool checked = false;
-    
-    if (!checked) {
-        QString ds = qgetenv("DESKTOP_SESSION");
-        QString uid = qgetenv("KDE_SESSION_UID");
-        QString version = qgetenv("KDE_SESSION_VERSION");
-        result = (ds == "kde") || uid.toInt() > 0 || version.toInt() > 0;
-        checked = true;
-    }
-#endif
-
-    return result;
-}
-
-static QString getAllFilesFilter() {
-    if (isKDE()) {
-        return "*";
-    }
-    return "*.*";
-}
 
 void DialogUtils::showProjectIsLockedWarning(QWidget* p) {
     QMessageBox::critical(p, tr("Error"), tr("Project is locked"), QMessageBox::Ok, QMessageBox::NoButton);
 }
 
-
-
 QString DialogUtils::prepareFileFilter(const QString& name, const QStringList& exts, bool any, const QStringList& extra) {
-    QString line = name + " (";
-    foreach(QString ext, exts) {
-        line+=" *."+ext;
-    }
-    foreach(QString ext, exts) {
-        foreach(QString s, extra) {
-            line+=" *."+ext+s;
-        }
-    }
-    line+=" )";
-    if (any) {
-        line += ";;" + tr("All files") + " ( "+getAllFilesFilter()+" )";
-    }
-    return line;
+    return FormatUtils::prepareFileFilter(name, exts, any, extra);
 }
-
-static QStringList getExtra(DocumentFormat* df, const QStringList& originalExtra) {
-    bool useExtra = !df->getFlags().testFlag(DocumentFormatFlag_NoPack);
-    if (useExtra) {
-        return originalExtra;
-    }
-    return QStringList();
-}
-
 
 QString DialogUtils::prepareDocumentsFileFilter(const DocumentFormatId& fid, bool any, const QStringList& extra) {
-    DocumentFormat* df = AppContext::getDocumentFormatRegistry()->getFormatById(fid);
-    QStringList effectiveExtra = getExtra(df, extra);
-    QString result = prepareFileFilter(df->getFormatName(), df->getSupportedDocumentFileExtensions(), any, effectiveExtra);
-    return result;
+    return FormatUtils::prepareDocumentsFileFilter(fid, any, extra);
 }
 
-
 QString DialogUtils::prepareDocumentsFileFilter(bool any, const QStringList& extra) {
-    DocumentFormatRegistry* fr = AppContext::getDocumentFormatRegistry();
-    QList<DocumentFormatId> ids = fr->getRegisteredFormats();
-    QStringList result;
-    foreach(DocumentFormatId id , ids) {
-        DocumentFormat* df = fr->getFormatById(id);
-        QStringList effectiveExtra = getExtra(df, extra);
-        result << prepareFileFilter(df->getFormatName(), df->getSupportedDocumentFileExtensions(), false, effectiveExtra);
-    }
-    foreach(DocumentImporter* importer, fr->getImportSupport()->getImporters()) {
-        QStringList importerExts = importer->getSupportedFileExtensions();
-        result << prepareFileFilter(importer->getImporterName(), importerExts, false, QStringList());
-    }
-
-    result.sort();
-    if (any) {
-        result.prepend(tr("All files") + " ( " + getAllFilesFilter() + " )");
-    }
-    return result.join(";;");
+    return FormatUtils::prepareDocumentsFileFilter(any, extra);
 }
 
 QString DialogUtils::prepareDocumentsFileFilter(const DocumentFormatConstraints& c, bool any) {
-    QStringList result;
-
-    QList<DocumentFormatId> ids = AppContext::getDocumentFormatRegistry()->getRegisteredFormats();
-    foreach(const DocumentFormatId& id, ids) {
-        DocumentFormat* df = AppContext::getDocumentFormatRegistry()->getFormatById(id);
-        if (df->checkConstraints(c)) {
-            result.append(prepareDocumentsFileFilter(id, false));
-        }
-    }
-    result.sort();
-    if (any) {
-        result.prepend(tr("All files") + " (" + getAllFilesFilter() + " )");
-    }
-    return result.join(";;");
+    return FormatUtils::prepareDocumentsFileFilter(c, any);
 }
 
 QString DialogUtils::prepareDocumentsFileFilterByObjType(const GObjectType& t, bool any) {
-    DocumentFormatConstraints c;
-    c.supportedObjectTypes += t;
-    return prepareDocumentsFileFilter(c, any);
+    return FormatUtils::prepareDocumentsFileFilterByObjType(t, any);
 }
 
 QPair<QString, QString> DialogUtils::selectFileForScreenShot(QWidget * parent) {
@@ -156,8 +70,18 @@ QPair<QString, QString> DialogUtils::selectFileForScreenShot(QWidget * parent) {
 
     LastUsedDirHelper lod("image");
     QString selectedFilter;
-    lod.url = QFileDialog::getSaveFileName(parent, tr("Export alignment image"), lod.dir, QStringList(filters.keys()).join(";;"), &selectedFilter);
+    lod.url = U2FileDialog::getSaveFileName(parent, tr("Export alignment image"), lod.dir, QStringList(filters.keys()).join(";;"), &selectedFilter);
     return QPair<QString, QString>(lod.url, filters.value(selectedFilter));
+}
+
+void DialogUtils::setWizardMinimumSize(QWizard *wizard) {
+    QSize bestSize;
+    foreach (int pageId, wizard->pageIds()) {
+        QWizardPage *page = wizard->page(pageId);
+        page->adjustSize();
+        bestSize = bestSize.expandedTo(page->size());
+    }
+    wizard->setMinimumSize(bestSize);
 }
 
 
@@ -167,15 +91,22 @@ QPair<QString, QString> DialogUtils::selectFileForScreenShot(QWidget * parent) {
 void FileLineEdit::sl_onBrowse() {
     LastUsedDirHelper lod(type);
 
+    QFileDialog::Options options = 0;
+#if defined(Q_OS_MAC) || (QT_VERSION >= 0x050000)
+    if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+        options |= QFileDialog::DontUseNativeDialog;
+    }
+#endif
+
     QString name;
     if (multi) {
-        QStringList lst = QFileDialog::getOpenFileNames(NULL, tr("Select file(s)"), lod.dir, FileFilter);
+        QStringList lst = U2FileDialog::getOpenFileNames(NULL, tr("Select file(s)"), lod.dir, FileFilter, NULL, options);
         name = lst.join(";");
         if (!lst.isEmpty()) {
             lod.url = lst.first();
         }
     } else {
-        lod.url = name = QFileDialog::getOpenFileName(NULL, tr("Select file(s)"), lod.dir, FileFilter);
+        lod.url = name = U2FileDialog::getOpenFileName(NULL, tr("Select file(s)"), lod.dir, FileFilter, NULL, options);
     }
     if (!name.isEmpty()) {
         setText(name);

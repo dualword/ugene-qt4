@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,23 +37,22 @@ static double getFrequency() {
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
     frequency = (double)freq.QuadPart;
-#else 
+#else
     frequency = 1000*1000; //microseconds
-#endif    
+#endif
     return frequency;
 
 }
 
 static qint64 getCorrection() {
     GCounter totalCounter("timer correction", "ticks", 1);
-    totalCounter.dynamicCounter = true;
-    
+
     TimeCounter tc(&totalCounter, false);
     tc.start(); tc.stop();
     tc.start(); tc.stop();
     tc.start(); tc.stop();
     tc.start(); tc.stop();
-    
+
     qint64 correction = totalCounter.totalCount / 4;
     return correction;
 }

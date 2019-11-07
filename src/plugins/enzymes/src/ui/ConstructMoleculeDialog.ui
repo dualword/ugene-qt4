@@ -20,6 +20,9 @@
    <string>Construct Molecule</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="sizeConstraint">
+    <enum>QLayout::SetMinAndMaxSize</enum>
+   </property>
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
@@ -30,6 +33,9 @@
        <string>Construction</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <widget class="QLabel" name="label">
          <property name="text">
@@ -42,6 +48,9 @@
        </item>
        <item>
         <layout class="QGridLayout" name="gridLayout">
+         <property name="sizeConstraint">
+          <enum>QLayout::SetMinAndMaxSize</enum>
+         </property>
          <item row="0" column="0" rowspan="5">
           <widget class="QListWidget" name="fragmentListWidget">
            <property name="toolTip">
@@ -319,69 +328,45 @@
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_3">
-     <item>
-      <spacer name="horizontalSpacer_3">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="okButton">
-       <property name="text">
-        <string>OK</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
  <resources/>
  <connections>
   <connection>
-   <sender>okButton</sender>
-   <signal>pressed()</signal>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
    <receiver>ConstructMoleculeDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>507</x>
-     <y>452</y>
+     <x>328</x>
+     <y>456</y>
     </hint>
     <hint type="destinationlabel">
-     <x>249</x>
-     <y>442</y>
+     <x>328</x>
+     <y>238</y>
     </hint>
    </hints>
   </connection>
   <connection>
-   <sender>cancelButton</sender>
-   <signal>pressed()</signal>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
    <receiver>ConstructMoleculeDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>605</x>
-     <y>451</y>
+     <x>328</x>
+     <y>456</y>
     </hint>
     <hint type="destinationlabel">
-     <x>334</x>
-     <y>449</y>
+     <x>328</x>
+     <y>238</y>
     </hint>
    </hints>
   </connection>

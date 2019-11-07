@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,43 +19,35 @@
  * MA 02110-1301, USA.
  */
 
-#include "DotPlotPlugin.h"
-#include "DotPlotSplitter.h"
-#include "DotPlotWidget.h"
-#include "DotPlotFilesDialog.h"
-#include "DotPlotTasks.h"
+#include <U2Algorithm/RepeatFinderTaskFactory.h>
+#include <U2Algorithm/RepeatFinderTaskFactoryRegistry.h>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectSelection.h>
+#include <U2Core/GObjectUtils.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/ToolsMenu.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2View/ADVUtils.h>
 #include <U2View/AnnotatedDNAView.h>
 #include <U2View/AnnotatedDNAViewFactory.h>
 
-#include <U2Core/AppContext.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/U2SafePoints.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/DNASequenceObject.h>
-
-#include <U2Core/GObjectSelection.h>
-#include <U2Algorithm/RepeatFinderTaskFactoryRegistry.h>
-#include <U2Algorithm/RepeatFinderTaskFactory.h>
+#include "DotPlotFilesDialog.h"
+#include "DotPlotPlugin.h"
+#include "DotPlotSplitter.h"
+#include "DotPlotTasks.h"
+#include "DotPlotWidget.h"
 
 namespace U2 {
 
 extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
-
-    /*RepeatFinderTaskFactoryRegistry *fr = AppContext::getRepeatFinderTaskFactoryRegistry();
-    Q_ASSERT(fr);
-
-    RepeatFinderTaskFactory *factory = fr->getFactory("");
-    if (!factory) {
-        // can't work without repeat finder algorithm
-        return NULL;
-    }*/
-
     DotPlotPlugin* plug = new DotPlotPlugin();
     return plug;
 }
-
 
 DotPlotPlugin::DotPlotPlugin() : Plugin(tr("Dotplot"), tr("Build dotplot for sequences")), viewCtx(NULL) {
     connect( AppContext::getPluginSupport(), SIGNAL( si_allStartUpPluginsLoaded() ), SLOT(sl_initDotPlotView()));
@@ -77,8 +69,10 @@ DotPlotViewContext::DotPlotViewContext(QObject* p)
 {
     // add dotplot item to the tools menu
     QAction* showDlgAction = new QAction( QIcon(":dotplot/images/dotplot.png"), tr("Build dotplot..."), this );
+    showDlgAction->setObjectName(ToolsMenu::DOTPLOT);
     connect( showDlgAction, SIGNAL( triggered() ), SLOT( sl_showDotPlotDialog() ) );
-    AppContext::getMainWindow()->getTopLevelMenu( MWMENU_TOOLS )->addAction( showDlgAction );
+    ToolsMenu::addAction(ToolsMenu::TOOLS, showDlgAction);
+
 
     // need to know it build dotplot wizard finished work
     connect( AppContext::getTaskScheduler(), SIGNAL( si_stateChanged(Task*) ), SLOT( sl_loadTaskStateChanged(Task*) ) );
@@ -93,7 +87,7 @@ void DotPlotViewContext::sl_loadTaskStateChanged(Task* task) {
     }
 
     if (loadTask->getStateInfo().hasError()) {
-        DotPlotDialogs::filesOpenError();
+        QMessageBox::critical(NULL, tr("Error"), tr("Error opening files"));
         return;
     }
 
@@ -128,13 +122,16 @@ void DotPlotViewContext::sl_showDotPlotDialog() {
 
     Task *tasks = new Task("Creating dotplot", TaskFlag_NoRun);
 
-    DotPlotFilesDialog d(QApplication::activeWindow());
-    if (d.exec()) {
+    QObjectScopedPointer<DotPlotFilesDialog> d = new DotPlotFilesDialog(QApplication::activeWindow());
+    d->exec();
+    CHECK(!d.isNull(), );
+
+    if (QDialog::Accepted == d->result()) {
         if (!AppContext::getProject()) {
-            tasks->addSubTask( AppContext::getProjectLoader()->createNewProjectTask() );
+            tasks->addSubTask(AppContext::getProjectLoader()->createNewProjectTask());
         }
 
-        DotPlotLoadDocumentsTask *t = new DotPlotLoadDocumentsTask(d.getFirstFileName(), d.getFirstGap(), d.getSecondFileName(), d.getSecondGap());
+        DotPlotLoadDocumentsTask *t = new DotPlotLoadDocumentsTask(d->getFirstFileName(), d->getFirstGap(), d->getSecondFileName(), d->getSecondGap());
         tasks->addSubTask(t);
     }
 
@@ -222,9 +219,11 @@ void DotPlotViewContext::initViewContext(GObjectView* v) {
     // add the dotplot menu item to an analyze menu
     QString dotPlotBuildString = tr("Build dotplot...");
     ADVGlobalAction* act = new ADVGlobalAction(av, QIcon(":dotplot/images/dotplot.png"), dotPlotBuildString, 40, ADVGlobalActionFlags(ADVGlobalActionFlag_AddToAnalyseMenu));
+    act->setObjectName("build_dotplot_action");
     connect(act, SIGNAL(triggered()), SLOT(sl_buildDotPlot()));
 
     ADVGlobalAction* tb = new ADVGlobalAction(av, QIcon(":dotplot/images/dotplot.png"), dotPlotBuildString, 40, ADVGlobalActionFlags(ADVGlobalActionFlag_AddToToolbar));
+    tb->setObjectName("build_dotplot_action");
     connect(tb, SIGNAL(triggered()), SLOT(sl_buildDotPlot()));
 
     // this view context is created by dotplot wizard

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,9 +32,9 @@ public:
     static void dumpHelp();
     // for debug uses only
     static void dumpParameters();
-    
+
     static const QString VERSION_INFO;
-    
+
 public:
     DumpHelpTask();
     virtual void prepare();

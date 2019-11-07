@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,11 @@
 #include <U2Core/ServiceTypes.h>
 #include <U2Core/Task.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 namespace U2 {
 
@@ -41,7 +45,7 @@ namespace U2 {
 
     class U2CORE_EXPORT ProjectService : public Service {
     public:
-        ProjectService(const QString& sname, const QString& sdesc) 
+        ProjectService(const QString& sname, const QString& sdesc)
             : Service(Service_Project, sname, sdesc, QList<ServiceType>(), ServiceFlag_Singleton) {}
 
         virtual Project* getProject() const = 0;

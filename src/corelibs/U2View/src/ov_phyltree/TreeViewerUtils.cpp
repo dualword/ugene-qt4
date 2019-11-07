@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,17 @@
  * MA 02110-1301, USA.
  */
 
-#include "TreeViewerUtils.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include "TreeViewerUtils.h"
 
 #define IMAGE_DIR "image"
 
@@ -49,7 +54,7 @@ void TreeViewerUtils::saveImageDialog(const QString& filters, QString &fileName,
         fileName = fileName.left(i);
     }
     QString initialPath = lod.dir + "/" + fileName;
-    fileName = QFileDialog::getSaveFileName(NULL, QObject::tr("Save As"), initialPath, filters, &format);
+    fileName = U2FileDialog::getSaveFileName(NULL, QObject::tr("Save As"), initialPath, filters, &format);
     lod.url = fileName;
     if (fileName.isEmpty())
         return;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -138,15 +138,15 @@ QString SchemaSerializer::getElemType(const QString & t) {
 
 QDomElement SchemaSerializer::saveActor(const Actor* proc, QDomElement& proj) {
     QDomElement docElement = proj.ownerDocument().createElement(PROCESS_EL);
-    
+
     docElement.setAttribute(ID_ATTR, proc->getId());
     docElement.setAttribute(TYPE_ATTR, proc->getProto()->getId());
     docElement.setAttribute(NAME_ATTR, proc->getLabel());
     docElement.setAttribute(SCRIPT_TEXT, proc->getScript() == 0? "" : proc->getScript()->getScriptText());
-    
+
     saveConfiguration(*proc, docElement);
     saveParamAliases( proc->getParamAliases(), docElement );
-    
+
     proj.appendChild(docElement);
     return docElement;
 }
@@ -201,43 +201,6 @@ void SchemaSerializer::schema2xml(const Schema& schema, QDomDocument& xml) {
     QDomElement el = xml.createElement(DOMAIN_EL);
     el.setAttribute(NAME_ATTR, schema.getDomain());
     projectElement.appendChild(el);
-}
-
-void SchemaSerializer::saveIterations(const QList<Iteration>& lst, QDomElement& proj) {
-    foreach(const Iteration& it, lst) {
-        QDomElement el = proj.ownerDocument().createElement(ITERATION_EL);
-        el.setAttribute(ID_ATTR, it.id);
-        el.setAttribute(NAME_ATTR, it.name);
-        QVariant v = qVariantFromValue<CfgMap>(it.cfg);
-        el.appendChild(proj.ownerDocument().createTextNode(QVariantUtils::var2String(v)));
-        proj.appendChild(el);
-    }
-}
-void SchemaSerializer::readIterations(QList<Iteration>& lst, const QDomElement& proj, const QMap<ActorId, ActorId>& remapping) {
-    QDomNodeList paramNodes = proj.elementsByTagName(ITERATION_EL);
-    for(int i=0; i<paramNodes.size(); i++) {
-        QDomElement el = paramNodes.item(i).toElement();
-        if (el.isNull()) continue;
-        Iteration it(el.attribute(NAME_ATTR));
-        if (el.hasAttribute(ID_ATTR)) {
-            it.id = el.attribute(ID_ATTR).toInt();
-        }
-        QVariant var = QVariantUtils::String2Var(el.text());
-        if (qVariantCanConvert<CfgMap>(var)) {
-            it.cfg = var.value<CfgMap>();
-        }
-        if (qVariantCanConvert<IterationCfg>(var)) {
-            IterationCfg tmp = var.value<IterationCfg>();
-            QMapIterator<IterationCfgKey, QVariant> tit(tmp);
-            while (tit.hasNext())
-            {
-                tit.next();
-                it.cfg[tit.key().first].insert(tit.key().second, tit.value());
-            }
-        }
-        it.remap(remapping);
-        lst.append(it);
-    }
 }
 
 void SchemaSerializer::readConfiguration(Configuration* cfg, const QDomElement& owner) {
@@ -303,7 +266,7 @@ static Port * findPort(const QList<Actor*> & procs, const ActorId & actorId, con
 
 void SchemaSerializer::updatePortBindings(const QList<Actor*> & procs) {
     foreach(Actor * actor, procs) {
-        foreach(Port * p, actor->getInputPorts()) {
+        foreach(Port * p, actor->getEnabledInputPorts()) {
             IntegralBusPort * port = qobject_cast<IntegralBusPort*>(p);
             QStrStrMap busMap = port->getParameter(IntegralBusPort::BUS_MAP_ATTR_ID)->getAttributeValueWithoutScript<QStrStrMap>();
             foreach(const QString & key, busMap.uniqueKeys()) {
@@ -312,13 +275,18 @@ void SchemaSerializer::updatePortBindings(const QList<Actor*> & procs) {
                 if(vals.size() == 2) {
                     ActorId actorId = str2aid(vals.at(0));
                     QString slot = vals.at(1);
+
                     Port * inP = findPort(procs, actorId, slot); if(!inP) {continue;}
+                    if (inP == NULL) {
+                        return;
+                    }
+
                     DataTypePtr inPType = inP->Port::getType();
                     QMap<Descriptor, DataTypePtr> inPTypeMap = inPType->getDatatypesMap();
                     if(inP != NULL && inPType->isMap() && inPTypeMap.keys().size() == 1) {
                         Descriptor d = inPTypeMap.keys().at(0);
                         QString newVal = actorId + ":" + d.getId();
-                        coreLog.details(QString("remapping old xml schema for key %1: old value: %2, new value: %3").
+                        coreLog.details(QString("remapping old xml workflow for key %1: old value: %2, new value: %3").
                             arg(key).arg(val).arg(newVal));
                         port->setBusMapValue(key, newVal);
                     }
@@ -454,7 +422,7 @@ QString SchemaSerializer::xml2schema(const QDomElement& projectElement, Schema* 
             }
         }
     }
-    
+
     return QString();
 }
 

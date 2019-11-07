@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 
 #include <QtCore/QList>
 #include <QtCore/QString>
+#include <QtCore/QStringList>
 #include <QtCore/QMutex>
 #include <QtCore/QObject>
 
@@ -41,31 +42,40 @@ class U2ALGORITHM_EXPORT DnaAssemblyAlgRegistry : public QObject {
 public:
     DnaAssemblyAlgRegistry(QObject* pOwn = 0);
     ~DnaAssemblyAlgRegistry();
-    
+
     bool registerAlgorithm(DnaAssemblyAlgorithmEnv* env);
     DnaAssemblyAlgorithmEnv* unregisterAlgorithm(const QString& id);
     DnaAssemblyAlgorithmEnv* getAlgorithm(const QString& id) const;
-    
+
     QStringList getRegisteredAlgorithmIds() const;
     QStringList getRegisteredAlgorithmsWithIndexFileSupport() const;
 private:
     mutable QMutex mutex;
     QMap<QString, DnaAssemblyAlgorithmEnv*> algorithms;
-    
+
     Q_DISABLE_COPY(DnaAssemblyAlgRegistry);
 };
 
 class U2ALGORITHM_EXPORT DnaAssemblyAlgorithmEnv {
 public:
-    DnaAssemblyAlgorithmEnv(const QString& id, DnaAssemblyToRefTaskFactory* tf , 
-        DnaAssemblyGUIExtensionsFactory* guiExt, bool supportsIndexFiles, bool supportsDbi);
+    DnaAssemblyAlgorithmEnv(const QString &id,
+        DnaAssemblyToRefTaskFactory *tf ,
+        DnaAssemblyGUIExtensionsFactory *guiExt,
+        bool supportsIndexFiles,
+        bool supportsDbi,
+        bool supportsPairedEndLibrary,
+        const QStringList &refrerenceFormats,
+        const QStringList &readsFormats);
 
     virtual ~DnaAssemblyAlgorithmEnv();
-    
+
     const QString& getId()  const {return id;}
     bool isIndexFilesSupported() const {return supportsIndexFiles;}
     bool isDbiSupported() const {return supportsDbi;}
-    
+    bool supportsPairedEndLibrary() const { return supportsPEReads; }
+    QStringList getRefrerenceFormats() const { return refrerenceFormats; }
+    QStringList getReadsFormats() const { return readsFormats; }
+
     DnaAssemblyToRefTaskFactory* getTaskFactory() const {return taskFactory;}
     DnaAssemblyGUIExtensionsFactory* getGUIExtFactory() const {return guiExtFactory;}
 
@@ -78,6 +88,9 @@ protected:
     DnaAssemblyGUIExtensionsFactory* guiExtFactory;
     bool supportsIndexFiles;
     bool supportsDbi;
+    bool supportsPEReads;
+    QStringList refrerenceFormats;
+    QStringList readsFormats;
 };
 
 } // namespace

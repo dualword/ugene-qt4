@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,15 +19,22 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/AppContext.h>
-#include <U2Core/Settings.h>
+#include <QMessageBox>
+#include <QPushButton>
 
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
 #include <U2Core/GObjectReference.h>
 #include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2DbiRegistry.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/HelpButton.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include "SendSelectionDialog.h"
-
-
 
 namespace U2 {
 
@@ -51,7 +58,7 @@ void SendSelectionDialog::setUpSettings() {
     repeatsCheckBox->setChecked(s->getValue(SETTINGS_ROOT + REPEATS_SETTINGS, false).toBool());
     lookupMaskCheckBox->setChecked(s->getValue(SETTINGS_ROOT + LOOKUP_SETTINGS, false).toBool());
     lowerCaseCheckBox->setChecked(s->getValue(SETTINGS_ROOT + LOWCASE_SETTINGS, false).toBool());
-    retrySpinBox->setValue(s->getValue(SETTINGS_ROOT + RETRY_SETTINGS, 2).toInt());
+    retrySpinBox->setValue(s->getValue(SETTINGS_ROOT + RETRY_SETTINGS, 10).toInt());
     evalueRadioButton->setChecked(s->getValue(SETTINGS_ROOT + FILTER_SETTINGS, true).toBool());
     scoreRadioButton->setChecked(!s->getValue(SETTINGS_ROOT + FILTER_SETTINGS, true).toBool());
 }
@@ -119,28 +126,28 @@ void SendSelectionDialog::alignComboBoxes() {
     }
 }
 
-SendSelectionDialog::SendSelectionDialog(const U2SequenceObject* dnaso, bool _isAminoSeq, QWidget *p):QDialog(p), translateToAmino(false), isAminoSeq(_isAminoSeq), extImported(false) {
+SendSelectionDialog::SendSelectionDialog(const U2SequenceObject* dnaso, bool _isAminoSeq, QWidget *p)
+    : QDialog(p), translateToAmino(false), isAminoSeq(_isAminoSeq), extImported(false)
+{
     CreateAnnotationModel ca_m;
-    ca_m.data->name = "misc_feature";
+    ca_m.hideAnnotationType = true;
     ca_m.hideAnnotationName = true;
     ca_m.hideLocation = true;
     ca_m.sequenceObjectRef = GObjectReference(dnaso);
     ca_m.sequenceLen = dnaso->getSequenceLength();
     ca_c = new CreateAnnotationWidgetController(ca_m, this);
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122328");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Search"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    optionsTab->setCurrentIndex(0);
     int idx = 2;
     QWidget *wdgt;
     wdgt = ca_c->getWidget();
-    wdgt->setMinimumHeight(150);
-    verticalLayout_4->insertWidget(idx, wdgt);
+    layoutAnnotations->insertWidget(idx, wdgt);
 
     matrixComboBox->addItems(ParametersLists::blastp_matrix);
-    matrixComboBox->hide();
-    label_10->hide();
-    label_12->hide();
-    phiPatternEdit->hide();
-    label_7->hide();
-    textEdit->setMaximumHeight(100);
 
     setupDataBaseList();
     setUpSettings();
@@ -148,6 +155,9 @@ SendSelectionDialog::SendSelectionDialog(const U2SequenceObject* dnaso, bool _is
     alignComboBoxes();
 
     connect( dataBase, SIGNAL(currentIndexChanged(int)), SLOT(sl_scriptSelected(int)) );
+    QPushButton* okButton = buttonBox->button(QDialogButtonBox::Ok);
+    QPushButton* cancelButton = buttonBox->button(QDialogButtonBox::Cancel);
+
     connect( okButton, SIGNAL(clicked()), SLOT(sl_OK()) );
     connect( cancelButton, SIGNAL(clicked()), SLOT(sl_Cancel()) );
     connect( megablastCheckBox, SIGNAL(stateChanged(int)),SLOT(sl_megablastChecked(int)) );
@@ -157,11 +167,11 @@ SendSelectionDialog::SendSelectionDialog(const U2SequenceObject* dnaso, bool _is
 
 void SendSelectionDialog::sl_serviceChanged(int) {
     if(serviceComboBox->currentText()=="phi") {
-        label_12->show();
+        lblPhiPattern->show();
         phiPatternEdit->show();
     }
     else {
-        label_12->hide();
+        lblPhiPattern->hide();
         phiPatternEdit->hide();
     }
 }
@@ -182,28 +192,37 @@ QString SendSelectionDialog::getGroupName() const {
     return ca_c->getModel().groupName;
 }
 
+const QString &SendSelectionDialog::getAnnotationDescription() const {
+    return ca_c->getModel().description;
+}
+
 const CreateAnnotationModel *SendSelectionDialog::getModel() const {
     return &(ca_c->getModel());
 }
 
-AnnotationTableObject* SendSelectionDialog::getAnnotationObject() const {
+AnnotationTableObject * SendSelectionDialog::getAnnotationObject() const {
     if(ca_c->isNewObject()) {
-        AnnotationTableObject* aobj = new AnnotationTableObject("Annotations");
-        aobj->addObjectRelation(GObjectRelation(ca_c->getModel().sequenceObjectRef, GObjectRelationRole::SEQUENCE));
+        U2OpStatusImpl os;
+        const U2DbiRef dbiRef = AppContext::getDbiRegistry( )->getSessionTmpDbiRef( os );
+        SAFE_POINT_OP( os, NULL );
+        AnnotationTableObject *aobj = new AnnotationTableObject( "Annotations", dbiRef );
+        aobj->addObjectRelation(GObjectRelation(ca_c->getModel().sequenceObjectRef, ObjectRole_Sequence));
         return aobj;
     }
     else {
-        ca_c->prepareAnnotationObject();
+        bool objectPrepared = ca_c->prepareAnnotationObject();
+        if (!objectPrepared){
+            QMessageBox::warning(NULL, tr("Error"), tr("Cannot create an annotation object. Please check settings"));
+            return NULL;
+        }
         return ca_c->getModel().getAnnotationObject();
     }
-    
+
 }
 
 QString SendSelectionDialog::getUrl() const{
     return ca_c->getModel().newDocUrl;
 }
-
-
 
 void SendSelectionDialog::setupDataBaseList() {
     //cannot analyze amino sequences using nucleotide databases
@@ -214,7 +233,6 @@ void SendSelectionDialog::setupDataBaseList() {
 
 void SendSelectionDialog::sl_scriptSelected( int index ) {
     Q_UNUSED(index);
-    //this->adjustSize();
     QString descr = "";
     if(dataBase->currentText()=="cdd") {
         optionsTab->setTabEnabled(1,0);
@@ -222,7 +240,7 @@ void SendSelectionDialog::sl_scriptSelected( int index ) {
         shortSequenceCheckBox->setEnabled(false);
         megablastCheckBox->setEnabled(false);
         matrixComboBox->hide();
-        label_10->hide();
+        lblMatrix->hide();
         dbComboBox->clear();
         dbComboBox->addItems(ParametersLists::cdd_dataBase);
     }
@@ -234,7 +252,7 @@ void SendSelectionDialog::sl_scriptSelected( int index ) {
         if(dataBase->currentText()=="blastn") {
 
             phiPatternEdit->hide();
-            label_12->hide();
+            lblPhiPattern->hide();
 
             megablastCheckBox->setEnabled(true);
 
@@ -250,17 +268,17 @@ void SendSelectionDialog::sl_scriptSelected( int index ) {
             scoresComboBox->addItems(ParametersLists::blastn_scores);
             scoresComboBox->setCurrentIndex(3);
             scoresComboBox->show();
-            label_5->show();
+            lblScores->show();
 
             dbComboBox->clear();
             dbComboBox->addItems(ParametersLists::blastn_dataBase);
             dbComboBox->setCurrentIndex(2);
 
             matrixComboBox->hide();
-            label_10->hide();
+            lblMatrix->hide();
 
             serviceComboBox->hide();
-            label_7->hide();
+            lblService->hide();
         }
         else {
             megablastCheckBox->setEnabled(false);
@@ -272,22 +290,22 @@ void SendSelectionDialog::sl_scriptSelected( int index ) {
             costsComboBox->clear();
             costsComboBox->addItems(ParametersLists::blastp_gapCost);
             costsComboBox->setCurrentIndex(4);
-            
+
             dbComboBox->clear();
             dbComboBox->addItems(ParametersLists::blastp_dataBase);
-            
+
             matrixComboBox->show();
             matrixComboBox->setCurrentIndex(3);
-            label_10->show();
-            
+            lblMatrix->show();
+
             scoresComboBox->hide();
-            label_5->hide();
-            
+            lblScores->hide();
+
             serviceComboBox->show();
-            label_7->show();
+            lblService->show();
         }
     }
-    textEdit->setPlainText(descr);
+    teDbDescription->setPlainText(descr);
     alignComboBoxes();
 }
 
@@ -306,15 +324,18 @@ void SendSelectionDialog::sl_OK() {
         double eValue = evalueSpinBox->value();
         if(shortSequenceCheckBox->isChecked())
             eValue = 1000;
-        addParametr(requestParameters,ReqParams::expect,eValue);    
+        addParametr(requestParameters,ReqParams::expect,eValue);
+
+        if(false == entrezQueryEdit->text().isEmpty())
+            addParametr(requestParameters, ReqParams::entrezQuery, entrezQueryEdit->text());
 
         int maxHit = quantitySpinBox->value();
         addParametr(requestParameters,ReqParams::hits,maxHit);
 
         if(megablastCheckBox->isChecked()) {
-            addParametr(requestParameters,ReqParams::megablast,"yes");
+            addParametr(requestParameters,ReqParams::megablast,"true");
         }
-        
+
         addParametr(requestParameters,ReqParams::database,dbComboBox->currentText().split(" ").last());
 
         QString filter="";
@@ -334,7 +355,7 @@ void SendSelectionDialog::sl_OK() {
         addParametr(requestParameters,ReqParams::gapCost,costsComboBox->currentText());
         addParametr(requestParameters,ReqParams::matchScore,scoresComboBox->currentText().split(" ").first());
         addParametr(requestParameters,ReqParams::mismatchScore,scoresComboBox->currentText().split(" ").last());
-        
+
         if(shortSequenceCheckBox->isChecked()) {
             QString wordSize = wordSizeComboBox->currentText().toInt()>7 ? "7" : wordSizeComboBox->currentText();
             addParametr(requestParameters,ReqParams::wordSize, wordSize);
@@ -342,7 +363,7 @@ void SendSelectionDialog::sl_OK() {
         else {
             addParametr(requestParameters,ReqParams::wordSize,wordSizeComboBox->currentText());
         }
-        
+
         if(lowerCaseCheckBox->isChecked()) {
             addParametr(requestParameters,ReqParams::lowCaseMask,"yes");
         }
@@ -361,24 +382,30 @@ void SendSelectionDialog::sl_OK() {
     }
 
     else { //CDD
-        if(!isAminoSeq) {
-            translateToAmino = true;
-        }
+        requestParameters = "CMD=Put";
+        db = "blastp";
+        addParametr(requestParameters,ReqParams::program, db);
 
-        requestParameters = "filter=true";
-        addParametr(requestParameters,ReqParams::cdd_db,dbComboBox->currentText());
-        addParametr(requestParameters,ReqParams::cdd_hits,quantitySpinBox->value());
-        addParametr(requestParameters,ReqParams::cdd_eValue,evalueSpinBox->value());    
+        addParametr(requestParameters,ReqParams::expect, evalueSpinBox->value());
+
+        addParametr(requestParameters,ReqParams::hits,quantitySpinBox->value());
+
+        QString dbName = dbComboBox->currentText().split(" ").last();
+        addParametr(requestParameters,ReqParams::database, dbName.toLower());
+        addParametr(requestParameters,ReqParams::service, "rpsblast");
     }
 
     if(translateToAmino) {
-        QMessageBox msg(this);
-        msg.setText(tr("You chose to search nucleotide sequence in protein database. This sequence will be converted into 6 sequences(3 translations for both strands)."
+        QObjectScopedPointer<QMessageBox> msg = new QMessageBox(this);
+        msg->setText(tr("You chose to search nucleotide sequence in protein database. This sequence will be converted into 6 sequences(3 translations for both strands)."
             "Therefore this search may take some time. Continue?"));
-        msg.setWindowTitle(windowTitle());
-        msg.setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
-        msg.setDefaultButton(QMessageBox::Yes);
-        if(msg.exec() == QMessageBox::Cancel) {
+        msg->setWindowTitle(windowTitle());
+        msg->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+        msg->setDefaultButton(QMessageBox::Yes);
+        msg->exec();
+        CHECK(!msg.isNull(), );
+
+        if (msg->result() == QMessageBox::Cancel) {
             return;
         }
     }

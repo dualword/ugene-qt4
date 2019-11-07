@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,6 @@
 #include <U2Core/AppContext.h>
 #include <U2Core/Settings.h>
 #include <U2Lang/HRSchemaSerializer.h>
-#include <U2Lang/SchemaSerializer.h>
 
 #include "WorkflowIOTasks.h"
 
@@ -39,14 +38,14 @@ using namespace Workflow;
  * LoadWorkflowTask
  ************************************/
 LoadWorkflowTask::LoadWorkflowTask(Schema* s, Workflow::Metadata* m, const QString& u):
-Task(tr("Loading schema"), TaskFlag_None),
+Task(tr("Loading workflow"), TaskFlag_None),
     url(u), schema(s), meta(m) {
     assert(schema != NULL);
 }
 
 void LoadWorkflowTask::run() {
-    ioLog.details(tr("Loading workflow schema from file: %1").arg(url));
-    
+    ioLog.details(tr("Loading workflow from file: %1").arg(url));
+
     QFile file(url);
     if (!file.open(QIODevice::ReadOnly)) {
         stateInfo.setError(L10N::errorOpeningFileRead(url));
@@ -66,19 +65,19 @@ Task::ReportResult LoadWorkflowTask::report() {
     if(stateInfo.hasError()) {
         return ReportResult_Finished;
     }
-    
+
     QString err;
     if(format == HR) {
         err = HRSchemaSerializer::string2Schema(rawData, schema, meta, &remap);
     } else if(format == XML) {
-        setError(tr("Sorry! XML schema format is obsolete and not supported. You can create new schema in GUI mode"
+        setError(tr("Sorry! XML workflow format is obsolete and not supported. You can create new workflow in GUI mode"
                     " or write it by yourself. Check our documentation for details!"));
         return ReportResult_Finished;
     } else {
         // check in constructor
         assert(false);
     }
-    
+
     if(!err.isEmpty()) {
         setError(err);
         schema->reset();
@@ -94,7 +93,7 @@ Task::ReportResult LoadWorkflowTask::report() {
 }
 
 LoadWorkflowTask::FileFormat LoadWorkflowTask::detectFormat(const QString & rawData) {
-    if(rawData.trimmed().startsWith(HRSchemaSerializer::HEADER_LINE)) {
+    if(HRSchemaSerializer::isHeaderLine(rawData.trimmed())) {
         return HR;
     } else if(rawData.trimmed().startsWith("<!DOCTYPE GB2WORKFLOW>")) {
         return XML;
@@ -107,7 +106,7 @@ LoadWorkflowTask::FileFormat LoadWorkflowTask::detectFormat(const QString & rawD
  * SaveWorkflowTask
  ************************************/
 SaveWorkflowTask::SaveWorkflowTask(Schema* schema, const Metadata& meta, bool copyMode) :
-Task(tr("Save workflow schema task"), TaskFlag_None), url(meta.url) {
+Task(tr("Save workflow task"), TaskFlag_None), url(meta.url) {
     assert(schema != NULL);
     rawData = HRSchemaSerializer::schema2String(*schema, &meta, copyMode);
 }
@@ -116,7 +115,7 @@ void SaveWorkflowTask::run() {
     if(hasError() || isCanceled()) {
         return;
     }
-    
+
     QFile file(url);
     if(!file.open(QIODevice::WriteOnly)) {
         setError(L10N::errorOpeningFileWrite(url));

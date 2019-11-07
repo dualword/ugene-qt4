@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,43 +19,43 @@
  * MA 02110-1301, USA.
  */
 
-#include "DNAFlexTask.h"
-#include "FindHighFlexRegions.h"
-
+#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/BaseDocumentFormats.h>
 #include <U2Core/CreateAnnotationTask.h>
 #include <U2Core/DocumentModel.h>
 #include <U2Core/IOAdapter.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/ProjectModel.h>
+#include <U2Core/U1AnnotationUtils.h>
 #include <U2Core/U2SafePoints.h>
 
+#include "DNAFlexTask.h"
+#include "FindHighFlexRegions.h"
 
 namespace U2 {
 
-
 DNAFlexTask::DNAFlexTask(const HighFlexSettings& _settings,
-        AnnotationTableObject* _annotObject,
+        AnnotationTableObject *_annotObject,
         const QString& _annotName,
         const QString& _annotGroup,
+        const QString &annDescription,
         const DNASequence& _sequence)
+
     : Task(tr("DNA Flexibility task"), TaskFlags_NR_FOSCOE),
       settings(_settings),
       annotObject(_annotObject),
       annotName(_annotName),
       annotGroup(_annotGroup),
+      annDescription(annDescription),
       sequence(_sequence)
 {
     addSubTask(findHighFlexTask = new FindHighFlexRegions(_sequence, settings));
 }
 
-QList<Task*> DNAFlexTask::onSubTaskFinished(Task* subTask)
-{
-    QList<Task*> resultsList;
+QList<Task*> DNAFlexTask::onSubTaskFinished(Task* subTask) {
+    QList<Task *> resultsList;
 
-    if (subTask->hasError() && subTask == findHighFlexTask)
-    {
+    if (subTask->hasError() && subTask == findHighFlexTask) {
         stateInfo.setError(subTask->getError());
     }
 
@@ -68,8 +68,7 @@ QList<Task*> DNAFlexTask::onSubTaskFinished(Task* subTask)
         return resultsList;
     }
 
-    if (subTask == findHighFlexTask)
-    {
+    if (subTask == findHighFlexTask) {
         FindHighFlexRegions* findTask = qobject_cast<FindHighFlexRegions*>(findHighFlexTask);
         SAFE_POINT(findTask, "Failed to cast FindHighFlexRegions task!", QList<Task*>());
 
@@ -77,34 +76,30 @@ QList<Task*> DNAFlexTask::onSubTaskFinished(Task* subTask)
         QList<SharedAnnotationData> annots = getAnnotationsFromResults(results);
 
         if(!annots.isEmpty()) {
-            resultsList.append(new CreateAnnotationsTask(annotObject, annotGroup, annots));
+            resultsList.append(new CreateAnnotationsTask(annotObject, annots, annotGroup));
         }
     }
     return resultsList;
 }
 
-
-QList<SharedAnnotationData> DNAFlexTask::getAnnotationsFromResults(const QList<HighFlexResult>& results)
-{
+QList<SharedAnnotationData> DNAFlexTask::getAnnotationsFromResults(const QList<HighFlexResult> &results) {
     QList<SharedAnnotationData> annotResults;
 
-    foreach(const HighFlexResult& result, results) {
-        SharedAnnotationData annotData(new AnnotationData());
+    foreach (const HighFlexResult &result, results) {
+        SharedAnnotationData annotData(new AnnotationData);
         annotData->name = annotName;
         annotData->location->regions << result.region;
 
-        annotData->qualifiers.append(
-            U2Qualifier("area_average_threshold", QString::number(result.averageThreshold, 'f', 3)));
-        annotData->qualifiers.append(
-            U2Qualifier("windows_number", QString::number(result.windowsNumber)));
-        annotData->qualifiers.append(
-            U2Qualifier("total_threshold", QString::number(result.totalThreshold, 'f', 3)));
+        annotData->qualifiers.append(U2Qualifier("area_average_threshold", QString::number(result.averageThreshold, 'f', 3)));
+        annotData->qualifiers.append(U2Qualifier("windows_number", QString::number(result.windowsNumber)));
+        annotData->qualifiers.append(U2Qualifier("total_threshold", QString::number(result.totalThreshold, 'f', 3)));
+
+        U1AnnotationUtils::addDescriptionQualifier(annotData, annDescription);
 
 
         annotResults.append(annotData);
     }
     return annotResults;
 }
-
 
 } // namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +26,17 @@
 #include <QtCore/QVector>
 #include <QtCore/QEvent>
 
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QWidget>
 #include <QtGui/QLabel>
-#include <QtGui/QLineEdit>
 #include <QtGui/QPushButton>
+#include <QtGui/QLineEdit>
+#else
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QLineEdit>
+#endif
 
 namespace U2 {
 
@@ -52,7 +60,7 @@ private slots:
     void sl_findNext();
     void sl_findPrev();
     void sl_findFocus();
-    
+
 private:
     void updateCoords();
     void updateLock();
@@ -67,6 +75,7 @@ private:
     QLabel*                     linesLabel;
     QLabel*                     colsLabel;
     QLabel*                     lockLabel;
+    QLabel*                     posLabel;
     QPoint                      lastSearchPos;
     QAction*                    findAction;
 

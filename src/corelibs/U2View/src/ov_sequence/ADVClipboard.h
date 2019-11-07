@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,9 @@
 #ifndef _U2_ANNOTATED_DNA_VIEW_CLIPBOARD_H_
 #define _U2_ANNOTATED_DNA_VIEW_CLIPBOARD_H_
 
-#include <U2Core/global.h>
-#include <U2Core/U2Region.h>
+#include <QAction>
 
-#include <QtGui/QAction>
+#include <U2Core/U2Region.h>
 
 namespace U2 {
 
@@ -52,10 +51,10 @@ public:
     void addCopyMenu(QMenu* m);
 
 public slots:
-    
+
     void sl_onDNASelectionChanged(LRegionsSelection* s, const QVector<U2Region>& added, const QVector<U2Region>& removed);
-    void sl_onAnnotationSelectionChanged(AnnotationSelection* s, const QList<Annotation*>& added, const QList<Annotation*>& removed);
-    void sl_onFocusedSequenceWidgetChanged(ADVSequenceWidget*, ADVSequenceWidget*);
+    void sl_onAnnotationSelectionChanged( AnnotationSelection *s, const QList<Annotation *> &added, const QList<Annotation *> &removed);
+    void sl_onFocusedSequenceWidgetChanged(ADVSequenceWidget *, ADVSequenceWidget *);
 
     void sl_copySequence();
     void sl_copyTranslation();
@@ -70,6 +69,7 @@ private:
     void connectSequence(ADVSequenceObjectContext* s);
     void updateActions();
     void copySequenceSelection(bool complement, bool amino);
+    void putIntoClipboard(const QString& data);
 
     AnnotatedDNAView* ctx;
     QAction* copySequenceAction;
@@ -78,6 +78,9 @@ private:
     QAction* copyComplementTranslationAction;
     QAction* copyAnnotationSequenceAction;
     QAction* copyAnnotationSequenceTranslationAction;
+
+    static const QString COPY_FAILED_MESSAGE;
+    static const qint64 MAX_COPY_SIZE_FOR_X86;
 };
 
 }//namespace

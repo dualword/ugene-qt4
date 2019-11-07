@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -60,7 +60,7 @@ CudaSupportPlugin::CudaSupportPlugin() : Plugin( tr("CUDA Support"), tr("Utility
 
     //registering gpu resource
     if( !gpus.empty() ) {
-        AppResource * gpuResource = new AppResource( RESOURCE_CUDA_GPU, gpus.size(), RESOURCE_CUDA_GPU_NAME );
+        AppResource * gpuResource = new AppResourceSemaphore( RESOURCE_CUDA_GPU, gpus.size(), RESOURCE_CUDA_GPU_NAME );
         AppResourcePool::instance()->registerResource( gpuResource );
     }
 }
@@ -125,7 +125,7 @@ const static char * cu_device_total_mem_n = "cuDeviceTotalMem";
 typedef CUresult ( CALLING_CONVENTION *cu_device_get_properties_f)(CUdevprop * prop, CUdevice dev);
 const static char * cu_device_get_properties_n = "cuDeviceGetProperties";
 
-CudaSupportPlugin::Error CudaSupportPlugin::obtainGpusInfo( QString & err ) 
+CudaSupportPlugin::Error CudaSupportPlugin::obtainGpusInfo( QString & err )
 {
     //load driver library
     coreLog.details( tr("Loading CUDA driver library") );
@@ -151,7 +151,7 @@ CudaSupportPlugin::Error CudaSupportPlugin::obtainGpusInfo( QString & err )
         err = getCudaErrorString(cudaRetCode);
         return Error_CudaError;
     }
-    
+
     //call cuDeviceGetCount()
     coreLog.details( tr("Obtaining number of CUDA-enabled devices") );
     cu_device_get_count_f c_dgc = cu_device_get_count_f( cudaLib.resolve(cu_device_get_count_n) );
@@ -183,8 +183,8 @@ CudaSupportPlugin::Error CudaSupportPlugin::obtainGpusInfo( QString & err )
 
         //obtain device name
         const int maxname = 256;
-        QByteArray name(maxname, 0);      
-        
+        QByteArray name(maxname, 0);
+
         cu_device_get_name_f c_dgn = cu_device_get_name_f( cudaLib.resolve(cu_device_get_name_n) );
         if( !c_dgn ) {
             err =  tr( "Cannot resolve symbol " ) + cu_device_get_name_n;

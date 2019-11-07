@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -56,13 +56,14 @@ public:
 
     SslConfig() { protocols << SSLV2 << SSLV3 << TLSV1; }
     QList<QString> protocols;
-    QString currentProtocol;    
+    QString currentProtocol;
 };
 
-class U2CORE_EXPORT RemoteRequestConfig 
+class U2CORE_EXPORT RemoteRequestConfig
 {
 public:
     static const int DEFAULT_REMOTE_REQUEST_TIMEOUT_SECONDS;
+    static const QString HTTP_BODY_SEPARATOR;
 
     RemoteRequestConfig() {}
     int remoteRequestTimeout;
@@ -97,7 +98,7 @@ public:
 private:
     static Proxy_t url2type( const QUrl & url );
     ProxyConfig pc;
-    SslConfig sslConfig;    
+    SslConfig sslConfig;
     RemoteRequestConfig rrConfig;
 };
 

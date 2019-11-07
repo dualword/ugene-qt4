@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,31 +19,43 @@
  * MA 02110-1301, USA.
  */
 
-#include "ExportReadsDialog.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#include <QtGui/QPushButton>
+#else
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+#endif
 
 #include <U2Core/AppContext.h>
+#include <U2Core/AppSettings.h>
 #include <U2Core/DocumentModel.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/UserApplicationsSettings.h>
 
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include "ExportReadsDialog.h"
 
 namespace U2 {
 
 ExportReadsDialog::ExportReadsDialog(QWidget * p, const QList<DocumentFormatId> & formats) : QDialog(p) {
     setupUi(this);
-    
-    foreach(const DocumentFormatId & fid, formats) {
-        documentFormatComboBox->addItem(fid, fid);
-        DocumentFormat * df = AppContext::getDocumentFormatRegistry()->getFormatById(fid);
-        assert(df != NULL);
-        filter += QString("%1 - (*.%2);;").arg(fid).arg(df->getSupportedDocumentFileExtensions().first());
-    }
-    
-    connect(okPushButton, SIGNAL(clicked()), SLOT(accept()));
-    connect(cancelPushButton, SIGNAL(clicked()), SLOT(reject()));
+    new HelpButton(this, buttonBox, "16122287");
+
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Export"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
+    documentFormatComboBox->addItems(formats);
+    initFilePath();
+
     connect(filepathToolButton, SIGNAL(clicked()), SLOT(sl_selectFile()));
+    connect(documentFormatComboBox, SIGNAL(currentIndexChanged(const QString &)), SLOT(sl_formatChanged(const QString &)));
     setMaximumHeight(layout()->minimumSize().height());
 }
 
@@ -58,11 +70,29 @@ void ExportReadsDialog::accept() {
 
 void ExportReadsDialog::sl_selectFile() {
     LastUsedDirHelper lod("ExportReadsDialog");
-    lod.url = QFileDialog::getSaveFileName(this, tr("Select file to save"), lod, filter);
+    const QString filter = DialogUtils::prepareDocumentsFileFilter(documentFormatComboBox->currentText(), false, QStringList());
+    lod.url = U2FileDialog::getSaveFileName(this, tr("Select file to save"), lod, filter);
     if (lod.url.isEmpty()) {
         return;
     }
     filepathLineEdit->setText(lod.url);
+}
+
+void ExportReadsDialog::sl_formatChanged(const QString &newFormat) {
+    filepathLineEdit->setText(GUrlUtils::rollFileName(GUrlUtils::changeFileExt(filepathLineEdit->text(), newFormat).getURLString(), "_"));
+}
+
+void ExportReadsDialog::initFilePath() {
+    const QString ugeneDataDir = AppContext::getAppSettings()->getUserAppsSettings()->getDefaultDataDirPath();
+    LastUsedDirHelper lod("ExportReadsDialog", ugeneDataDir);
+
+    DocumentFormat *format = AppContext::getDocumentFormatRegistry()->getFormatById(documentFormatComboBox->currentText());
+    CHECK(NULL != format, );
+    const QStringList extensions = format->getSupportedDocumentFileExtensions();
+    CHECK(!extensions.isEmpty(), );
+
+    const QString filePath = lod.dir + QDir::separator() + "exported_reads" + "." + extensions.first();
+    filepathLineEdit->setText(GUrlUtils::rollFileName(filePath, "_", QSet<QString>()));
 }
 
 ExportReadsDialogModel ExportReadsDialog::getModel() const {

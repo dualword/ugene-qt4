@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,16 +23,21 @@
 #define _U2_WORKFLOW_EDITOR_H_
 
 #include <U2Lang/ActorModel.h>
+#include <U2Lang/Dataset.h>
 #include <U2Lang/Schema.h>
+#include <U2Lang/WorkflowDebugStatus.h>
 #include <ui/ui_WorkflowEditorWidget.h>
 
 #include <QtGui/QShortcutEvent>
 
+class QSortFilterProxyModel;
+
 namespace U2 {
 using namespace Workflow;
-class WorkflowView;
-class IterationListWidget;
 class ActorCfgModel;
+class AttributeDatasetsController;
+class SpecialParametersPanel;
+class WorkflowView;
 
 class WorkflowEditor : public QWidget, Ui_WorkflowEditorWidget
 {
@@ -44,35 +49,28 @@ public:
     QVariant saveState() const;
     void restoreState(const QVariant&);
 
-    Iteration getCurrentIteration() const;
     void changeScriptMode(bool _mode);
 
     void setEditable(bool editable);
 
     bool eventFilter(QObject* object, QEvent* event);
 
-signals:
-    void iterationSelected();
+    void setSpecialPanelEnabled(bool isEnabled);
+    void commitDatasets(const QString &attrId, const QList<Dataset> &sets);
 
 public slots:
     void editActor(Actor*);
     void editPort(Port*);
     void setDescriptor(Descriptor* d, const QString& hint = QString());
     void edit(Configuration* subject);
-    void selectIteration(int id);
     void reset();
     void commit();
-    void resetIterations();
-    void commitIterations();
+    void sendModified();
     void sl_resizeSplitter(bool);
-    
-protected:
-
-    //void commitData(const QString& name, const QVariant& val);
 
 private slots:
     void finishPropertyEditing();
-    void updateIterationData();
+    void updateEditingData();
     void handleDataChanged(const QModelIndex & topLeft, const QModelIndex & bottomRight);
     void editingLabelFinished();
     void sl_showPropDoc();
@@ -85,7 +83,7 @@ private:
     void changeSizes(QWidget *w, int h);
 
 private:
-    IterationListWidget* iterationList;
+    SpecialParametersPanel *specialParameters;
     WorkflowView* owner;
     ConfigurationEditor* custom;
     QWidget* customWidget;
@@ -93,9 +91,37 @@ private:
     Actor* actor;
     friend class SuperDelegate;
     ActorCfgModel* actorModel;
+    QSortFilterProxyModel *proxyModel;
     QList<QWidget *> inputPortWidget;
     QList<QWidget *> outputPortWidget;
     int paramHeight, inputHeight, outputHeight;
+};
+
+class SpecialParametersPanel : public QWidget {
+    Q_OBJECT
+public:
+    SpecialParametersPanel(WorkflowEditor *parent);
+    virtual ~SpecialParametersPanel();
+
+    void editActor(Actor *a);
+    void reset();
+    void setDatasetsEnabled(bool isEnabled);
+    int contentHeight() const;
+
+signals:
+    void si_dataChanged();
+
+private slots:
+    void sl_datasetsChanged();
+
+private:
+    WorkflowEditor *editor;
+    QMap<QString, AttributeDatasetsController*> controllers; // attrId <-> controller
+    QMap<QString, QList<Dataset> > sets; // attrId <-> datasets
+
+private:
+    void addWidget(AttributeDatasetsController *controller);
+    void removeWidget(AttributeDatasetsController *controller);
 };
 
 

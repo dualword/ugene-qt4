@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -54,16 +54,14 @@ public:
     static void registerProto();
 
     SiteconBuildWorker(Actor* a) : BaseWorker(a), input(NULL), output(NULL) {}
-    virtual void init() ;
-    virtual bool isReady();
-    virtual Task* tick() ;
-    virtual bool isDone() ;
+    virtual void init();
+    virtual Task* tick();
     virtual void cleanup() {}
 private slots:
     void sl_taskFinished();
 
 protected:
-    CommunicationChannel *input, *output;
+    IntegralBus *input, *output;
     SiteconBuildSettings cfg;
     DataTypePtr mtype;
 }; 
@@ -77,12 +75,12 @@ public:
     SiteconSearchWorker(Actor* a) : BaseWorker(a, false), //FIXME??
         modelPort(NULL), dataPort(NULL), output(NULL), strand(0) {}
     virtual void init() ;
-    virtual bool isReady();
+    virtual bool isReady() const;
     virtual Task* tick() ;
-    virtual bool isDone() ;
     virtual void cleanup() {}
-    private slots:
-        void sl_taskFinished(Task*);
+
+private slots:
+    void sl_taskFinished(Task*);
 
 protected:
     IntegralBus *modelPort, *dataPort, *output;

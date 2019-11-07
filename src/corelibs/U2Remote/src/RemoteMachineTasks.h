@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@ namespace U2 {
 
     class PingTask;
 
-    /* RemoteMachine functions are blocking, so this task can be useful, 
-    * because it waits for remote machine responses in separate thread 
+    /* RemoteMachine functions are blocking, so this task can be useful,
+    * because it waits for remote machine responses in separate thread
     */
     class U2REMOTE_EXPORT RetrieveRemoteMachineInfoTask : public Task {
         Q_OBJECT
@@ -85,7 +85,7 @@ namespace U2 {
 
     }; // RetrievePublicMachinesTask
 
-    /* Save remote machine settings to file 
+    /* Save remote machine settings to file
     */
     class SaveRemoteMachineSettings : public Task {
         Q_OBJECT

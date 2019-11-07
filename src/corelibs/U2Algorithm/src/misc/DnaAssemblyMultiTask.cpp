@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,17 +23,27 @@
 
 #include <U2Core/AppContext.h>
 #include <U2Core/DocumentUtils.h>
+#include <U2Core/L10n.h>
 #include <U2Core/ProjectModel.h>
 
 #include <U2Algorithm/DnaAssemblyAlgRegistry.h>
 
 #include <U2Gui/OpenViewTask.h>
+#include <U2Gui/MainWindow.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMainWindow>
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMessageBox>
+#endif
 
 namespace U2 {
 
 DnaAssemblyMultiTask::DnaAssemblyMultiTask( const DnaAssemblyToRefTaskSettings& s, bool view, bool _justBuildIndex )
-: Task("DnaAssemblyMultiTask", TaskFlags_NR_FOSCOE | TaskFlag_ReportingIsSupported | TaskFlag_ReportingIsEnabled), settings(s),
-assemblyToRefTask(NULL), shortReadUrls(s.shortReadUrls), openView(view), justBuildIndex(_justBuildIndex)
+: Task("DnaAssemblyMultiTask", TaskFlags_NR_FOSE_COSC | TaskFlag_ReportingIsSupported | TaskFlag_ReportingIsEnabled), settings(s),
+assemblyToRefTask(NULL), shortReadSets(s.shortReadSets), openView(view), justBuildIndex(_justBuildIndex)
 {
 
 }
@@ -63,13 +73,21 @@ QList<Task*> DnaAssemblyMultiTask::onSubTaskFinished( Task* subTask ) {
 
     if (subTask == assemblyToRefTask) {
         qint64 time=(subTask->getTimeInfo().finishTime - subTask->getTimeInfo().startTime);
-        taskLog.details(QString("Assembly to reference task time: %1").arg((double)time/(1000*1000)));
+        taskLog.details(QString("Align to reference task time: %1").arg((double)time/(1000*1000)));
     }
 
     if ( subTask == assemblyToRefTask && settings.openView ) {
-        Task* openTask = AppContext::getProjectLoader()->openWithProjectTask(settings.resultFileName);
-        if (openTask != NULL) {
-            subTasks << openTask;
+        if (assemblyToRefTask->isHaveResult()) {
+            Task* openTask = AppContext::getProjectLoader()->openWithProjectTask(settings.resultFileName);
+            if (openTask != NULL) {
+                subTasks << openTask;
+            }
+        } else {
+            QString message = tr("The short reads can't be mapped to the reference sequence!");
+            coreLog.info(message);
+            if (NULL != AppContext::getMainWindow()) {
+                QMessageBox::information(AppContext::getMainWindow()->getQMainWindow(), L10N::warningTitle(), message);
+            }
         }
     }
 
@@ -79,18 +97,18 @@ QList<Task*> DnaAssemblyMultiTask::onSubTaskFinished( Task* subTask ) {
 
 QString DnaAssemblyMultiTask::generateReport() const {
     QString res;
-    if (hasError() || isCanceled()) {
-        return QString("Assembly task finished with error: %1").arg(getError());
+    if (hasError()) {
+        return QString("Alignment task finished with error: %1").arg(getError());
     }
 
     if (justBuildIndex) {
         res = settings.algName + QString(" index-file for %1 was built successfully")
         .arg(settings.refSeqUrl.fileName());
     } else if (assemblyToRefTask->isHaveResult()) {
-        res = QString("Assembly to reference %1 was finished successfully")
+        res = QString("Alignment to reference %1 was finished successfully")
         .arg(settings.refSeqUrl.fileName());
     } else {
-        res = QString("Assembly to reference %1 was failed. No possible alignment was found")
+        res = QString("Alignment to reference %1 was failed. No possible alignment was found")
         .arg(settings.refSeqUrl.fileName());
     }
     return res;

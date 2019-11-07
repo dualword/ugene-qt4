@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,14 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include "LogSettingsGUIController.h"
+#include <QtCore/qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QColorDialog>
+#include <QtGui/QHeaderView>
+#include <QtGui/QMessageBox>
+#include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QToolButton>
+#endif
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
+#include <U2Core/LogCache.h>
 
-#include <QtGui/QHeaderView>
-#include <QtGui/QToolButton>
-#include <QtGui/QColorDialog>
+#include <U2Gui/U2FileDialog.h>
+
+#include "LogSettingsGUIController.h"
 
 namespace U2 {
 
@@ -57,6 +69,8 @@ AppSettingsGUIPageWidget* LogSettingsPageController::createWidget(AppSettingsGUI
     return w;
 }
 
+const QString LogSettingsPageController::helpPageId = QString("4227270");
+
 //////////////////////////////////////////////////////////////////////////
 // widget
 
@@ -64,6 +78,13 @@ LogSettingsPageWidget::LogSettingsPageWidget() {
     setupUi( this );
     tableWidget->verticalHeader()->setVisible(false);
     connect(tableWidget, SIGNAL(currentCellChanged(int, int, int, int)), SLOT(sl_currentCellChanged(int, int, int, int)));
+    connect(fileOutCB, SIGNAL(stateChanged(int)), SLOT(sl_outFileStateChanged(int)));
+    connect(browseFileButton, SIGNAL(clicked()), SLOT(sl_browseFileClicked()));
+
+#ifdef Q_OS_MAC
+    // Layout fix for mac: the font size is bigger than in another systems.
+    tableWidget->horizontalHeader()->setDefaultSectionSize(110);
+#endif
 }
 
 void LogSettingsPageWidget::setState(AppSettingsGUIPageState* s) {
@@ -145,6 +166,10 @@ void LogSettingsPageWidget::setState(AppSettingsGUIPageState* s) {
     showLevelCB->setChecked(settings.showLevel);
     colorCB->setChecked(settings.enableColor);
     dateFormatEdit->setText(settings.logPattern);
+    fileOutCB->setChecked(settings.toFile);
+    outFileEdit->setText(settings.outputFile);
+
+    sl_outFileStateChanged(settings.toFile ? Qt::Checked : Qt::Unchecked);
 }
 
 AppSettingsGUIPageState* LogSettingsPageWidget::getState(QString& err) const {
@@ -170,11 +195,34 @@ AppSettingsGUIPageState* LogSettingsPageWidget::getState(QString& err) const {
         settings.addCategory(logCat);
     }
 
+    if(fileOutCB->isChecked() != settings.toFile || settings.outputFile != outFileEdit->text() ){
+        LogCacheExt *lce = qobject_cast<LogCacheExt *>(LogCache::getAppGlobalInstance());
+        if(fileOutCB->isChecked()){
+            lce->setFileOutputEnabled(outFileEdit->text());
+        }else{
+            lce->setFileOutputDisabled();
+        }
+    }
+
+    if (fileOutCB->isChecked()){
+        QString logFile(outFileEdit->text());
+        QFileInfo lf(logFile);
+        QFile file(logFile);
+        bool writeble = file.open(QIODevice::WriteOnly);
+        file.close();
+        if (!writeble || lf.fileName().isEmpty()){
+            QMessageBox::warning(NULL, tr("Warning"), tr("Unable to open log file for writing, log writing to file disabled"), QMessageBox::Ok);
+            fileOutCB->setChecked(false);
+        }
+    }
+
     settings.showCategory = showCategoryCB->isChecked();
     settings.showDate = showDateCB->isChecked();
     settings.showLevel = showLevelCB->isChecked();
     settings.enableColor = colorCB->isChecked();
     settings.logPattern = dateFormatEdit->text();
+    settings.toFile = fileOutCB->isChecked();
+    settings.outputFile = outFileEdit->text();
     
     return state;
 }
@@ -234,6 +282,22 @@ void LogSettingsPageWidget::sl_changeColor(const QString& v) {
         tw->color = color.name();
         updateColorLabel(label, tw->color);
     }
+}
+
+void LogSettingsPageWidget::sl_outFileStateChanged(int state){
+    if(state == Qt::Unchecked){
+        outFileEdit->setEnabled(false);
+        browseFileButton->setEnabled(false);
+    }
+    if(state == Qt::Checked ){
+        outFileEdit->setEnabled(true);
+        browseFileButton->setEnabled(true);
+    }
+    
+}
+
+void LogSettingsPageWidget::sl_browseFileClicked(){
+    outFileEdit->setText(U2FileDialog::getSaveFileName());
 }
 
 void LogSettingsPageWidget::updateColorLabel(QLabel* l, const QString& color) {

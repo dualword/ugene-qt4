@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ public:\
     SIMPLE_XML_TEST_CONSTRUCT(ClassName, TFlags) \
     void init(XMLTestFormat *tf, const QDomElement& el); \
 
-    
+
 #define SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(TestClass, TagName, TFlags) \
     SIMPLE_XML_TEST_BODY(TestClass, TFlags) \
     class TestClass##Factory : public XMLTestFactory { \
@@ -58,12 +58,13 @@ public:\
 
 #define SIMPLE_XML_TEST_BODY_WITH_FACTORY(TestClass, TagName) \
     SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(TestClass, TagName, TaskFlags_NR_FOSCOE) \
-    
-    
-    
-class XMLTestUtils {
+
+
+
+class U2TEST_EXPORT XMLTestUtils {
 public:
     static QList<XMLTestFactory*> createTestFactories();
+    static void replacePrefix(const GTestEnvironment* env, QString &path);
 };
 
 
@@ -90,6 +91,15 @@ class GTest_DeleteTmpFile : public GTest {
     Q_OBJECT
 public:
     SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_DeleteTmpFile, "delete", TaskFlag_NoRun);
+    ReportResult report();
+private:
+    QString url;
+};
+
+class GTest_CreateTmpFolder: public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY_EXT(GTest_CreateTmpFolder, "create-folder", TaskFlag_NoRun);
     ReportResult report();
 private:
     QString url;

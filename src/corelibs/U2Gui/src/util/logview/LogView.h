@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +26,17 @@
 
 #include <QtCore/QHash>
 #include <QtCore/QRegExp>
-#include <QtGui/QPlainTextEdit>
+#include <QtCore/QTimer>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLineEdit>
+#include <QtGui/QPlainTextEdit>
 #include <QtGui/QShortcut>
+#else
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QPlainTextEdit>
+#include <QtWidgets/QShortcut>
+#endif
+
 #include <QtGui/QSyntaxHighlighter>
 
 namespace U2 {
@@ -52,7 +60,7 @@ enum LogViewSearchBoxMode {
     LogViewSearchBox_Hidden
 };
 
-class U2GUI_EXPORT LogViewWidget : public QWidget, public LogSettingsHolder {
+class U2GUI_EXPORT LogViewWidget : public QWidget, public LogListener, public LogSettingsHolder {
     Q_OBJECT
 public:
     /** If categoriesFilter is not-empty LogViewWidget shows log messages 
@@ -61,9 +69,8 @@ public:
      */
     LogViewWidget(LogCache* c);
     LogViewWidget(const LogFilter& filter);
-    
-    void resetView();
-    
+    ~LogViewWidget();
+
     bool isShown(const LogMessage& msg);
     bool isShown(const QString& txt);
     /** returns first category in the msg.categories that match 'show-filter' criteria*/
@@ -73,19 +80,20 @@ public:
 
     void setSearchBoxMode(LogViewSearchBoxMode mode);
 
+    virtual void onMessage(const LogMessage& msg);
+
 protected:
     void addMessage(const LogMessage& msg);
     void addText(const QString& text);
     void showEvent(QShowEvent *e);
     void hideEvent(QHideEvent *e);
+    void resetView();
 
 private slots:
-
-    void sl_onMessage(const LogMessage& msg);
+    void sl_showNewMessages();
     void sl_onTextEdited(const QString& text);
     void popupMenu(const QPoint &pos);
     void sl_openSettingsDialog();
-    void sl_logSettingsChanged();
     void sl_dumpCounters();
     void sl_clear();
     void sl_addSeparator();
@@ -95,21 +103,13 @@ private slots:
     void useRegExp();
 
 private:
-    struct EntryStruct {
-        bool is_plain_text;
-        LogMessage msg;
-        EntryStruct(const QString &txt): is_plain_text(true) { msg.text = txt; }
-        EntryStruct(const LogMessage &_msg): is_plain_text(false), msg(_msg) {}
-    };
-
     QString prepareText(const LogMessage& msg) const;
     void init();
-    void resetText();
+    bool eventFilter(QObject *object, QEvent *event);
 
-
+    QTimer                   updateViewTimer;
     QPlainTextEdit*          edit;
     QLineEdit*               searchEdit;
-    QList<EntryStruct>       original_text;
     QShortcut*               shortcut;
     SearchHighlighter*       highlighter;
     bool                     caseSensitive, useRegexp;
@@ -121,9 +121,7 @@ private:
     QAction*            dumpCountersAction;
     QAction*            clearAction;
     QAction*            addSeparatorAction;
-
-    bool connected; //for debug only
-
+    bool                connected;
 };
 
 } //namespace

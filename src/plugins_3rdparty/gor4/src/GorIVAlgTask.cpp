@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@
 
 namespace U2 {
 
-const QString GorIVAlgTask::taskName(tr("GORIV"));
+const QString GorIVAlgTask::taskName(QObject::tr("GORIV"));
 QMutex GorIVAlgTask::runLock;
 
 GorIVAlgTask::GorIVAlgTask(const QByteArray& inputSeq) : SecStructPredictTask(inputSeq)
@@ -67,7 +67,6 @@ void GorIVAlgTask::run()
     runGORIV(seqDb, strucDb, sequence.data(), sequence.size() - 1, output.data());
 
     results = SecStructPredictUtils::saveAlgorithmResultsAsAnnotations(output, GORIV_ANNOTATION_NAME);
-
 }
 
 

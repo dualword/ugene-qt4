@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -50,12 +50,15 @@ public:
     bool operator!=(const ResidueIndex& other) const;
     int toInt() const { return resId; }
     void setOrder(int ord) { order = ord; }
+
+    int getOrder() const;
+    char getInsCode() const;
 };
 
 
 //! Represents biopolimer residue
-class ResidueData : public QSharedData    
-{ 
+class ResidueData : public QSharedData
+{
 public:
     enum Type {
         TYPE_UNKNOWN, TYPE_PROTEIN, TYPE_DNA, TYPE_RNA
@@ -99,8 +102,8 @@ class Bond
     SharedAtom atom2;
 public:
     Bond(const SharedAtom& a1, const SharedAtom& a2) : atom1(a1), atom2(a2) { }
-    const SharedAtom getAtom1() { return atom1; }
-    const SharedAtom getAtom2() { return atom2; }
+    const SharedAtom getAtom1() const { return atom1; }
+    const SharedAtom getAtom2() const { return atom2; }
 };
 
 //! Represents protein secondary structure: alpha-helix, beta-strand, turn
@@ -153,15 +156,14 @@ public:
 
     // this list used by biostrct renderers
     // its indexes are NOT model ids taken from PDB
-    QList<Molecule3DModel> models;
+    QMap <int, Molecule3DModel> models;
 
-    QList<SharedAnnotationData> annotations;
     QString name;
     bool engineered;
 };
 
 typedef QSharedDataPointer<MoleculeData> SharedMolecule;
-typedef QHash<int, SharedAtom> AtomCoordSet; 
+typedef QHash<int, SharedAtom> AtomCoordSet;
 
 //! Biological 3D structure
 class U2CORE_EXPORT BioStruct3D {
@@ -181,7 +183,6 @@ public:
 
     QMap <int, SharedMolecule> moleculeMap;
     QMap <int, AtomCoordSet> modelMap;
-    QList<SharedAnnotationData> annotations;
     QList<SharedSecondaryStructure> secondaryStructures;
     QList<Bond> interMolecularBonds;
     QString descr;
@@ -191,8 +192,12 @@ public:
     double getRadius()  const { return radius; }
     const Vector3D& getCenter() const { return rotationCenter; }
 
+    void setRadius(double value);
+    void setCenter(const Vector3D &value);
+
     QByteArray getRawSequenceByChainId(int id) const;
     int getNumberOfAtoms() const;
+    QList<SharedAtom> getAllAtoms() const;
     int getNumberOfResidues() const;
     static int residueIndexToInt(const ResidueIndex& idx);
     const SharedAtom getAtomById(int index, int modelIndex) const;
@@ -211,9 +216,11 @@ public:
     /** @returns model by it's index number in our data structure */
     const Molecule3DModel getModelByIndex(int moleculeId, int index) const;
 
-    // Modifiers
+    // Modifier
     void calcCenterAndMaxDistance();
-    void generateAnnotations();
+
+    /** Generates the map: chainId <-> annotations */
+    QMap<int, QList<SharedAnnotationData> > generateAnnotations() const;
 
     /** Biostruct 3D model should be transforemd with this matrix */
     void setTransform(const Matrix44 &m) { transform = m; }
@@ -224,11 +231,8 @@ public:
     static const QString getSecStructTypeName(SecondaryStructure::Type type);
 
 private:
-    void generateChainAnnotations();
-    void generateSecStructureAnnotations();
-
-private:
-    BioStruct3D& operator= (const BioStruct3D&);
+    QMap<int, QList<SharedAnnotationData> > generateChainAnnotations() const;
+    void generateSecStructureAnnotations(QMap<int, QList<SharedAnnotationData> > &result) const;
 
 private:
     double radius;

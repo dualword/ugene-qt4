@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -99,7 +99,6 @@
 #   define U2PRIVATE_EXPORT Q_DECL_IMPORT
 #endif
 
-
 // UGENE_VERSION must be supplied as a preprocessor directive
 #ifndef UGENE_VERSION
 #error UGENE_VERSION is not set!
@@ -110,6 +109,7 @@
 //global
 #define GLOBAL_SETTINGS QString("global/")
 
+#define ENV_USE_CRASHHANDLER "USE_CRASH_HANDLER"
 #define ENV_UGENE_DEV "UGENE_DEV"
 #define ENV_GUI_TEST "UGENE_GUI_TEST"
 
@@ -117,6 +117,7 @@
 #define PATH_PREFIX_SCRIPTS "scripts"
 
 typedef QMap<QString, QString> QStrStrMap;
+typedef QPair<QString, QString> StringPair;
 
 namespace U2 {
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,14 +27,18 @@
 #include <U2Gui/MainWindow.h>
 #include <ui/ui_Reporter.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidgetItem>
+#else
+#include <QtWidgets/QTreeWidgetItem>
+#endif
 
 
 namespace U2 {
 
     class TVTSItem;
     class TVTestItem;
-    
+
 
     class TestViewReporter : public  MWMDIWindow, Ui::Reporter {
      Q_OBJECT
@@ -44,16 +48,16 @@ namespace U2 {
 
  public:
 
-    TestViewReporter(TestViewController* parent,QTreeWidget* tree=NULL,int runTime=NULL);
+    TestViewReporter(TestViewController* parent,QTreeWidget* tree=NULL,int runTime=-1);
     QString getReportText() {return curReportText;}
     bool saveAs(const QString url,const QString data);
 
     virtual void setupMDIToolbar(QToolBar* tb);
     virtual void setupViewMenu(QMenu* n);
- 
+
  private:
-    const QString prepareHTMLText(QTreeWidget* tree=NULL,int runTime=NULL);
-     
+    const QString prepareHTMLText(QTreeWidget* tree=NULL,int runTime=0);
+
     const QString getHTMLNoTests();
     const QString getHTMLHead();
     const QString getHTMLStyle();
@@ -73,11 +77,11 @@ namespace U2 {
     bool setColorInTestText(QString* inputData=NULL);
 
     QList<TVTestItem*> getFailedTests(TVTSItem* Root);
-    
-   
+
+
     QString curReportText;
     TestViewController* curParent;
-    
+
     QAction* save;
     private slots:
         void sl_save();

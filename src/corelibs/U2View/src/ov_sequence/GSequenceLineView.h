@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,12 +25,17 @@
 #include <U2Core/U2Region.h>
 
 #include <QtCore/QFlag>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#include <QtGui/QMenu>
+#else
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QMenu>
+#endif
 #include <QtGui/QMouseEvent>
 #include <QtGui/QWheelEvent>
 #include <QtGui/QFocusEvent>
 #include <QtGui/QPainter>
-#include <QtGui/QMenu>
 
 
 namespace U2 {
@@ -71,22 +76,26 @@ public:
 
     ADVSequenceObjectContext* getSequenceContext() const {return ctx;}
 
+    GSequenceLineViewRenderArea* getRenderArea() const {return renderArea;}
+
+    qint64 getLastPressPos() const { return lastPressPos; }
+
     virtual void setStartPos(qint64 pos);
 
     virtual void setCenterPos(qint64 pos);
 
     qint64 getSequenceLength() const {return seqLen;}
-    
+
     virtual void addUpdateFlags(GSLV_UpdateFlags newFlags) {lastUpdateFlags|=newFlags;}
-       
+
     virtual void clearUpdateFlags() {lastUpdateFlags = 0;}
 
     GSLV_UpdateFlags getUpdateFlags() const {return lastUpdateFlags;}
 
-    virtual void setFrameView(GSequenceLineView* frameView); 
+    virtual void setFrameView(GSequenceLineView* frameView);
 
     virtual GSequenceLineView* getFrameView() const {return frameView;}
-    
+
     virtual void setCoherentRangeView(GSequenceLineView* rangeView);
 
     virtual GSequenceLineView* getConherentRangeView() const {return coherentRangeView;}
@@ -101,7 +110,7 @@ public:
     virtual QAction* getZoomToSelectionAction() const {return coherentRangeView == NULL ? NULL : coherentRangeView->getZoomToSelectionAction();}
 
     virtual QAction* getZoomToSequenceAction() const {return coherentRangeView == NULL ? NULL : coherentRangeView->getZoomToSequenceAction();}
-    
+
     virtual U2SequenceObject* getSequenceObject() const;
 
     virtual void buildPopupMenu(QMenu& m){ Q_UNUSED(m); }
@@ -124,7 +133,7 @@ protected:
     void focusInEvent(QFocusEvent* fe);
     void focusOutEvent(QFocusEvent* fe);
     void keyPressEvent(QKeyEvent *e);
-    
+
     virtual void onVisibleRangeChanged(bool signal = true);
 
 public slots:
@@ -136,7 +145,7 @@ protected slots:
     virtual void sl_sequenceChanged();
     void sl_onFrameRangeChanged();
     void sl_onCoherentRangeViewRangeChanged();
-    void completeUpdate(); 
+    void completeUpdate();
 
 protected:
     QPoint toRenderAreaPoint(const QPoint& p);
@@ -158,7 +167,7 @@ protected:
     GSLV_FeatureFlags               featureFlags;
     GSequenceLineView*              frameView;
     GSequenceLineView*              coherentRangeView;
-	double coefScrollBarMapping;
+    double coefScrollBarMapping;
 
     // special flag setup by child classes that tells to this class do or skip
     // any changes to selection on mouse ops
@@ -182,7 +191,7 @@ public:
 
 protected:
     virtual void paintEvent(QPaintEvent *e);
-    
+
     virtual void drawAll(QPaintDevice* pd) = 0;
     void drawFrame(QPainter& p);
     virtual void drawFocus(QPainter& p);
@@ -197,7 +206,7 @@ protected:
     QFont   sequenceFont;
     QFont   smallSequenceFont;
     QFont   rulerFont;
-    
+
     int     charWidth;
     int     smallCharWidth;
 

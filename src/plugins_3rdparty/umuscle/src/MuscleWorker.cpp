@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,12 @@
 #include "TaskLocalStorage.h"
 #include "MuscleAlignDialogController.h"
 
+#include <U2Core/FailTask.h>
+#include <U2Core/Log.h>
+#include <U2Core/MAlignmentObject.h>
+
+#include <U2Designer/DelegateEditors.h>
+
 #include <U2Lang/IntegralBusModel.h>
 #include <U2Lang/WorkflowEnv.h>
 #include <U2Lang/ActorPrototypeRegistry.h>
@@ -31,10 +37,9 @@
 #include <U2Lang/BaseSlots.h>
 #include <U2Lang/BasePorts.h>
 #include <U2Lang/BaseActorCategories.h>
-#include <U2Designer/DelegateEditors.h>
 #include <U2Lang/CoreLibConstants.h>
-#include <U2Core/Log.h>
-#include <U2Core/FailTask.h>
+#include <U2Lang/NoFailTaskWrapper.h>
+
 
 /* TRANSLATOR U2::LocalWorkflow::MuscleWorker */
 
@@ -51,7 +56,7 @@ static const QString STABLE_ATTR("stable");
 static const QString MAX_ITERATIONS_ATTR("max-iterations");
 static const QString RANGE_ATTR("range");
 static const QString RANGE_ATTR_DEFAULT_VALUE("Whole alignment");
-static const QString RANGE_ERR_MSG(MuscleWorker::tr("Region should be set as 'start..end', start should be less than end, e.g. '1..100'"));
+static const QString RANGE_ERR_MSG(QObject::tr("Region should be set as 'start..end', start should be less than end, e.g. '1..100'"));
 
 void MuscleWorkerFactory::init() {
     QList<PortDescriptor*> p; QList<Attribute*> a;
@@ -74,9 +79,9 @@ void MuscleWorkerFactory::init() {
                             "<p>Otherwise, MUSCLE re-arranges sequences so that similar sequences are adjacent in the output file."
                             " This makes the alignment easier to evaluate by eye. "));
     Descriptor mi(MAX_ITERATIONS_ATTR, MuscleWorker::tr("Max iterations"), 
-        MuscleWorker::tr("Maximum number of iterations"));
+        MuscleWorker::tr("Maximum number of iterations."));
     Descriptor ra(RANGE_ATTR, MuscleWorker::tr("Region to align"), 
-        MuscleWorker::tr("Whole alignment or column range e.g. <b>1..100</b>"));
+        MuscleWorker::tr("Whole alignment or column range e.g. <b>1..100</b>."));
     
     a << new Attribute(mod, BaseTypes::NUM_TYPE(), false, 0);
     a << new Attribute(sd, BaseTypes::BOOL_TYPE(), false, true);
@@ -142,76 +147,91 @@ void MuscleWorker::init() {
     output = ports.value(BasePorts::OUT_MSA_PORT_ID());
 }
 
-bool MuscleWorker::isReady() {
-    return (input && input->hasMessage());
-}
-
 Task* MuscleWorker::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    int mode = actor->getParameter(MODE_ATTR)->getAttributeValue<int>(context);
-    switch(mode) {
-        case 0: DefaultModePreset().apply(cfg); break;
-        case 1: LargeModePreset().apply(cfg); break;
-        case 2: RefineModePreset().apply(cfg); break;
-    }
-    cfg.stableMode = actor->getParameter(STABLE_ATTR)->getAttributeValue<bool>(context);
-    int maxIterations = actor->getParameter(MAX_ITERATIONS_ATTR)->getAttributeValue<int>(context);
-    if(maxIterations >= 2) {
-        cfg.maxIterations = maxIterations;
-    }
-    
-    MAlignment msa = inputMessage.getData().toMap().value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<MAlignment>();
-    if( msa.isEmpty() ) {
-        algoLog.error( tr("An empty MSA has been supplied to MUSCLE.") );
-        return NULL;
-    }
-    QString range = actor->getParameter(RANGE_ATTR)->getAttributeValue<QString>(context);
-    if( range.isEmpty() || range == RANGE_ATTR_DEFAULT_VALUE ) {
-        cfg.alignRegion = false;
-        cfg.regionToAlign = U2Region(0, msa.getLength());
-    } else {
-        QStringList words = range.split(".", QString::SkipEmptyParts);
-        if( words.size() != 2 ) {
-            return new FailTask(RANGE_ERR_MSG);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
+            output->transit();
+            return NULL;
         }
-        bool ok = false;
-        int start = words.at(0).toInt(&ok) - 1;
-        if(!ok) {
-            return new FailTask(RANGE_ERR_MSG);
+        int mode = actor->getParameter(MODE_ATTR)->getAttributeValue<int>(context);
+        switch(mode) {
+            case 0: DefaultModePreset().apply(cfg); break;
+            case 1: LargeModePreset().apply(cfg); break;
+            case 2: RefineModePreset().apply(cfg); break;
         }
-        start = qMax(1, start);
-        ok = false;
-        int end = words.at(1).toInt(&ok) - 1;
-        if(!ok) {
-            return new FailTask(RANGE_ERR_MSG);
+        cfg.stableMode = actor->getParameter(STABLE_ATTR)->getAttributeValue<bool>(context);
+        int maxIterations = actor->getParameter(MAX_ITERATIONS_ATTR)->getAttributeValue<int>(context);
+        if(maxIterations >= 2) {
+            cfg.maxIterations = maxIterations;
         }
-        if(end < start) {
-            return new FailTask(tr("Region end position should be greater than start position"));
-        }
-        end = qMin(end, msa.getLength());
         
-        cfg.alignRegion = true;
-        cfg.regionToAlign = U2Region(start,  end - start + 1);
+        QVariantMap qm = inputMessage.getData().toMap();
+        SharedDbiDataHandler msaId = qm.value(BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()).value<SharedDbiDataHandler>();
+        QScopedPointer<MAlignmentObject> msaObj(StorageUtils::getMsaObject(context->getDataStorage(), msaId));
+        SAFE_POINT(!msaObj.isNull(), "NULL MSA Object!", NULL);
+        const MAlignment &msa = msaObj->getMAlignment();
+
+        if( msa.isEmpty() ) {
+            algoLog.error(tr("An empty MSA '%1' has been supplied to MUSCLE.").arg(msa.getName()));
+            return NULL;
+        }
+        QString range = actor->getParameter(RANGE_ATTR)->getAttributeValue<QString>(context);
+        if( range.isEmpty() || range == RANGE_ATTR_DEFAULT_VALUE ) {
+            cfg.alignRegion = false;
+            cfg.regionToAlign = U2Region(0, msa.getLength());
+        } else {
+            QStringList words = range.split(".", QString::SkipEmptyParts);
+            if( words.size() != 2 ) {
+                return new FailTask(RANGE_ERR_MSG);
+            }
+            bool ok = false;
+            int start = words.at(0).toInt(&ok) - 1;
+            if(!ok) {
+                return new FailTask(RANGE_ERR_MSG);
+            }
+            start = qMax(1, start);
+            ok = false;
+            int end = words.at(1).toInt(&ok) - 1;
+            if(!ok) {
+                return new FailTask(RANGE_ERR_MSG);
+            }
+            if(end < start) {
+                return new FailTask(tr("Region end position should be greater than start position"));
+            }
+            end = qMin(end, msa.getLength());
+            
+            cfg.alignRegion = true;
+            cfg.regionToAlign = U2Region(start,  end - start + 1);
+        }
+        
+        Task *t = new NoFailTaskWrapper(new MuscleTask(msa, cfg));
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    } else if (input->isEnded()) {
+        setDone();
+        output->setEnded();
     }
-    
-    Task* t = new MuscleTask(msa, cfg);
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    return NULL;
 }
 
 void MuscleWorker::sl_taskFinished() {
-    MuscleTask* t = qobject_cast<MuscleTask*>(sender());
-    if (t->getState() != Task::State_Finished) return;
-    QVariant v = qVariantFromValue<MAlignment>(t->resultMA);
-    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), v));
-    if (input->isEnded()) {
-        output->setEnded();
+    NoFailTaskWrapper *wrapper = qobject_cast<NoFailTaskWrapper*>(sender());
+    CHECK(wrapper->isFinished(), );
+    MuscleTask* t = qobject_cast<MuscleTask*>(wrapper->originalTask());
+    if (t->hasError()) {
+        coreLog.error(t->getError());
+        return;
+    } else if ( t->isCanceled( ) ) {
+        return;
     }
-    algoLog.info(tr("Aligned %1 with MUSCLE").arg(t->resultMA.getName()));
-}
 
-bool MuscleWorker::isDone() {
-    return !input || input->isEnded();
+    SAFE_POINT(NULL != output, "NULL output!", );
+    SharedDbiDataHandler msaId = context->getDataStorage()->putAlignment(t->resultMA);
+    QVariantMap msgData;
+    msgData[BaseSlots::MULTIPLE_ALIGNMENT_SLOT().getId()] = qVariantFromValue<SharedDbiDataHandler>(msaId);
+    output->put(Message(BaseTypes::MULTIPLE_ALIGNMENT_TYPE(), msgData));
+    algoLog.info(tr("Aligned %1 with MUSCLE").arg(t->resultMA.getName()));
 }
 
 void MuscleWorker::cleanup() {

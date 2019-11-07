@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,25 +24,40 @@
 namespace U2 {
 
 QList<GCounter*>& GCounter::getCounters() {
-    static QList<GCounter*> counters;
-    return counters;
+    static GCounterList counters;
+    return counters.list;
 }
 
-GCounter::GCounter(const QString& _name, const QString& s, double scale) : name(_name), suffix(s), totalCount(0), counterScale(scale) {
+GCounter::GCounter(const QString& _name, const QString& s, double scale) : name(_name), suffix(s), totalCount(0), counterScale(scale), destroyMe(false) {
     assert(counterScale > 0);
     getCounters().append(this);
-    dynamicCounter = false;
 }
 
 GCounter::~GCounter() {
-    if (dynamicCounter) {
-        getCounters().removeOne(this);
+    getCounters().removeOne(this);
+}
+
+GCounter *GCounter::getCounter(const QString &name, const QString &suffix) {
+    foreach (GCounter *counter, getCounters()) {
+        if (name == counter->name && suffix == counter->suffix) {
+            return counter;
+        }
     }
+    return NULL;
 }
 
 GReportableCounter::GReportableCounter(const QString& name, const QString& suffix, double scale /* = 1 */) :
 GCounter(name, suffix, scale) {
 }
 
-} //namespace
+GCounterList::~GCounterList() {
+    for (int i = 0; i < list.size(); i++) {
+        if (list[i]->destroyMe) {
+            GCounter *counter = list[i];
+            list[i] = NULL;
+            delete counter;
+        }
+    }
+}
 
+} //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include <U2Core/Task.h>
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-#include <QtGui/QTextEdit>
-#include <QtGui/QDesktopWidget>
-#include <U2Gui/DialogUtils.h>
-#include <U2Core/GUrlUtils.h>
-#include <U2Core/DocumentUtils.h>
+#include <QDesktopWidget>
+#include <QMessageBox>
+#include <QTextEdit>
+
 #include <U2Core/AppContext.h>
-#include <U2Core/ProjectModel.h>
+#include <U2Core/DocumentUtils.h>
 #include <U2Core/FormatUtils.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/L10n.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/Task.h>
+#include <U2Core/TmpDirChecker.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/ObjectViewModel.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
+
 #include "BAMDbiPlugin.h"
 #include "BaiReader.h"
 #include "ConvertToSQLiteDialog.h"
@@ -41,44 +49,80 @@ namespace BAM {
 
 ConvertToSQLiteDialog::ConvertToSQLiteDialog(const GUrl& _sourceUrl, BAMInfo& _bamInfo, bool sam) : QDialog(QApplication::activeWindow()), sourceUrl(_sourceUrl), bamInfo(_bamInfo) {
     ui.setupUi(this);
+    new HelpButton(this, ui.buttonBox, "16122270");
+    ui.buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Import"));
+    ui.buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     if (sam) {
-        setWindowTitle("Import BAM/SAM file");
+        setWindowTitle(tr("Import SAM File"));
     } else {
-        setWindowTitle("Import BAM/SAM file");
+        setWindowTitle(tr("Import BAM File"));
     }
-    
+    this->setObjectName(tr("Import BAM File"));
+
+    const QString warningMessageStyleSheet( "color: " + L10N::errorColorLabelStr( )
+        + "; font: bold;" );
+    ui.indexNotAvailableLabel->setStyleSheet( warningMessageStyleSheet );
+    ui.referenceWarningLabel->setStyleSheet( warningMessageStyleSheet );
+
     connect(ui.bamInfoButton, SIGNAL(clicked()), SLOT(sl_bamInfoButtonClicked()));
+    connect(ui.refUrlButton, SIGNAL(clicked()), SLOT(sl_refUrlButtonClicked()));
     connect(ui.selectAllToolButton, SIGNAL(clicked()), SLOT(sl_selectAll()));
     connect(ui.selectNoneToolButton, SIGNAL(clicked()), SLOT(sl_unselectAll()));
     connect(ui.inverseSelectionToolButton, SIGNAL(clicked()), SLOT(sl_inverseSelection()));
     ui.indexNotAvailableLabel->setVisible(sam ? false : !bamInfo.hasIndex());
-    
-    ui.tableWidget->setColumnCount(3);
-    ui.tableWidget->setRowCount(bamInfo.getHeader().getReferences().count());
-    QStringList header; header << BAMDbiPlugin::tr("Contig name") << BAMDbiPlugin::tr("Length") << BAMDbiPlugin::tr("URI");
-    ui.tableWidget->setHorizontalHeaderLabels(header);
-    ui.tableWidget->horizontalHeader()->setStretchLastSection(true);    
-    {
-        int i = 0;
-        foreach(const Header::Reference& ref, bamInfo.getHeader().getReferences()) {
-            QTableWidgetItem* checkbox = new QTableWidgetItem();
-            checkbox->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);            
-            checkbox->setText(ref.getName());
-            ui.tableWidget->setItem(i, 0, checkbox);
-            QTableWidgetItem* item = new QTableWidgetItem(FormatUtils::formatNumberWithSeparators(ref.getLength()));
-            item->setFlags(Qt::ItemIsEnabled);
-            ui.tableWidget->setItem(i, 1, item);
-            ui.tableWidget->setCellWidget(i, 2, new QLabel("<a href=\"" + ref.getUri() + "\">" + ref.getUri() + "</a>"));
-            checkbox->setCheckState(Qt::Checked);
-            i++;
+
+    if (sam && bamInfo.getHeader().getReferences().isEmpty()) {
+        hideReferencesTable();
+    } else {
+        hideReferenceUrl();
+        hideReferenceMessage();
+        ui.tableWidget->setColumnCount(3);
+        ui.tableWidget->setRowCount(bamInfo.getHeader().getReferences().count());
+        QStringList header; header << BAMDbiPlugin::tr("Assembly name") << BAMDbiPlugin::tr("Length") << BAMDbiPlugin::tr("URI");
+        ui.tableWidget->setHorizontalHeaderLabels(header);
+        ui.tableWidget->horizontalHeader()->setStretchLastSection(true);
+        {
+            int i = 0;
+            foreach(const Header::Reference& ref, bamInfo.getHeader().getReferences()) {
+                QTableWidgetItem* checkbox = new QTableWidgetItem();
+                checkbox->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
+                checkbox->setText(ref.getName());
+                ui.tableWidget->setItem(i, 0, checkbox);
+                QTableWidgetItem* item = new QTableWidgetItem(FormatUtils::formatNumberWithSeparators(ref.getLength()));
+                item->setFlags(Qt::ItemIsEnabled);
+                ui.tableWidget->setItem(i, 1, item);
+                ui.tableWidget->setCellWidget(i, 2, new QLabel("<a href=\"" + ref.getUri() + "\">" + ref.getUri() + "</a>"));
+                checkbox->setCheckState(Qt::Checked);
+                i++;
+            }
         }
+        ui.tableWidget->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 5);
     }
-    ui.tableWidget->verticalHeader()->setDefaultSectionSize(QFontMetrics(QFont()).height() + 5);
+    QPushButton* okButton = ui.buttonBox->button(QDialogButtonBox::Ok);
     ui.importUnmappedBox->setCheckState(bamInfo.isUnmappedSelected() ? Qt::Checked : Qt::Unchecked);
     ui.destinationUrlEdit->setText(sourceUrl.dirPath() + "/" + sourceUrl.fileName() + ".ugenedb");
     ui.sourceUrlView->setText(QDir::cleanPath(sourceUrl.getURLString()));
-    ui.okButton->setFocus();
-    connect(ui.tableWidget, SIGNAL(itemChanged(QTableWidgetItem*)), SLOT(sl_contigCheckChanged(QTableWidgetItem*)));
+    okButton->setFocus();
+    connect(ui.tableWidget, SIGNAL(itemChanged(QTableWidgetItem*)), SLOT(sl_assemblyCheckChanged(QTableWidgetItem*)));
+    adjustSize();
+    resize(500, height());
+
+}
+
+void ConvertToSQLiteDialog::hideReferenceUrl() {
+    ui.refUrlLabel->hide();
+    ui.refUrlEdit->hide();
+    ui.refUrlButton->hide();
+}
+
+void ConvertToSQLiteDialog::hideReferencesTable() {
+    ui.selectionButtons->hide();
+    ui.tableWidget->hide();
+}
+
+void ConvertToSQLiteDialog::hideReferenceMessage() {
+    ui.referenceWarningLabel->setVisible(false);
 }
 
 void ConvertToSQLiteDialog::sl_selectAll() {
@@ -101,22 +145,15 @@ void ConvertToSQLiteDialog::sl_inverseSelection() {
 
 void ConvertToSQLiteDialog::sl_bamInfoButtonClicked() {
     const Header& header = bamInfo.getHeader();
-    QDialog dialog(this);
-    dialog.setWindowTitle(BAMDbiPlugin::tr("%1 file info").arg(sourceUrl.getURLString()));    
-    /*QTextEdit* textEdit = new QTextEdit();
-    QString text = header.getText();
-    textEdit->setPlainText(text.replace("\t@", "\n@"));
-    textEdit->setReadOnly(true);
-    textEdit->setLineWrapMode(QTextEdit::NoWrap);
-    dialog.setLayout(new QVBoxLayout());
-    dialog.layout()->addWidget(textEdit);*/    
-    dialog.setLayout(new QVBoxLayout());    
-    
+    QObjectScopedPointer<QDialog> dialog = new QDialog(this);
+    dialog->setWindowTitle(BAMDbiPlugin::tr("%1 file info").arg(sourceUrl.getURLString()));
+    dialog->setLayout(new QVBoxLayout());
+
     {
         QTableWidget* table = new QTableWidget();
         table->setColumnCount(2);
         table->setHorizontalHeaderLabels(QStringList() << BAMDbiPlugin::tr("Property name") << BAMDbiPlugin::tr("Value"));
-        table->horizontalHeader()->setStretchLastSection(true);                
+        table->horizontalHeader()->setStretchLastSection(true);
         table->verticalHeader()->setVisible(false);
 
         QList<QPair<QString, QString> > list;
@@ -128,8 +165,8 @@ void ConvertToSQLiteDialog::sl_bamInfoButtonClicked() {
             case Header::QueryName: sort = BAMDbiPlugin::tr("Query name"); break;
         }
 
-        list << QPair<QString, QString>(BAMDbiPlugin::tr("URL"), sourceUrl.getURLString()) 
-            << QPair<QString, QString>(BAMDbiPlugin::tr("Format version"), header.getFormatVersion().text) 
+        list << QPair<QString, QString>(BAMDbiPlugin::tr("URL"), sourceUrl.getURLString())
+            << QPair<QString, QString>(BAMDbiPlugin::tr("Format version"), header.getFormatVersion().text)
             << QPair<QString, QString>(BAMDbiPlugin::tr("Sorting order"), sort);
 
         table->setRowCount(list.count());
@@ -144,21 +181,21 @@ void ConvertToSQLiteDialog::sl_bamInfoButtonClicked() {
                 table->setItem(i, 1, item);
             }
         }
-        dialog.layout()->addWidget(table);
+        dialog->layout()->addWidget(table);
     }
 
     {
         QTableWidget* table = new QTableWidget();
         table->setColumnCount(9);
-        table->setHorizontalHeaderLabels(QStringList() << BAMDbiPlugin::tr("Sequencing center") << BAMDbiPlugin::tr("Description") << BAMDbiPlugin::tr("Date") 
-            << BAMDbiPlugin::tr("Library") << BAMDbiPlugin::tr("Programs") << BAMDbiPlugin::tr("Predicted median insert size") << BAMDbiPlugin::tr("Platform/technology") 
+        table->setHorizontalHeaderLabels(QStringList() << BAMDbiPlugin::tr("Sequencing center") << BAMDbiPlugin::tr("Description") << BAMDbiPlugin::tr("Date")
+            << BAMDbiPlugin::tr("Library") << BAMDbiPlugin::tr("Programs") << BAMDbiPlugin::tr("Predicted median insert size") << BAMDbiPlugin::tr("Platform/technology")
             << BAMDbiPlugin::tr("Platform unit") << BAMDbiPlugin::tr("Sample"));
         table->horizontalHeader()->setStretchLastSection(true);
-        
+
         int i=0;
         foreach(const Header::ReadGroup& rg, header.getReadGroups()) {
             QStringList rgList;
-            rgList << QString(rg.getSequencingCenter()) << QString(rg.getDescription()) << QString(rg.getDate().toString()) << QString(rg.getLibrary()) 
+            rgList << QString(rg.getSequencingCenter()) << QString(rg.getDescription()) << QString(rg.getDate().toString()) << QString(rg.getLibrary())
                 << QString(rg.getPlatform()) << QString(rg.getPredictedInsertSize()) << QString(rg.getPlatform()) << QString(rg.getPlatformUnit()) << QString(rg.getSample());
             int j=0;
             foreach(const QString& s, rgList) {
@@ -169,8 +206,8 @@ void ConvertToSQLiteDialog::sl_bamInfoButtonClicked() {
             }
             i++;
         }
-        dialog.layout()->addWidget(new QLabel(BAMDbiPlugin::tr("Read groups:")));
-        dialog.layout()->addWidget(table);
+        dialog->layout()->addWidget(new QLabel(BAMDbiPlugin::tr("Read groups:")));
+        dialog->layout()->addWidget(table);
     }
 
     {
@@ -192,19 +229,44 @@ void ConvertToSQLiteDialog::sl_bamInfoButtonClicked() {
             }
             i++;
         }
-        dialog.layout()->addWidget(new QLabel(BAMDbiPlugin::tr("Programs:")));
-        dialog.layout()->addWidget(table);
-    }        
-    dialog.resize(qMin(600, QApplication::desktop()->screenGeometry().width()), dialog.sizeHint().height());
-    dialog.exec();
+        dialog->layout()->addWidget(new QLabel(BAMDbiPlugin::tr("Programs:")));
+        dialog->layout()->addWidget(table);
+    }
+    dialog->resize(qMin(600, QApplication::desktop()->screenGeometry().width()), dialog->sizeHint().height());
+    dialog->exec();
 }
 
-void ConvertToSQLiteDialog::sl_contigCheckChanged(QTableWidgetItem * item) {
+void ConvertToSQLiteDialog::sl_refUrlButtonClicked() {
+    GUrl currentUrl = ui.refUrlEdit->text();
+    if (ui.refUrlEdit->text().isEmpty()) {
+        currentUrl = sourceUrl;
+    } else {
+        currentUrl = ui.refUrlEdit->text();
+    }
+    QString dir = currentUrl.dirPath() + "/" + currentUrl.baseFileName();
+    QString value;
+    #ifdef Q_OS_MAC
+        if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+            value = U2FileDialog::getOpenFileName(this, QObject::tr("Reference File"), dir, "", 0, QFileDialog::DontUseNativeDialog);
+        } else
+    #endif
+    value = U2FileDialog::getOpenFileName(this, QObject::tr("Reference File"), dir);
+    if(!value.isEmpty()) {
+        ui.refUrlEdit->setText(value);
+        hideReferenceMessage();
+    }
+}
+
+void ConvertToSQLiteDialog::sl_assemblyCheckChanged(QTableWidgetItem * item) {
     bamInfo.getSelected()[item->row()] = (item->checkState() == Qt::Checked);
 }
 
 const GUrl &ConvertToSQLiteDialog::getDestinationUrl()const {
     return destinationUrl;
+}
+
+QString ConvertToSQLiteDialog::getReferenceUrl()const {
+    return ui.refUrlEdit->text();
 }
 
 bool ConvertToSQLiteDialog::addToProject() const {
@@ -213,6 +275,43 @@ bool ConvertToSQLiteDialog::addToProject() const {
 
 void ConvertToSQLiteDialog::hideAddToProjectOption() {
     ui.addToProjectBox->hide();
+}
+
+bool ConvertToSQLiteDialog::referenceFromFile() {
+    return ui.refUrlEdit->isVisible();
+}
+
+bool ConvertToSQLiteDialog::checkReferencesState() {
+    if (referenceFromFile()) {
+        if (ui.refUrlEdit->text().isEmpty()) {
+            QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Please select the file with the reference sequence"));
+            return false;
+        }
+    } else {
+        bool selected = false;
+        foreach(const bool& i, bamInfo.getSelected()) {
+            if(i) {
+                selected = true;
+                break;
+            }
+        }
+        if(!selected && !bamInfo.isUnmappedSelected()) {
+            QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Please select assemblies to be imported"));
+            return false;
+        }
+    }
+    return true;
+}
+
+namespace {
+    bool checkWritePermissions(const QString &fileUrl) {
+        QDir dir = QFileInfo(fileUrl).dir();
+        if (!dir.exists()) {
+            bool created = dir.mkpath(dir.absolutePath());
+            CHECK(created, false);
+        }
+        return TmpDirChecker::checkWritePermissions(dir.absolutePath());
+    }
 }
 
 void ConvertToSQLiteDialog::accept() {
@@ -224,19 +323,14 @@ void ConvertToSQLiteDialog::accept() {
     } else if(!destinationUrl.isLocalFile()) {
         ui.destinationUrlEdit->setFocus(Qt::OtherFocusReason);
         QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Destination URL must point to a local file"));
+    } else if (!checkWritePermissions(destinationUrl.getURLString())) {
+        ui.destinationUrlEdit->setFocus(Qt::OtherFocusReason);
+        QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Destination URL directory has not write permissions"));
     } else {
-        bool selected = false;
-        foreach(const bool& i, bamInfo.getSelected()) {
-            if(i) {
-                selected = true;
-                break;
-            }
-        }
-        if(!selected && !bamInfo.isUnmappedSelected()) {
-            QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Please select contigs to import"));
+        if (!checkReferencesState()) {
             return;
         }
-        
+
         Project * prj = AppContext::getProject();
         if(prj != NULL) {
             Document * destDoc = prj->findDocumentByURL(destinationUrl);
@@ -247,7 +341,6 @@ void ConvertToSQLiteDialog::accept() {
                 return;
             }
         }
-
         QFileInfo destinationDir(QFileInfo(destinationUrl.getURLString()).path());
         if(!destinationDir.isWritable()) {
             ui.destinationUrlEdit->setFocus(Qt::OtherFocusReason);
@@ -256,37 +349,45 @@ void ConvertToSQLiteDialog::accept() {
         }
 
         if(QFile::exists(destinationUrl.getURLString())) {
-            int result = QMessageBox::question(this, windowTitle(), 
+            int result = QMessageBox::question(this, windowTitle(),
                                                BAMDbiPlugin::tr("Destination file already exists.\n"
                                                                 "To overwrite the file, press 'Replace'.\n"
-                                                                "To append data to existing file press 'Append'."), 
-                                               BAMDbiPlugin::tr("Replace"), 
-                                               BAMDbiPlugin::tr("Append"), 
+                                                                "To append data to existing file press 'Append'."),
+                                               BAMDbiPlugin::tr("Replace"),
+                                               BAMDbiPlugin::tr("Append"),
                                                BAMDbiPlugin::tr("Cancel"), 2);
             switch(result) {
-                case 0: 
-                    {
-                        bool ok = QFile::remove(destinationUrl.getURLString());
-                        if(!ok) {
-                            QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Destination file '%1' cannot be removed").arg(destinationUrl.getURLString()));
-                            return;
-                        }    
+            case 0:
+                {
+                    bool ok = QFile::remove(destinationUrl.getURLString());
+                    if(!ok) {
+                        QMessageBox::critical(this, windowTitle(), BAMDbiPlugin::tr("Destination file '%1' cannot be removed").arg(destinationUrl.getURLString()));
+                        return;
                     }
-                case 1:
-                    QDialog::accept();
-                    break;
+                }
+                QDialog::accept();
+                break;
+            case 1:
+                QDialog::accept();
+                break;
             }
         } else {
             QDialog::accept();
         }
-        
+
     }
 }
 
 static const QString DIR_HELPER_DOMAIN("ConvertToSQLiteDialog");
 void ConvertToSQLiteDialog::on_destinationUrlButton_clicked() {
     QString dir = sourceUrl.dirPath() + "/" + sourceUrl.baseFileName();
-    QString returnedValue = QFileDialog::getSaveFileName(this, BAMDbiPlugin::tr("Destination UGENEDB File"), dir, BAMDbiPlugin::tr("UGENEDB Files (*.ugenedb);;All Files (*)"), NULL, QFileDialog::DontConfirmOverwrite);
+        QString returnedValue;
+    #ifdef Q_OS_MAC
+        if (qgetenv("UGENE_GUI_TEST").toInt() == 1 && qgetenv("UGENE_USE_NATIVE_DIALOGS").toInt() == 0) {
+            returnedValue = U2FileDialog::getSaveFileName(this, BAMDbiPlugin::tr("Destination UGENEDB File"), dir, BAMDbiPlugin::tr("UGENEDB Files (*.ugenedb);;All Files (*)"), NULL, QFileDialog::DontConfirmOverwrite | QFileDialog::DontUseNativeDialog);
+        } else
+    #endif
+    returnedValue = U2FileDialog::getSaveFileName(this, BAMDbiPlugin::tr("Destination UGENEDB File"), dir, BAMDbiPlugin::tr("UGENEDB Files (*.ugenedb);;All Files (*)"), NULL, QFileDialog::DontConfirmOverwrite);
     if(!returnedValue.isEmpty()) {
         ui.destinationUrlEdit->setText(returnedValue);
     }

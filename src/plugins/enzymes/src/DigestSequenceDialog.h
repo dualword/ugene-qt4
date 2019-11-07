@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,24 +22,31 @@
 #ifndef _U2_DIGEST_SEQUENCE_DIALOG_H_
 #define _U2_DIGEST_SEQUENCE_DIALOG_H_
 
-#include <U2Core/U2Region.h>
-#include <U2Gui/MainWindow.h>
+#include <QtCore/QTimer>
 
-#include <ui/ui_DigestSequenceDialog.h>
-
-#include <U2Algorithm/EnzymeModel.h>
-#include "EnzymesQuery.h"
-
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
 #include <QtGui/QTreeWidgetItem>
-#include <QtCore/QTimer>
+#else
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QTreeWidgetItem>
+#endif
+
+#include <U2Algorithm/EnzymeModel.h>
+
+#include <U2Core/U2Region.h>
+
+#include <U2Gui/MainWindow.h>
+
+#include "EnzymesQuery.h"
+#include "ui/ui_DigestSequenceDialog.h"
 
 namespace U2 {
 
+class AnnotationTableObject;
 class ADVSequenceObjectContext;
 class U2SequenceObject;
 class CreateAnnotationWidgetController;
-class AnnotationTableObject;
 
 class DigestSequenceDialog : public QDialog, public Ui_DigestSequenceDialog {
     Q_OBJECT
@@ -52,15 +59,15 @@ private slots:
     void sl_addAllPushButtonClicked();
     void sl_removePushButtonClicked();
     void sl_clearPushButtonClicked();
-	void sl_addAnnBtnClicked();
-	void sl_removeAnnBtnClicked();
-	void sl_removeAllAnnsBtnClicked();
+    void sl_addAnnBtnClicked();
+    void sl_removeAnnBtnClicked();
+    void sl_removeAllAnnsBtnClicked();
     void sl_timerUpdate();
     void sl_taskStateChanged();
-    
+
 private:
     void addAnnotationWidget();
-	void searchForAnnotatedEnzymes(ADVSequenceObjectContext* ctx);
+    void searchForAnnotatedEnzymes(ADVSequenceObjectContext* ctx);
     void updateAvailableEnzymeWidget();
     void updateSelectedEnzymeWidget();
     void setUiEnabled(bool enabled);
@@ -70,7 +77,7 @@ private:
 
     ADVSequenceObjectContext*           seqCtx;
     U2SequenceObject*                  dnaObj;
-    AnnotationTableObject*              sourceObj;
+    AnnotationTableObject *               sourceObj;
     EnzymesSelectorDialogHandler        enzymesSelectorHandler;
     CreateAnnotationWidgetController*   ac;
     QTimer*                             timer;
@@ -81,9 +88,8 @@ private:
     int                                 animationCounter;
     static const QString                WAIT_MESSAGE;
     static const QString                HINT_MESSAGE;
-    
+    QPushButton* okButton;
 };
-
 
 } //namespace
 

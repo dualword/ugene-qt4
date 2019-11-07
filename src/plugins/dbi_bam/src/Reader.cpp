@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,6 +19,8 @@
  * MA 02110-1301, USA.
  */
 
+#include <SamtoolsAdapter.h>
+
 #include <U2Core/Log.h>
 
 #include "BAMDbiPlugin.h"
@@ -30,11 +32,47 @@ namespace U2 {
 namespace BAM {
 
 BamReader::AlignmentReader::AlignmentReader(BamReader* _reader, int _id, int _blockSize) : id(_id), blockSize(_blockSize), r(_reader) {
-    
+
 }
 
 int BamReader::AlignmentReader::getId() {
     return id;
+}
+
+bool BamReader::AlignmentReader::readNumber(char type, QVariant &value, int &bytesRead) {
+    switch(type) {
+        case 'c':
+            value = (int)r->readInt8();
+            bytesRead += 1;
+            break;
+        case 'C':
+            value = (int)r->readUint8();
+            bytesRead += 1;
+            break;
+        case 's':
+            value = (int)r->readInt16();
+            bytesRead += 2;
+            break;
+        case 'S':
+            value = (int)r->readUint16();
+            bytesRead += 2;
+            break;
+        case 'i':
+            value = (int)r->readInt32();
+            bytesRead += 4;
+            break;
+        case 'I':
+            value = (uint)r->readUint32();
+            bytesRead += 4;
+            break;
+        case 'f':
+            value = r->readFloat32();
+            bytesRead += 4;
+            break;
+        default:
+            return false;
+    }
+    return true;
 }
 
 Alignment BamReader::AlignmentReader::read() {
@@ -107,6 +145,7 @@ Alignment BamReader::AlignmentReader::read() {
             throw InvalidFormatException(BAMDbiPlugin::tr("Invalid mate reference id: %1").arg(nextReferenceId));
         }
         alignment.setNextReferenceId(nextReferenceId);
+        alignment.setNextReferenceName(r->referencesMap.key(nextReferenceId));
     }
     {
         int nextPosition = r->readInt32();
@@ -252,92 +291,13 @@ Alignment BamReader::AlignmentReader::read() {
             }
         }
         if(hasQuality) {
-            alignment.setQuality(quality);
+            alignment.setQuality(SamtoolsAdapter::samtools2quality(quality));
         }
     }
     {
-        QMap<QByteArray, QVariant> optionalFields;
         int toRead = blockSize - 32 - nameLength - 4*cigarLength - (length + 1)/2 - length;
-        int bytesRead = 0;
-        while(bytesRead < toRead) {
-            QByteArray tag = r->readBytes(2);
-            if(!QRegExp("[A-Za-z][A-Za-z0-9]").exactMatch(tag)) {
-                throw InvalidFormatException(BAMDbiPlugin::tr("Invalid optional field tag: %1").arg(QString(tag)));
-            }
-            char type = r->readChar();
-            bytesRead += 3;
-            QVariant value;
-            switch(type) {
-            case 'A':
-                value = r->readChar();
-                bytesRead += 1;
-                break;
-            case 'c':
-                value = (int)r->readInt8();
-                bytesRead += 1;
-                break;
-            case 'C':
-                value = (int)r->readUint8();
-                bytesRead += 1;
-                break;
-            case 's':
-                value = (int)r->readInt16();
-                bytesRead += 2;
-                break;
-            case 'S':
-                value = (int)r->readUint16();
-                bytesRead += 2;
-                break;
-            case 'i':
-                value = (int)r->readInt32();
-                bytesRead += 4;
-                break;
-            case 'I':
-                value = (int)r->readUint32();
-                bytesRead += 4;
-                break;
-            case 'f':
-                value = r->readFloat32();
-                bytesRead += 4;
-                break;
-            case 'Z':
-                {
-                    QByteArray string = r->readString();
-                    value = string;
-                    bytesRead += string.size() + 1;
-                    break;
-                }
-            case 'H':
-                {
-                    QByteArray hexString = r->readString();
-                    if(0 != (hexString.size()%2)) {
-                        throw InvalidFormatException(BAMDbiPlugin::tr("Odd hex string length: %1").arg(hexString.size()));
-                    }
-                    QByteArray data(hexString.size()/2, 0);
-                    for(int index = 0;index < hexString.size();index++) {
-                        int digitValue = QChar(hexString[index]).digitValue();
-                        if((-1 == digitValue) || (digitValue > 0xf)) {
-                            throw InvalidFormatException(BAMDbiPlugin::tr("Invalid hex string digit: %1").arg(hexString[index]));
-                        }
-                        if(0 == (index%2)) {
-                            data[index/2] = data[index/2] | (digitValue << 4);
-                        } else {
-                            data[index/2] = data[index/2] | digitValue;
-                        }
-                    }
-                    value = data;
-                    bytesRead += hexString.size() + 1;
-                    break;
-                }
-            default:
-                throw InvalidFormatException(BAMDbiPlugin::tr("Invalid optional field value type: %1").arg(type));
-            }
-            optionalFields.insert(tag, value);
-        }
-        if(bytesRead > toRead) {
-            throw InvalidFormatException(BAMDbiPlugin::tr("Invalid block size: %1").arg(blockSize));
-        }
-        alignment.setOptionalFields(optionalFields);
+        QList<U2AuxData> aux = SamtoolsAdapter::string2aux(r->readBytes(toRead));
+        alignment.setAuxData(aux);
     }
     return alignment;
 }
@@ -547,7 +507,8 @@ void BamReader::readHeader() {
                     if(!QRegExp("[A-Za-z][A-Za-z0-9]").exactMatch(fieldTag)) {
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid header field tag: %1").arg(QString(fieldTag)));
                     }
-                    if(!QRegExp("[ -~]+").exactMatch(fieldValue)) {
+                    // CL and PN tags of can contain any string
+                    if(fieldTag!="CL" && fieldTag!="PN" && !QRegExp("[ -~]+").exactMatch(fieldValue)) {
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid %1-%2 value: %3").arg(QString(recordTag)).arg(QString(fieldTag)).arg(QString(fieldValue)));
                     }
                     if(!fields.contains(fieldTag)) {
@@ -616,7 +577,7 @@ void BamReader::readHeader() {
                 if(fields.contains("M5")) {
                     QByteArray value = fields["M5"];
                     //[a-f] is a workaround (not matching to SAM-1.3 spec) to open 1000 Genomes project BAMs
-                    if(!QRegExp("[0-9A-Fa-f]+").exactMatch(value)) { 
+                    if(!QRegExp("[0-9A-Fa-f]+").exactMatch(value)) {
                         throw InvalidFormatException(BAMDbiPlugin::tr("Invalid SQ-M5 value: %1").arg(QString(value)));
                     }
                     reference->setMd5(fields["M5"]);

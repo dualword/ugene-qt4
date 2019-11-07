@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,28 +23,22 @@
 #define _U2_GENBANK_LOCATION_PARSER_H
 
 #include <U2Core/global.h>
-#include <U2Core/U2Region.h>
-#include <U2Core/U2Annotation.h>
-
-#include <QtCore/QList>
 
 namespace U2 {
 
-class AnnotationData;
+class U2Location;
 
 namespace Genbank {
 
 class U2FORMATS_EXPORT LocationParser : public QObject {
     Q_OBJECT
 public:
-    /**/
-    static void parseLocation(const char* str, int len, U2Location& location, qint64 seqlenForCircular = -1);
-
-    static QString buildLocationString(const AnnotationData* a);
-
-    static QString buildLocationString(const QVector<U2Region>& regions);
+    static QString parseLocation(const char* str, int len, U2Location& location, qint64 seqlenForCircular = -1);
 };
 
 
-}}//namespace
+}
+
+}//namespace
+
 #endif

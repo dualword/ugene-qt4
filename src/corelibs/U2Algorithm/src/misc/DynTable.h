@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -41,8 +41,8 @@ public:
         Strategy_Max,
         Strategy_Min
     };
-    DynTable(int n, int m, bool _allowInsDel) 
-        : RollingMatrix(n, m), allowInsDel(_allowInsDel) 
+    DynTable(int n, int m, bool _allowInsDel)
+        : RollingMatrix(n, m), allowInsDel(_allowInsDel)
     {
         init();
         scores.match = DEFAULT_SCORE_MATCH;
@@ -63,11 +63,11 @@ public:
     int getLast() const {
         return get_value(n-1, m-1);
     }
-    
+
     int getLastLen() const {
         return getLen(n-1, m-1);
     }
-    
+
     void match(int y, bool ok) {
         match( n-1, y, ok );
     }
@@ -77,6 +77,12 @@ public:
         if (x<0) {return y+1;}
         return RollingMatrix::get(x, y);
     }
+
+    static quint64 estimateTableSizeInBytes(const int n, const int m)
+    {
+        return RollingMatrix::getMatrixSizeInBytes(n, m);
+    }
+
 protected:
     void match( int x, int y, bool ok )
     {
@@ -99,12 +105,12 @@ protected:
         set_pair( x, y, res, ok );
     }
 
-    int getLen(int x, int y) const { 
+    int getLen(int x, int y) const {
         if (y == -1) {
             return 0;
         }
         assert(x!=-1);
-        
+
         if (!allowInsDel) {
             return 1 + getLen(x-1, y-1);
         }
@@ -113,16 +119,16 @@ protected:
         int d = get_value(x-1, y-1);
         int l = get_value(x-1, y);
         int u = get_value(x, y-1);
-                
+
         if( match && v == d + scores.match ) {
             return 1 + getLen( x-1, y-1 );
         }
         if ( v == u + scores.del ) { //prefer deletion in X sequence to minimize result len
             return getLen(x, y-1);
-        } 
+        }
         if ( !match && v == d + scores.mismatch ) { // prefer mismatch instead of insertion into X sequence
             return 1 + getLen(x-1, y-1);
-        } 
+        }
         assert( v == l + scores.ins ); Q_UNUSED(l);
         return 1 + getLen(x-1, y); // this is insertion into X sequence
     }

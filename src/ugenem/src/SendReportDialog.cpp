@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -20,12 +20,54 @@
  */
 
 #include "SendReportDialog.h"
-#include <QMessageBox>
-#include <QFile>
+
+#include "Utils.h"
+
+#include <QtCore/QBuffer>
+#include <QtCore/QUrl>
+#include <QtCore/QTime>
+#include <QtCore/QDate>
+#include <QtCore/QEventLoop>
+#include <QtCore/QProcess>
+#include <QtCore/QSysInfo>
+#include <QtCore/QFile>
+#include <QtCore/QProcess>
+#include <QtCore/QThread>
+
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkProxy>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QNetworkRequest>
+
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QMessageBox>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
+
+#ifdef Q_OS_WIN
+#include <intrin.h>
+#include <windows.h>
+#include <Psapi.h>
+#include <Winbase.h> //for IsProcessorFeaturePresent
+#endif
+#if defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
+#include <unistd.h> // for sysconf(3)
+#endif
+
 #define HOST_URL "http://ugene.unipro.ru"
 //#define HOST_URL "http://127.0.0.1"
+#ifdef Q_OS_LINUX
+#define DESTINATION_URL_KEEPER_PAGE "/crash_reports_dest_lin.html"
+#elif defined(Q_OS_UNIX)
+#define DESTINATION_URL_KEEPER_PAGE "/crash_reports_dest_unx.html"
+#elif defined(Q_OS_WIN)
+#define DESTINATION_URL_KEEPER_PAGE "/crash_reports_dest_win.html"
+#elif defined(Q_OS_MAC)
+#define DESTINATION_URL_KEEPER_PAGE "/crash_reports_dest_mac.html"
+#else
 #define DESTINATION_URL_KEEPER_PAGE "/crash_reports_dest.html"
-
+#endif
 
 void ReportSender::parse(const QString &htmlReport) {
     report = "Exception with code ";
@@ -37,9 +79,19 @@ void ReportSender::parse(const QString &htmlReport) {
 
         report += "Operation system: ";
         report += getOSVersion() + "\n\n";
+        report += "CPU Info: ";
+        report += getCPUInfo() + "\n\n";
+
+        report += "Memory Info: ";
+        report += QString::number(getTotalPhysicalMemory()) + "Mb\n\n";
 
         report += "UGENE version: ";
-        report += list.takeFirst() + "\n\n";
+#ifdef UGENE_VERSION_SUFFIX
+        //Example of usage on linux: DEFINES+='UGENE_VERSION_SUFFIX=\\\"-ppa\\\"'
+        report += list.takeFirst() + QString(UGENE_VERSION_SUFFIX) + getUgeneBitCount() + "\n\n";
+#else
+        report += list.takeFirst() + getUgeneBitCount() + "\n\n";
+#endif
 
         report += "ActiveWindow: ";
         report += list.takeFirst() + "\n\n";
@@ -50,7 +102,7 @@ void ReportSender::parse(const QString &htmlReport) {
         report += "Task tree:\n";
         report += list.takeFirst() + "\n";
 
-#if defined (Q_OS_WIN) 
+#if defined (Q_OS_WIN)
         report += list.takeLast();
 #endif
     } else {
@@ -78,70 +130,137 @@ void ReportSender::parse(const QString &htmlReport) {
 
 bool ReportSender::send(const QString &additionalInfo) {
     report += additionalInfo;
-    SyncHTTP http(QUrl(HOST_URL).host());
-    QString reportsPath = http.syncGet( DESTINATION_URL_KEEPER_PAGE );
+
+    QNetworkAccessManager* netManager=new QNetworkAccessManager(this);
+    QNetworkProxy proxy = QNetworkProxy::applicationProxy ();
+    netManager->setProxy(proxy);
+
+    connect(netManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(sl_replyFinished(QNetworkReply*)));
+    //check destination availability
+
+    QNetworkReply *reply = netManager->get(QNetworkRequest(QString(HOST_URL)+QString(DESTINATION_URL_KEEPER_PAGE)));
+    loop.exec();
+    QString reportsPath = QString(reply->readAll());
     if( reportsPath.isEmpty() ) {
         return false;
     }
-    if( QHttp::NoError != http.error() ) {
+    if( reply->error() != QNetworkReply::NoError ) {
         return false;
     }
 
-    SyncHTTP http2( QUrl(reportsPath).host() );
-    report.replace(' ', "_");
-    report.replace('\n', "|");
-    report.replace('\t', "<t>");
-    report.replace("#", "");
-    report.replace("*", "<p>");
-    report.replace("?", "-");
-    report.replace("~", "%7E");
-    report.replace("&", "<amp>");
-    QString fullPath = reportsPath;
-    fullPath += "?data=";
-    fullPath += report.toUtf8();
-    QString res = http2.syncGet(fullPath); 
-    if( QHttp::NoError != http.error() ) {
+    //send report
+    QString data = "data=" + QUrl::toPercentEncoding(report);
+    QNetworkRequest request(reportsPath);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("application/x-www-form-urlencoded"));
+    reply = netManager->post(request, data.toUtf8());
+    loop.exec();
+    if( reply->error() != QNetworkReply::NoError ) {
         return false;
     }
-
     return true;
 }
+void ReportSender::sl_replyFinished(QNetworkReply *) {
+    loop.exit();
+}
 
-SendReportDialog::SendReportDialog(const QString &report, QDialog *d): 
-QDialog(d){
+SendReportDialog::SendReportDialog(const QString &report, QDialog *d):
+QDialog(d) {
     setupUi(this);
     sender.parse(report);
     errorEdit->setText(sender.getReport());
-    connect(additionalInfoTextEdit,SIGNAL(textChanged()), 
+    connect(additionalInfoTextEdit,SIGNAL(textChanged()),
 SLOT(sl_onMaximumMessageSizeReached()));
-    connect(sendButton, SIGNAL(clicked()), SLOT(sl_onOKclicked()));
-    connect(cancelButton, SIGNAL(clicked()), SLOT(reject()));
+    connect(sendButton, SIGNAL(clicked()), SLOT(sl_onOkClicked()));
+    connect(cancelButton, SIGNAL(clicked()), SLOT(sl_onCancelClicked()));
+
+    QFile file(getUgeneExecutablePath());
+    if (!file.exists()) {
+        checkBox->hide();
+        checkBox->setChecked(false);
+    }
 }
-void SendReportDialog::sl_onMaximumMessageSizeReached(){
-    if(additionalInfoTextEdit->toPlainText().length() > 500 ){
+
+void SendReportDialog::sl_onCancelClicked() {
+    if (checkBox->isChecked()) {
+        openUgene();
+    }
+    this->reject();
+}
+
+void SendReportDialog::sl_onMaximumMessageSizeReached() {
+    if(additionalInfoTextEdit->toPlainText().length() > 500 ) {
         QMessageBox msgBox;
         msgBox.setWindowTitle(tr("Warning"));
         msgBox.setText(tr("The \"Additional information\" message is too long."));
-        msgBox.setInformativeText(tr("You can also send the description of the problem to UGENE team"
-                                     "by e-mail <ahref=\"mailto:ugene@unipro.ru\">ugene@unipro.ru</a>."));
+        msgBox.setInformativeText(tr("You can also send the description of the problem to UGENE team "
+                                     "by e-mail <a href=\"mailto:ugene@unipro.ru\">ugene@unipro.ru</a>."));
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.setDefaultButton(QMessageBox::Ok);
         msgBox.exec();
         additionalInfoTextEdit->undo();
     }
 }
-void SendReportDialog::sl_onOKclicked() {
 
+QString SendReportDialog::getUgeneExecutablePath() const {
+    QString name;
+    bool isWin = false;
+    Q_UNUSED(isWin);
+#ifdef Q_OS_UNIX
+    name = "ugene";
+#endif
+#ifdef Q_OS_WIN32
+    isWin = true;
+    name = "ugeneui.exe";
+#endif
+#ifdef Q_OS_MAC
+    name = "ugeneui";
+#endif
+#ifdef QT_DEBUG
+    if (isWin) {
+        name = "ugeneuid.exe";
+    } else {
+        name.append("d");
+    }
+#endif
+    return QCoreApplication::applicationDirPath() + "/" + name;
+}
+
+QStringList SendReportDialog::getParameters() const {
+    QStringList parameters;
+#ifdef Q_OS_UNIX
+    parameters << "-ui";
+#endif
+    if (Utils::hasDatabaseUrl()) {
+        parameters << Utils::SESSION_DB_UGENE_ARG + "\"" + Utils::getDatabaseUrl() + "\"";
+    }
+    return parameters;
+}
+
+void SendReportDialog::openUgene() const {
+    QString command = getUgeneExecutablePath();
+    QStringList parameters = getParameters();
+    QProcess::startDetached(command, parameters);
+}
+
+void SendReportDialog::sl_onOkClicked() {
+    sendButton->setEnabled(false);
+    cancelButton->setEnabled(false);
+    checkBox->setEnabled(false);
     QString htmlReport = "";
-    if(!emailLineEdit->text().isEmpty()){
+    if(!emailLineEdit->text().isEmpty()) {
         htmlReport += "\nUser email: ";
         htmlReport += emailLineEdit->text() + "\n";
     }
 
-    if(!additionalInfoTextEdit->toPlainText().isEmpty()){
+    if(!additionalInfoTextEdit->toPlainText().isEmpty()) {
         htmlReport += "\nAdditional info: \n";
         htmlReport += additionalInfoTextEdit->toPlainText() + "\n";
     }
+
+    if (checkBox->isChecked()) {
+        openUgene();
+    }
+
     if(sender.send(htmlReport)) {
         accept();
     }
@@ -151,43 +270,219 @@ void SendReportDialog::sl_onOKclicked() {
 QString ReportSender::getOSVersion() {
     QString result;
 #if defined(Q_OS_WIN32)
-    result = "Windows x86";
-#elif defined(Q_OS_WIN64)
-    result = "Windows x64";
+    result = "Windows ";
+    switch (QSysInfo::WindowsVersion) {
+    case QSysInfo::WV_32s:
+        result += "3.1 with Win 32s";
+        break;
+    case QSysInfo::WV_95:
+        result += "95";
+        break;
+    case QSysInfo::WV_98:
+        result += "98";
+        break;
+    case QSysInfo::WV_Me:
+        result += "Me";
+        break;
+    case QSysInfo::WV_NT:
+        result += "NT (operating system version 4.0)";
+        break;
+    case QSysInfo::WV_2000:
+        result += "2000 (operating system version 5.0)";
+        break;
+    case QSysInfo::WV_XP:
+        result += "XP (operating system version 5.1)";
+        break;
+    case QSysInfo::WV_2003:
+        result += "Server 2003, Server 2003 R2, Home Server, XP Professional x64 Edition (operating system version 5.2)";
+        break;
+    case QSysInfo::WV_VISTA:
+        result += "Vista, Server 2008 (operating system version 6.0)";
+        break;
+    case QSysInfo::WV_WINDOWS7:
+        result += "7, Server 2008 R2 (operating system version 6.1)";
+        break;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+    case QSysInfo::WV_WINDOWS8:
+        result += "8 (operating system version 6.2)";
+        break;
+#endif
+    default:
+        result += "unknown";
+        break;
+    }
+
 #elif defined(Q_OS_LINUX)
     result = "Linux";
+#elif defined(Q_OS_FREEBSD)
+    result = "FreeBSD";
 #elif defined(Q_OS_MAC)
-    result = "MACOS";
+    result = "Mac ";
+    switch (QSysInfo::MacintoshVersion) {
+    case QSysInfo::MV_9:
+        result += "Mac OS 9 (unsupported)";
+        break;
+    case QSysInfo::MV_10_0:
+        result += "OS X 10.0 (unsupported)";
+        break;
+    case QSysInfo::MV_10_1:
+        result += "OS X 10.1 (unsupported)";
+        break;
+    case QSysInfo::MV_10_2:
+        result += "OS X 10.2 (unsupported)";
+        break;
+    case QSysInfo::MV_10_3:
+        result += "OS X 10.3";
+        break;
+    case QSysInfo::MV_10_4:
+        result += "OS X 10.4";
+        break;
+    case QSysInfo::MV_10_5:
+        result += "OS X 10.5";
+        break;
+    case QSysInfo::MV_10_6:
+        result += "OS X 10.6";
+        break;
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 8, 0))
+    case QSysInfo::MV_10_7:
+        result += "OS X 10.7";
+        break;
+    case QSysInfo::MV_10_8:
+        result += "OS X 10.8";
+        break;
+#else
+    case 0x0009:
+        result += "OS X 10.7";
+        break;
+    case 0x000A:
+        result += "OS X 10.8";
+        break;
+#endif
+    case 0x000B:
+        result += "OS X 10.9";
+        break;
+    case 0x000C:
+        result += "OS X 10.10";
+        break;
+    default:
+        result += "unknown";
+        break;
+    }
 #else
     result = "Unsupported OS";
+#endif
+
+#ifdef Q_OS_MAC
+    result += (Utils::isSystem64bit() ? " x64" :" x86");
+#endif
+
+    return result;
+}
+
+int ReportSender::getTotalPhysicalMemory() {
+    int totalPhysicalMemory = 0;
+
+#if defined(Q_OS_WIN32)
+    MEMORYSTATUSEX memory_status;
+    ZeroMemory(&memory_status, sizeof(MEMORYSTATUSEX));
+    memory_status.dwLength = sizeof(memory_status);
+    if (GlobalMemoryStatusEx(&memory_status)) {
+        totalPhysicalMemory = memory_status.ullTotalPhys / (1024 * 1024);
+    }
+
+#elif defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
+    long pagesize = sysconf(_SC_PAGESIZE);
+    long numpages = sysconf(_SC_PHYS_PAGES);
+
+    // Assume that page size is always a multiple of 1024, so it can be
+    // divided without losing any precision.  On the other hand, number
+    // of pages would hardly overflow `long' when multiplied by a small
+    // number (number of pages / 1024), so we should be safe here.
+    totalPhysicalMemory = (int)(numpages * (pagesize / 1024) / 1024);
+
+#elif defined(Q_OS_MAC)
+// TODO
+     QProcess p;
+     p.start("sh", QStringList() << "-c" << "sysctl hw.memsize | awk -F ' ' '{print $2}'");
+     p.waitForFinished();
+     QString system_info = p.readAllStandardOutput();
+     p.close();
+     bool ok = false;
+     qlonglong output_mem = system_info.toLongLong(&ok);
+     if (ok) {
+         totalPhysicalMemory = output_mem / (1024 * 1024);
+     }
+#endif
+
+    return totalPhysicalMemory;
+}
+
+#ifndef Q_OS_MAC
+void cpuID(unsigned i, unsigned regs[4]) {
+#ifdef _WIN32
+  __cpuid((int *)regs, (int)i);
+
+#else
+  asm volatile
+    ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
+     : "a" (i), "c" (0));
+  // ECX is set to zero for CPUID function 4
+#endif
+}
+#endif
+
+QString ReportSender::getCPUInfo() {
+    QString result;
+#ifndef Q_OS_MAC
+    unsigned regs[4];
+
+    // Get vendor
+    char vendor[12];
+    cpuID(0, regs);
+    ((unsigned *)vendor)[0] = regs[1]; // EBX
+    ((unsigned *)vendor)[1] = regs[3]; // EDX
+    ((unsigned *)vendor)[2] = regs[2]; // ECX
+    QString cpuVendor=QString(vendor);
+    result+= "\n  Vendor :"+ cpuVendor;
+
+    // Get CPU features
+    cpuID(1, regs);
+    unsigned cpuFeatures = regs[3]; // EDX
+
+    // Logical core count per CPU
+    cpuID(1, regs);
+    unsigned logical = (regs[1] >> 16) & 0xff; // EBX[23:16]
+
+    result+= "\n  logical cpus: " + QString::number(logical);
+    unsigned cores = 0;
+
+    if (cpuVendor.contains("GenuineIntel")) {
+      // Get DCP cache info
+      cpuID(4, regs);
+      cores = ((regs[0] >> 26) & 0x3f) + 1; // EAX[31:26] + 1
+
+    } else if (cpuVendor.contains("AuthenticAMD")) {
+      // Get NC: Number of CPU cores - 1
+      cpuID(0x80000008, regs);
+      cores = ((unsigned)(regs[2] & 0xff)) + 1; // ECX[7:0] + 1
+    }
+
+    result+= "\n  cpu cores: " + QString::number(cores);
+
+    // Detect hyper-threads..
+    bool hyperThreads = cpuFeatures & (1 << 28) && cores < logical;
+
+    result+= "\n  hyper-threads: " + QString(hyperThreads ? "true" : "false");
+#else
+    result="unknown";
 #endif
     return result;
 }
 
-
-SyncHTTP::SyncHTTP(const QString& hostName, quint16 port, QObject* 
-parent)
-: QHttp(hostName,port,parent), requestID(-1)
-{
-    connect(this,SIGNAL(requestFinished(int,bool)),SLOT(finished(int,bool)));
-}
-
-QString SyncHTTP::syncGet(const QString& path) {
-    QBuffer to;
-    requestID = get(path, &to);
-    loop.exec();
-    return QString(to.data());
-}
-
-QString SyncHTTP::syncPost(const QString& path, const QByteArray& data) 
-{
-    QBuffer to;
-    requestID = post(path, data, &to);
-    loop.exec();
-    return QString(to.data());
-}
-
-
-void SyncHTTP::finished(int, bool) {
-    loop.exit();
+QString ReportSender::getUgeneBitCount() const {
+#if defined(UGENE_X86_64)
+    return " x64";
+#else
+    return " x86";
+#endif
 }

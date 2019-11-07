@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #ifndef _U2_GENBANK_PLAIN_TEXT_FORMAT_H_
 #define _U2_GENBANK_PLAIN_TEXT_FORMAT_H_
 
+#include <U2Core/GenbankFeatures.h>
+
 #include "EMBLGenbankAbstractDocument.h"
 
 namespace U2 {
@@ -32,19 +34,42 @@ public:
     GenbankPlainTextFormat(QObject* p);
 
     virtual void storeDocument(Document* doc, IOAdapter* io, U2OpStatus& os);
-    
+
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& = GUrl()) const;
 
-    virtual bool isStreamingSupport() {return true;}
+    virtual bool isStreamingSupport();
 
-    virtual void storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os);
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
+
+    static bool checkCircularity(const GUrl& filePath, U2OpStatus& os);
 
 protected:
+    typedef QPair<QString, QString> StrPair;
 
-    bool readIdLine(ParserState*);
+    static bool readIdLine(ParserState*);
     bool readEntry(ParserState*, U2SequenceImporter&,int& seqSize,int& fullSeqSize,bool merge, int gapSize,U2OpStatus&);
     void readHeaderAttributes(QVariantMap& tags, DbiConnection& con, U2SequenceObject* so);
-    //void readAnnotations(ParserState*, int offset);
+
+    void writeAnnotations(IOAdapter *io, const QList<GObject*> &aos, U2OpStatus &si);
+    QString genLocusString(const QList<GObject*> &aos, U2SequenceObject* so, const QString &locusStrFromAttr);
+    bool writeKeyword(IOAdapter* io, U2OpStatus& os, const QString& key, const QString& value, bool wrap = true /*TODO*/);
+    void writeSequence(IOAdapter* io, U2SequenceObject* ao, const QList<U2Region> &lowerCaseRegs, U2OpStatus& si);
+    void prepareMultiline(QString& line, int spacesOnLineStart, bool lineBreakOnlyOnSpace = true, bool newLineAtTheEnd = true, int maxLineLen = 79);
+    void writeQualifier(const QString& name, const QString& val, IOAdapter* io, U2OpStatus& si, const char* spaceLine);
+    QString prepareQualifierSingleString(const QString &qualifierName, const QString &qualifierValue) const;
+    QList<StrPair> formatKeywords(const QVariantMap &varMap, bool withLocus = false);
+    virtual QList<StrPair> processCommentKeys(QMultiMap<QString, QVariant> &tags);
+
+    bool isNcbiLikeFormat() const;
+    void createCommentAnnotation(const QStringList &comments, int sequenceLength, AnnotationTableObject *annTable) const;
+    U2FeatureType getFeatureType(const QString &typeString) const;
+    QString getFeatureTypeString(U2FeatureType featureType, bool isAmino) const;
+    bool breakQualifierOnSpaceOnly(const QString &qualifierName) const;
+
+    static const int VAL_OFF = 12;
+
+    static const QMap<U2FeatureType, GBFeatureKey> additionalFeatureTypes;  // some feature types might be converted to the GBFeatureKey
+    static QMap<U2FeatureType, GBFeatureKey> initAdditionalFeatureTypes();
 };
 
 

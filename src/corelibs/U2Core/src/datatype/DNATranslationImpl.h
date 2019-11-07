@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ namespace U2 {
 
 class DNATranslation1to1Impl : public DNATranslation {
 public:
-    DNATranslation1to1Impl(const QString& id, const QString& _name, DNAAlphabet* src, DNAAlphabet* dst, QByteArray mapper121);
+    DNATranslation1to1Impl(const QString& id, const QString& _name, const DNAAlphabet* src, const DNAAlphabet* dst, QByteArray mapper121);
 
     virtual qint64 translate(const char* src, qint64 src_len, char* dst, qint64 dst_capacity) const;
     virtual int translate(char* src_and_dst, int len) const;
@@ -124,13 +124,13 @@ public:
             ts.append(m.t);
         }
         index.init(ts);
-        
+
         //allocate value area and fill it with default values
         int size = index.getIndexSize();
         assert(size > 0);
         resultByIndex = new T[size];
         qFill(resultByIndex, resultByIndex+size, defaultVal);
-        
+
         //assign indexed values
         foreach(const Mapping3To1<T>& m, rawMapping) {
             int i = index.indexOf(m.t);
@@ -157,7 +157,7 @@ public:
         int i = index.indexOf(c1, c2, c3);
         return resultByIndex[i];
     }
-    
+
     const T& map(const char* str) const {
         int i = index.indexOf(str);
         return resultByIndex[i];
@@ -184,7 +184,7 @@ public:
     }
 
     T*& mapData() { return resultByIndex;}
-    
+
     int getMapSize() const {return index.getIndexSize();}
 private:
     Index3To1 index;
@@ -201,7 +201,7 @@ enum DNATranslationRole {
 
 class DNATranslation3to1Impl : public DNATranslation {
 public:
-    DNATranslation3to1Impl(const QString& _id, const QString& _name, DNAAlphabet* src, DNAAlphabet* dst,
+    DNATranslation3to1Impl(const QString& _id, const QString& _name, const DNAAlphabet* src, const DNAAlphabet* dst,
         const QList<Mapping3To1<char> >& mapping, char defaultChar, const QMap<DNATranslationRole,QList<Triplet> >& roles);
     virtual ~DNATranslation3to1Impl();
 
@@ -273,9 +273,9 @@ enum BackTranslationMode {
 };
 
 class DNATranslation1to3Impl : public DNATranslation {
-public:    
+public:
 
-    DNATranslation1to3Impl(const QString& _id, const QString& _name, DNAAlphabet* src, DNAAlphabet* dst,
+    DNATranslation1to3Impl(const QString& _id, const QString& _name, const DNAAlphabet* src, const DNAAlphabet* dst,
         const BackTranslationRules& rules);
     virtual ~DNATranslation1to3Impl();
 

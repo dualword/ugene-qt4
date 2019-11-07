@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,19 +25,25 @@
 #define _SW_CUDA_CPP_H
 
 #include <U2Core/U2Region.h>
+#include <U2Algorithm/SmithWatermanSettings.h>
 
 struct resType
 {
-    U2::U2Region reg;
+    U2::U2Region refSubseq;
+    U2::U2Region patternSubseq;
+    QByteArray pairAlign;
     int score;
 };
 
 class sw_cuda_cpp {
-public:    
+public:
     typedef int ScoreType;
 
-    QList<resType> launch(const char * seqLib, int seqLibLength, ScoreType* queryProfile, ScoreType qProfLen, int queryLength, ScoreType gapOpen, ScoreType gapExtension, ScoreType maxScore);
-    static quint64 estimateNeededGpuMemory( int seqLibLength, ScoreType qProfLen, int queryLength );
+    QList<resType> launch(const char * seqLib, int seqLibLength, ScoreType* queryProfile, ScoreType qProfLen,
+                            int queryLength, ScoreType gapOpen, ScoreType gapExtension, ScoreType maxScore,
+                            U2::SmithWatermanSettings::SWResultView resultView);
+    static quint64 estimateNeededGpuMemory( int seqLibLength, ScoreType qProfLen, int queryLength, const U2::SmithWatermanSettings::SWResultView resultView);
+    static quint64 estimateNeededRamAmount(int seqLibLength, ScoreType qProfLen, int queryLength, const U2::SmithWatermanSettings::SWResultView resultView);
     static const int MAX_BLOCKS_NUMBER;
     static const int MAX_SHARED_VECTOR_LENGTH;
 };

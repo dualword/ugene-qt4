@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,61 @@
  * MA 02110-1301, USA.
  */
 
-#if defined(USE_CRASHHANDLER)
-
 #include "CrashHandler.h"
 #include "TaskSchedulerImpl.h"
 
+#include <string>
+
 #include <U2Core/AppContext.h>
 #include <U2Core/Task.h>
+#include <U2Core/TmpDirChecker.h>
 #include <U2Core/Log.h>
-#include <U2Core/LogCache.h>
 #include <U2Core/Timer.h>
+#include <U2Core/U2DbiRegistry.h>
+#include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/Version.h>
+#include <QTextStream>
 
-#define MAX_CRASH_MESSAGES_TO_SEND 70
+
+static const QString SESSION_DB_FILE_ARG("-d");
+static const QString REPORT_FILE_ARG("-f");
+static const int MAX_PLAIN_LOG = 70;
+static const int MAX_FILE_LOG = 500;
+
+#if defined(Q_OS_WIN32)
+  #ifdef UGENE_X86_64 //see http://social.msdn.microsoft.com/Forums/en-US/vcgeneral/thread/4dc15026-884c-4f8a-8435-09d0111d708d/
+    extern "C"
+    {
+        void rollbackStack();
+    }
+  #endif
+#endif
 
 namespace U2 {
 
+bool CrashHandler::sendCrashReports = true;
+
+bool CrashHandler::isEnabled() {
+
+    static QString disableEnvString = ENV_USE_CRASHHANDLER+QString("=0");
+    static bool disableCrashHandler = QProcess::systemEnvironment().contains(disableEnvString);
+    if (disableCrashHandler) {
+        return false;
+    }
+
+    static QString enableEnvString = ENV_USE_CRASHHANDLER+QString("=1");
+    static bool enableCrashHandler = QProcess::systemEnvironment().contains(enableEnvString);
+    if (enableCrashHandler) {
+        return true;
+    }
+
+#ifdef _DEBUG // no crash handler mode in debug build by default
+    bool defaultValue = false;
+#else
+    bool defaultValue = true;
+#endif
+    return defaultValue;
+}
 
 #if defined( Q_OS_WIN )
 
@@ -61,7 +100,7 @@ LONG CrashHandler::CrashHandlerFuncSecond(PEXCEPTION_POINTERS pExceptionInfo ) {
     if(addHandlerFunc != NULL) {
         addHandlerFunc(1, CrashHandlerFuncThird);
     }
-    QString path = QCoreApplication::applicationDirPath() + "/ugenem.exe";
+    QString path = AppContext::getWorkingDirectoryPath() + "/ugenem.exe";
     static QMutex mutex;
     QMutexLocker lock(&mutex);
     QProcess::startDetached(path, QStringList());
@@ -69,8 +108,25 @@ LONG CrashHandler::CrashHandlerFuncSecond(PEXCEPTION_POINTERS pExceptionInfo ) {
 }
 
 LONG CrashHandler::CrashHandlerFunc(PEXCEPTION_POINTERS pExceptionInfo ) {
-    QString error;
-    switch(pExceptionInfo->ExceptionRecord->ExceptionCode) {
+
+    if (pExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) {
+#if defined(Q_OS_WIN32)
+  #ifdef UGENE_X86 //see http://social.msdn.microsoft.com/Forums/en-US/vcgeneral/thread/4dc15026-884c-4f8a-8435-09d0111d708d/
+        _asm add esp, 10240; //roll back stack and current frame pointer
+  #else
+        rollbackStack();//TODO:need hack for x86_64
+  #endif
+#endif
+        QString anotherError = QString::number(EXCEPTION_STACK_OVERFLOW, 16) + "|Stack overflow"; //previous error was dropped in the stack unwinding
+        st.ShowCallstack(GetCurrentThread(), pExceptionInfo->ContextRecord);
+        runMonitorProcess(anotherError);
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+    else {
+        releaseReserve();
+
+        QString error;
+        switch(pExceptionInfo->ExceptionRecord->ExceptionCode) {
         case EXCEPTION_ACCESS_VIOLATION: error = "Access violation";
             break;
         case EXCEPTION_DATATYPE_MISALIGNMENT: error = "Data type misalignment";
@@ -119,57 +175,135 @@ LONG CrashHandler::CrashHandlerFunc(PEXCEPTION_POINTERS pExceptionInfo ) {
         case CONTROL_C_EXIT: error = "Control C exit";
             break;
         default: /*error = "Unknown exception";*/ return EXCEPTION_EXECUTE_HANDLER;
-    }
-    if(removeHandlerFunc != NULL) {
-        removeHandlerFunc(handler);
-    }    
-    //RemoveVectoredExceptionHandler(handler);
-    //handler2 = AddVectoredExceptionHandler(1, CrashHandlerFuncSecond);
-    if(pExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) {
-#if defined(Q_OS_WIN32)
-        _asm add esp, 10240; //roll back stack and current frame pointer
-#endif
-        /*WORD *sp = (WORD*)_AddressOfReturnAddress();
-        WORD newSp = *sp + 10240;
-        __movsw(sp, &newSp, 1);*/
+        }
+        if(removeHandlerFunc != NULL) {
+            removeHandlerFunc(handler);
+        }
+        //RemoveVectoredExceptionHandler(handler);
+        //handler2 = AddVectoredExceptionHandler(1, CrashHandlerFuncSecond);
 
-        QString anotherError = QString::number(EXCEPTION_STACK_OVERFLOW, 16) + "|Stack overflow"; //previous error was dropped in the stack unwinding 
         st.ShowCallstack(GetCurrentThread(), pExceptionInfo->ContextRecord);
-        runMonitorProcess(anotherError);
+
+        runMonitorProcess(QString::number(pExceptionInfo->ExceptionRecord->ExceptionCode, 16) + "|" + error + "::" + QString::number((int)pExceptionInfo->ExceptionRecord->ExceptionAddress, 16));
+        return EXCEPTION_EXECUTE_HANDLER;
     }
-
-    st.ShowCallstack(GetCurrentThread(), pExceptionInfo->ContextRecord);
-
-    runMonitorProcess(QString::number(pExceptionInfo->ExceptionRecord->ExceptionCode, 16) + "|" + error + "::" + QString::number((int)pExceptionInfo->ExceptionRecord->ExceptionAddress, 16));
-    return EXCEPTION_EXECUTE_HANDLER;
 }
-
 #else
+
     struct sigaction CrashHandler::sa;
 
-    void CrashHandler::signalHandler(int signo, siginfo_t*, void*) {
+    void CrashHandler::signalHandler(int signo, siginfo_t *siginfo, void*) {
         sigprocmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
-        QString exception;
+        std::string exception;
+
         switch(signo) {
-        case SIGBUS: exception = "Access to undefined portion of memory object";
+        case SIGBUS:
+            exception = "Access to undefined portion of memory object";
+            switch (siginfo->si_code) {
+            case BUS_ADRALN:
+                exception += ": invalid address alignment.";
+                break;
+            case BUS_ADRERR:
+                exception += ": non-existent physical address.";
+                break;
+            case BUS_OBJERR:
+                exception += ": object-specific hardware error.";
+                break;
+            }
             break;
-        case SIGFPE: exception = "Erroneous arithmetic operation";
+
+        case SIGFPE:
+            exception = "Erroneous arithmetic operation";
+            switch (siginfo->si_code) {
+            case FPE_INTDIV:
+                exception += ": integer divide-by-zero.";
+                break;
+            case FPE_INTOVF:
+                exception += ": integer overflow.";
+                break;
+            case FPE_FLTDIV:
+                exception += ": floating point divide-by-zero.";
+                break;
+            case FPE_FLTOVF:
+                exception += ": floating point overflow.";
+                break;
+            case FPE_FLTUND:
+                exception += ": floating point underflow.";
+                break;
+            case FPE_FLTRES:
+                exception += ": floating point inexact result.";
+                break;
+            case FPE_FLTINV:
+                exception += ": invalid floating point operation.";
+                break;
+            case FPE_FLTSUB:
+                exception += ": subscript out of range.";
+                break;
+            }
             break;
-        case SIGILL: exception = "Illegal instruction";
+
+        case SIGILL:
+            exception = "Illegal instruction";
+            switch (siginfo->si_code) {
+            case ILL_ILLOPC:
+                exception += ": illegal opcode.";
+                break;
+            case ILL_ILLOPN:
+                exception += ": illegal operand.";
+                break;
+            case ILL_ILLADR:
+                exception += ": illegal addressing mode.";
+                break;
+            case ILL_ILLTRP:
+                exception += ": illegal trap.";
+                break;
+            case ILL_PRVOPC:
+                exception += ": privileged opcode.";
+                break;
+            case ILL_PRVREG:
+                exception += ": privileged register.";
+                break;
+            case ILL_COPROC:
+                exception += ": coprocessor error.";
+                break;
+            case ILL_BADSTK:
+                exception += ": internal stack error.";
+                break;
+            }
             break;
-        case SIGSEGV: exception = "Segmentation fault";
+
+        case SIGSEGV:
+            exception = "Segmentation fault";
+            switch (siginfo->si_code) {
+            case SEGV_MAPERR:
+                exception += ": address not mapped.";
+                break;
+            case SEGV_ACCERR:
+                exception += ": invalid permissions.";
+                break;
+            }
             break;
-        case SIGSYS: exception = "Bad syscall";
+
+        case SIGSYS:
+            exception = "Bad syscall";
             break;
-        case SIGXCPU: exception = "CPU time limit exceeded";
+
+        case SIGXCPU:
+            exception = "CPU time limit exceeded";
             break;
-        case SIGXFSZ: exception = "File size limit exceeded";
+
+        case SIGXFSZ:
+            exception = "File size limit exceeded";
             break;
-        case SIGABRT: exception = "Program has been aborted";
+
+        case SIGABRT:
+            exception = "Program has been aborted";
             break;
+
         default: return;
         }
-        runMonitorProcess(QString::number(signo) + "|" + exception);
+
+        runMonitorProcess(QString::number(signo) + "|" + exception.c_str());
     }
 #endif
 
@@ -178,26 +312,28 @@ LogCache* CrashHandler::crashLogCache = NULL;
 
 void CrashHandler::preallocateReservedSpace() {
     assert(buffer == NULL);
-    buffer = new char[1024*1024];
+    buffer = new char[10*1024*1024];
 }
 
 void CrashHandler::releaseReserve() {
     delete[] buffer;
     buffer = NULL;
-    delete crashLogCache;
-    crashLogCache = NULL;
 }
 
 void CrashHandler::setupHandler() {
     // setup cached messages first
-    assert(crashLogCache = NULL);
-    crashLogCache = new LogCache();
+    assert(crashLogCache == NULL);
+    crashLogCache = new CrashLogCache();
     crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_TASKS, LogLevel_TRACE));
     crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_CORE_SERVICES, LogLevel_TRACE));
     crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_IO, LogLevel_TRACE));
-    crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_USER_INTERFACE, LogLevel_ERROR));
+    crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_USER_INTERFACE, LogLevel_TRACE));
     crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_ALGORITHM, LogLevel_TRACE));
     crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_CONSOLE, LogLevel_ERROR));
+    crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_CORE_SERVICES, LogLevel_DETAILS));
+    crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_TASKS, LogLevel_DETAILS));
+    crashLogCache->filter.filters.append(LogFilterItem(ULOG_CAT_USER_ACTIONS, LogLevel_TRACE));
+
 
 #if defined( Q_OS_WIN )
     addHandlerFunc = NULL;
@@ -218,17 +354,22 @@ void CrashHandler::setupHandler() {
         addHandlerFunc(1, CrashHandlerFunc);
     }
     //handler = AddVectoredExceptionHandler(1, CrashHandlerFunc);
-    
-#elif defined( Q_OS_MAC)
-    return; //TODO: implement crash hander for MAC OS
+
 #else
+#ifndef Q_OS_MAC // if separate stack has been used in MAC OS as under Linux, then backtrace() will not work
+#define SA_FLAGS (SA_ONSTACK | SA_SIGINFO)
+
     stack_t sigstk;
-    sigstk.ss_sp = malloc(SIGSTKSZ);
-    sigstk.ss_size = SIGSTKSZ;
+    sigstk.ss_sp = (char*) malloc(SIGSTKSZ * 2);
+    sigstk.ss_size = SIGSTKSZ * 2;
     sigstk.ss_flags = 0;
     if (sigaltstack(&sigstk,0) < 0) {
         perror("sigaltstack");
     }
+
+#else
+#define SA_FLAGS SA_SIGINFO
+#endif // Q_OS_MAK
 
     //struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -239,7 +380,7 @@ void CrashHandler::setupHandler() {
     }
 
     sa.sa_sigaction = signalHandler;
-    sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
+    sa.sa_flags = (SA_FLAGS);
     for (unsigned i = 0; kExceptionSignals[i] != -1; ++i) {
         sigaction(kExceptionSignals[i], &sa, NULL);
     }
@@ -247,14 +388,23 @@ void CrashHandler::setupHandler() {
 #endif
 }
 
-void CrashHandler::runMonitorProcess(const QString &exceptionType) {
-    QString path = QCoreApplication::applicationDirPath() + "/ugenem";
+void CrashHandler::runMonitorProcess(const QString &exceptionType)
+{
+    if(!sendCrashReports) {
+        QTextStream out(stderr);
+        out << "Unrecognized error";
+        out.flush();
+        exit(1);
+    }
+
+    CrashHandlerArgsHelper helper;
+    QString path = AppContext::getWorkingDirectoryPath() + "/ugenem";
 
 #ifndef Q_OS_WIN
     char pid_buf[30];
     sprintf(pid_buf, "%d", getpid());
     char name_buf[512];
-    name_buf[readlink(path.toAscii().data(), name_buf, 511)]=0;
+    name_buf[readlink(path.toLatin1().data(), name_buf, 511)]=0;
     FILE *fp;
     fp = freopen ("/tmp/UGENEstacktrace.txt","w+",stdout);
     void * stackTrace[1024];
@@ -280,15 +430,23 @@ void CrashHandler::runMonitorProcess(const QString &exceptionType) {
     if (!logMessages.isEmpty()) {
         QList<LogMessage*>::iterator it;
         int i;
-        for(i = 0, it = --logMessages.end(); i <= MAX_CRASH_MESSAGES_TO_SEND && it!= logMessages.begin(); i++, it--) {
+        for(i = 0, it = --logMessages.end(); i <= helper.getMaxReportSize() && it!= logMessages.begin(); i++, it--) {
             LogMessage* msg = *it;
             messageLog.prepend("[" + GTimer::createDateTime(msg->time).toString("hh:mm:ss.zzz") + "] " + "[" + msg->categories.first() + "] " + msg->text + "\n");
         }
     } else {
         messageLog += "None";
     }
+
+    AppResourcePool* pool = AppResourcePool::instance();
+    if (pool) {
+        size_t memoryBytes = pool->getCurrentAppMemory();
+        QString memInfo = QString("AppMemory: %1Mb; ").arg(memoryBytes/(1000*1000));
+
+        reportText += (memInfo + "\n");
+    }
     reportText += messageLog + " | ";
-        
+
     QString taskList;
     TaskScheduler *ts = AppContext::getTaskScheduler();
     QList<Task* > topTasks = ts != NULL ? ts->getTopLevelTasks() : QList<Task*>();
@@ -314,7 +472,6 @@ void CrashHandler::runMonitorProcess(const QString &exceptionType) {
         reportText += "None";
     }
 
-    
 #if defined (Q_OS_WIN)
     reportText += "|" + st.getBuffer();
 #else
@@ -323,8 +480,8 @@ void CrashHandler::runMonitorProcess(const QString &exceptionType) {
 
     static QMutex mutex;
     QMutexLocker lock(&mutex);
-
-    QProcess::startDetached(path, QStringList() << reportText.toUtf8().toBase64());
+    helper.setReportData(reportText);
+    QProcess::startDetached(path, helper.getArguments());
     exit(1);
 }
 
@@ -349,7 +506,85 @@ void CrashHandler::getSubTasks(Task *t, QString& list, int lvl) {
 
 }
 
+/************************************************************************/
+/* CrashHandlerArgsHelper */
+/************************************************************************/
+CrashHandlerArgsHelper::CrashHandlerArgsHelper()
+: useFile(false)
+{
+    U2OpStatusImpl os;
+    reportUrl = findFilePathToWrite(os);
+    CHECK_OP(os, );
 
+    file.setFileName(reportUrl);
+    useFile = file.open(QIODevice::WriteOnly);
+
+    shutdownSessionDatabase();
 }
 
-#endif
+CrashHandlerArgsHelper::~CrashHandlerArgsHelper() {
+    if (file.isOpen()) {
+        file.close();
+    }
+}
+
+int CrashHandlerArgsHelper::getMaxReportSize() const {
+    if (useFile) {
+        return MAX_FILE_LOG;
+    }
+    return MAX_PLAIN_LOG;
+}
+
+QStringList CrashHandlerArgsHelper::getArguments() const {
+    QStringList args;
+    if (!databaseUrl.isEmpty()) {
+        args << SESSION_DB_FILE_ARG << databaseUrl;
+    }
+    if (useFile) {
+        args << REPORT_FILE_ARG << reportUrl;
+    } else {
+        args << report.toUtf8().toBase64();
+    }
+    return args;
+}
+
+void CrashHandlerArgsHelper::setReportData(const QString &data) {
+    if (useFile) {
+        QByteArray bytes = data.toUtf8();
+        file.write(bytes);
+        file.close();
+    } else {
+        report = data;
+    }
+}
+
+QString CrashHandlerArgsHelper::findTempDir(U2OpStatus &os) {
+    if (TmpDirChecker::checkWritePermissions(QDir::tempPath())) {
+        return QDir::tempPath();
+    }
+    if (TmpDirChecker::checkWritePermissions(QDir::homePath())) {
+        return QDir::homePath();
+    }
+    os.setError("No accessible dir");
+    return "";
+}
+
+QString CrashHandlerArgsHelper::findFilePathToWrite(U2OpStatus &os) {
+    QString dirPath = findTempDir(os);
+    CHECK_OP(os, "");
+
+    return TmpDirChecker::getNewFilePath(dirPath, "crash_report");
+}
+
+void CrashHandlerArgsHelper::shutdownSessionDatabase() {
+    U2DbiRegistry *dbiReg = AppContext::getDbiRegistry();
+    CHECK(NULL != dbiReg, );
+
+    U2OpStatusImpl os;
+    const QString url = dbiReg->shutdownSessionDbi(os);
+    if (!os.hasError()) {
+        databaseUrl = url;
+    }
+}
+
+}

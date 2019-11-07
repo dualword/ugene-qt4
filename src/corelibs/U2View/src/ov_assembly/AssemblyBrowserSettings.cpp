@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,6 +31,9 @@ namespace U2 {
 static const QString SETTINGS_PREFIX("assembly_browser/");
 static const QString SCALE_TYPE(SETTINGS_PREFIX + "scale_type");
 static const QString SHOW_RULER_COORDS(SETTINGS_PREFIX + "show_coords_on_ruler");
+static const QString SHOW_RULER_COVERAGE(SETTINGS_PREFIX + "show_coverage_on_ruler");
+static const QString READ_HINT(SETTINGS_PREFIX + "read_hint");
+static const QString OPTIMIZE_SCROLL(SETTINGS_PREFIX + "optimize_scroll");
 
 AssemblyBrowserSettings::OverviewScaleType AssemblyBrowserSettings::getOverviewScaleType() {
     return OverviewScaleType(AppContext::getSettings()->getValue(SCALE_TYPE, Scale_Linear).value<int>());
@@ -46,6 +49,30 @@ bool AssemblyBrowserSettings::getShowCoordsOnRuler() {
 
 void AssemblyBrowserSettings::setShowCoordsOnRuler(bool what) {
     AppContext::getSettings()->setValue(SHOW_RULER_COORDS, what);
+}
+
+bool AssemblyBrowserSettings::getShowCoverageOnRuler() {
+    return AppContext::getSettings()->getValue(SHOW_RULER_COVERAGE, true).value<bool>();
+}
+
+void AssemblyBrowserSettings::setShowCoverageOnRuler(bool what) {
+    AppContext::getSettings()->setValue(SHOW_RULER_COVERAGE, what);
+}
+
+bool AssemblyBrowserSettings::getReadHintEnabled() {
+    return AppContext::getSettings()->getValue(READ_HINT, true).value<bool>();
+}
+
+void AssemblyBrowserSettings::setReadHintEnabled(bool what) {
+    AppContext::getSettings()->setValue(READ_HINT, what);
+}
+
+bool AssemblyBrowserSettings::getOptimizeRenderOnScroll() {
+    return AppContext::getSettings()->getValue(OPTIMIZE_SCROLL, true).value<bool>();
+}
+
+void AssemblyBrowserSettings::setOptimizeRenderOnScroll(bool what) {
+    AppContext::getSettings()->setValue(OPTIMIZE_SCROLL, what);
 }
 
 } // U2

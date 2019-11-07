@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@
 
 #include "QDFindPolyRegionsActor.h"
 
+#include <U2Core/DNAAlphabet.h>
 #include <U2Core/U2Region.h>
 #include <U2Core/TaskSignalMapper.h>
 #include <U2Core/FailTask.h>
@@ -154,9 +155,13 @@ Task* QDFindPolyActor::getAlgorithmTask( const QVector<U2Region>& location ) {
 
     settings.strand = getStrandToRun();
     if (settings.strand != QDStrand_DirectOnly) {
-        QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->lookupTranslation(scheme->getSequence().alphabet, DNATranslationType_NUCL_2_COMPLNUCL);
-        if (!compTTs.isEmpty()) {
-            settings.complTT = compTTs.first();
+        DNATranslation* complTT = NULL;
+        if (scheme->getSequence().alphabet->isNucleic()) {
+            complTT = AppContext::getDNATranslationRegistry()->
+                lookupComplementTranslation(scheme->getSequence().alphabet);
+        }
+        if (complTT != NULL) {
+            settings.complTT = complTT;
         } else {
             QString err = tr("Could not find complement translation");
             return new FailTask(err);
@@ -170,7 +175,7 @@ Task* QDFindPolyActor::getAlgorithmTask( const QVector<U2Region>& location ) {
         return new FailTask(err);
     }
 
-    settings.ch = baseStr.at(0).toAscii();
+    settings.ch = baseStr.at(0).toLatin1();
 
     int percent = cfg->getParameter(PERCENT_ATTR)->getAttributeValueWithoutScript<int>();
     if (percent < 50 || percent > 100) {
@@ -197,7 +202,7 @@ Task* QDFindPolyActor::getAlgorithmTask( const QVector<U2Region>& location ) {
         t->addSubTask(sub);
         connect(new TaskSignalMapper(sub), SIGNAL(si_taskFinished(Task*)), SLOT(sl_onTaskFinished(Task*)));
     }
-    
+
     return t;
 }
 
@@ -220,7 +225,7 @@ void QDFindPolyActor::sl_onTaskFinished(Task* t) {
 
 QDFindPolyActorPrototype::QDFindPolyActorPrototype() {
     descriptor.setId("base-content");
-    descriptor.setDisplayName(QDFindPolyActor::tr("BaseContent"));
+    descriptor.setDisplayName(QDFindPolyActor::tr("Base Content"));
     descriptor.setDocumentation(QDFindPolyActor::tr(
         "Searches regions in a sequence that contain a specified percentage"
         " of a certain base."));

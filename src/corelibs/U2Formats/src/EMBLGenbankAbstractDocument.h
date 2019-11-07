@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,53 +26,64 @@
 #include <U2Core/DocumentModel.h>
 
 #include <QtCore/QStringList>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/U2SequenceUtils.h>
 
+#include <U2Core/AnnotationData.h>
+#include <U2Core/U2SequenceUtils.h>
 
 namespace U2 {
 
+class AnnotationTableObject;
+class EMBLGenbankDataEntry;
 class IOAdapter;
 class ParserState;
-class EMBLGenbankDataEntry;
-
 
 class U2FORMATS_EXPORT EMBLGenbankAbstractDocument : public DocumentFormat {
     Q_OBJECT
 public:
-    EMBLGenbankAbstractDocument(const DocumentFormatId& id, const QString& formatName, 
+    EMBLGenbankAbstractDocument(const DocumentFormatId& id, const QString& formatName,
                                 int maxLineSize, DocumentFormatFlags flags, QObject* p);
 
     virtual DocumentFormatId getFormatId() const {return id;}
 
     virtual const QString& getFormatName() const {return formatName;}
 
+    virtual DNASequence* loadSequence(IOAdapter*, U2OpStatus& os);
+
     static const QString UGENE_MARK;
     static const QString DEFAULT_OBJ_NAME;
+    static const QString LOCUS_TAG_CIRCULAR;
+    static const QString LOCUS_TAG_LINEAR;
 
     // move to utils??
-    static QString	genObjectName(QSet<QString>& usedNames, const QString& name, const QVariantMap& info, int n, const GObjectType& t);
+    static QString genObjectName(QSet<QString>& usedNames, const QString& name, const QVariantMap& info, int n, const GObjectType& t);
 
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
     virtual void load(const U2DbiRef& dbiRef, IOAdapter* io, QList<GObject*>& objects, QVariantMap& fs, U2OpStatus& si, QString& writeLockReason);
-    
-    virtual int     readMultilineQualifier(IOAdapter* io, char* cbuff, int maxSize, bool prevLineHasMaxSize);
+
+    virtual int     readMultilineQualifier(IOAdapter* io, char* cbuff, int maxSize, bool prevLineHasMaxSize, int lenFirstQualLine, U2OpStatus& os);
     virtual SharedAnnotationData readAnnotation(IOAdapter* io, char* cbuff, int contentLen, int bufSize, U2OpStatus& si, int offset, int seqLen = -1);
     virtual bool    readSequence(ParserState*, U2SequenceImporter& , int&, int&, U2OpStatus&);
 
-    virtual bool readEntry(ParserState*, U2SequenceImporter& ,int& seqSize,int& fullSeqSize,bool merge, int gapSize,U2OpStatus&) = 0;	
+    virtual bool readEntry(ParserState*, U2SequenceImporter& ,int& seqSize,int& fullSeqSize,bool merge, int gapSize,U2OpStatus&) = 0;
     virtual void readAnnotations(ParserState*, int offset);
     virtual void readHeaderAttributes(QVariantMap& tags, DbiConnection& con, U2SequenceObject* so) {
         Q_UNUSED(tags); Q_UNUSED(con); Q_UNUSED(so);
     } // does nothing if not overloaded
-    
+
+    virtual bool isNcbiLikeFormat() const;
+    virtual void createCommentAnnotation(const QStringList &comments, int sequenceLength, AnnotationTableObject *annTable) const;
+    virtual U2FeatureType getFeatureType(const QString &typeString) const;
+    virtual U2Qualifier createQualifier(const QString &qualifierName, const QString &qualifierValue, bool containsDoubleQuotes) const;
+    virtual bool breakQualifierOnSpaceOnly(const QString &qualifierName) const;
+
     DocumentFormatId id;
     QString     formatName;
     QByteArray  fPrefix;
     QByteArray  sequenceStartPrefix;
     int         maxAnnotationLineLen;
+    bool        savedInUgene; // saveInUgene marker is a hack for opening genbank files that were saved incorrectly(!) in UGENE version <1.14.1
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -90,7 +101,7 @@ public:
     QVariantMap tags;
     QList<SharedAnnotationData> features;
 
-    // hasAnnotationObjectFlag parameter is used to indicate that 
+    // hasAnnotationObjectFlag parameter is used to indicate that
     // annotation table object must present even if result list is empty
     bool hasAnnotationObjectFlag;
     bool circular;
@@ -103,7 +114,7 @@ public:
     const int valOffset;
     EMBLGenbankDataEntry* entry;
     IOAdapter* io;
-    static const int READ_BUFF_SIZE = 8192;
+    static const int READ_BUFF_SIZE = 40000;
     char* buff;
     int len;
     U2OpStatus& si;

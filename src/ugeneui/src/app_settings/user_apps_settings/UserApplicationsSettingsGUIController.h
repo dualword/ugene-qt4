@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -44,24 +44,27 @@ public:
     virtual AppSettingsGUIPageWidget* createWidget(AppSettingsGUIPageState* data);
     
     QMap<QString, QString> translations;
+
+    const QString& getHelpPageId() const {return helpPageId;};
+
+private:
+    static const QString helpPageId;
 };
 
 
 class UserApplicationsSettingsPageState : public AppSettingsGUIPageState {
     Q_OBJECT
 public:
-    UserApplicationsSettingsPageState() : useDefaultWebBrowser (true), 
-        openLastProjectFlag(false), enableStatistics(false), tabbedWindowLayout(false) {}
+    UserApplicationsSettingsPageState() : openLastProjectFlag(false),
+        askToSaveProject(0), enableStatistics(false), tabbedWindowLayout(false), resetSettings(false) {}
 
-    QString webBrowserUrl;
     QString translFile;
     QString style;
-    QString downloadsDirPath;
-    QString temporaryDirPath;
-    bool useDefaultWebBrowser;
     bool openLastProjectFlag;
+    int askToSaveProject;
     bool enableStatistics;
     bool tabbedWindowLayout;
+    bool resetSettings;
 };
 
 
@@ -75,10 +78,7 @@ public:
     virtual AppSettingsGUIPageState* getState(QString& err) const;
 
 private slots:
-    void sl_wbURLClicked();
     void sl_transFileClicked();
-    void sl_browseButtonClicked();
-    void sl_browseTmpDirButtonClicked();
 };
 
 }//namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,22 +19,26 @@
  * MA 02110-1301, USA.
  */
 
-#include "CheckUpdatesTask.h"
+#include <QMainWindow>
+#include <QMessageBox>
+#include <QNetworkReply>
+#include <QPushButton>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
-#include <U2Core/Settings.h>
 #include <U2Core/NetworkConfiguration.h>
-#include <U2Gui/MainWindow.h>
+#include <U2Core/Settings.h>
+#include <U2Core/U2SafePoints.h>
+
 #include <U2Gui/GUIUtils.h>
+#include <U2Gui/MainWindow.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2Remote/SynchHttp.h>
 
-#include <QtGui/QMessageBox>
-#include <QtGui/QPushButton>
-#include <QtGui/QMainWindow>
+#include "CheckUpdatesTask.h"
 
 namespace U2 {
-
 
 CheckUpdatesTask::CheckUpdatesTask(bool startUp) 
 :Task(tr("Check for updates"), TaskFlag_None)
@@ -50,17 +54,27 @@ CheckUpdatesTask::CheckUpdatesTask(bool startUp)
 void CheckUpdatesTask::run() {
     stateInfo.setDescription(tr("Connecting to updates server"));
     NetworkConfiguration* nc = AppContext::getAppSettings()->getNetworkConfiguration();
+    SAFE_POINT(nc != NULL, "Network configuration is null", );
+
     bool isProxy = nc->isProxyUsed(QNetworkProxy::HttpProxy);
     bool isException = nc->getExceptionsList().contains(SITE_URL);
-    SyncHTTP http(SITE_URL);
+    SyncHTTP http(stateInfo);
     if (isProxy && !isException) {
         http.setProxy(nc->getProxy(QNetworkProxy::HttpProxy));
     }
-    QString siteVersionText = http.syncGet(PAGE_NAME);
+    QString siteVersionText = http.syncGet(QUrl("http://"+SITE_URL + PAGE_NAME));
+    if (siteVersionText.isEmpty()){
+        if(!runOnStartup){
+            stateInfo.setError(  tr("Cannot load the current version."));
+        }else{
+            uiLog.error(tr("Cannot load the current version."));
+            startError = true;
+        }
+    }
     siteVersion = Version::parseVersion(siteVersionText);
     stateInfo.setDescription(QString());
 
-    if (http.error() != QHttp::NoError) {
+    if (http.error() != QNetworkReply::NoError) {
         if(!runOnStartup){
             stateInfo.setError(  tr("Connection error while checking for updates: %1").arg(http.errorString()) );
         }else{
@@ -81,17 +95,18 @@ Task::ReportResult CheckUpdatesTask::report() {
     if(runOnStartup) {
         if (siteVersion > thisVersion) {
             QString message = tr("Newer version available. You can download it from our site.");
-            QMessageBox box(QMessageBox::Information, tr("Version information"), message, QMessageBox::NoButton, 
+            QObjectScopedPointer<QMessageBox> box = new QMessageBox(QMessageBox::Information, tr("Version information"), message, QMessageBox::NoButton,
                 AppContext::getMainWindow()->getQMainWindow());
-            box.addButton(QMessageBox::Cancel);
-            QPushButton *siteButton = box.addButton(tr("Visit web site"), QMessageBox::ActionRole);
-            QPushButton *dontAsk = box.addButton(tr("Don't ask again"), QMessageBox::ActionRole);
+            box->addButton(QMessageBox::Cancel);
+            QPushButton *siteButton = box->addButton(tr("Visit web site"), QMessageBox::ActionRole);
+            QPushButton *dontAsk = box->addButton(tr("Don't ask again"), QMessageBox::ActionRole);
 
-            box.exec();
+            box->exec();
+            CHECK(!box.isNull(), ReportResult_Finished);
 
-            if (box.clickedButton() == siteButton) {
+            if (box->clickedButton() == siteButton) {
                 GUIUtils::runWebBrowser("http://ugene.unipro.ru/download.html");
-            } else if(box.clickedButton() == dontAsk) {
+            } else if(box->clickedButton() == dontAsk) {
                 AppContext::getSettings()->setValue(ASK_VESRION_SETTING, false);
             }
         }
@@ -104,21 +119,25 @@ Task::ReportResult CheckUpdatesTask::report() {
         }
         
         QWidget *p = (QWidget*)(AppContext::getMainWindow()->getQMainWindow());
-        QMessageBox box(QMessageBox::Information, tr("Version information"), message, QMessageBox::NoButton, p);
-        box.addButton(QMessageBox::Ok);
+        QObjectScopedPointer<QMessageBox> box = new QMessageBox(QMessageBox::Information, tr("Version information"), message, QMessageBox::NoButton, p);
+        box->addButton(QMessageBox::Ok);
         QAbstractButton* updateButton = NULL;
         
         if (needUpdate) {
-            updateButton = box.addButton(tr("Visit web site"), QMessageBox::ActionRole);
+            updateButton = box->addButton(tr("Visit web site"), QMessageBox::ActionRole);
         }
-        box.exec();
+        box->exec();
+        CHECK(!box.isNull(), ReportResult_Finished);
 
-        if (box.clickedButton() == updateButton) {
+        if (box->clickedButton() == updateButton) {
             GUIUtils::runWebBrowser("http://ugene.unipro.ru/download.html");
         }
     }
     return ReportResult_Finished;    
 }
 
+void CheckUpdatesTask::sl_registerInTaskScheduler(){
+    AppContext::getTaskScheduler()->registerTopLevelTask(this);
+}
 
 } //namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,29 @@
  * MA 02110-1301, USA.
  */
 
-#include "Notification.h"
+#include <QStatusBar>
+#include <QTextBrowser>
+#include <QTime>
 
+#include <U2Core/AppContext.h>
+#include <U2Core/U2SafePoints.h>
+
+#include <U2Core/QObjectScopedPointer.h>
+
+#include "MainWindow.h"
+#include "Notification.h"
 
 namespace U2 {
 
-Notification::Notification(const QString &message, NotificationType _type, QAction *_action):QLabel(NULL),
-    action(_action), text(message), type(_type) {
+Notification::Notification(const QString &message, NotificationType _type, QAction *_action) :
+    QLabel(qobject_cast<QWidget *>(AppContext::getMainWindow())),
+    action(_action), type(_type) {
     setMinimumWidth(TT_WIDTH);
     setMaximumWidth(TT_WIDTH);
     setMaximumHeight(TT_HEIGHT);
+
+    QString time = "[" + QTime::currentTime().toString() + "] ";
+    text = time + message;
 
     setFrameStyle(QFrame::StyledPanel);
     close = new QLabel(this);
@@ -36,15 +49,14 @@ Notification::Notification(const QString &message, NotificationType _type, QActi
     setLayout(h);
     counter = 1;
 
-    QFontMetrics metrics(font());
-    setText(metrics.elidedText(message, Qt::ElideRight, width()-50));
-    setToolTip(message);
+    QFontMetrics metrics(font(),this);
+    setText(metrics.elidedText(text, Qt::ElideRight, width()-50));
+    setToolTip(text);
     
     generateCSS(false);
     generateCSSforCloseButton(false);
 
-    //setWindowFlags (Qt::FramelessWindowHint);
-    setWindowFlags (Qt::ToolTip);
+    setWindowFlags(Qt::ToolTip);
     close->installEventFilter(this);
     h->addStretch();
     h->addWidget(close);
@@ -63,15 +75,19 @@ void Notification::generateCSS(bool isHovered) {
     switch(type) {
         case Info_Not: bgColor = "background-color: #BDE5F8;";
             fontColor = "color: #00529B;";
-            img = "background-image: url(':core/images/info_notification.png');" ;
+            img = "background-image: url(':core/images/info_notification.png');";
             break;
         case Error_Not: bgColor = "background-color: #FFBABA;";
             fontColor = "color: #D8000C;";
-            img = "background-image: url(':core/images/error_notification.png');" ;
+            img = "background-image: url(':core/images/error_notification.png');";
             break;
         case Report_Not: bgColor = "background-color: #BDE5F8;";
             fontColor = "color: #00529B;";
-            img = "background-image: url(':core/images/info_notification.png');" ;
+            img = "background-image: url(':core/images/info_notification.png');";
+            break;
+        case Warning_Not : bgColor = "background-color: #FCF8E3;";
+            fontColor = "color: #C09853;";
+            img = "background-image: url(':core/images/warning_notification.png');";
             break;
         default: assert(0);
     }
@@ -136,37 +152,49 @@ void Notification::mousePressEvent(QMouseEvent *ev) {
         if(action) {
             action->trigger();
         } else if(!timer.isActive()){
-            QDialog dlg(AppContext::getMainWindow()->getQMainWindow());
+            QObjectScopedPointer<QDialog> dlg = new QDialog(AppContext::getMainWindow()->getQMainWindow());
+            dlg->setObjectName("NotificationDialog");
             QVBoxLayout vLayout;
             QHBoxLayout hLayout;
             QPushButton ok;
             QCheckBox isDelete;
 
-            ok.setText("Ok");
+            ok.setText(tr("OK"));
             isDelete.setText(tr("Remove notification after closing"));
             isDelete.setChecked(true);
-            connect(&ok, SIGNAL(clicked()), &dlg, SLOT(accept()));
+            connect(&ok, SIGNAL(clicked()), dlg.data(), SLOT(accept()));
             hLayout.addWidget(&isDelete);
             hLayout.addWidget(&ok);
 
-            dlg.setLayout(&vLayout);
-            QTextEdit txtEdit;
+            dlg->setLayout(&vLayout);
+            QTextBrowser txtEdit;
+            txtEdit.setOpenExternalLinks(true);
             txtEdit.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            dlg.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            dlg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
             txtEdit.setReadOnly(true);
             txtEdit.setText(text);
             vLayout.addWidget(&txtEdit);
             vLayout.addLayout(&hLayout);
 
-            dlg.setWindowTitle(tr("Detailed message"));
+            dlg->setWindowTitle(tr("Detailed message"));
 
-            AppContext::getMainWindow()->getNotificationStack()->setFixed(true);
-            if(dlg.exec() == QDialog::Accepted) {
+            NotificationStack *notificationStack = AppContext::getMainWindow()->getNotificationStack();
+            if (NULL != notificationStack) {
+                notificationStack->setFixed(true);
+            }
+
+            const int dialogResult = dlg->exec();
+            CHECK(!dlg.isNull(), );
+
+            if (QDialog::Accepted == dialogResult) {
                 if(isDelete.isChecked()) {
                     emit si_delete();
                 }
             }
-            AppContext::getMainWindow()->getNotificationStack()->setFixed(false);
+
+            if (NULL != notificationStack) {
+                notificationStack->setFixed(false);
+            }
         }
     }
 }
@@ -231,7 +259,7 @@ NotificationType Notification::getType() const {
 
 void Notification::increaseCounter(){
     counter++;
-    QFontMetrics metrics(font());
+    QFontMetrics metrics(font(),this);
     QString addText = "(" + QString::number(counter) + ")";
     int cWidth = metrics.width(addText);
     setText(metrics.elidedText(text, Qt::ElideRight, width()-50 - cWidth ) + addText);
@@ -282,17 +310,11 @@ void NotificationStack::addNotification(Notification *t) {
     emit si_changed();
     
     connect(t, SIGNAL(si_delete()), this, SLOT(sl_delete()), Qt::DirectConnection);
-    QPoint pos = AppContext::getMainWindow()->getQMainWindow()->geometry().bottomRight();
+    QPoint pos = getBottomRightOfMainWindow();
     t->showNotification(pos.x() - TT_WIDTH, pos.y() - 50 - notificationPosition);
     notificationNumber++;
     notificationPosition += TT_HEIGHT;
     connect(t, SIGNAL(si_dissapear()), SLOT(sl_notificationDissapear()));
-}
-
-void NotificationStack::addError(const QString& errorMessage)
-{
-    Notification *t = new Notification(errorMessage, Error_Not);
-    addNotification(t);
 }
 
 void NotificationStack::sl_notificationDissapear() {
@@ -331,7 +353,8 @@ QList <Notification *> NotificationStack::getItems() const {
 }
 
 void NotificationStack::showStack() {
-    QPoint pos = AppContext::getMainWindow()->getQMainWindow()->geometry().bottomRight();
+    QPoint pos = getBottomRightOfMainWindow();
+
     w->move(pos.x() - w->width(), pos.y() - w->height());
     w->show();
     w->setWindowState(Qt::WindowActive);
@@ -341,5 +364,25 @@ void NotificationStack::setFixed(bool val) {
     w->setFixed(val);
 }
 
+void NotificationStack::addNotification(const QString& message, NotificationType type, QAction *action) {
+    Notification *n = new Notification(message, type, action);
+    AppContext::getMainWindow()->getNotificationStack()->addNotification(n);
+}
+
+
+QPoint NotificationStack::getBottomRightOfMainWindow() {
+    QPoint pos;
+#ifndef Q_OS_MAC
+    // This behavior is correct.
+    pos = AppContext::getMainWindow()->getQMainWindow()->geometry().bottomRight();
+#else
+    // Widget's rect doesn't know its real position on the screen. Lets calculate it manually.
+    QPoint topLeft = AppContext::getMainWindow()->getQMainWindow()->mapToGlobal(QPoint(0,0));
+    QSize mainWindowSize = AppContext::getMainWindow()->getQMainWindow()->geometry().size();
+    pos = QPoint(topLeft.x() + mainWindowSize.width(), topLeft.y() + mainWindowSize.height());  // bottom right
+    pos -= QPoint(4, 27);  // Some space for the statusbar and window's edge.
+#endif
+    return pos;
+}
 
 }

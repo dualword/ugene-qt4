@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,23 +26,123 @@
 #include <QtXml/QDomElement>
 
 namespace U2 {
-    class GTest_ConvertPath : public GTest {
-        Q_OBJECT
-    public:
-        SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_ConvertPath, "convert-path");
 
-        ReportResult report();
+class GTest_ConvertPath : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_ConvertPath, "convert-path");
 
-        virtual void cleanup() {};
+    ReportResult report();
 
-    private:
-        QString             originalUrl, result, expectedResult, platform;
-        bool                isFileUrl, runThisTest;
-    };
+private:
+    QString             originalUrl, result, expectedResult, platform;
+    bool                isFileUrl, runThisTest;
+};
 
-    class GUrlTests {
-    public:
-        static QList<XMLTestFactory*> createTestFactories();
-    };
+class GTest_CreateTmpDir : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CreateTmpDir, "create-temp-dir");
+
+    ReportResult report();
+
+private:
+    QString url;
+};
+
+class GTest_RemoveTmpDir : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_RemoveTmpDir, "remove-temp-dir");
+
+    ReportResult report();
+
+private:
+    QString url;
+
+private:
+    void removeDir(const QString &url);
+};
+
+class GTest_RemoveTmpFile : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_RemoveTmpFile, "remove-temp-file");
+
+    ReportResult report();
+
+private:
+    QString url;
+};
+
+class GTest_CreateTmpFile : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CreateTmpFile, "create-temp-file");
+
+    ReportResult report();
+
+private:
+    QString url;
+    QString data;
+};
+
+class GTest_CheckTmpFile : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CheckTmpFile, "check-temp-file");
+
+    ReportResult report();
+
+private:
+    QString url;
+    bool exists;
+};
+
+class GTest_CheckStorageFile : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CheckStorageFile, "check-storage-file");
+
+    ReportResult report();
+
+private:
+    bool findRecursive(const QString& currentDirUrl);
+
+    QString storageUrl;
+    QString fileName;
+    bool exists;
+};
+
+class GTest_CheckCreationTime : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CheckCreationTime, "check-creation-time");
+
+    ReportResult report();
+
+private:
+    QString url;
+    int lessThen;
+    int moreThen;
+};
+
+class GTest_CheckFilesNum : public GTest {
+    Q_OBJECT
+public:
+    SIMPLE_XML_TEST_BODY_WITH_FACTORY(GTest_CheckFilesNum, "check-files-num");
+
+    ReportResult report();
+
+private:
+    QString folder;
+    int expectedNum;
+};
+
+class GUrlTests {
+public:
+    static QList<XMLTestFactory*> createTestFactories();
+};
+
 }//namespace
 #endif

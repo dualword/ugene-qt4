@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 
 #include <U2Core/DocumentModel.h>
 #include <U2Core/GObjectUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 namespace U2 {
 
@@ -38,7 +39,25 @@ namespace U2 {
 //flags
 #define SOURCE_ATTR                 "source"
 #define AMBIG_ATTR                  "ambig"
+#define MAXLEN_ATTR                 "max_len"
 
+#define CIRCULAR_LABEL              "circular"
+
+U2Region stringToRegion(const QString& regionStr) {
+    int region[2];
+    QStringList regStrList = regionStr.split("..", QString::SkipEmptyParts);
+    if (regStrList.size() != 2) {
+        return U2Region();
+    }
+    bool ok;
+    for (int i = 0; i < 2; i++) {
+        region[i] = regStrList[i].toInt(&ok);
+        if(!ok){
+            return U2Region();
+        }
+    }
+    return U2Region(region[0], region[1] - region[0]);
+}
 
 void GTest_FindAlgorithmTest::init(XMLTestFormat *tf, const QDomElement& el){
     Q_UNUSED(tf);
@@ -57,13 +76,13 @@ void GTest_FindAlgorithmTest::init(XMLTestFormat *tf, const QDomElement& el){
         stateInfo.setError(GTest::tr("value for %1 is incorrect").arg(STRAND_ATTR));
         return;
     }
-    
+
     buf = el.attribute(PATTERN_ATTR);
     if(buf.isEmpty()){
         stateInfo.setError(GTest::tr("value not set %1").arg(PATTERN_ATTR));
         return;
     }
-    settings.pattern = buf.toAscii();
+    settings.pattern = buf.toLatin1();
 
     buf = el.attribute(SOURCE_ATTR);
     if(buf == "translation"){
@@ -122,11 +141,22 @@ void GTest_FindAlgorithmTest::init(XMLTestFormat *tf, const QDomElement& el){
         stateInfo.setError(GTest::tr("value not set %1").arg(ALGORITHM_ATTR));
         return;
     }
-    if(buf == "subst"){
-        settings.insDelAlg = false;
+    if (buf == "exact") {
+        settings.patternSettings = FindAlgorithmPatternSettings_Exact;
+    } else if(buf == "subst"){
+        settings.patternSettings = FindAlgorithmPatternSettings_Subst;
     }else if(buf == "insdel"){
-        settings.insDelAlg = true;
-    }else{
+        settings.patternSettings = FindAlgorithmPatternSettings_InsDel;
+    }
+    else if(buf == "regexp"){
+        settings.patternSettings = FindAlgorithmPatternSettings_RegExp;
+        settings.maxRegExpResult =  el.attribute(MAXLEN_ATTR).toInt(&ok);
+        if(!ok){
+            stateInfo.setError(GTest::tr("value incorrect for %1").arg(MAXLEN_ATTR));
+            return;
+        }
+    }
+    else{
         stateInfo.setError(GTest::tr("value for %1 incorrect").arg(ALGORITHM_ATTR));
     }
 
@@ -139,20 +169,29 @@ void GTest_FindAlgorithmTest::init(XMLTestFormat *tf, const QDomElement& el){
 
     buf = el.attribute(EXPECTED_ATTR);
     QStringList splittedToRegions = buf.split(";", QString::SkipEmptyParts);
+    U2Region r;
     foreach(QString regStr, splittedToRegions){
-        QStringList regStrList = regStr.split("..", QString::SkipEmptyParts);
-        if(regStrList.size() != 2){
-            stateInfo.setError(GTest::tr("value incorrect for %1").arg(EXPECTED_ATTR));
-            return;
-        }
-        for(int i = 0; i < 2;i++){
-            region[i] = regStrList[i].toInt(&ok);
-            if(!ok){
-                stateInfo.setError(GTest::tr("value incorrect for %1").arg(EXPECTED_ATTR));
-                return;
+
+        if (regStr.startsWith(QString(CIRCULAR_LABEL))) {
+            regStr.chop(1);
+            regStr.remove(QString(CIRCULAR_LABEL) + "(");
+
+            QStringList regList = regStr.split(",", QString::SkipEmptyParts);
+            r = U2Region();
+            foreach (QString reg, regList) {
+                U2Region regionPart = stringToRegion(reg);
+                if (regionPart.startPos > r.startPos) {
+                    r.startPos = regionPart.startPos;
+                }
+                r.length += regionPart.length;
             }
+        } else {
+            r = stringToRegion(regStr);
         }
-        expectedResults.append(U2Region(region[0],region[1] - region[0]));
+        if (r.isEmpty()) {
+            stateInfo.setError(GTest::tr("value incorrect for %1").arg(EXPECTED_ATTR));
+        }
+        expectedResults.append(r);
     }
 }
 
@@ -174,13 +213,15 @@ void GTest_FindAlgorithmTest::prepare(){
            break;
        }
     }
-    
-    settings.sequence = se->getWholeSequenceData();
+
+    U2OpStatusImpl os;
+    settings.sequence = se->getWholeSequenceData(os);
+    SAFE_POINT_OP(os, );
+    settings.searchIsCircular = se->isCircular();
     settings.complementTT = GObjectUtils::findComplementTT(se->getAlphabet());
     if(translatetoAmino){
         settings.proteinTT = GObjectUtils::findAminoTT(se, false);
     }
-
     t = new FindAlgorithmTask(settings);
     addSubTask(t);
 }
@@ -196,7 +237,7 @@ Task::ReportResult GTest_FindAlgorithmTest::report(){
     }
 
     for(int i = 0; i < actualResults.size(); i++){
-        if(actualResults[i].region != expectedResults[i]){
+        if(!expectedResults.contains(actualResults[i].region)){
             stateInfo.setError(GTest::tr("Expected and actual regions are different: %1..%2 , %3..%4")
                 .arg(expectedResults[i].startPos)
                 .arg(expectedResults[i].endPos())

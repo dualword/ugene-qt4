@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,6 +40,7 @@ public:
     DeleteMode getDeleteMode() const {return deleteMode;}
     int getValue() const {return value;}
 private slots:
+    void sl_onRadioButtonClicked();
     void sl_onOkClicked();
     void sl_onCancelClicked();
 

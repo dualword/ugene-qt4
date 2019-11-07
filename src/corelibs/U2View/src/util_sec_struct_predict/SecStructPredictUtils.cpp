@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,51 +19,70 @@
  * MA 02110-1301, USA.
  */
 
+#include <QMessageBox>
+
+#include <U2Algorithm/SecStructPredictAlgRegistry.h>
+
+#include <U2Core/AppContext.h>
 #include <U2Core/BioStruct3D.h>
 #include <U2Core/GAutoDeleteList.h>
+#include <U2Core/U2SafePoints.h>
+
 #include <U2Gui/GUIUtils.h>
-#include <U2View/AnnotatedDNAView.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2View/ADVConstants.h>
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/ADVUtils.h>
+#include <U2View/AnnotatedDNAView.h>
 
 #include "SecStructDialog.h"
 #include "SecStructPredictUtils.h"
 
-
 namespace U2 {
 
-SecStructPredictViewAction::SecStructPredictViewAction(AnnotatedDNAView* v) : 
-    ADVGlobalAction(v, QIcon(":core//images//ssp_logo.png"),  tr("Predict secondary structure...") ) 
+SecStructPredictViewAction::SecStructPredictViewAction(AnnotatedDNAView* v) :
+    ADVGlobalAction(v, QIcon(":core//images//ssp_logo.png"),  tr("Predict secondary structure..."))
 {
     connect(this, SIGNAL(triggered()), SLOT(sl_execute()));
+    setObjectName("Predict secondary structure");
     addAlphabetFilter(DNAAlphabet_AMINO);
 
 }
 
 
 void SecStructPredictViewAction::sl_execute() {
-    QAction* a = (QAction*)sender();
-    GObjectViewAction* viewAction = qobject_cast<GObjectViewAction*>(a);
-    AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(viewAction->getObjectView());
-    Q_ASSERT(av);
+    QAction *a = dynamic_cast<QAction*>(sender());
+    GObjectViewAction *viewAction = dynamic_cast<GObjectViewAction*>(a);
+    SAFE_POINT(NULL != viewAction, "NULL action",);
 
-    ADVSequenceObjectContext* seqCtx = av->getSequenceInFocus();
-    Q_ASSERT(seqCtx->getAlphabet()->isAmino());
-    
-    //TODO: if no analysis algorithm is available?
+    AnnotatedDNAView *av = qobject_cast<AnnotatedDNAView*>(viewAction->getObjectView());
+    SAFE_POINT(NULL != av, "NULL dna view",);
 
-    SecStructDialog secStructDialog(seqCtx, av->getWidget());
-    secStructDialog.exec();
+    SecStructPredictAlgRegistry *sspar = AppContext::getSecStructPredictAlgRegistry();
+    SAFE_POINT(NULL != sspar, "NULL SecStructPredictAlgRegistry",);
 
+    if (sspar->getAlgNameList().isEmpty()) {
+        QMessageBox::information(av->getWidget(),
+            tr("Secondary Structure Prediction"),
+            tr("No algorithms for secondary structure prediction are available.\nPlease, load the corresponding plugins."));
+        return;
+    }
+
+    ADVSequenceObjectContext *seqCtx = av->getSequenceInFocus();
+    SAFE_POINT(NULL != seqCtx, "NULL sequence context",);
+    SAFE_POINT(NULL != seqCtx->getAlphabet(), "NULL alphabet",);
+    SAFE_POINT(seqCtx->getAlphabet()->isAmino(), "Wrong alphabet",);
+
+    QObjectScopedPointer<SecStructDialog> secStructDialog = new SecStructDialog(seqCtx, av->getWidget());
+    secStructDialog->exec();
 }
 
-ADVGlobalAction* SecStructPredictViewAction::createAction( AnnotatedDNAView* av )
+ADVGlobalAction* SecStructPredictViewAction::createAction(AnnotatedDNAView* av)
 {
     ADVGlobalAction* action = new SecStructPredictViewAction(av);
 
     return action;
-
 }
 
 SecStructPredictViewAction::~SecStructPredictViewAction()
@@ -71,12 +90,11 @@ SecStructPredictViewAction::~SecStructPredictViewAction()
 
 }
 
-
-QString SecStructPredictUtils::getStructNameForCharTag( char tag )
+QString SecStructPredictUtils::getStructNameForCharTag(char tag)
 {
     SecondaryStructure::Type type = SecondaryStructure::Type_None;
     switch(tag) {
-        case 'H': 
+        case 'H':
             type = SecondaryStructure::Type_AlphaHelix;
             break;
         case 'G':
@@ -104,7 +122,7 @@ QString SecStructPredictUtils::getStructNameForCharTag( char tag )
     return BioStruct3D::getSecStructTypeName(type);
 }
 
-QList<SharedAnnotationData> SecStructPredictUtils::saveAlgorithmResultsAsAnnotations( const QByteArray& predicted, const QString& annotationName )
+QList<SharedAnnotationData> SecStructPredictUtils::saveAlgorithmResultsAsAnnotations(const QByteArray& predicted, const QString& annotationName)
 {
     char emptyCoil = 'C';
 
@@ -114,20 +132,21 @@ QList<SharedAnnotationData> SecStructPredictUtils::saveAlgorithmResultsAsAnnotat
     int lastRecordedPos = 0;
     for (int i = 1; i < numAcronyms; ++i) {
         char curChar = predicted.at(i);
-        if ( (curChar != prevChar) || (i == numAcronyms - 1)) {
-            if ( prevChar != emptyCoil ) {
-                SharedAnnotationData sd( new AnnotationData);
+        if ((curChar != prevChar) || (i == numAcronyms - 1)) {
+            if (prevChar != emptyCoil) {
+                SharedAnnotationData sd(new AnnotationData);
+                sd->type = U2FeatureTypes::SeconadaryStructure;
                 sd->name = annotationName;
                 sd->location->regions.append(U2Region(lastRecordedPos, i - lastRecordedPos));
                 sd->qualifiers.append(U2Qualifier(BioStruct3D::SecStructTypeQualifierName, getStructNameForCharTag(prevChar)));
                 predictedStructures.append(sd);
             }
             lastRecordedPos = i;
-        } 
+        }
         prevChar = curChar;
     }
 
-    return predictedStructures;  
+    return predictedStructures;
 }
 } //namespace
 

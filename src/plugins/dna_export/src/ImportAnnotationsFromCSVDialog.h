@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -58,9 +58,8 @@ private slots:
     void sl_separatorRadioToggled(bool);
     void sl_scriptRadioToggled(bool);
     void sl_removeQuotesToggled(bool);
-    void sl_separatorsModeToggled(bool);
     void sl_linesToSkipChanged(int);
-    
+
 private:
     // returns input file name if no errors found or empty string
     QString checkInputGroup(bool silentFail);
@@ -81,7 +80,7 @@ private:
 
     SaveDocumentGroupController* saveGroupController;
     QList<ColumnConfig>          columnsConfig;
-    
+
     // script text used to parse separator
     QString parsingScript;
     // header of the script
@@ -94,4 +93,4 @@ private:
 
 } // namespace U2
 
-#endif 
+#endif

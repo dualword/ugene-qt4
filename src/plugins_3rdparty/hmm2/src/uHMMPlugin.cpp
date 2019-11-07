@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,50 +19,50 @@
  * MA 02110-1301, USA.
  */
 
-#include "uHMMPlugin.h"
+#include <QAction>
+#include <QMenu>
+#include <QMessageBox>
 
-
-#include "hmmer2/funcs.h"
-#include "HMMIO.h"
-#include "TaskLocalStorage.h"
-#include "u_calibrate/HMMCalibrateDialogController.h"
-#include "u_build/HMMBuildDialogController.h"
-#include "u_search/HMMSearchDialogController.h"
-#include "u_tests/uhmmerTests.h"
-#include "u_search/HMMSearchQDActor.h"
-#include "HMMIOWorker.h"
-
-#include <U2Gui/MainWindow.h>
 #include <U2Core/AppContext.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/Task.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Gui/ObjectViewModel.h>
-#include <U2Gui/ProjectView.h>
 #include <U2Core/AppResources.h>
-
 #include <U2Core/DNASequenceObject.h>
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/GObjectSelection.h>
-
+#include <U2Core/DocumentModel.h>
 #include <U2Core/GAutoDeleteList.h>
-#include <U2View/AnnotatedDNAView.h>
-#include <U2View/ADVSequenceObjectContext.h>
-#include <U2View/ADVConstants.h>
-#include <U2View/ADVUtils.h>
-#include <U2View/MSAEditorFactory.h>
-#include <U2View/MSAEditor.h>
+#include <U2Core/GObjectSelection.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/Task.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Gui/GUIUtils.h>
+#include <U2Gui/MainWindow.h>
+#include <U2Gui/ObjectViewModel.h>
+#include <U2Gui/ProjectView.h>
+#include <U2Gui/ToolsMenu.h>
+#include <U2Core/QObjectScopedPointer.h>
 
 #include <U2Test/GTestFrameworkComponents.h>
 
-#include <QtGui/QMenu>
-#include <QtGui/QAction>
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include <U2View/ADVConstants.h>
+#include <U2View/ADVSequenceObjectContext.h>
+#include <U2View/ADVUtils.h>
+#include <U2View/AnnotatedDNAView.h>
+#include <U2View/MSAEditor.h>
+#include <U2View/MSAEditorFactory.h>
 
-Q_DECLARE_METATYPE(QMenu*);
+#include "HMMIO.h"
+#include "HMMIOWorker.h"
+#include "TaskLocalStorage.h"
+#include "hmmer2/funcs.h"
+#include "uHMMPlugin.h"
+#include "u_build/HMMBuildDialogController.h"
+#include "u_calibrate/HMMCalibrateDialogController.h"
+#include "u_search/HMMSearchDialogController.h"
+#include "u_search/HMMSearchQDActor.h"
+#include "u_tests/uhmmerTests.h"
+
+Q_DECLARE_METATYPE(QMenu *);
 
 namespace U2 {
 
@@ -77,29 +77,23 @@ extern "C" Q_DECL_EXPORT Plugin* U2_PLUGIN_INIT_FUNC() {
     return plug;
 }
 
-uHMMPlugin::uHMMPlugin() : Plugin(tr("uhmm_plugin"), tr("uhmm_plugin_desc")), ctxMSA(NULL), ctxADV(NULL)
+uHMMPlugin::uHMMPlugin() : Plugin(tr("HMM2"), tr("Based on HMMER 2.3.2 package. Biological sequence analysis using profile hidden Markov models")), ctxMSA(NULL), ctxADV(NULL)
 {
     if (AppContext::getMainWindow()) {
-        QAction* buildAction = new QAction(tr("Build HMM2 profile"), this);
+        QAction* buildAction = new QAction(tr("Build HMM2 profile..."), this);
+        buildAction->setObjectName(ToolsMenu::HMMER_BUILD2);
         connect(buildAction, SIGNAL(triggered()), SLOT(sl_build()));
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, buildAction);
 
-        QAction* calibrateAction = new QAction(tr("Calibrate profile with HMM2"), this);
+        QAction* calibrateAction = new QAction(tr("Calibrate profile with HMM2..."), this);
+        calibrateAction->setObjectName(ToolsMenu::HMMER_CALIBRATE2);
         connect(calibrateAction, SIGNAL(triggered()), SLOT(sl_calibrate()));
-        
-        QAction* searchAction = new QAction(tr("Search with HMM2"), this);
-        connect(searchAction, SIGNAL(triggered()), SLOT(sl_search()));
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, calibrateAction);
 
-        QMenu* toolsMenu = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS);
-        QMenu * hmmMenu = toolsMenu->property("hmm_menu").value<QMenu*>();
-        if(hmmMenu == NULL) {
-            hmmMenu = toolsMenu->addMenu(QIcon(":/hmm2/images/hmmer_16.png"), tr("HMMER tools"));
-            toolsMenu->setProperty("hmm_menu", qVariantFromValue<QMenu*>(hmmMenu));
-        }
-        
-        QMenu* hmm2ToolsSub = hmmMenu->addMenu(QIcon(":/hmm2/images/hmmer_16.png"), tr("HMMER2 tools"));
-        hmm2ToolsSub->addAction(buildAction);
-        hmm2ToolsSub->addAction(calibrateAction);
-        hmm2ToolsSub->addAction(searchAction);
+        QAction* searchAction = new QAction(tr("Search with HMM2..."), this);
+        searchAction->setObjectName(ToolsMenu::HMMER_SEARCH2);
+        connect(searchAction, SIGNAL(triggered()), SLOT(sl_search()));
+        ToolsMenu::addAction(ToolsMenu::HMMER_MENU, searchAction);
 
         ctxMSA = new HMMMSAEditorContext(this);
         ctxMSA->init();
@@ -120,7 +114,7 @@ uHMMPlugin::uHMMPlugin() : Plugin(tr("uhmm_plugin"), tr("uhmm_plugin_desc")), ct
     GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
     l->qlist = UHMMERTests::createTestFactories();
 
-    foreach(XMLTestFactory* f, l->qlist) { 
+    foreach(XMLTestFactory* f, l->qlist) {
         bool res = xmlTestFormat->registerTestFactory(f);
         assert(res);
         Q_UNUSED(res);
@@ -134,8 +128,8 @@ uHMMPlugin::~uHMMPlugin() {
 
 void uHMMPlugin::sl_calibrate() {
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
-    HMMCalibrateDialogController d(p);
-    d.exec();
+    QObjectScopedPointer<HMMCalibrateDialogController> d = new HMMCalibrateDialogController(p);
+    d->exec();
 }
 
 void uHMMPlugin::sl_build() {
@@ -159,8 +153,8 @@ void uHMMPlugin::sl_build() {
         }
     }
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
-    HMMBuildDialogController d(profileName, ma, p);
-    d.exec();
+    QObjectScopedPointer<HMMBuildDialogController> d = new HMMBuildDialogController(profileName, ma, p);
+    d->exec();
 }
 
 void uHMMPlugin::sl_search() {
@@ -193,11 +187,15 @@ void uHMMPlugin::sl_search() {
     }
     QWidget *p = (QWidget*)AppContext::getMainWindow()->getQMainWindow();
     if (obj == NULL) {
-        QMessageBox::critical(p, tr("error"), tr("neither_annotatedview_nor_pv_selection_found"));
+        QMessageBox::critical(p, tr("Error"), tr("Error! Select sequence in Project view or open sequence view."));
         return;
     }
-    HMMSearchDialogController d(obj, p);
-    d.exec();
+
+    U2OpStatusImpl os;
+    DNASequence sequence = obj->getWholeSequence(os);
+    CHECK_OP_EXT(os, QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), os.getError()), );
+    QObjectScopedPointer<HMMSearchDialogController> d = new HMMSearchDialogController(sequence, obj, p);
+    d->exec();
 }
 
 
@@ -215,6 +213,7 @@ void HMMMSAEditorContext::initViewContext(GObjectView* view) {
         return;
 
     GObjectViewAction* a = new GObjectViewAction(this, view, tr("Build HMMER2 profile"));
+    a->setObjectName("Build HMMER2 profile");
     a->setIcon(QIcon(":/hmm2/images/hmmer_16.png"));
     connect(a, SIGNAL(triggered()), SLOT(sl_build()));
     addViewAction(a);
@@ -228,9 +227,9 @@ void HMMMSAEditorContext::buildMenu(GObjectView* v, QMenu* m) {
 
     QList<GObjectViewAction*> list = getViewActions(v);
     assert(list.size()==1);
-    GObjectViewAction* a = list.first();  
+    GObjectViewAction* a = list.first();
     QMenu* aMenu = GUIUtils::findSubMenu(m, MSAE_MENU_ADVANCED);
-    assert(aMenu!=NULL);
+    SAFE_POINT(aMenu != NULL, "aMenu", );
     aMenu->addAction(a);
 }
 
@@ -240,19 +239,18 @@ void HMMMSAEditorContext::sl_build() {
     assert(action!=NULL);
     MSAEditor* ed = qobject_cast<MSAEditor*>(action->getObjectView());
     assert(ed!=NULL);
-    MAlignmentObject* obj = ed->getMSAObject(); 
+    MAlignmentObject* obj = ed->getMSAObject();
     if (obj) {
         QString profileName = obj->getGObjectName() == MA_OBJECT_NAME ? obj->getDocument()->getName() : obj->getGObjectName();
-        HMMBuildDialogController d(profileName, obj->getMAlignment());
-        d.exec();
+        QObjectScopedPointer<HMMBuildDialogController> d = new HMMBuildDialogController(profileName, obj->getMAlignment());
+        d->exec();
+        CHECK(!d.isNull(), );
     }
 }
 
-
-
 HMMADVContext::HMMADVContext(QObject* p) : GObjectViewWindowContext(p, ANNOTATED_DNA_VIEW_FACTORY_ID) {
-}
 
+}
 
 void HMMADVContext::initViewContext(GObjectView* view) {
     AnnotatedDNAView* av = qobject_cast<AnnotatedDNAView*>(view);
@@ -273,16 +271,14 @@ void HMMADVContext::sl_search() {
     }
     ADVSequenceObjectContext* seqCtx = av->getSequenceInFocus();
     if(seqCtx == NULL) {
-        QMessageBox::critical(p, tr("error"), tr("no_sequence_found"));
+        QMessageBox::critical(p, tr("Error"), tr("No sequences found"));
         return;
     }
-    HMMSearchDialogController d(seqCtx->getSequenceObject(), p);
-    d.exec();
+    U2OpStatusImpl os;
+    DNASequence sequence = seqCtx->getSequenceObject()->getWholeSequence(os);
+    CHECK_OP_EXT(os, QMessageBox::critical(QApplication::activeWindow(), L10N::errorTitle(), os.getError()), );
+    QObjectScopedPointer<HMMSearchDialogController> d = new HMMSearchDialogController(sequence, seqCtx->getSequenceObject(), p);
+    d->exec();
 }
 
-
-
-
-
-}//namespace
-
+}   // namespace U2

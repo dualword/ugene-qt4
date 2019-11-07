@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,44 +21,47 @@
 
 #include "ADVSequenceObjectContext.h"
 
+#include "AnnotatedDNAView.h"
+
 #include <U2Core/AppContext.h>
 #include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DNASequenceSelection.h>
 #include <U2Core/DNATranslation.h>
 #include <U2Core/GHints.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
 #include <U2Core/GObjectRelationRoles.h>
 #include <U2Core/GObjectUtils.h>
 #include <U2Core/U2SafePoints.h>
+#include <U2View/CodonTable.h>
 
-#include <U2Core/DNASequenceSelection.h>
-
-#include "AnnotatedDNAView.h"
 
 namespace U2 {
 
-ADVSequenceObjectContext::ADVSequenceObjectContext(AnnotatedDNAView* v, U2SequenceObject* obj) 
+ADVSequenceObjectContext::ADVSequenceObjectContext(AnnotatedDNAView* v, U2SequenceObject* obj)
 : QObject(v), view(v), seqObj(obj), aminoTT(NULL), complTT(NULL), selection(NULL), translations(NULL), visibleFrames(NULL),rowChoosed(false)
 {
     selection = new DNASequenceSelection(seqObj, this);
     clarifyAminoTT = false;
-    DNAAlphabet* al  = getAlphabet();
+    const DNAAlphabet* al  = getAlphabet();
     if (al->isNucleic()) {
         DNATranslationRegistry* tr = AppContext::getDNATranslationRegistry();
         complTT = GObjectUtils::findComplementTT(seqObj->getAlphabet());
         aminoTT = GObjectUtils::findAminoTT(seqObj, true);
         clarifyAminoTT = aminoTT == NULL;
-        
+
         QList<DNATranslation*> aminoTs = tr->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO);
         if (!aminoTs.empty()) {
-            aminoTT = aminoTT == NULL ? aminoTs.first() : aminoTT;
+            aminoTT = aminoTT == NULL ? tr->getStandardGeneticCodeTranslation(al) : aminoTT;
             translations = new QActionGroup(this);
+            const CodonTableView *ct = v->getCodonTableView();
             foreach(DNATranslation* t, aminoTs) {
                 QAction* a = translations->addAction(t->getTranslationName());
+                a->setObjectName(t->getTranslationName());
                 a->setCheckable(true);
                 a->setChecked(aminoTT == t);
                 a->setData(QVariant(t->getTranslationId()));
                 connect(a, SIGNAL(triggered()), SLOT(sl_setAminoTranslation()));
+                connect(a, SIGNAL(triggered()), ct, SLOT(sl_setAminoTranslation()));
             }
             visibleFrames = new QActionGroup(this);
             visibleFrames->setExclusive(false);
@@ -81,22 +84,20 @@ ADVSequenceObjectContext::ADVSequenceObjectContext(AnnotatedDNAView* v, U2Sequen
     }
 }
 
-void ADVSequenceObjectContext::guessAminoTT(AnnotationTableObject* ao) {
-    DNAAlphabet* al  = getAlphabet();
-    assert(al->isNucleic());
-    DNATranslation* res = NULL;    
-    DNATranslationRegistry* tr = AppContext::getDNATranslationRegistry();
+void ADVSequenceObjectContext::guessAminoTT(const AnnotationTableObject *ao) {
+    const DNAAlphabet *al  = getAlphabet();
+    SAFE_POINT(al->isNucleic(), "Unexpected DNA alphabet detected!",);
+    DNATranslation *res = NULL;
+    DNATranslationRegistry *tr = AppContext::getDNATranslationRegistry();
     // try to guess relevant translation from a CDS feature (if any)
-    foreach(Annotation* ann, ao->getAnnotations()) {
-        if (ann->getAnnotationName() == "CDS") {
-            QVector<U2Qualifier> ql;
-            ann->findQualifiers("transl_table", ql);
-            if (ql.size() > 0) {
-                QString guess = "NCBI-GenBank #"+ql.first().value;
-                res = tr->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO, guess);
-                if (res !=NULL) {
-                    break;
-                }
+    foreach (Annotation *ann, ao->getAnnotationsByName("CDS")) {
+        QList<U2Qualifier> ql;
+        ann->findQualifiers("transl_table", ql);
+        if (ql.size() > 0) {
+            QString guess = "NCBI-GenBank #"+ql.first().value;
+            res = tr->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO, guess);
+            if (res !=NULL) {
+                break;
             }
         }
     }
@@ -111,21 +112,21 @@ qint64 ADVSequenceObjectContext::getSequenceLength() const {
     return seqObj->getSequenceLength();
 }
 
-DNAAlphabet* ADVSequenceObjectContext::getAlphabet() const {
+const DNAAlphabet* ADVSequenceObjectContext::getAlphabet() const {
     return seqObj->getAlphabet();
 }
 
-QByteArray ADVSequenceObjectContext::getSequenceData(const U2Region& r) const {
-    return seqObj->getSequenceData(r);
+QByteArray ADVSequenceObjectContext::getSequenceData(const U2Region &r, U2OpStatus &os) const {
+    return seqObj->getSequenceData(r, os);
 }
 
 U2EntityRef ADVSequenceObjectContext::getSequenceRef() const {
     return seqObj->getSequenceRef();
 }
 
-QList<GObject*> ADVSequenceObjectContext::getAnnotationGObjects() const {
-    QList<GObject*> res;
-    foreach(AnnotationTableObject* ao, annotations) {
+QList<GObject *> ADVSequenceObjectContext::getAnnotationGObjects() const {
+    QList<GObject *> res;
+    foreach (AnnotationTableObject *ao, annotations) {
         res.append(ao);
     }
     return res;
@@ -196,6 +197,16 @@ void ADVSequenceObjectContext::sl_showShowAll(){
     }
 }
 
+void ADVSequenceObjectContext::sl_onAnnotationRelationChange() {
+    AnnotationTableObject* obj = qobject_cast<AnnotationTableObject*>(sender());
+    SAFE_POINT(obj != NULL, tr("Incorrect signal sender!"),);
+
+    if (!obj->hasObjectRelation(seqObj, ObjectRole_Sequence)) {
+        disconnect(obj, SIGNAL(si_relationChanged()), this, SLOT(sl_onAnnotationRelationChange()));
+        view->removeObject(obj);
+    }
+}
+
 QMenu* ADVSequenceObjectContext::createTranslationsMenu() {
     QMenu* m = NULL, *frames = NULL;
     if (translations) {
@@ -212,7 +223,9 @@ QMenu* ADVSequenceObjectContext::createTranslationsMenu() {
         connect(frames->addAction(QString("Show complementary only")), SIGNAL(triggered()), SLOT(sl_showComplOnly()));
         connect(frames->addAction(QString("Show all")), SIGNAL(triggered()), SLOT(sl_showShowAll()));
 
-
+        if(view != NULL){
+            m->addAction(view->getShowCodonTableAction());
+        }
         m->addMenu(frames);
         m->addSeparator();
 
@@ -220,12 +233,14 @@ QMenu* ADVSequenceObjectContext::createTranslationsMenu() {
         foreach(QAction* a, translations->actions()) {
             m->addAction(a);
         }
+
+        m->menuAction()->setObjectName("AminoTranslationAction");
     }
     return m;
 }
 
 void ADVSequenceObjectContext::setAminoTranslation(const QString& tid) {
-    DNAAlphabet* al = getAlphabet();
+    const DNAAlphabet* al = getAlphabet();
     DNATranslation* aTT = AppContext::getDNATranslationRegistry()->lookupTranslation(al, DNATranslationType_NUCL_2_AMINO, tid);
     assert(aTT!=NULL);
     if (aTT == aminoTT) {
@@ -262,9 +277,10 @@ void ADVSequenceObjectContext::addSequenceWidget(ADVSequenceWidget* w) {
     seqWidgets.append(w);
 }
 
-void ADVSequenceObjectContext::addAnnotationObject(AnnotationTableObject* obj) {
-    assert(!annotations.contains(obj));
-    assert(obj->hasObjectRelation(seqObj, GObjectRelationRole::SEQUENCE));
+void ADVSequenceObjectContext::addAnnotationObject(AnnotationTableObject *obj) {
+    SAFE_POINT(!annotations.contains(obj), "Unexpected annotation table!",);
+    SAFE_POINT(obj->hasObjectRelation(seqObj, ObjectRole_Sequence), "Annotation table relates to unexpected sequence!",);
+    connect(obj, SIGNAL(si_relationChanged()), SLOT(sl_onAnnotationRelationChange()));
     annotations.insert(obj);
     emit si_annotationObjectAdded(obj);
     if (clarifyAminoTT) {
@@ -272,16 +288,15 @@ void ADVSequenceObjectContext::addAnnotationObject(AnnotationTableObject* obj) {
     }
 }
 
-void ADVSequenceObjectContext::removeAnnotationObject(AnnotationTableObject* obj) {
-    assert(annotations.contains(obj));
+void ADVSequenceObjectContext::removeAnnotationObject(AnnotationTableObject *obj) {
+    SAFE_POINT(annotations.contains(obj), "Unexpected annotation table!",);
     annotations.remove(obj);
     emit si_annotationObjectRemoved(obj);
 }
 
-
-QList<Annotation*> ADVSequenceObjectContext::selectRelatedAnnotations(const QList<Annotation*>& alist) const {
-    QList<Annotation*> res;
-    foreach(Annotation* a, alist) {
+QList<Annotation *> ADVSequenceObjectContext::selectRelatedAnnotations(const QList<Annotation *> &alist) const {
+    QList<Annotation *> res;
+    foreach (Annotation *a, alist) {
         AnnotationTableObject* o = a->getGObject();
         if (annotations.contains(o) || autoAnnotations.contains(o)) {
             res.append(a);
@@ -290,35 +305,35 @@ QList<Annotation*> ADVSequenceObjectContext::selectRelatedAnnotations(const QLis
     return res;
 }
 
-
-GObject* ADVSequenceObjectContext::getSequenceGObject() const {
+GObject * ADVSequenceObjectContext::getSequenceGObject() const {
     return seqObj;
 }
 
-void ADVSequenceObjectContext::addAutoAnnotationObject( AnnotationTableObject* obj ){
+void ADVSequenceObjectContext::addAutoAnnotationObject(AnnotationTableObject *obj) {
     autoAnnotations.insert(obj);
     emit si_annotationObjectAdded(obj);
 }
 
-QSet<AnnotationTableObject*> ADVSequenceObjectContext::getAnnotationObjects(bool includeAutoAnnotations) const {
-    QSet<AnnotationTableObject*> result = annotations;
+QSet<AnnotationTableObject *> ADVSequenceObjectContext::getAnnotationObjects(
+    bool includeAutoAnnotations) const
+{
+    QSet<AnnotationTableObject *> result = annotations;
     if (includeAutoAnnotations) {
         result += autoAnnotations;
     }
 
     return result;
-
 }
 
 void ADVSequenceObjectContext::sl_toggleTranslations(){
     translationRowsStatus.clear();
-	rowChoosed = true;
+    rowChoosed = true;
     emit si_translationRowsChanged();
-	rowChoosed = false;
+    rowChoosed = false;
 }
 
 bool ADVSequenceObjectContext::isRowChoosed(){
-	return rowChoosed;
+    return rowChoosed;
 }
 
 QVector<bool> ADVSequenceObjectContext::getTranslationRowsVisibleStatus(){
@@ -351,6 +366,7 @@ void ADVSequenceObjectContext::setTranslationsVisible(bool enable){
     }
     if(needUpdate){
         emit si_translationRowsChanged();
-    }  
+    }
 }
-}//namespace
+
+} // namespace U2

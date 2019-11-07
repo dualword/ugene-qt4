@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,22 +22,23 @@
 #ifndef _U2_FIND_ENZYMES_TASK_H_
 #define _U2_FIND_ENZYMES_TASK_H_
 
-#include <U2Algorithm/EnzymeModel.h>
-#include "FindEnzymesAlgorithm.h"
-
 #include <limits>
 
-#include <U2Core/Task.h>
-#include <U2Core/U2Region.h>
-#include <U2Core/DNASequence.h>
-#include <U2Core/SequenceWalkerTask.h>
-#include <U2Core/AutoAnnotationsSupport.h>
-
-#include <U2Core/AnnotationTableObject.h>
-
-#include <QtCore/QObject>
 #include <QtCore/QList>
 #include <QtCore/QMutex>
+#include <QtCore/QObject>
+
+#include <U2Algorithm/EnzymeModel.h>
+
+#include <U2Core/AnnotationData.h>
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AutoAnnotationsSupport.h>
+#include <U2Core/DNASequence.h>
+#include <U2Core/SequenceDbiWalkerTask.h>
+#include <U2Core/Task.h>
+#include <U2Core/U2Region.h>
+
+#include "FindEnzymesAlgorithm.h"
 
 namespace U2 {
 
@@ -54,7 +55,7 @@ class FindEnzymesTask;
 
 struct FindEnzymesTaskConfig {
     FindEnzymesTaskConfig(): maxResults(0x7FFFFFFF), minHitCount(1),
-        maxHitCount(INT_MAX), circular(false), isAutoAnnotationUpdateTask(false) {}; 
+        maxHitCount(INT_MAX), circular(false), isAutoAnnotationUpdateTask(false) {}
     QVector<U2Region>   excludedRegions;
     QString             groupName;
     int                 maxResults;
@@ -62,39 +63,39 @@ struct FindEnzymesTaskConfig {
     int                 maxHitCount;
     bool                circular;
     bool                isAutoAnnotationUpdateTask;
- 
+
 };
 
 class FindEnzymesToAnnotationsTask : public Task {
     Q_OBJECT
 public:
-    FindEnzymesToAnnotationsTask(AnnotationTableObject* aobj, const DNASequence& seq, 
-        const QList<SEnzymeData>& enzymes, const FindEnzymesTaskConfig& cfg);
-    void prepare();
-    void run();
-    ReportResult report();
-    
+                                        FindEnzymesToAnnotationsTask(AnnotationTableObject *aobj, const U2EntityRef &seqRef,
+                                            const QList<SEnzymeData> &enzymes, const FindEnzymesTaskConfig &cfg);
+    void                                prepare();
+    QList<Task *>                       onSubTaskFinished(Task* subTask);
+    ReportResult                        report();
+
 private:
-    DNASequence                         dnaSeq;
+    U2EntityRef                         dnaSeqRef;
     QList<SEnzymeData>                  enzymes;
-    QMap<QString,SharedAnnotationData>  resultMap;
+    QMap<QString, SharedAnnotationData> resultMap;
     U2Region                            seqRange;
     QPointer<AnnotationTableObject>     aObj;
     FindEnzymesTaskConfig               cfg;
-    FindEnzymesTask*                    fTask;
+    FindEnzymesTask *                   fTask;
 };
 
 class FindEnzymesTask : public Task, public FindEnzymesAlgListener {
     Q_OBJECT
 public:
-    FindEnzymesTask(const DNASequence& seq, const U2Region& region, const QList<SEnzymeData>& enzymes, int maxResults = 0x7FFFFFFF, bool _circular = false);
+    FindEnzymesTask(const U2EntityRef& seqRef, const U2Region& region, const QList<SEnzymeData>& enzymes, int maxResults = 0x7FFFFFFF, bool _circular = false);
 
     QList<FindEnzymesAlgResult>  getResults() const {return results;}
 
     virtual void onResult(int pos, const SEnzymeData& enzyme, const U2Strand& stand);
 
     ReportResult report();
-    
+
     QList<SharedAnnotationData> getResultsAsAnnotations(const QString& enzymeId = QString()) const;
 
     void cleanup();
@@ -107,24 +108,24 @@ private:
     int                                 seqlen;
     QList<FindEnzymesAlgResult>         results;
     QMutex                              resultsLock;
-    
+
     QString                             group;
-    QPointer<AnnotationTableObject*>    aObj;
+    QPointer<AnnotationTableObject *>     aObj;
 };
 
 
-class FindSingleEnzymeTask: public Task, public FindEnzymesAlgListener, public SequenceWalkerCallback {
+class FindSingleEnzymeTask: public Task, public FindEnzymesAlgListener, public SequenceDbiWalkerCallback {
     Q_OBJECT
 public:
-    FindSingleEnzymeTask(const DNASequence& seq, const U2Region& region, const SEnzymeData& enzyme, 
+    FindSingleEnzymeTask(const U2EntityRef& seqRef, const U2Region& region, const SEnzymeData& enzyme,
                         FindEnzymesAlgListener* l = NULL, bool circular = false, int maxResults = 0x7FFFFFFF);
-    
+
     QList<FindEnzymesAlgResult>  getResults() const {return results;}
     virtual void onResult(int pos, const SEnzymeData& enzyme, const U2Strand& strand);
-    virtual void onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti);
+    virtual void onRegion(SequenceDbiWalkerSubtask* t, TaskStateInfo& ti);
     void cleanup();
 private:
-    DNASequence                 dnaSeq;
+    U2EntityRef                 dnaSeqRef;
     U2Region                    region;
     SEnzymeData                 enzyme;
     int                         maxResults;

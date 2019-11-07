@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #include <U2Core/U2SafePoints.h>
 
 #include <U2Gui/GUIUtils.h>
+#include <U2Gui/GraphUtils.h>
 
 #include <U2View/ADVConstants.h>
 #include <U2View/ADVSequenceObjectContext.h>
@@ -31,6 +32,17 @@
 
 
 namespace U2 {
+
+
+GSequenceGraphDrawer* GSequenceGraphFactory::getDrawer(GSequenceGraphView* v) {
+    qint64 seqLen = v->getSequenceLength();
+    // by default we have max window = 500: it is normal for DNA regions to have some meaningful content in this range
+    qint64 window = qBound((qint64)40, GraphUtils::pickRoundedNumberBelow(seqLen / 300), (qint64)500);
+    qint64 step = window / 2;
+    GSequenceGraphWindowData wd(step, window);
+    return new GSequenceGraphDrawer(v, wd);
+}
+
 
 /**
  * Constructor of a graph view with factory
@@ -53,6 +65,5 @@ void GSequenceGraphViewWithFactory::addActionsToGraphMenu(QMenu* graphMenu)
 {
     GSequenceGraphView::addActionsToGraphMenu(graphMenu);
 }
-
 
 } // namespace

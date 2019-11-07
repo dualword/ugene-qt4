@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,10 +19,10 @@
  * MA 02110-1301, USA.
  */
 
-#include "GUrl.h"
-
 #include <QtCore/QDir>
-#include <QtCore/QFileInfo>
+
+#include "GUrl.h"
+#include "U2SafePoints.h"
 
 namespace U2 {
 
@@ -98,6 +98,8 @@ GUrlType GUrl::getURLType(const QString& rawUrl) {
         result = GUrl_Http;
     } else if (rawUrl.startsWith("ftp://")) {
         result = GUrl_Ftp;
+    } else if (!rawUrl.startsWith("file://") && rawUrl.contains(QRegExp("^([\\.\\w-]+@)?[\\.\\w-]+:\\d*(/[\\w-]*)?$"))) {
+        return GUrl_Network;
     } else if( rawUrl.startsWith( U2_VFS_URL_PREFIX ) ) {
         result = GUrl_VFSFile;
     }
@@ -151,6 +153,8 @@ QString GUrl::dirPath() const {
     if( isVFSFile() ) {
         return result;
     }
+    CHECK(!isNetworkSource(), result);
+
     result = QFileInfo(path(this)).absoluteDir().absolutePath();
     return result;
 }
@@ -160,19 +164,29 @@ QString GUrl::fileName() const {
     if( isVFSFile() ) {
         return result;
     }
+    CHECK(!isNetworkSource(), result);
+
     result = QFileInfo(path(this)).fileName();
     return result;
 }
 
 QString GUrl::baseFileName() const {
     QString result;
+    CHECK(!isNetworkSource(), result);
+
     if( isVFSFile() ) {
         QStringList args = urlString.split(U2_VFS_FILE_SEPARATOR, QString::SkipEmptyParts, Qt::CaseSensitive );
         if( 2 == args.size() ) {
             result = QFileInfo( args.at( 1 ) ).baseName();
+            if( !result.length() ) {
+                result = QFileInfo( args.at( 1 ) ).fileName();
+            }
         }
     } else {
         result = QFileInfo(path(this)).baseName();
+        if( !result.length() ) {
+            result = QFileInfo(path(this)).fileName();
+        }
     }
     return result;
 }
@@ -182,6 +196,8 @@ QString GUrl::lastFileSuffix() const {
     if( isVFSFile() ) {
         return result;
     }
+    CHECK(!isNetworkSource(), result);
+
     result = QFileInfo(path(this)).suffix();
     return result;
 }
@@ -191,6 +207,8 @@ QString GUrl::completeFileSuffix() const {
     if( isVFSFile() ) {
         return result;
     }
+    CHECK(!isNetworkSource(), result);
+
     result = QFileInfo(path(this)).completeSuffix();
     return result;
 }

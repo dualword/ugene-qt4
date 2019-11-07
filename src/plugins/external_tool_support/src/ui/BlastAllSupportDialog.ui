@@ -6,18 +6,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>564</width>
-    <height>322</height>
+    <width>619</width>
+    <height>407</height>
    </rect>
   </property>
   <property name="maximumSize">
    <size>
     <width>16777215</width>
-    <height>522</height>
+    <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
-   <string>Request to local BLAST database</string>
+   <string>Request to Local BLAST Database</string>
   </property>
   <property name="autoFillBackground">
    <bool>false</bool>
@@ -29,16 +29,22 @@
    <bool>false</bool>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
+   <property name="sizeConstraint">
+    <enum>QLayout::SetMinAndMaxSize</enum>
+   </property>
    <item>
     <widget class="QTabWidget" name="optionsTab">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
        <string>General options</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMinAndMaxSize</enum>
+       </property>
        <item>
         <layout class="QGridLayout" name="gridLayout_2">
          <item row="0" column="0">
@@ -58,6 +64,11 @@
            <item>
             <property name="text">
              <string>blastp</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>gpu-blastp</string>
             </property>
            </item>
            <item>
@@ -99,9 +110,9 @@
           </widget>
          </item>
          <item row="2" column="0">
-          <widget class="QLabel" name="label_3">
+          <widget class="QLabel" name="hitsLabel">
            <property name="text">
-            <string>Max hits</string>
+            <string>Max hits:</string>
            </property>
           </widget>
          </item>
@@ -139,6 +150,34 @@
             <double>10.000000000000000</double>
            </property>
           </widget>
+         </item>
+         <item row="2" column="2">
+          <layout class="QHBoxLayout" name="horizontalLayout_8">
+           <item>
+            <widget class="QRadioButton" name="bothStrandsButton">
+             <property name="text">
+              <string>Both strands</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="directStrandButton">
+             <property name="text">
+              <string>Direct</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="complStrandButton">
+             <property name="text">
+              <string>Complement</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </item>
@@ -195,7 +234,11 @@ a database file</string>
         </layout>
        </item>
        <item>
-        <layout class="QVBoxLayout" name="verticalLayout_4"/>
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <property name="sizeConstraint">
+          <enum>QLayout::SetMinAndMaxSize</enum>
+         </property>
+        </layout>
        </item>
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout">
@@ -258,90 +301,14 @@ a database file</string>
       <layout class="QVBoxLayout" name="verticalLayout_8">
        <item>
         <layout class="QGridLayout" name="gridLayout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_4">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Word size</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="3">
-          <widget class="QLabel" name="label_6">
-           <property name="text">
-            <string>Gap costs</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="4">
-          <widget class="QComboBox" name="costsComboBox">
+         <item row="2" column="4">
+          <widget class="QComboBox" name="serviceComboBox">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
              <horstretch>2</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
-           <property name="currentIndex">
-            <number>-1</number>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="matrixLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Matrix</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QComboBox" name="matrixComboBox">
-           <item>
-            <property name="text">
-             <string>BLOSUM62</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>BLOSUM45</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>BLOSUM80</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>PAM30</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>PAM70</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item row="2" column="3">
-          <widget class="QLabel" name="serviceLabel">
-           <property name="text">
-            <string>Service</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="4">
-          <widget class="QComboBox" name="serviceComboBox">
            <item>
             <property name="text">
              <string>plain</string>
@@ -359,51 +326,40 @@ a database file</string>
            </item>
           </widget>
          </item>
-         <item row="4" column="1" colspan="4">
-          <widget class="QLineEdit" name="phiPatternEdit"/>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="phiPatternLabel">
+         <item row="1" column="3">
+          <widget class="QLabel" name="matchScoreLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="text">
-            <string>PHI pattern</string>
+            <string>Match scores</string>
            </property>
           </widget>
          </item>
-         <item row="0" column="2">
-          <spacer name="horizontalSpacer_3">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+         <item row="2" column="3">
+          <widget class="QLabel" name="serviceLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
            </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="2" column="2">
-          <spacer name="horizontalSpacer_4">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="0" column="1">
-          <widget class="QSpinBox" name="wordSizeSpinBox">
-           <property name="value">
-            <number>3</number>
+           <property name="text">
+            <string>Service</string>
            </property>
           </widget>
          </item>
          <item row="1" column="4">
           <widget class="QComboBox" name="scoresComboBox">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>2</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="currentIndex">
             <number>0</number>
            </property>
@@ -454,8 +410,8 @@ a database file</string>
            </item>
           </widget>
          </item>
-         <item row="1" column="3">
-          <widget class="QLabel" name="matchScoreLabel">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_4">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
              <horstretch>0</horstretch>
@@ -463,7 +419,92 @@ a database file</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Match scores</string>
+            <string>Word size</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="matrixLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Matrix</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="matrixComboBox">
+           <item>
+            <property name="text">
+             <string>BLOSUM62</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>BLOSUM45</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>BLOSUM80</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>PAM30</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>PAM70</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="4" column="1" colspan="4">
+          <widget class="QLineEdit" name="phiPatternEdit"/>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="phiPatternLabel">
+           <property name="text">
+            <string>PHI pattern</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="2" column="2">
+          <spacer name="horizontalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="0" column="1">
+          <widget class="QSpinBox" name="wordSizeSpinBox">
+           <property name="value">
+            <number>3</number>
            </property>
           </widget>
          </item>
@@ -492,6 +533,68 @@ a database file</string>
          </item>
          <item row="1" column="1">
           <widget class="QDoubleSpinBox" name="thresholdSpinBox"/>
+         </item>
+         <item row="0" column="4">
+          <widget class="QComboBox" name="costsComboBox">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>2</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="currentIndex">
+            <number>-1</number>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="3">
+          <widget class="QLabel" name="costsLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Gap costs</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="compStatsLabel">
+           <property name="text">
+            <string>Composition-based statistics</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1" colspan="4">
+          <widget class="QComboBox" name="compStatsComboBox">
+           <item>
+            <property name="text">
+             <string>D or d: default (equivalent to 2 )</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>0 or F or f: No composition-based statistics</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1: Composition-based statistics as in NAR 29:2994-3005, 2001</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>2 or T or t : Composition-based score adjustment as in Bioinformatics 21:902-911, 2005, conditioned on sequence properties</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>3: Composition-based score adjustment as in Bioinformatics 21:902-911, 2005, unconditionally</string>
+            </property>
+           </item>
+          </widget>
          </item>
         </layout>
        </item>
@@ -668,60 +771,17 @@ a database file</string>
      <property name="sizeHint" stdset="0">
       <size>
        <width>20</width>
-       <height>40</height>
+       <height>0</height>
       </size>
      </property>
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_3">
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>138</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="restoreButton">
-       <property name="text">
-        <string>Restore to Default</string>
-       </property>
-       <property name="autoDefault">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="okButton">
-       <property name="text">
-        <string>Search</string>
-       </property>
-       <property name="autoDefault">
-        <bool>false</bool>
-       </property>
-       <property name="default">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
-       <property name="autoDefault">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Yes</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>

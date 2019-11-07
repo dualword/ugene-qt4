@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -39,9 +39,11 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QFile>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
-
-#include <memory>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
 /* TRANSLATOR U2::IOAdapter */
 
@@ -72,7 +74,7 @@ PFMatrix WeightMatrixIO::readPFMatrix(IOAdapterFactory* iof, const QString& url,
     QVarLengthArray<int> res;
     int len = -1, msize = 0;
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Read)) {
         si.setError(  L10N::errorOpeningFileRead(url) );
         return matrix;
@@ -104,14 +106,14 @@ PFMatrix WeightMatrixIO::readPFMatrix(IOAdapterFactory* iof, const QString& url,
         line = reader.readLine();
         if (line.isEmpty()) {
             continue;
-        } 
+        }
 
         QStringList curr = line.split(" ", QString::SkipEmptyParts);
 
         if (len == -1) {
             len = curr.length();
         }
-        
+
         if (len != curr.length()) {
             si.setError(tr("Error parsing settings line %1").arg(line) );
             break;
@@ -133,7 +135,7 @@ PFMatrix WeightMatrixIO::readPFMatrix(IOAdapterFactory* iof, const QString& url,
 
         msize++;
     }
-    
+
     if (si.hasError()) {
         return matrix;
     }
@@ -142,7 +144,7 @@ PFMatrix WeightMatrixIO::readPFMatrix(IOAdapterFactory* iof, const QString& url,
         si.setError(tr("Incorrect size of weight matrix: %1").arg(msize));
         return matrix;
     }
-    
+
     matrix = PFMatrix(res, (msize == 4) ? PFM_MONONUCLEOTIDE : PFM_DINUCLEOTIDE);
 
     QStringList splitUrl = url.split("/");
@@ -174,7 +176,7 @@ PWMatrix WeightMatrixIO::readPWMatrix(IOAdapterFactory* iof, const QString& url,
     QVarLengthArray<float> res;
     int len = -1, msize = 0;
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Read)) {
         si.setError(  L10N::errorOpeningFileRead(url) );
         return matrix;
@@ -201,7 +203,7 @@ PWMatrix WeightMatrixIO::readPWMatrix(IOAdapterFactory* iof, const QString& url,
 
     QTextStream reader(text);
     QString line;
-    
+
     while (!reader.atEnd() && !si.hasError()) {
         line = reader.readLine();
         if (line.isEmpty()) {
@@ -218,7 +220,7 @@ PWMatrix WeightMatrixIO::readPWMatrix(IOAdapterFactory* iof, const QString& url,
         if (len == -1) {
             len = curr.length() - 1;
         }
-        
+
         if (len != curr.length() - 1) {
             si.setError(tr("Error parsing settings line %1").arg(line) );
             break;
@@ -236,7 +238,7 @@ PWMatrix WeightMatrixIO::readPWMatrix(IOAdapterFactory* iof, const QString& url,
         }
         msize++;
     }
-    
+
     if (si.hasError()) {
         return matrix;
     }
@@ -245,12 +247,12 @@ PWMatrix WeightMatrixIO::readPWMatrix(IOAdapterFactory* iof, const QString& url,
         si.setError(tr("Incorrect size of weight matrix: %1").arg(msize));
         return matrix;
     }
-    
+
     matrix = PWMatrix(res, (msize == 4) ? PWM_MONONUCLEOTIDE : PWM_DINUCLEOTIDE);
     return matrix;
 }
 
-void WeightMatrixIO::writePFMatrix(IOAdapterFactory* iof, const QString& url, TaskStateInfo& si, const PFMatrix& model) 
+void WeightMatrixIO::writePFMatrix(IOAdapterFactory* iof, const QString& url, TaskStateInfo& si, const PFMatrix& model)
 {
     assert (model.getLength() >= 0);
     QByteArray res;
@@ -262,7 +264,7 @@ void WeightMatrixIO::writePFMatrix(IOAdapterFactory* iof, const QString& url, Ta
         res.append("\n");
     }
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Write)) {
         si.setError(  L10N::errorOpeningFileWrite(url) );
         return;
@@ -275,7 +277,7 @@ void WeightMatrixIO::writePFMatrix(IOAdapterFactory* iof, const QString& url, Ta
     io->close();
 }
 
-void WeightMatrixIO::writePWMatrix(IOAdapterFactory* iof, const QString& url, TaskStateInfo& si, const PWMatrix& model) 
+void WeightMatrixIO::writePWMatrix(IOAdapterFactory* iof, const QString& url, TaskStateInfo& si, const PWMatrix& model)
 {
     assert (model.getLength() >= 0);
     QByteArray res;
@@ -295,7 +297,7 @@ void WeightMatrixIO::writePWMatrix(IOAdapterFactory* iof, const QString& url, Ta
         res.append("\n");
     }
 
-    std::auto_ptr<IOAdapter> io(iof->createIOAdapter());
+    QScopedPointer<IOAdapter> io(iof->createIOAdapter());
     if (!io->open(url, IOAdapterMode_Write)) {
         si.setError(  L10N::errorOpeningFileWrite(url) );
         return;

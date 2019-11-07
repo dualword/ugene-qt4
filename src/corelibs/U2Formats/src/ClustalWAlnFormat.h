@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ class U2FORMATS_EXPORT ClustalWAlnFormat : public DocumentFormat {
     Q_OBJECT
 public:
     static const QByteArray CLUSTAL_HEADER;
-    
+
     ClustalWAlnFormat(QObject* p);
 
     virtual DocumentFormatId getFormatId() const {return BaseDocumentFormats::CLUSTAL_ALN;}
@@ -42,15 +42,16 @@ public:
 
     virtual void storeDocument(Document* d, IOAdapter* io, U2OpStatus& os);
 
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
+
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& = GUrl()) const;
+
 
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
 private:
-
-    void save(IOAdapter* io, Document* doc, U2OpStatus& ti);
-    void load(IOAdapter* io, QList<GObject*>& objects, const QVariantMap& fs, U2OpStatus& ti);
+    void load(IOAdapter* io, const U2DbiRef& dbiRef, QList<GObject*>& objects, const QVariantMap& fs, U2OpStatus& ti);
 
     QString formatName;
 };

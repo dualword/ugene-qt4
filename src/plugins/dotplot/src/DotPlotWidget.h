@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,8 +26,13 @@
 #include <U2View/PanView.h>
 #include <U2Core/U2Region.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
 #include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QToolButton>
+#endif
 
 #include <QtCore/QTimer>
 
@@ -39,6 +44,7 @@ class ADVSequenceWidget;
 class GObjectView;
 class LRegionsSelection;
 
+class DotPlotImageExportSettings;
 class DotPlotResultsListener;
 class DotPlotRevComplResultsListener;
 class DotPlotMiniMap;
@@ -49,6 +55,8 @@ class GSequenceLineView;
 class DotPlotWidget : public ADVSplitWidget {
     Q_OBJECT
 
+    friend class DotPlotImageExportToBitmapTask;
+    friend class DotPlotImageExportController;
 public:
     DotPlotWidget(AnnotatedDNAView* dnaView);
     ~DotPlotWidget();
@@ -62,7 +70,8 @@ public:
     AnnotatedDNAView* getDnaView() const {return dnaView;}
 
     void setShiftZoom(ADVSequenceObjectContext*, ADVSequenceObjectContext*, float, float, const QPointF&);
-    bool hasSelection();
+    bool hasSelection() const;
+    bool hasSelectedArea() const;
 
     void setIgnorePanView(bool);
     void setKeepAspectRatio(bool);
@@ -80,6 +89,8 @@ public:
 
     void setSequences(U2SequenceObject* seqX, U2SequenceObject* seqY);
 
+    virtual bool onCloseEvent();
+
 signals:
     void si_removeDotPlot();
     void si_dotPlotChanged(ADVSequenceObjectContext*, ADVSequenceObjectContext*, float, float, QPointF);
@@ -87,9 +98,12 @@ signals:
 
 public slots:
     bool sl_showSettingsDialog(bool disableLoad = false);
+    void sl_filter();
 
 private slots:
-    void sl_taskFinished(Task*);
+    void sl_taskStateChanged();
+    void sl_filteringTaskStateChanged();
+    void sl_buildDotplotTaskStateChanged();
     void sl_showSaveImageDialog();
     bool sl_showSaveFileDialog();
     bool sl_showLoadFileDialog();
@@ -112,6 +126,7 @@ protected:
     void focusInEvent(QFocusEvent* fe);
     void focusOutEvent(QFocusEvent* fe);
     bool event(QEvent *event);
+
 private:
 
     AnnotatedDNAView* dnaView;
@@ -127,7 +142,8 @@ private:
     float shiftX, shiftY;
     int minLen, identity;
 
-    bool pixMapUpdateNeeded, deleteDotPlotFlag;
+    bool pixMapUpdateNeeded, deleteDotPlotFlag, filtration;
+    bool createDotPlot;
 
     Task *dotPlotTask;
     QPixmap *pixMap;
@@ -142,12 +158,15 @@ private:
 
     DotPlotResultsListener*         dpDirectResultListener;
     DotPlotRevComplResultsListener* dpRevComplResultsListener;
+    QList<DotPlotResults>*          dpFilteredResults;
+    QList<DotPlotResults>*          dpFilteredResultsRevCompl;
 
     QAction *showSettingsDialogAction;
     QAction *saveImageAction;
     QAction *saveDotPlotAction;
     QAction *loadDotPlotAction;
     QAction *deleteDotPlotAction;
+    QAction *filterDotPlotAction;
 
     int textSpace;
     static const int defaultTextSpace = 30;
@@ -169,12 +188,14 @@ private:
     void initActionsAndSignals();
     void connectSequenceSelectionSignals();
 
-    void drawAll(QPainter&);
+    void drawAll(QPainter& p, QSize& size, qreal fontScale, DotPlotImageExportSettings& exportSettings);
+    void drawAll(QPainter& p, qreal rulerFontScale = 1, bool drawFocus = true,
+                 bool drawAreaSelection = true, bool drawRepeatSelection = true);
     void drawNames(QPainter&) const;
     void drawAxises(QPainter&) const;
     void drawDots(QPainter&);
     void drawSelection(QPainter&) const;
-    void drawRulers(QPainter&) const;
+    void drawRulers(QPainter&, qreal fontScale = 1) const;
     void drawMiniMap(QPainter&) const;
     void drawNearestRepeat(QPainter&) const;
     void drawFocus(QPainter& p) const;

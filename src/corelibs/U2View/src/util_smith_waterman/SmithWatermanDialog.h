@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@ class ADVSequenceObjectContext;
 class CreateAnnotationWidgetController;
 
 #define DEF_PERCENT_OF_SCORE    90
-#define DEF_GAP_OPEN_SCORE      (-10.0f)
-#define DEF_GAP_EXTD_SCORE      (-1.0f)
+#define DEF_GAP_OPEN_SCORE      (-10)
+#define DEF_GAP_EXTD_SCORE      (-1)
 
 enum SmithWatermanRangeType {
     SmithWatermanRangeType_noRange,
@@ -51,7 +51,7 @@ struct SWDialogConfig {
         ptrn = QByteArray();
         algVersion = QString("");
         scoringMatrix = QString("");
-        
+
         gm.scoreGapOpen = DEF_GAP_OPEN_SCORE;
         gm.scoreGapExtd = DEF_GAP_EXTD_SCORE;
 
@@ -62,6 +62,17 @@ struct SWDialogConfig {
         searchType  = SmithWatermanSearchType_noSearch;
         strand      = StrandOption_DirectOnly;
         rangeType   = SmithWatermanRangeType_noRange;
+
+        resultView = SmithWatermanSettings::ANNOTATIONS;
+
+        alignFilesNamesTmpl = QString("");
+        refSubseqNamesTmpl = QString("");
+        ptrnSubseqNamesTmpl = QString("");
+        patternSequenceName = QString("");
+
+        enableAdvancedMASettings = false;
+        countOfLaunchesAlgorithm = 1;
+        addPatternSubsequenceAsQualifier = false;
     }
     QByteArray ptrn;
 
@@ -72,16 +83,25 @@ struct SWDialogConfig {
 
     int minScoreInPercent;      // c {0, 1, ..., 100}
 
-    SmithWatermanSearchType searchType;                
+    SmithWatermanSearchType searchType;
     StrandOption strand;
     SmithWatermanRangeType  rangeType;
+
+    SmithWatermanSettings::SWResultView resultView;
+
+    QString alignFilesNamesTmpl;
+    QString refSubseqNamesTmpl;
+    QString ptrnSubseqNamesTmpl;
+    QString patternSequenceName;
+
+    bool enableAdvancedMASettings;
+    int countOfLaunchesAlgorithm;
+    bool addPatternSubsequenceAsQualifier;
 };
 
 class U2VIEW_EXPORT SmithWatermanDialogController {
 public:
-    static void run(QWidget* p, 
-                        ADVSequenceObjectContext* ctx,
-                        SWDialogConfig* dialogConfig);
+    static void run(QWidget* p, ADVSequenceObjectContext* ctx, SWDialogConfig* dialogConfig);
 };
 
 } // namespace

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #define _U2_UGENE_TEST_FRAMEWORK_H_
 
 
+#include <U2Core/Log.h>
 #include <U2Core/Task.h>
 
 #include <QtCore/QString>
@@ -33,13 +34,16 @@
 
 namespace U2 {
 
+/** Tests that need to verify log uses this resource */
+#define RESOURCE_LISTEN_LOG_IN_TESTS    1000001
+
 
 class U2TEST_EXPORT GTestEnvironment {
 public:
     void setVar(const QString& varName, const QString& val) {vars[varName] = val;}
-    
+
     QString getVar(const QString& varName) const {return vars.value(varName);}
-    
+
     QMap<QString, QString> getVars() const {return vars;}
 
     bool containsEmptyVars() const {return vars.values().contains(QString(""));}
@@ -52,17 +56,17 @@ private:
 class U2TEST_EXPORT GTest : public Task {
     Q_OBJECT
 public:
-    GTest(const QString& taskName, GTest* cp, const GTestEnvironment* env, 
+    GTest(const QString& taskName, GTest* cp, const GTestEnvironment* env,
         TaskFlags flags, const QList<GTest*>& subtasks = QList<GTest*>());
 
     QObject* getContext(const QString& name) const;
-    
+
     void addContext(const QString& name, QObject* v);
 
     void removeContext(const QString& name);
 
     template <class T>
-    static T* getContext(const GTest* test, const QString& name) { 
+    static T* getContext(const GTest* test, const QString& name) {
         QObject* o = test->getContext(name);
         T* res = qobject_cast<T*>(o);
         return res;
@@ -74,7 +78,7 @@ protected:
     GTest* getContextProvider() const {return contextProvider;}
 
     void failMissingValue(const QString&);
-    
+
     GTest* contextProvider;
     const GTestEnvironment* env;
     QMap<QString, QObject*> subtestsContext;
@@ -96,7 +100,7 @@ protected:
 class GTestSuite;
 class U2TEST_EXPORT GTestRef {
 public:
-    GTestRef(const QString& _url, const QString& sName, const GTestFormatId f) 
+    GTestRef(const QString& _url, const QString& sName, const GTestFormatId f)
         : url(_url), shortName(sName), formatId(f){}
 
     const QString& getURL() const {return url;}
@@ -109,6 +113,8 @@ public:
 
     GTestSuite * getSuite() const {return suite;}
 
+    bool operator ==( const GTestRef& other) const {return (url == other.url) && (formatId == other.formatId);}
+
 private:
     QString             url;
     QString             shortName;
@@ -120,7 +126,7 @@ class U2TEST_EXPORT GTestState : public QObject {
     Q_OBJECT
 public:
     GTestState(GTestRef* ref) : testRef(ref), state(TriState_Unknown) {}
-    
+
     GTestRef* getTestRef() const {return testRef;}
 
     bool isPassed() const {return state == TriState_Yes;}
@@ -155,7 +161,7 @@ public:
     GTestEnvironment* getEnv() {return &env;}
 
     const QList<GTestRef*>& getTests() const {return tests;}
-    const QList<GTestRef*>& getExcludedTests() const {return excluded;}
+    const QMap<GTestRef*, QString>& getExcludedTests() const {return excluded;}
 
     const QString& getURL() const {return url;}
 
@@ -170,12 +176,12 @@ protected:
     GTestSuite()
         : url(), name(), tests(), excluded(), testTimeout(0), env()
     {}
-    
+
     QString url;
     QString name;
-    
+
     QList<GTestRef*> tests;
-    QList<GTestRef*> excluded;
+    QMap<GTestRef*, QString> excluded;
 
     /** Maximum run time for single test in sutie.
         timeout = 0 means this parameter unused */
@@ -184,6 +190,44 @@ protected:
     GTestEnvironment env;
 };
 
+
+
+enum GTestLogHelperStatus {GTest_LogHelper_Invalid, GTest_LogHelper_Valid};
+
+/**
+ * Helps to verify if the log contains a message (or several messages),
+ * or, visa versa, doesn't contain a message (or several messages).
+ *
+ * To use it, create a new instance of the class in a test init function.
+ * Call "expectLogMessage" for each expected message.
+ * Call "expectNoLogMessage" for messages that mustn't be in the log.
+ * In the test's report() or similar function call verifyStatus().
+ *
+ * WARNING: All tests that listen to log need also to define attribute
+ * "lockForLogListening" for "multi-test" tag! This is done to avoid mixing of log
+ * between different tests.
+ */
+class U2TEST_EXPORT GTestLogHelper : public QObject, public LogListener {
+    Q_OBJECT
+public:
+    GTestLogHelper();
+    ~GTestLogHelper();
+
+    void initMessages(const QStringList& expectedMessages, const QStringList& unexpectedMessages);
+
+    GTestLogHelperStatus verifyStatus();
+
+private:
+    void onMessage(const LogMessage& logMessage);
+
+    QMap<QString, bool> expectedMessages;
+    QMap<QString, bool> unexpectedMessages; // Messages that mustn't be present in the log
+
+    qint64      logHelperStartTime;
+    qint64      logHelperEndTime;
+
+    bool        statusWasVerified;
+};
 
 }//namespace
 

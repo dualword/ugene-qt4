@@ -1,6 +1,6 @@
 /**
 * UGENE - Integrated Bioinformatics Tools.
-* Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+* Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
 * http://ugene.unipro.ru
 *
 * This program is free software; you can redistribute it and/or
@@ -59,13 +59,13 @@ void createPhyTreeFromPhylipTree(const MAlignment &ma, node *p, double m, boolea
     if(p){
         if (p->tip) {
             if(bootstrap_repl != 0){
-                current->name = QString::fromAscii(p->nayme);
+                current->setName(QString::fromLatin1(p->nayme));
             }else{
                 assert(p->index - 1 < ma.getNumRows());
-                current->name = ma.getRow(p->index - 1).getName();
+                current->setName(QString(ma.getRow(p->index - 1).getName()));
             }
         } else {
-            current->name = QString("node %1").arg(counter++);
+            current->setName(QString("node %1").arg(counter++));
             createPhyTreeFromPhylipTree(ma, p->next->back,  m, njoin, start, current, bootstrap_repl);
             createPhyTreeFromPhylipTree(ma, p->next->next->back, m, njoin, start, current, bootstrap_repl);
             if (p == start && njoin) {
@@ -78,12 +78,12 @@ void createPhyTreeFromPhylipTree(const MAlignment &ma, node *p, double m, boolea
         } else {
             if(bootstrap_repl != 0){
                 if(p->deltav == 0){
-                    PhyNode::addBranch(root, current, bootstrap_repl);
+                    PhyTreeData::addBranch(root, current, bootstrap_repl);
                 }else{
-                    PhyNode::addBranch(root, current, p->deltav );
+                    PhyTreeData::addBranch(root, current, p->deltav );
                 }
             }else{
-                PhyNode::addBranch(root, current, p->v);
+                PhyTreeData::addBranch(root, current, p->v);
             }
             
         }
@@ -113,7 +113,7 @@ void NeighborJoinAdapter::setupCreatePhyTreeUI( CreatePhyTreeDialogController* c
 }
 
 NeighborJoinCalculateTreeTask::NeighborJoinCalculateTreeTask(const MAlignment& ma, const CreatePhyTreeSettings& s)
-:PhyTreeGeneratorTask(ma, s){
+:PhyTreeGeneratorTask(ma, s), memLocker(stateInfo){
     setTaskName("NeighborJoin algorithm");
 }
 
@@ -131,14 +131,13 @@ void NeighborJoinCalculateTreeTask::run(){
         return;
     }
 
-
-    if(settings.bootstrap){ //bootstrapping and creating a consensus tree
-        try {
+    try {
+        if(settings.bootstrap){ //bootstrapping and creating a consensus tree
             setTaskInfo(&stateInfo);
             setBootstr(true);
             stateInfo.setDescription("Generating sequences");
 
-            std::auto_ptr<SeqBoot> seqBoot(new SeqBoot);
+            QScopedPointer<SeqBoot> seqBoot(new SeqBoot);
 
             QTemporaryFile tmpFile;
             QString path = seqBoot->getTmpFileTemplate();
@@ -160,9 +159,14 @@ void NeighborJoinCalculateTreeTask::run(){
                 stateInfo.progress = (int)(i/(float)settings.replicates * 100);
 
                 const MAlignment& curMSA = seqBoot->getMSA(i);
-                std::auto_ptr<DistanceMatrix> distanceMatrix(new DistanceMatrix);
+                QScopedPointer<DistanceMatrix> distanceMatrix(new DistanceMatrix);
                 distanceMatrix->calculateOutOfAlignment(curMSA,settings);
 
+                if(!distanceMatrix->getErrorMessage().isEmpty()) {
+                    stateInfo.setError(distanceMatrix->getErrorMessage());
+                    result = phyTree;
+                    return;
+                }
                 if (!distanceMatrix->isValid()) {
                     setError("Calculated distance matrix is invalid");
                     result = phyTree;
@@ -172,7 +176,11 @@ void NeighborJoinCalculateTreeTask::run(){
                 int sz = distanceMatrix->rawMatrix.count();
 
                 // Allocate memory resources
-                neighbour_init(sz, tmpFile.fileName());
+                neighbour_init(sz, memLocker, tmpFile.fileName());
+                if(memLocker.hasError()) {
+                    stateInfo.setError(memLocker.getError());
+                    return;
+                }
 
                 // Fill data
                 vector* m = getMtx();
@@ -185,7 +193,7 @@ void NeighborJoinCalculateTreeTask::run(){
                 naym* nayme = getNayme();
                 for (int i = 0; i < sz; ++i) {
                     const MAlignmentRow& row = inputMA.getRow(i);
-                    QByteArray name = row.getName().toAscii();
+                    QByteArray name = row.getName().toLatin1();
                     replacePhylipRestrictedSymbols(name);
                     qstrncpy(nayme[i], name.constData(), sizeof(naym));
 
@@ -222,23 +230,23 @@ void NeighborJoinCalculateTreeTask::run(){
             consens_free_res();
 
             PhyTreeData* data = new PhyTreeData();
-            data->rootNode = rootPhy;
+            data->setRootNode(rootPhy);
 
             phyTree = data;
-
-        } catch (const char* message) {
-            stateInfo.setError(QString("Phylip error %1").arg(message));
-        }
-    }else{
+        }else{
 
         // Exceptions are used to avoid phylip exit(-1) error handling and canceling task 
-        try {   
             setTaskInfo(&stateInfo);
             setBootstr(false);
 
-            std::auto_ptr<DistanceMatrix> distanceMatrix(new DistanceMatrix);
+            QScopedPointer<DistanceMatrix> distanceMatrix(new DistanceMatrix);
             distanceMatrix->calculateOutOfAlignment(inputMA,settings);
 
+            if(!distanceMatrix->getErrorMessage().isEmpty()) {
+                stateInfo.setError(distanceMatrix->getErrorMessage());
+                result = phyTree;
+                return;
+            }
             if (!distanceMatrix->isValid()) {
                 stateInfo.setError("Calculated distance matrix is invalid");
                 result = phyTree;
@@ -248,7 +256,11 @@ void NeighborJoinCalculateTreeTask::run(){
             int sz = distanceMatrix->rawMatrix.count();
 
             // Allocate memory resources
-            neighbour_init(sz);
+            neighbour_init(sz, memLocker);
+            if(memLocker.hasError()) {
+                stateInfo.setError(memLocker.getError());
+                return;
+            }
 
             // Fill data
             vector* m = getMtx();
@@ -261,7 +273,7 @@ void NeighborJoinCalculateTreeTask::run(){
             naym* nayme = getNayme();
             for (int i = 0; i < sz; ++i) {
                 const MAlignmentRow& row = inputMA.getRow(i);
-                QByteArray name = row.getName().toAscii();
+                QByteArray name = row.getName().toLatin1();
                 replacePhylipRestrictedSymbols(name);
                 qstrncpy(nayme[i], name.constData(), sizeof(naym));
             }
@@ -279,13 +291,16 @@ void NeighborJoinCalculateTreeTask::run(){
             neighbour_free_resources();
 
             PhyTreeData* data = new PhyTreeData();
-            data->rootNode = root;
+            data->setRootNode(root);
 
             phyTree = data;
-        } catch (const char* message) {
-            stateInfo.setError(QString("Phylip error %1").arg(message));
         }
-
+    }
+    catch (const std::bad_alloc &) {
+        setError(QString("Not enough memory to calculate tree for alignment \"%1\"").arg(inputMA.getName()));
+    }
+    catch (const char* message) {
+        stateInfo.setError(QString("Phylip error %1").arg(message));
     }
 
     result = phyTree;

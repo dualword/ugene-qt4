@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,11 @@
 
 #include "CoverageInfo.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QWidget>
+#else
+#include <QtWidgets/QWidget>
+#endif
 #include <QtCore/QSharedPointer>
 
 namespace U2 {
@@ -44,14 +48,15 @@ signals:
     void si_mouseMovedToPos(const QPoint &);
 
 private slots:
-    void sl_redraw();
+    void sl_coverageReady();
     void sl_launchCoverageCalculation();
     void sl_onOffsetsChanged();
 
 private:
     void connectSlots();
+    void doRedraw();
     void drawAll();
-    void drawGraph(QPainter & p);
+    void drawGraph(QPainter & p, const CoverageInfo & ci, int alpha = 255);
 
 
     AssemblyBrowserUi * ui;
@@ -62,11 +67,13 @@ private:
     bool redraw;
     const static int FIXED_HEIGHT = 25;
 
-    qint64 previousXOffset;
+    U2Region previousRegion;
 
     BackgroundTaskRunner<CoverageInfo> coverageTaskRunner;
+    CoverageInfo lastResult;
+    bool canceled;
 };
 
 } //ns
 
-#endif 
+#endif

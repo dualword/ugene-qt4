@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -31,12 +31,10 @@ namespace U2 {
 
 DNASequence* StreamSequenceReader::getNextSequenceObject() {
     if (hasNext()) {
-        DNASequence* result = currentSeq.get();
+        DNASequence* result = currentSeq.data();
         lookupPerformed = false;
-
         return result;
-    }   
-    
+    }
     return NULL;
 }
 
@@ -67,20 +65,19 @@ bool StreamSequenceReader::hasNext() {
                 break;
             }
         }
-    
-    }
-    
-    if (currentSeq.get() == NULL) {
-        return false;
+
     }
 
+    if (currentSeq.isNull()) {
+        return false;
+    }
 
     return true;
 }
 
 bool StreamSequenceReader::init( const QList<GUrl>& urls ) {
     foreach (const GUrl& url, urls) {
-        QList<FormatDetectionResult> detectedFormats = DocumentUtils::detectFormat(url);    
+        QList<FormatDetectionResult> detectedFormats = DocumentUtils::detectFormat(url);
         if (detectedFormats.isEmpty()) {
             taskInfo.setError(QString("File %1 unsupported format.").arg(url.getURLString()));
             break;
@@ -98,7 +95,7 @@ bool StreamSequenceReader::init( const QList<GUrl>& urls ) {
         ctx.io = io;
         readers.append(ctx);
     }
-    
+
     if (readers.isEmpty()) {
         taskInfo.setError("Unsupported file format or short reads list is empty");
         return false;

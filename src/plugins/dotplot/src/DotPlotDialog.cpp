@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,38 +19,45 @@
  * MA 02110-1301, USA.
  */
 
-#include "DotPlotDialog.h"
-#include "DotPlotTasks.h"
+#include <math.h>
 
-#include <U2Core/global.h>
-#include <U2Core/GObjectUtils.h>
+#include <QColorDialog>
+
 #include <U2Core/AppContext.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/ProjectModel.h>
 #include <U2Core/U2SafePoints.h>
-#include <U2Core/DNAAlphabet.h>
+#include <U2Core/global.h>
 
 #include <U2Gui/CreateAnnotationWidgetController.h>
-#include <U2Gui/LastUsedDirHelper.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
+#include <U2Gui/LastUsedDirHelper.h>
+#include <U2Core/QObjectScopedPointer.h>
+#include <U2Gui/U2FileDialog.h>
 
 #include <U2View/ADVSequenceObjectContext.h>
 #include <U2View/AnnotatedDNAView.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QColorDialog>
+#include "DotPlotDialog.h"
+#include "DotPlotTasks.h"
 
 namespace U2 {
 
-DotPlotDialog::DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int minLen, int identity, 
-                             ADVSequenceObjectContext *sequenceX, ADVSequenceObjectContext *sequenceY, 
+DotPlotDialog::DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int minLen, int identity,
+                             ADVSequenceObjectContext *sequenceX, ADVSequenceObjectContext *sequenceY,
                              bool dir, bool inv, const QColor &dColor, const QColor &iColor, bool hideLoadSequences)
 : QDialog(parent), xSeq(sequenceX), ySeq(sequenceY), adv(currentADV), directColor(dColor), invertedColor(iColor)
 ,openSequenceTask(NULL), curURL("")
 {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122211");
+    startButton = buttonBox->button(QDialogButtonBox::Ok);
 
     SAFE_POINT(adv != NULL, "DotPlotDialog called without view context!", );
-    
+
     directCheckBox->setChecked(dir);
     invertedCheckBox->setChecked(inv);
 
@@ -68,7 +75,7 @@ DotPlotDialog::DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int 
     foreach (GObject* obj, allSequences) {
         U2SequenceObject* seqObj = qobject_cast<U2SequenceObject*>(obj);
         QString name = seqObj->getGObjectName();
-        
+
         xAxisCombo->addItem(name);
         yAxisCombo->addItem(name);
 
@@ -90,7 +97,7 @@ DotPlotDialog::DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int 
     } else if (sequences.size() > 1) {    // choose the second sequence for Y axis by default
         yAxisCombo->setCurrentIndex(1);
     }
-   
+
     minLenBox->setValue(minLen);
     identityBox->setValue(identity);
 
@@ -111,6 +118,7 @@ DotPlotDialog::DotPlotDialog(QWidget *parent, AnnotatedDNAView* currentADV, int 
     if(hideLoadSequences){
         loadSequenceButton->hide();
     }
+
 }
 
 void DotPlotDialog::accept() {
@@ -118,7 +126,7 @@ void DotPlotDialog::accept() {
     int yIdx = yAxisCombo->currentIndex();
     SAFE_POINT(xIdx >= 0 && xIdx < sequences.length(), QString("DotPlotDialog: index is out of range: %1").arg(xIdx),);
     SAFE_POINT(yIdx >= 0 && yIdx < sequences.length(), QString("DotPlotDialog: index is out of range: %1").arg(yIdx),);
-        
+
     U2SequenceObject* objX = sequences[xIdx];
     U2SequenceObject* objY = sequences[yIdx];
 
@@ -146,7 +154,7 @@ void DotPlotDialog::sl_minLenHeuristics() {
 
     int xIdx = xAxisCombo->currentIndex();
     int yIdx = yAxisCombo->currentIndex();
-    
+
     U2SequenceObject *objX = sequences.at(xIdx);
     U2SequenceObject *objY = sequences.at(yIdx);
 
@@ -198,10 +206,12 @@ void DotPlotDialog::sl_directInvertedCheckBox() {
 static const QString COLOR_STYLE("QPushButton { background-color: %1 }");
 
 void DotPlotDialog::sl_directColorButton() {
-    QColorDialog d(directColor, this);
+    QObjectScopedPointer<QColorDialog> d = new QColorDialog(directColor, this);
+    d->exec();
+    CHECK(!d.isNull(), );
 
-    if (d.exec()) {
-        directColor = d.selectedColor();
+    if (QDialog::Accepted == d->result()) {
+        directColor = d->selectedColor();
         directCheckBox->setChecked(true);
     }
 
@@ -209,10 +219,12 @@ void DotPlotDialog::sl_directColorButton() {
 }
 
 void DotPlotDialog::sl_invertedColorButton() {
-    QColorDialog d(invertedColor, this);
+    QObjectScopedPointer<QColorDialog> d = new QColorDialog(invertedColor, this);
+    d->exec();
+    CHECK(!d.isNull(), );
 
-    if (d.exec()) {
-        invertedColor = d.selectedColor();
+    if (QDialog::Accepted == d->result()) {
+        invertedColor = d->selectedColor();
         invertedCheckBox->setChecked(true);
     }
 
@@ -234,7 +246,7 @@ void DotPlotDialog::sl_invertedDefaultColorButton() {
 void DotPlotDialog::sl_loadSequenceButton(){
     QString filter = DialogUtils::prepareDocumentsFileFilterByObjType(GObjectTypes::SEQUENCE, true);
     LastUsedDirHelper lod("DotPlot file");
-    lod.url = QFileDialog::getOpenFileName(NULL, tr("Open file"), lod.dir, filter);
+    lod.url = U2FileDialog::getOpenFileName(this, tr("Open file"), lod.dir, filter);
     if(!lod.url.isEmpty()){
         Task *tasks = new Task("Adding document to the project", TaskFlag_NoRun);
 
@@ -245,7 +257,7 @@ void DotPlotDialog::sl_loadSequenceButton(){
         //DotPlotLoadDocumentsTask *t = new DotPlotLoadDocumentsTask(lod.url, -1, NULL, -1, false);
         //tasks->addSubTask(t);
         QVariantMap hints;
-        hints[ProjectLoaderHint_LoadWithoutView] = true;
+        hints[ProjectLoaderHint_LoadWithoutView] = false;
         hints[ProjectLoaderHint_LoadUnloadedDocument] = true;
         openSequenceTask = AppContext::getProjectLoader()->openWithProjectTask(lod.url, hints);
         if(openSequenceTask == NULL){
@@ -270,7 +282,7 @@ void DotPlotDialog::sl_loadTaskStateChanged(Task* t){
                 }
                 GUrl URL(curURL);
                 Project *project = AppContext::getProject();
-                Q_ASSERT(project);
+                SAFE_POINT(project, "project is NULL", );
                 Document *doc = project->findDocumentByURL(URL);
                 if (!doc || !doc->isLoaded()) {
                     return;
@@ -289,10 +301,10 @@ void DotPlotDialog::sl_loadTaskStateChanged(Task* t){
             }
             return;
     }
-    
+
 
     if (loadTask->getStateInfo().hasError()) {
-        DotPlotDialogs::filesOpenError();
+        QMessageBox::critical(this, tr("Error"), tr("Error opening files"));
         return;
     }
 
@@ -319,24 +331,15 @@ void DotPlotDialog::updateColors() {
 bool DotPlotDialog::isObjectInADV(GObject* obj){
     SAFE_POINT(obj != NULL, "Object is NULL in DotPlotDialog::isObjectInADV(GObject* obj)", false);
 
-    QList<ADVSequenceObjectContext*> currentContexts = adv->getSequenceContexts();
-
-    bool result = false;
-    foreach(ADVSequenceObjectContext* objContext, currentContexts){
-        if (objContext->getSequenceGObject()->getGObjectName() == obj->getGObjectName()){
-            result = true;
-        }
-    }
-
-    return result;
+    return adv->containsObject(obj);
 }
 
 GObject* DotPlotDialog::getGObjectByName(const QString& gObjectName){
-    QList<GObject*> allSequences  = GObjectUtils::findAllObjects(UOF_LoadedOnly, GObjectTypes::SEQUENCE);  
+    QList<GObject*> allSequences  = GObjectUtils::findAllObjects(UOF_LoadedOnly, GObjectTypes::SEQUENCE);
     GObject* obj = NULL;
     foreach (GObject* s, allSequences) {
         if (gObjectName == s->getGObjectName()) {
-            obj = s; 
+            obj = s;
         }
     }
     return obj;

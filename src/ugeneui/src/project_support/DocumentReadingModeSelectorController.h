@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ public:
         Adds additional hints to dr.rawCheckResult.properties on format reading mode  
         If 'false' is returned -> user pressed cancel
     */
-    static bool adjustReadingMode(FormatDetectionResult& dr, bool forceReadingOptions);
+    static bool adjustReadingMode(FormatDetectionResult& dr, bool forceReadingOptions, bool optionsAlreadyChoosed);
 };
 
 } //namespace

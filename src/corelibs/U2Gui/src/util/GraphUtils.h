@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -86,6 +86,16 @@ public:
     //static void drawDensityPlot(QPainter& p, QRect& drawRect, QRect& calcRect, quint32 n, quint32* x, quint32 *y, quint32* len);
 
     static QColor proposeLightColorByKey(const QString& key);
+
+	/* 
+	   The method is designed to be used by different algorithms that needs to 
+	   select some "nice looking" number in range to be presented to user.
+
+	   Selects "nice looking" number below maxVal.
+	   Example (input, result) : (231, 200), (49, 40), (12421452, 12000000)
+	   Works only for positive numbers, returns maxVal for negative or zero
+	*/
+	static qint64 pickRoundedNumberBelow(qint64 maxVal);
 };
 
 } //namespace

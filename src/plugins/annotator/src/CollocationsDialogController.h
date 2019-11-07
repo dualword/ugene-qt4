@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,18 +28,23 @@
 #include <U2Core/Task.h>
 #include <U2Core/U2Region.h>
 #include <U2Core/AnnotationData.h>
-//#include "gobjects/AnnotationTableObject.h"
 
 #include <QtCore/QTimer>
 #include <QtCore/QMutex>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
 #include <QtGui/QToolButton>
+#else
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QToolButton>
+#endif
+
 
 namespace U2 {
 
+class AnnotationTableObject;
 class ADVSequenceObjectContext;
 class CollocationSearchTask;
-class AnnotationTableObject;
 
 //TODO: listen for allocation add/remove to the view
 class CollocationsDialogController : public QDialog, Ui_FindAnnotationCollocationsDialog {
@@ -73,6 +78,9 @@ private:
     QToolButton*                plusButton;
     CollocationSearchTask*      task;
     QTimer*                     timer;
+    QPushButton*                searchButton;
+    QPushButton*                cancelButton;
+
 };
 
 class CDCResultItem : public QListWidgetItem {
@@ -87,21 +95,28 @@ public:
 class CollocationSearchTask : public Task , public CollocationsAlgorithmListener{
     Q_OBJECT
 public:
-    CollocationSearchTask(const QList<AnnotationTableObject*> &table, const QSet<QString>& names, const CollocationsAlgorithmSettings& cfg);
-    CollocationSearchTask(const QList<SharedAnnotationData> &table, const QSet<QString>& names, const CollocationsAlgorithmSettings& cfg);
+    CollocationSearchTask(const QList<AnnotationTableObject *> &table, const QSet<QString>& names, const CollocationsAlgorithmSettings& cfg);
+    CollocationSearchTask(const QList<SharedAnnotationData> &table, const QSet<QString>& names, const CollocationsAlgorithmSettings& cfg,
+        bool keepSourceAnns = false);
     void run();
 
     QVector<U2Region> popResults();
+    QList<SharedAnnotationData> popResultAnnotations();
 
     virtual void onResult(const U2Region& r);
 
 private:
     CollocationsAlgorithmItem& getItem(const QString& name);
-    
+    bool isSuitableRegion(const U2Region &r, const QVector<U2Region> &resultRegions) const;
+    U2Region cutResult(const U2Region &res) const;
+
     QMap<QString, CollocationsAlgorithmItem> items;
     CollocationsAlgorithmSettings cfg;
     QVector<U2Region>  results;
     QMutex          lock;
+
+    const bool keepSourceAnns;
+    QList<SharedAnnotationData> sourceAnns;
 };
 
 }//namespace

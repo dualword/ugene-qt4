@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,24 +22,78 @@
 #ifndef _U2_WORKFLOW_CONTEXT_H_
 #define _U2_WORKFLOW_CONTEXT_H_
 
+#include <QtCore/QMutex>
+
+#include <U2Core/AppFileStorage.h>
+
+#include <U2Lang/Datatype.h>
 #include <U2Lang/DbiDataStorage.h>
+#include <U2Lang/MessageMetadata.h>
 
 namespace U2 {
+using namespace FileStorage;
 namespace Workflow {
+
+class Actor;
+class WorkflowMonitor;
 
 /**
  * Contains a common data for whole workflow running process
  */
 class U2LANG_EXPORT WorkflowContext {
+    Q_DISABLE_COPY(WorkflowContext)
 public:
-    WorkflowContext();
-    ~WorkflowContext();
+    WorkflowContext(const QList<Actor*> &procs, WorkflowMonitor *monitor);
+    virtual ~WorkflowContext();
 
     bool init();
-    DbiDataStorage *getDataStorage();
+    DbiDataStorage * getDataStorage();
+    WorkflowMonitor * getMonitor();
+
+    /**
+     * @slotStr = "actor.slot>actor_path1,actor_path1,..."
+     * or just "actor.slot"
+     */
+    DataTypePtr getOutSlotType(const QString &slotStr);
+    /**
+     * Files created by external tools workers could be used by some other scheme elements.
+     * In that case, it is needed to add these files to the context and remove them after
+     * the whole scheme performing is finished.
+     */
+    void addExternalProcessFile(const QString &url);
+
+    const WorkflowProcess &getWorkflowProcess() const;
+    WorkflowProcess &getWorkflowProcess();
+
+    QString workingDir() const;
+    QString absolutePath(const QString &relative) const;
+
+    MessageMetadataStorage & getMetadataStorage();
 
 private:
+    WorkflowMonitor *monitor;
     DbiDataStorage *storage;
+    MessageMetadataStorage metadataStorage;
+    QMap<QString, Actor*> procMap;
+
+    QMutex addFileMutex;
+    QStringList externalProcessFiles;
+    WorkflowProcess process;
+
+private:
+    bool initWorkingDir();
+
+private:
+    QString _workingDir;
+};
+
+class WorkflowContextCMDLine {
+public:
+    static QString getOutputDirectory(U2OpStatus &os);
+    static QString createSubDirectoryForRun(const QString &root, U2OpStatus &os);
+    static bool useOutputDir();
+    static bool useSubDirs();
+    static void saveRunInfo(const QString &dir);
 };
 
 } // Workflow

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -62,42 +62,42 @@ P7_HMM * UHMM3Build::build( const MAlignment & malignment, const UHMM3BuildSetti
     try {
         int alType = UHMM3Utilities::convertAlphabetType( malignment.getAlphabet() );
         if( UHMM3Utilities::BAD_ALPHABET == alType ) {
-            errStr = tr( "cannot_convert_alphabet" ).toAscii();
+            errStr = tr( "UGENE cannot determine alphabet of alignment" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         ESL_ALPHABET* abc = esl_alphabet_Create( alType );
         if( NULL == abc ) {
-            errStr = tr( "no_memory: cannot_create_alphabet" ).toAscii();
+            errStr = tr( "Run out of memory (creating alphabet failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
         P7_BG* bg = p7_bg_Create( abc );
         if( NULL == bg ) {
-            errStr = tr( "no_memory: cannot_create_null_model" ).toAscii();
+            errStr = tr( "Run out of memory (creating null model failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         P7_BUILDER* bld = p7_builder_Create( &settings, abc );
         if( NULL == bld ) {
-            errStr = tr( "no_memory: cannot_create_builder" ).toAscii();
+            errStr = tr( "Run out of memory (creating builder failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         
         ESL_MSA* msa = UHMM3Utilities::convertMSA( malignment );
         if( NULL == msa ) {
-            errStr = tr( "no_memory: cannot_convert_msa" ).toAscii();
+            errStr = tr( "Run out of memory (creating multiple alignment failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         int ret = esl_msa_Digitize( abc, msa, NULL );
         if( eslOK != ret ) {
-            errStr = tr( "no_memory: cannot_digitize_msa" ).toAscii();
+            errStr = tr( "Run out of memory (digitizing of alignment failed)" ).toLatin1();
             throwUHMMER3Exception( errStr.data() );
         }
         ret = p7_Builder( bld, msa, bg, &hmm, NULL, NULL, NULL, NULL, ti );
         if ( eslOK != ret ) {
             if( eslCANCELED == ret ) {
-                errStr = tr( HMMER3_CANCELED_ERROR ).toAscii();
+                errStr = tr( HMMER3_CANCELED_ERROR ).toLatin1();
             } else {
-                errStr = tr( "builder_error_occurred" ).toAscii();
+                errStr = tr( "Model building failed" ).toLatin1();
             }
             assert( !errStr.isEmpty() );
             throwUHMMER3Exception( errStr.data() );

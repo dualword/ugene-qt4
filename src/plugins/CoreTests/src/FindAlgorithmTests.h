@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ private:
     bool translatetoAmino;
     QString sequenceName;
     QString docName;
-    U2SequenceObject *se; 
+    U2SequenceObject *se;
     QList<U2Region> expectedResults;
     FindAlgorithmTask *t;
 };

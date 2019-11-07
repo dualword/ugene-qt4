@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,20 +37,20 @@ public:
     // io - opened io adapter
     SaveDocumentStreamingTask( Document* doc, IOAdapter* io );
     ~SaveDocumentStreamingTask();
-    
+
     virtual void prepare();
-    
+
     virtual void run();
-    
+
     ReportResult report();
-    
+
     Document* getDocument() const;
-    
+
 private:
     StateLock*  lock;
     Document*   doc;
     IOAdapter*  io;
-    
+
 }; // SaveDocumentStreamingTask
 
 } // U2

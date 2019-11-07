@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,13 +43,20 @@ public:
     static const QString TEAMCITY_OUTPUT;
     static const QString LOG_FORMAT;
     static const QString LOG_LEVEL;
+    static const QString CREATE_GUI_TEST;
     static const QString LAUNCH_GUI_TEST;
+    static const QString LAUNCH_GUI_TEST_NO_IGNORED;
+    static const QString LAUNCH_GUI_TEST_BATCH;
+    static const QString LAUNCH_GUI_TEST_SUITE;
+    static const QString LAUNCH_GUI_TEST_CRAZY_USER;
     static const QString USAGE;
-        
+    static const QString TMP_DIR;
+    static const QString SESSION_DB;
+
 public:
     // initialize help for core cmdline options
     static void initHelp();
-    
+
 }; // CMDLineCoreOptions
 
 } // U2

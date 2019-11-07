@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +22,15 @@
 #ifndef _U2_CLUSTALW_SUPPORT_TASK_H
 #define _U2_CLUSTALW_SUPPORT_TASK_H
 
-#include <U2Core/Task.h>
-#include <U2Core/IOAdapter.h>
-
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/SaveDocumentTask.h>
 #include "utils/ExportTasks.h"
 
-#include <U2Core/MAlignmentObject.h>
+#include <U2Core/ExternalToolRunTask.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/GObjectReference.h>
+#include <U2Core/MAlignment.h>
+#include <U2Core/SaveDocumentTask.h>
+#include <U2Core/Task.h>
 
-#include "ExternalToolRunTask.h"
 
 namespace U2 {
 
@@ -57,7 +56,10 @@ namespace U2 {
 
 + -OUTORDER=     :INPUT or ALIGNED
 */
+
 class ClustalWLogParser;
+class LoadDocumentTask;
+
 class ClustalWSupportTaskSettings {
 public:
     ClustalWSupportTaskSettings() {reset();}
@@ -72,15 +74,19 @@ public:
     QString iterationType;
     int     numIterations;
     QString inputFilePath;
+    QString outputFilePath;
     QString matrix;
     bool    outOrderInput; // false - aligned, true - input
 };
 
 
-class ClustalWSupportTask : public Task {
+class ClustalWSupportTask : public ExternalToolSupportTask {
     Q_OBJECT
+    Q_DISABLE_COPY(ClustalWSupportTask)
 public:
-    ClustalWSupportTask(MAlignmentObject* _mAObject, const ClustalWSupportTaskSettings& settings);
+    ClustalWSupportTask(const MAlignment& _inputMsa, const GObjectReference& _objRef, const ClustalWSupportTaskSettings& _settings);
+    ~ClustalWSupportTask();
+
     void prepare();
     Task::ReportResult report();
 
@@ -88,9 +94,9 @@ public:
 
     MAlignment                  resultMA;
 private:
-    MAlignmentObject*           mAObject;
-    Document*                   currentDocument;
-    Document*                   newDocument;
+    MAlignment                  inputMsa;
+    GObjectReference            objRef;
+    QPointer<Document>          tmpDoc;
     QString                     url;
     ClustalWLogParser*          logParser;
 
@@ -98,10 +104,14 @@ private:
     ExternalToolRunTask*        clustalWTask;
     LoadDocumentTask*           loadTemporyDocumentTask;
     ClustalWSupportTaskSettings settings;
+    QPointer<StateLock>         lock;
 };
+
+class MAlignmentObject;
 
 class ClustalWWithExtFileSpecifySupportTask : public Task {
     Q_OBJECT
+    Q_DISABLE_COPY(ClustalWWithExtFileSpecifySupportTask)
 public:
     ClustalWWithExtFileSpecifySupportTask(const ClustalWSupportTaskSettings& settings);
     ~ClustalWWithExtFileSpecifySupportTask();
@@ -118,6 +128,7 @@ private:
     LoadDocumentTask*           loadDocumentTask;
     ClustalWSupportTask*        clustalWSupportTask;
     ClustalWSupportTaskSettings settings;
+
 };
 
 class ClustalWLogParser : public ExternalToolLogParser {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,18 @@
 #ifndef _U2_WINDOW_STEP_SELECTOR_WIDGET_
 #define _U2_WINDOW_STEP_SELECTOR_WIDGET_
 
+#include <U2Core/U2Region.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
 #include <QtGui/QSpinBox>
 #include <QtGui/QDoubleSpinBox>
 #include <QtGui/QGroupBox>
-#include <U2Core/U2Region.h>
+#else
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QDoubleSpinBox>
+#include <QtWidgets/QGroupBox>
+#endif
 
 namespace U2 {
 
@@ -62,7 +69,7 @@ private:
 
 class U2VIEW_EXPORT WindowStepSelectorDialog : public QDialog {
     Q_OBJECT
-public: 
+public:
     WindowStepSelectorDialog(QWidget* p, const U2Region& winRange, int win, int step, double min, double max, bool e);
     WindowStepSelectorWidget* getWindowStepSelector() const {return wss;}
     MinMaxSelectorWidget* getMinMaxSelector() const {return mms;}

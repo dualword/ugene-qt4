@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,25 +23,40 @@
 #define _TOOL_TIP_H_
 
 #include <U2Core/global.h>
-#include <U2Core/AppContext.h>
-#include "MainWindow.h"
+#include <U2Core/U2OpStatusUtils.h>
 #include "NotificationWidget.h"
+#include "NotificationsTypes.h"
 
-#include <QtGui/QLabel>
-#include <QtGui/QLayout>
-#include <QtGui/QMainWindow>
-#include <QtGui/QScrollArea>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
-#include <QtGui/QMouseEvent>
-#include <QtGui/QToolTip>
-#include <QtGui/QHelpEvent>
-
+#include <QtGui/QLabel>
+#include <QtGui/QPushButton>
 #include <QtGui/QDialog>
 #include <QtGui/QTextEdit>
 #include <QtGui/QVBoxLayout>
 #include <QtGui/QHBoxLayout>
-#include <QtGui/QPushButton>
 #include <QtGui/QCheckBox>
+#include <QtGui/QLayout>
+#include <QtGui/QMainWindow>
+#include <QtGui/QScrollArea>
+#include <QtGui/QToolTip>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QTextEdit>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QLayout>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QScrollArea>
+#include <QtWidgets/QToolTip>
+#endif
+#include <QtGui/QMouseEvent>
+#include <QtGui/QHelpEvent>
+
 
 #include <QtCore/QPoint>
 #include <QtCore/QTimer>
@@ -49,12 +64,6 @@
 namespace U2 {
 
 #define MAX_NOTIFICATION 100
-
-enum NotificationType {
-    Info_Not,
-    Error_Not,
-    Report_Not
-};
 
 class U2GUI_EXPORT Notification: public QLabel {
     Q_OBJECT
@@ -105,8 +114,6 @@ public:
     ~NotificationStack();
 
     void addNotification(Notification *t);
-    // a shortcut to addNotification for quick reporting errors
-    void addError(const QString& errorMessage);
     int count() const;
     Notification *getNotification(int row) const;
     QList<Notification *>  getItems() const;
@@ -114,6 +121,8 @@ public:
     bool hasError() const;
     void setFixed(bool val);
 
+    // just a shortcut to write less
+    static void addNotification(const QString& message, NotificationType type, QAction *action = 0);
  private slots:
      void sl_notificationDissapear();
      void sl_delete();
@@ -122,6 +131,8 @@ signals:
     void si_changed();
 
 private:
+    QPoint getBottomRightOfMainWindow();    // because of Mac's strange behavior
+
     NotificationWidget *w;
 
     QList<Notification *> notifications;
@@ -131,6 +142,25 @@ private:
 };
 
 
+/**
+    Used to handle important errors that needs to be reported to user.
+    Dumps error to coreLog while showing notification to user.
+    LogLevel and NotificationType can be passed as params.
+    Defaults are LogLevel_ERROR and Error_Not, respectively
+*/
+
+class U2GUI_EXPORT U2OpStatus2Notification : public U2OpStatus2Log {
+public:
+    U2OpStatus2Notification(NotificationType t = Error_Not, LogLevel l = LogLevel_ERROR)
+        : U2OpStatus2Log(l), notificationType(t) {}
+
+    virtual void setError(const QString &err) {
+        U2OpStatus2Log::setError(err);
+        NotificationStack::addNotification(err, notificationType);
+    }
+private:
+    NotificationType notificationType;
+};
 
 }
 

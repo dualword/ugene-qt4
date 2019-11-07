@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,12 @@
 #ifndef _U2_APP_SETTINGS_DIALOG_TREE_H_
 #define _U2_APP_SETTINGS_DIALOG_TREE_H_
 
+#include <qglobal.h>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QTreeWidget>
+#else
+#include <QtWidgets/QTreeWidget>
+#endif
 
 namespace U2 {
     class AppSettingsDialogController;
@@ -31,7 +36,7 @@ namespace U2 {
 class AppSettingsDialogTree : public QTreeWidget {
     Q_OBJECT
 public:
-    AppSettingsDialogTree(QWidget* w = NULL) : QTreeWidget(w){}
+    AppSettingsDialogTree(QWidget* w = NULL) : QTreeWidget(w), controller(NULL) {}
     void setController(U2::AppSettingsDialogController* c) {controller = c;}
 private:
     U2::AppSettingsDialogController* controller;

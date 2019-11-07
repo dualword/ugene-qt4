@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,10 +26,18 @@
 #include <U2Core/ProjectModel.h>
 #include <U2Gui/MainWindow.h>
 
-#include <QtGui/QTreeWidget>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
 #include <QtGui/QPushButton>
+#include <QtGui/QTreeWidget>
 #include <QtGui/QTextEdit>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QTextEdit>
+#endif
 #include <QtGui/QMouseEvent>
 
 
@@ -52,13 +60,13 @@ enum TVColumns {
 };
 
 class TaskViewDockWidget: public QWidget {
-	Q_OBJECT
+    Q_OBJECT
 public:
-	TaskViewDockWidget();
-	~TaskViewDockWidget();
+    TaskViewDockWidget();
+    ~TaskViewDockWidget();
 
     void selectTask(Task* t);
-    
+
     int countAvailableReports() const;
 
     QIcon waitingIcon;
@@ -70,9 +78,9 @@ signals:
     void si_reportsCountChanged();
 
 private slots:
-	void sl_onTopLevelTaskRegistered(Task*);
-	void sl_onTopLevelTaskUnregistered(Task* t);
-	void sl_onStateChanged(Task* t);
+    void sl_onTopLevelTaskRegistered(Task*);
+    void sl_onTopLevelTaskUnregistered(Task* t);
+    void sl_onStateChanged(Task* t);
     void sl_onSubtaskAdded(Task* sub);
     void sl_onTaskProgress();
     void sl_onTaskDescription();
@@ -89,18 +97,18 @@ private slots:
 private:
     void activateReport(TVTreeItem* i);
     void removeReport(TVTreeItem* i);
-	void initActions();
-	void updateState();
-	void buildTree();
-	TVTreeItem* createTaskItem(Task* t);
+    void initActions();
+    void updateState();
+    void buildTree();
+    TVTreeItem* createTaskItem(Task* t);
     void addTopLevelTask(Task* t);
 
-	TVTreeItem* findItem(Task* t, bool topLevelOnly) const ;
-	TVTreeItem* findChildItem(TVTreeItem* i, Task* t) const;
+    TVTreeItem* findItem(Task* t, bool topLevelOnly) const ;
+    TVTreeItem* findChildItem(TVTreeItem* i, Task* t) const;
 
 
-	//actual widget
-	QTreeWidget*    tree;
+    //actual widget
+    QTreeWidget*    tree;
     QAction*        viewReportAction;
     QAction*        cancelTaskAction;
     QAction*        removeReportAction;
@@ -117,17 +125,28 @@ public:
     qint64 taskId;
     QTextEdit* textEdit;
     bool eventFilter(QObject *o, QEvent *e);
+
+private slots:
+    void sl_open();
+
+private:
+    static QString convertTime(int msecs);
+    void showContextMenu(const QPoint &pos, const QString &url);
+    QAction * createDirAction(const QString &url, QObject *parent);
+    QAction * createFileAction(const QString &url, QObject *parent);
+    QAction * createOpenAction(const QString &name, const QString &url,
+        QObject *parent, const QString &icon = QString());
 };
 
 
 class TVButton;
 class TVTreeItem : public QTreeWidgetItem {
 public:
-	TVTreeItem(TaskViewDockWidget* w, Task* t);
-	
-	void updateVisual();
+    TVTreeItem(TaskViewDockWidget* w, Task* t);
 
-	Task*       task;
+    void updateVisual();
+
+    Task*       task;
     TaskViewDockWidget* w;
 
     qint64      taskId;
@@ -139,7 +158,7 @@ public:
     int         reportWindowId;
     bool        wasCanceled;
     bool        wasError;
-    
+
     void detachFromTask();
 };
 
@@ -147,7 +166,7 @@ class TVButton : public QPushButton {
     Q_OBJECT
 public:
     TVButton(TVTreeItem* t)  : ti(t){};
-    TVTreeItem* ti;    
+    TVTreeItem* ti;
 };
 
 

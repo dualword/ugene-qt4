@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,52 +24,54 @@
 
 namespace U2 {
 
-SiteconSearchTask::SiteconSearchTask(const SiteconModel& m, const QByteArray& seq, const SiteconSearchCfg& cfg, int ro) 
-: Task(tr("sitecon_search"), TaskFlags_NR_FOSCOE), model(m), cfg(cfg), resultsOffset(ro), wholeSeq(seq)
+SiteconSearchTask::SiteconSearchTask(const SiteconModel& m, const QByteArray& seq, const SiteconSearchCfg& cfg, int ro)
+: Task(tr("SITECON search"), TaskFlags_NR_FOSCOE), model(new SiteconModel(m)), cfg(new SiteconSearchCfg(cfg)), resultsOffset(ro), wholeSeq(seq)
 {
+    lock = new QMutex();
     GCOUNTER( cvar, tvar, "SiteconSearchTask" );
-    model.checkState(true);
-    model.matrix = SiteconAlgorithm::normalize(model.matrix, model.settings);
+    model->checkState(true);
+    model->matrix = SiteconAlgorithm::normalize(model->matrix, model->settings);
     SequenceWalkerConfig c;
     c.seq = wholeSeq.constData();
     c.seqSize = wholeSeq.length();
     c.complTrans  = cfg.complTT;
     c.strandToWalk = cfg.complTT == NULL ? StrandOption_DirectOnly : StrandOption_Both;
     c.aminoTrans = NULL;
+    c.walkCircular = false;
 
     c.chunkSize = seq.length();
     c.overlapSize = 0;
 
-    SequenceWalkerTask* t = new SequenceWalkerTask(c, this, tr("sitecon_search_parallel"));
+    SequenceWalkerTask* t = new SequenceWalkerTask(c, this, tr("SITECON search parallel subtask"));
     addSubTask(t);
 }
 
 void SiteconSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti) {
 //TODO: process border case as if there are 'N' chars before 0 and after seqlen
-    if (cfg.complOnly && !t->isDNAComplemented()) {
+    if (cfg->complOnly && !t->isDNAComplemented()) {
         return;
     }
     U2Region globalRegion = t->getGlobalRegion();
     qint64 seqLen = globalRegion.length;
-    const char* seq = t->getGlobalConfig().seq + globalRegion.startPos;;
-    int modelSize = model.settings.windowSize;
+    const char* seq = t->getGlobalConfig().seq + globalRegion.startPos;
+    int modelSize = model->settings.windowSize;
     ti.progress =0;
     qint64 lenPerPercent = seqLen / 100;
     qint64 pLeft = lenPerPercent;
     DNATranslation* complTT = t->isDNAComplemented() ? t->getGlobalConfig().complTrans : NULL;
     for (int i = 0, n = seqLen - modelSize; i <= n && !ti.cancelFlag; i++, --pLeft) {
-        float psum = SiteconAlgorithm::calculatePSum(seq+i, modelSize, model.matrix, model.settings, model.deviationThresh, complTT);
+        float psum = SiteconAlgorithm::calculatePSum(seq+i, modelSize, model->matrix, model->settings, model->deviationThresh, complTT);
         if (psum < 0 || psum >=1) {
-            ti.setError(  tr("internal_error_invalid_psum:%1").arg(psum) );
+            ti.setError(  tr("Internal error: invalid PSUM: %1").arg(psum) );
             return;
         }
         SiteconSearchResult r;
         r.psum = 100*psum;
-        r.err1 = model.err1[r.psum];
-        r.err2 = model.err2[r.psum];
-        if (r.psum >= cfg.minPSUM && r.err1 >= cfg.minE1 && r.err2 <= cfg.maxE2) {//report result
-            
-            r.modelInfo = model.modelName;
+        r.err1 = model->err1[r.psum];
+        r.err2 = model->err2[r.psum];
+        if (r.psum >= cfg->minPSUM && r.err1 >= cfg->minE1 && r.err2 <= cfg->maxE2) {//report result
+
+            r.modelInfo = model->modelName;
             r.strand = t->isDNAComplemented() ? U2Strand::Complementary : U2Strand::Direct;
             r.region.startPos = globalRegion.startPos +  i + resultsOffset;
             r.region.length = modelSize;
@@ -84,17 +86,35 @@ void SiteconSearchTask::onRegion(SequenceWalkerSubtask* t, TaskStateInfo& ti) {
 
 
 void SiteconSearchTask::addResult(const SiteconSearchResult& r) {
-    lock.lock();
+    lock->lock();
     results.append(r);
-    lock.unlock();
+    lock->unlock();
 }
 
 QList<SiteconSearchResult> SiteconSearchTask::takeResults() {
-    lock.lock();
+    lock->lock();
     QList<SiteconSearchResult> res = results;
     results.clear();
-    lock.unlock();
+    lock->unlock();
     return res;
+}
+
+SiteconSearchTask::~SiteconSearchTask() {
+    delete cfg;
+    delete model;
+    delete lock;
+}
+
+void SiteconSearchTask::cleanup() {
+    results.clear();
+    wholeSeq.clear();
+    delete cfg;
+    delete model;
+    delete lock;
+
+    cfg = NULL;
+    model = NULL;
+    lock = NULL;
 }
 
 }//namespace

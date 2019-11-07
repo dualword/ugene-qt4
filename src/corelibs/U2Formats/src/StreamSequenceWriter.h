@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -32,12 +32,12 @@
 namespace U2 {
 
 
-/** 
+/**
 *
 * Class provides stream writing for large alignment files.
 * It supports only SAM format.
-* 
-*/ 
+*
+*/
 
 class U2FORMATS_EXPORT StreamShortReadsWriter {
     IOAdapter*  io;
@@ -51,33 +51,33 @@ public:
     ~StreamShortReadsWriter();
     bool writeNextAlignedRead(int offset, const DNASequence& seq);
     void setRefSeqLength(int l) { refSeqLength = l;}
-    void setRefSeqName(const QString& name ) { refSeqName = QString(name).replace(QRegExp("\\s|\\t"), "_").toAscii(); }
+    void setRefSeqName(const QString& name ) { refSeqName = QString(name).replace(QRegExp("\\s|\\t"), "_").toLatin1(); }
     int getNumSeqWritten() { return numSeqWritten; }
     void close();
 };
 
-/** 
+/**
 *
 * Class provides stream writing for DNA short reads.
 * It currently supports FASTA formats and allows to write quality in separate file.
-* 
-*/ 
+*
+*/
 
 class FastaFormat;
 
-class U2FORMATS_EXPORT StreamShortReadWriter 
+class U2FORMATS_EXPORT StreamShortReadWriter
 {
     FastaFormat* fastaFormat;
     IOAdapter* io;
     GUrl ouputPath;
-    bool writeQuality;
 public:
-    StreamShortReadWriter( bool writeQualityExplicitly = false);
+    StreamShortReadWriter();
     bool init(const GUrl& url);
     bool writeNextSequence(const DNASequence& seq);
+    bool writeNextSequence(const U2SequenceObject *seq);
     const GUrl& getOutputPath() { return ouputPath; }
     void close();
-}; 
+};
 
 
 } //namespace

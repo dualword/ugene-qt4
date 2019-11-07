@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,9 +35,13 @@ class DNATranslation;
 
 class U2ALGORITHM_EXPORT FindAlgorithmTaskSettings : public FindAlgorithmSettings {
 public:
-    FindAlgorithmTaskSettings() {}
-    FindAlgorithmTaskSettings(const FindAlgorithmSettings& f) : FindAlgorithmSettings(f) {}
-    QByteArray          sequence;
+    FindAlgorithmTaskSettings()
+        : searchIsCircular(false) {}
+    FindAlgorithmTaskSettings(const FindAlgorithmSettings& f) : FindAlgorithmSettings(f), searchIsCircular(false),countTask(true) {}
+    QByteArray  sequence;
+    bool        searchIsCircular;
+    QString     name;
+    bool        countTask;
 };
 
 class U2ALGORITHM_EXPORT FindAlgorithmTask : public Task, public FindAlgorithmResultsListener {
@@ -47,8 +51,6 @@ public:
 
     virtual void run();
     virtual void onResult(const FindAlgorithmResult& r);
-    
-    int getCurrentPos() const {return currentPos;}
 
     QList<FindAlgorithmResult> popResults();
 
@@ -56,12 +58,30 @@ public:
 
 private:
     FindAlgorithmTaskSettings config;
-    
-    int     currentPos;
+
     bool    complementRun;
 
     QList<FindAlgorithmResult> newResults;
     QMutex lock;
+};
+
+
+class Document;
+
+class U2ALGORITHM_EXPORT LoadPatternsFileTask: public Task{
+    Q_OBJECT
+public:
+    LoadPatternsFileTask(const QString &_filePath, const QString &annotationName = QString());
+    QList<QPair<QString, QString> > getNamesPatterns(){return namesPatterns;}
+    void run();
+
+private:
+    Document *getDocumentFromFilePath();
+
+    QString filePath;
+    QList<QPair<QString, QString> > namesPatterns;
+    bool isRawSequence;
+    QString annotationName;
 };
 
 } //namespace

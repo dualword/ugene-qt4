@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>620</width>
-    <height>350</height>
+    <height>383</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -17,9 +17,12 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>Align Short Reads</string>
+   <string>Align Sequencing Reads</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="sizeConstraint">
+    <enum>QLayout::SetMinAndMaxSize</enum>
+   </property>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
@@ -28,7 +31,7 @@
         <string>Select a method to align short reads.</string>
        </property>
        <property name="text">
-        <string>Align Short Reads method</string>
+        <string>Alignment method</string>
        </property>
       </widget>
      </item>
@@ -59,6 +62,9 @@
    </item>
    <item>
     <layout class="QGridLayout" name="gridLayout">
+     <property name="sizeConstraint">
+      <enum>QLayout::SetMinAndMaxSize</enum>
+     </property>
      <item row="0" column="0">
       <widget class="QLabel" name="label_2">
        <property name="toolTip">
@@ -112,13 +118,24 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QCheckBox" name="prebuiltIndexCheckBox">
-       <property name="toolTip">
-        <string>Use an index file instead of a reference sequence.</string>
-       </property>
+      <widget class="QLabel" name="label_5">
        <property name="text">
-        <string>Prebuilt index</string>
+        <string>Library</string>
        </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="libraryComboBox">
+       <item>
+        <property name="text">
+         <string>Single-end</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Paired-end</string>
+        </property>
+       </item>
       </widget>
      </item>
      <item>
@@ -154,16 +171,22 @@
     </widget>
    </item>
    <item>
-    <widget class="QListWidget" name="shortReadsList">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="toolTip">
-      <string>Add short reads here. &lt;b&gt;At least one read&lt;/b&gt; should be presented.</string>
-     </property>
+    <widget class="QTreeWidget" name="shortReadsTable">
+     <column>
+      <property name="text">
+       <string>Path</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Type</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Order</string>
+      </property>
+     </column>
     </widget>
    </item>
    <item>
@@ -214,69 +237,45 @@
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="assembleyButton">
-       <property name="text">
-        <string>Start</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
  <resources/>
  <connections>
   <connection>
-   <sender>cancelButton</sender>
-   <signal>clicked()</signal>
-   <receiver>AssemblyToRefDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>473</x>
-     <y>470</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>229</x>
-     <y>186</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>assembleyButton</sender>
-   <signal>clicked()</signal>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
    <receiver>AssemblyToRefDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>390</x>
-     <y>470</y>
+     <x>309</x>
+     <y>329</y>
     </hint>
     <hint type="destinationlabel">
-     <x>229</x>
-     <y>186</y>
+     <x>309</x>
+     <y>174</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>AssemblyToRefDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>309</x>
+     <y>329</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>309</x>
+     <y>174</y>
     </hint>
    </hints>
   </connection>

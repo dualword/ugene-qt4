@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,30 +19,36 @@
  * MA 02110-1301, USA.
  */
 
-#include "NEXUSFormat.h"
-#include "NEXUSParser.h"
+#include <QtCore/QStack>
 
-#include <U2Core/U2OpStatus.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/U2AlphabetUtils.h>
+#include <U2Core/DNAAlphabet.h>
 #include <U2Core/GObjectTypes.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/L10n.h>
+#include <U2Core/MAlignmentImporter.h>
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/TextUtils.h>
-#include <U2Core/DNAAlphabet.h>
-#include <U2Core/U2SafePoints.h>
+#include <U2Core/U2AlphabetUtils.h>
 #include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2ObjectDbi.h>
+#include <U2Core/U2OpStatus.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
 
 #include <U2Formats/DocumentFormatUtils.h>
 
-namespace U2 
+#include "NEXUSFormat.h"
+#include "NEXUSParser.h"
+
+namespace U2
 {
 
 NEXUSFormat::NEXUSFormat(QObject *p) :
-        DocumentFormat(p, DocumentFormatFlag_SupportWriting, QStringList()<<"nex"<<"nxs")      // disable streaming for now
+        DocumentFormat(p, DocumentFormatFlags(DocumentFormatFlag_SupportWriting) | DocumentFormatFlag_OnlyOneObject, QStringList()<<"nex"<<"nxs")      // disable streaming for now
 {
     formatName = tr("NEXUS");
-	formatDescription = tr("Nexus is a multiple alignment and phylogenetic trees file format");
+    formatDescription = tr("Nexus is a multiple alignment and phylogenetic trees file format");
     supportedObjectTypes += GObjectTypes::MULTIPLE_ALIGNMENT;
     supportedObjectTypes += GObjectTypes::PHYLOGENETIC_TREE;
 }
@@ -71,7 +77,7 @@ QString Tokenizer::get() {
             QByteArray tmp(BUFF_SIZE, '\0');
             int len = io->readBlock(tmp.data(), BUFF_SIZE);
 
-            if (len == 0) {
+            if (len == 0 || len == -1) {
                 break;
             }
 
@@ -102,14 +108,19 @@ QString Tokenizer::get() {
         if (state == QUOTED) {
             // read quoted string
             buffStream >> quote;
+
+            //check and put back in case of reading the next chunk here
+            if(quote != '"' && quote != '\''){
+                buffStream.seek(buffStream.pos() - 1);
+            }
             buffStream >> c;
 
-            while (c != quote && !c.isNull()) {
+            while (c != '"' && c != '\'' && !c.isNull()) {
                 token += c;
                 buffStream >> c;
             }
 
-            if (c == quote) {
+            if (c == '"' || c == '\'') {
                 // next quoted string may appear 'asd''fgh' == 'asdfgh'
                 buffStream >> c;
                 buffStream.seek(buffStream.pos() - 1);
@@ -230,7 +241,7 @@ QString Tokenizer::readUntil(QRegExp rwhat)
             QByteArray tmp(BUFF_SIZE, '\0');
             int len = io->readBlock(tmp.data(), BUFF_SIZE);
 
-            if (len == 0) {
+            if (len == 0 || len == -1) {
                 break;
             }
 
@@ -261,10 +272,10 @@ const QString NEXUSParser::CMD_TREE        = "tree";
 const QString NEXUSParser::CMD_UTREE       = "utree";
 const QString NEXUSParser::CMD_TRANSLATE   = "translate";
 
-QList<GObject*> NEXUSParser::loadObjects()
+QList<GObject*> NEXUSParser::loadObjects(const U2DbiRef &dbiRef)
 {
     while (tz.look() != "") {
-        if (!readBlock(global)) {
+        if (!readBlock(global, dbiRef)) {
             break;
         }
         reportProgress();
@@ -274,9 +285,9 @@ QList<GObject*> NEXUSParser::loadObjects()
 
 bool NEXUSParser::skipCommand() {
     tz.skipUntil(";");
-    if (tz.get() != ";"){ 
-        errors.append("\';\' expected"); 
-        return false; 
+    if (tz.get() != ";"){
+        errors.append("\';\' expected");
+        return false;
     }
     return true;
 }
@@ -298,25 +309,25 @@ bool NEXUSParser::readSimpleCommand(Context &ctx)
         ctx.insert(name, value);
     }
 
-    if (tz.get() != ";"){ 
-        errors.append("\';\' expected"); 
-        return false; 
+    if (tz.get() != ";"){
+        errors.append("\';\' expected");
+        return false;
     }
 
     return true;
 }
 
-bool NEXUSParser::readBlock(Context &ctx) {
-    if (tz.get().toLower() != BEGIN){ 
-        errors.append(QString("\'%1\' expected").arg(BEGIN)); 
-        return false; 
+bool NEXUSParser::readBlock(Context &ctx, const U2DbiRef &dbiRef) {
+    if (tz.get().toLower() != BEGIN){
+        errors.append(QString("\'%1\' expected").arg(BEGIN));
+        return false;
     }
 
     QString blockName = tz.get().toLower();
 
-    if (tz.get().toLower() != ";"){ 
-        errors.append(QString("\'%1\' expected").arg(";")); 
-        return false; 
+    if (tz.get().toLower() != ";"){
+        errors.append(QString("\'%1\' expected").arg(";"));
+        return false;
     }
 
     if (blockName == BLK_TAXA) {
@@ -328,7 +339,7 @@ bool NEXUSParser::readBlock(Context &ctx) {
             return false;
         }
     } else if (blockName == BLK_TREES) {
-        if (!readTreesContents(ctx)) {
+        if (!readTreesContents(ctx, dbiRef)) {
             return false;
         }
     } else {
@@ -337,14 +348,14 @@ bool NEXUSParser::readBlock(Context &ctx) {
         }
     }
 
-    if (tz.get().toLower() != END) { 
-        errors.append(QString("\'%1\' expected").arg(END)); 
-        return false; 
+    if (tz.get().toLower() != END) {
+        errors.append(QString("\'%1\' expected").arg(END));
+        return false;
     }
 
-    if ((tz.get().toLower() != ";")){ 
-        errors.append(QString("\'%1\' expected").arg(";")); 
-        return false; 
+    if ((tz.get().toLower() != ";")){
+        errors.append(QString("\'%1\' expected").arg(";"));
+        return false;
     }
 
     return true;
@@ -381,7 +392,7 @@ bool NEXUSParser::readDataContents(Context &ctx) {
         } else if (cmd == CMD_MATRIX) {
             tz.get(); // cmd name == CMD_MATRIX
 
-            QMap<QString, MAlignmentRow> rows;
+            QMap<QString, QByteArray> rows;
 
             // Read matrix
             while (true) {
@@ -400,7 +411,7 @@ bool NEXUSParser::readDataContents(Context &ctx) {
 
                 // Read value
                 QString value = "";
-                value = tz.readUntil(QRegExp("\n|;"));
+                value = tz.readUntil(QRegExp("(;|\\n|\\r)"));
 
                 // Remove spaces
                 value.remove(QRegExp("\\s"));
@@ -410,25 +421,32 @@ bool NEXUSParser::readDataContents(Context &ctx) {
                     value.replace(ctx["gap"], QChar(MAlignment_GapChar));
                 }
 
+                U2OpStatus2Log os;
+                QByteArray bytes = value.toLatin1();
+
                 if (rows.contains(name)) {
-                    MAlignmentRow &row = rows[name];
-                    row.append( MAlignmentRow(name, value.toAscii()), row.getCoreEnd() );
+                    rows[name].append(bytes);
                 } else {
-                    rows.insert(name, MAlignmentRow(name, value.toAscii()));
+                    rows[name] = bytes;
                 }
 
                 reportProgress();
             }
 
             // Build MAlignment object
-            MAlignment ma(tz.getIO()->getURL().baseFileName(), 0, rows.values());
+            U2OpStatus2Log os;
+            MAlignment ma(tz.getIO()->getURL().baseFileName());
+            foreach (QString name, rows.keys()) {
+                ma.addRow(name, rows[name], os);
+                CHECK_OP(os, false);
+            }
 
             // Determine alphabet & replace missing chars
             if (ctx.contains("missing")) {
-                char missing = ctx["missing"].toAscii()[0];
+                char missing = ctx["missing"].toLatin1()[0];
                 U2AlphabetUtils::assignAlphabet(ma, missing);
                 CHECK_EXT(ma.getAlphabet() != NULL, errors.append("Unknown alphabet"), false);
-                
+
                 char ourMissing = ma.getAlphabet()->getDefaultSymbol();
 
                 // replace missing
@@ -445,7 +463,9 @@ bool NEXUSParser::readDataContents(Context &ctx) {
                 return false;
             }
 
-            addObject(new MAlignmentObject(ma));
+            MAlignmentObject* obj = MAlignmentImporter::createAlignment(dbiRef, folder, ma, ti);
+            CHECK_OP(ti, false);
+            addObject(obj);
         } else if (cmd == END) {
             break;
         } else {
@@ -458,7 +478,7 @@ bool NEXUSParser::readDataContents(Context &ctx) {
     return true;
 }
 
-bool NEXUSParser::readTreesContents(Context&) {
+bool NEXUSParser::readTreesContents(Context&, const U2DbiRef &dbiRef) {
     QMap <QString, QString> namesTranslation;
 
     while (true) {
@@ -479,7 +499,7 @@ bool NEXUSParser::readTreesContents(Context&) {
                     tz.skip();
                     break;
                 }
-                
+
                 if(tz.look() == ","){
                     tz.skip();
                     continue;
@@ -504,9 +524,9 @@ bool NEXUSParser::readTreesContents(Context&) {
                 tz.skip(); // "="
             } else {
                 treeName = tz.get();
-                if (tz.get() != "="){ 
-                    errors.append(QString("\'%1\' expected").arg("=")); 
-                    return false; 
+                if (tz.get() != "="){
+                    errors.append(QString("\'%1\' expected").arg("="));
+                    return false;
                 }
             }
 
@@ -530,19 +550,19 @@ bool NEXUSParser::readTreesContents(Context&) {
                 }
 
                 if (tok == "(") {
-                    if (!acc.isEmpty()) { 
-                        errors.append(QString("\'%1\' expected").arg(",")); 
-                        break; 
+                    if (!acc.isEmpty()) {
+                        errors.append(QString("\'%1\' expected").arg(","));
+                        break;
                     }
 
                     PhyNode *top = new PhyNode();
-                    PhyBranch *br = nodeStack.top()->addBranch(nodeStack.top(), top, 1);
+                    PhyBranch *br = PhyTreeData::addBranch(nodeStack.top(), top, 1);
                     nodeStack.push(top);
                     branchStack.push(br);
                 } else if (tok == "," || tok == ")") {
-                    if (nodeStack.size() < 2){ 
-                        errors.append(QString("Unexpected \'%1\'").arg(")")); 
-                        break; 
+                    if (nodeStack.size() < 2){
+                        errors.append(QString("Unexpected \'%1\'").arg(")"));
+                        break;
                     }
 
                     double weight = 1;  // default value
@@ -552,16 +572,16 @@ bool NEXUSParser::readTreesContents(Context&) {
                             // convert weight
                             bool ok;
                             weight = acc.toDouble(&ok);
-                            if (!ok){ 
-                                errors.append(QString("Invalid weight value \'%1\'").arg(acc)); 
-                                break; 
+                            if (!ok){
+                                errors.append(QString("Invalid weight value \'%1\'").arg(acc));
+                                break;
                             }
 
                             weightValue = true;
                         } else  {
                             // was ':' but was no value
-                            errors.append("Weight value expected"); 
-                            break; 
+                            errors.append("Weight value expected");
+                            break;
                         }
                     } else {
                         assert(state == NAME);
@@ -577,7 +597,7 @@ bool NEXUSParser::readTreesContents(Context&) {
                     }
 
                     name.replace('_', ' ');
-                    nodeStack.top()->name = name;
+                    nodeStack.top()->setName(name);
                     branchStack.top()->distance = weight;
 
                     nodeStack.pop();
@@ -585,7 +605,7 @@ bool NEXUSParser::readTreesContents(Context&) {
 
                     if (tok == ",") {
                         PhyNode *top = new PhyNode();
-                        PhyBranch *br = nodeStack.top()->addBranch(nodeStack.top(), top, 1);
+                        PhyBranch *br = PhyTreeData::addBranch(nodeStack.top(), top, 1);
                         nodeStack.push(top);
                         branchStack.push(br);
                     }
@@ -609,7 +629,7 @@ bool NEXUSParser::readTreesContents(Context&) {
                     }
 
                     name.replace('_', ' ');
-                    nodeStack.top()->name = name;
+                    nodeStack.top()->setName(name);
                     break;
                 } else {
                     assert(0 && "invalid state: all non ops symbols must go to acc");
@@ -634,8 +654,13 @@ bool NEXUSParser::readTreesContents(Context&) {
 
                 // build tree object
                 PhyTree tree(new PhyTreeData());
-                tree->rootNode = nodeStack.pop();
-                addObject(new PhyTreeObject(tree, treeName));
+                tree->setRootNode(nodeStack.pop());
+
+                QVariantMap hints;
+                hints.insert(DocumentFormat::DBI_FOLDER_HINT, folder);
+                PhyTreeObject *obj = PhyTreeObject::createInstance(tree, treeName, dbiRef, ti, hints);
+                CHECK_OP_EXT(ti, errors << ti.getError(), false);
+                addObject(obj);
             }
         } else if (cmd == END) {
             break;
@@ -656,8 +681,11 @@ void NEXUSParser::addObject(GObject *obj) {
     objects.append(obj);
 }
 
-QList<GObject*> NEXUSFormat::loadObjects(IOAdapter *io, U2OpStatus &ti) {
+QList<GObject*> NEXUSFormat::loadObjects(IOAdapter *io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus &ti) {
     assert(io && "io must exist");
+    DbiOperationsBlock opBlock(dbiRef, ti);
+    CHECK_OP(ti, QList<GObject*>());
+    Q_UNUSED(opBlock);
 
     const int HEADER_LEN = 6;
     QByteArray header(HEADER_LEN, 0);
@@ -668,24 +696,25 @@ QList<GObject*> NEXUSFormat::loadObjects(IOAdapter *io, U2OpStatus &ti) {
         return QList<GObject*>();
     }
 
-    NEXUSParser parser(io, ti);
-    QList<GObject*> objects = parser.loadObjects();
-    
+    const QString folder = fs.value(DBI_FOLDER_HINT, U2ObjectDbi::ROOT_FOLDER).toString();
+    NEXUSParser parser(io, dbiRef, folder, ti);
+    QList<GObject*> objects = parser.loadObjects(dbiRef);
+
     if (parser.hasError()) {
         QByteArray msg = "NEXUSParser: ";
         msg += parser.getErrors().first();
         ti.setError(tr(msg.data()));
     }
-    
+
     return objects;
 }
 
 Document* NEXUSFormat::loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os){
     assert(io && "IO must exist");
 
-    QList<GObject*> objects = loadObjects(io, os);
+    QList<GObject*> objects = loadObjects(io, dbiRef, fs, os);
     CHECK_OP_EXT(os, qDeleteAll(objects), NULL);
-    
+
     Document *d = new Document(this, io->getFactory(), io->getURL(), dbiRef, objects, fs);
     return d;
 }
@@ -696,7 +725,7 @@ void writeHeader(IOAdapter *io, U2OpStatus&) {
     io->writeBlock(line);
 }
 
-void writeMAligment(const MAlignment &ma, IOAdapter *io, U2OpStatus&) {
+void writeMAligment(const MAlignment &ma, bool simpleName, IOAdapter *io, U2OpStatus&) {
     QByteArray line;
     QByteArray tabs, tab(4, ' ');
 
@@ -720,7 +749,7 @@ void writeMAligment(const MAlignment &ma, IOAdapter *io, U2OpStatus&) {
     if(alphabetId == BaseDNAAlphabetIds::NUCL_DNA_DEFAULT() || alphabetId == BaseDNAAlphabetIds::NUCL_DNA_EXTENDED()){
         dataType = "dna";
     }else if(alphabetId == BaseDNAAlphabetIds::NUCL_RNA_DEFAULT() || alphabetId == BaseDNAAlphabetIds::NUCL_RNA_EXTENDED()){
-       dataType = "rna"; 
+       dataType = "rna";
     }else if (alphabetId == BaseDNAAlphabetIds::AMINO_DEFAULT()){
         dataType = "protein";
     }else {
@@ -750,16 +779,23 @@ void writeMAligment(const MAlignment &ma, IOAdapter *io, U2OpStatus&) {
     foreach (const MAlignmentRow& row, rows)
     {
         QString name = row.getName();
-        
-        if (name.contains(QRegExp("\\s")))
-        {
-            //name = "'" + name + "'";
-            name.replace(' ','_');
+
+        if (name.contains(QRegExp("\\s|\\W"))){
+            if (simpleName){
+                name.replace(' ','_');
+                int idx = name.indexOf(QRegExp("\\s|\\W"));
+                if (idx != -1){
+                    name = name.left(idx);
+                }
+            }else{
+                name = "'" + name + "'";
+            }
         }
 
         name = name.leftJustified(nameMaxLen);
 
-        QTextStream(&line) << tabs << name << " " << row.toByteArray(nchar) << "\n";
+        U2OpStatus2Log os;
+        QTextStream(&line) << tabs << name << " " << row.toByteArray(nchar, os) << "\n";
         io->writeBlock(line);
         line.clear();
     }
@@ -777,12 +813,12 @@ void writeMAligment(const MAlignment &ma, IOAdapter *io, U2OpStatus&) {
     line.clear();
 }
 
-static void writeNode(PhyNode* node, IOAdapter* io) {
-    int branches = node->branches.size();
+static void writeNode(const PhyNode* node, IOAdapter* io) {
+    int branches = node->branchCount();
 
-    if (branches == 1 && (node->name=="" || node->name=="ROOT")) {
-        assert(node != node->branches[0]->node2);
-        writeNode(node->branches[0]->node2, io);
+    if (branches == 1 && (node->getName()=="" || node->getName()=="ROOT")) {
+        assert(node != node->getSecondNodeOfBranch(0));
+        writeNode(node->getSecondNodeOfBranch(0), io);
         return;
     }
 
@@ -790,25 +826,25 @@ static void writeNode(PhyNode* node, IOAdapter* io) {
         io->writeBlock("(", 1);
         bool first = true;
         for (int i = 0; i < branches; ++i) {
-            if (node->branches[i]->node2 != node) {
+            if (node->getSecondNodeOfBranch(i) != node) {
                 if (first) {
                     first = false;
                 } else {
                     io->writeBlock(",", 1);
                 }
-                writeNode(node->branches[i]->node2, io);
+                writeNode(node->getSecondNodeOfBranch(i), io);
                 io->writeBlock(":", 1);
-                io->writeBlock(QByteArray::number(node->branches[i]->distance));
+                io->writeBlock(QByteArray::number(node->getBranchesDistance(i)));
             }
         }
         io->writeBlock(")", 1);
     } else {
-        bool quotes = node->name.contains(QRegExp("\\s"));
+        bool quotes = node->getName().contains(QRegExp("\\s"));
 
         if (quotes) {
             io->writeBlock("'", 1);
         }
-        io->writeBlock(node->name.toAscii());
+        io->writeBlock(node->getName().toLatin1());
         if (quotes) {
             io->writeBlock("'", 1);
         }
@@ -831,7 +867,7 @@ void writePhyTree(const PhyTree &pt, QString name, IOAdapter *io, U2OpStatus&)
     io->writeBlock(line);
     line.clear();
 
-    writeNode(pt->rootNode, io);
+    writeNode(pt->getRootNode(), io);
     io->writeBlock(";\n", 2);
 
     tabs.chop(tab.size());
@@ -845,15 +881,16 @@ void writePhyTree(const PhyTree &pt, IOAdapter *io, U2OpStatus &ti) {
     writePhyTree(pt, "Tree", io, ti);
 }
 
-void NEXUSFormat::storeObjects(QList<GObject*> objects, IOAdapter *io, U2OpStatus &ti) {
-    assert(io && "IO must exist");
+void NEXUSFormat::storeObjects( QList<GObject*> objects, bool simpleNames, IOAdapter *io, U2OpStatus &ti )
+{
+    SAFE_POINT(NULL != io, L10N::nullPointerError("I/O Adapter"), );
     writeHeader(io, ti);
 
     foreach (GObject *object, objects) {
         MAlignmentObject *mao = qobject_cast<MAlignmentObject*> (object);
         PhyTreeObject *pto = qobject_cast<PhyTreeObject*> (object);
         if (mao) {
-            writeMAligment(mao->getMAlignment(), io, ti);
+            writeMAligment(mao->getMAlignment(), simpleNames, io, ti);
             io->writeBlock(QByteArray("\n"));
         } else if (pto) {
             writePhyTree(pto->getTree(), pto->getGObjectName(), io, ti);
@@ -867,7 +904,8 @@ void NEXUSFormat::storeObjects(QList<GObject*> objects, IOAdapter *io, U2OpStatu
 
 void NEXUSFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& os) {
     QList<GObject*> objects = d->getObjects();
-    storeObjects(objects, io, os);
+    bool simpleNames = d->getGHintsMap().contains(DocumentWritingMode_SimpleNames);
+    storeObjects(objects, simpleNames, io, os);
 }
 
 FormatCheckResult NEXUSFormat::checkRawData(const QByteArray &rawData, const GUrl&) const {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +26,13 @@
 
 namespace U2 {
 
+class DelegateTags;
+
 enum RelationType {
     VISIBILITY,
-    FILE_EXTENSION
+    FILE_EXTENSION,
+    CUSTOM_VALUE_CHANGER,
+    PROPERTY_CHANGER
 };
 
 /**
@@ -39,9 +43,20 @@ public:
     AttributeRelation(const QString &relatedAttrId)
         : relatedAttrId(relatedAttrId) {}
 
-    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue) const = 0;
+    /**
+     * Updates tags of delegates
+     */
+    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+        DelegateTags *infTags = NULL, DelegateTags *depTags = NULL) const = 0;
     virtual RelationType getType() const = 0;
+    virtual void updateDelegateTags(const QVariant &influencingValue, DelegateTags *dependentTags) const;
     QString getRelatedAttrId() const {return relatedAttrId;}
+
+    /**
+     * Some relations changes value of the dependent attribute,
+     * other relations changes only some properties of attributes (e.g. visibility)
+     */
+    virtual bool valueChangingRelation() const {return true;}
 
     virtual ~AttributeRelation() {}
 
@@ -54,14 +69,16 @@ protected:
  */
 class U2LANG_EXPORT VisibilityRelation : public AttributeRelation {
 public:
-    VisibilityRelation(const QString &relatedAttrId, const QVariant &visibilityValue)
-        : AttributeRelation(relatedAttrId), visibilityValue(visibilityValue) {}
+    VisibilityRelation(const QString &relatedAttrId, const QVariantList &visibilityValues);
+    VisibilityRelation(const QString &relatedAttrId, const QVariant &visibilityValue);
 
-    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue) const;
+    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+        DelegateTags *infTags, DelegateTags *depTags) const;
     virtual RelationType getType() const {return VISIBILITY;}
+    virtual bool valueChangingRelation() const {return false;}
 
 private:
-    QVariant visibilityValue;
+    QVariantList visibilityValues;
 };
 
 /**
@@ -69,14 +86,29 @@ private:
  */
 class U2LANG_EXPORT FileExtensionRelation : public AttributeRelation {
 public:
-    FileExtensionRelation(const QString &relatedAttrId, const QString &currentFormatId)
-        : AttributeRelation(relatedAttrId), currentFormatId(currentFormatId) {}
+    FileExtensionRelation(const QString &relatedAttrId)
+        : AttributeRelation(relatedAttrId){}
 
-    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue) const;
+    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+        DelegateTags *infTags, DelegateTags *depTags) const;
+    virtual void updateDelegateTags(const QVariant &influencingValue, DelegateTags *dependentTags) const;
     virtual RelationType getType() const {return FILE_EXTENSION;}
+};
 
+/**
+ * Possible values of one attribute depends on current value of another
+ */
+class U2LANG_EXPORT ValuesRelation : public AttributeRelation {
+public:
+    ValuesRelation(const QString &relatedAttrId, const QVariantMap &_dependencies)
+        : AttributeRelation(relatedAttrId), dependencies(_dependencies){}
+    virtual RelationType getType() const {return CUSTOM_VALUE_CHANGER;}
+
+    virtual QVariant getAffectResult(const QVariant &influencingValue, const QVariant &dependentValue,
+        DelegateTags *infTags, DelegateTags *depTags) const;
+    virtual void updateDelegateTags(const QVariant &influencingValue, DelegateTags *dependentTags) const;
 private:
-    QString currentFormatId;
+    QVariantMap dependencies;
 };
 
 } // U2 namespace

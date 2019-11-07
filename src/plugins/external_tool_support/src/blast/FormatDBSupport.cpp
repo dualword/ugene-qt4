@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,29 +19,28 @@
  * MA 02110-1301, USA.
  */
 
-#include "FormatDBSupport.h"
-#include "FormatDBSupportRunDialog.h"
-#include "FormatDBSupportTask.h"
-#include "ExternalToolSupportSettingsController.h"
-#include "ExternalToolSupportSettings.h"
+#include <QMainWindow>
+#include <QMessageBox>
 
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
-#include <U2Core/UserApplicationsSettings.h>
 #include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
+#include <U2Core/UserApplicationsSettings.h>
 
-#include <U2Gui/MainWindow.h>
-
-#include <U2Gui/GUIUtils.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/GUIUtils.h>
+#include <U2Gui/MainWindow.h>
+#include <U2Core/QObjectScopedPointer.h>
+
 #include <U2View/MSAEditor.h>
 #include <U2View/MSAEditorFactory.h>
 
-#include <QtGui/QMainWindow>
-#include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
-
+#include "ExternalToolSupportSettings.h"
+#include "ExternalToolSupportSettingsController.h"
+#include "FormatDBSupport.h"
+#include "FormatDBSupportRunDialog.h"
+#include "FormatDBSupportTask.h"
 
 namespace U2 {
 
@@ -53,12 +52,12 @@ FormatDBSupport::FormatDBSupport(const QString& name, const QString& path) : Ext
         grayIcon = QIcon(":external_tool_support/images/ncbi_gray.png");
         warnIcon = QIcon(":external_tool_support/images/ncbi_warn.png");
     }
-    assert((name == FORMATDB_TOOL_NAME)||(name == MAKEBLASTDB_TOOL_NAME));
-    if(name == FORMATDB_TOOL_NAME){
+    assert((name == ET_FORMATDB)||(name == ET_MAKEBLASTDB)||(name == ET_GPU_MAKEBLASTDB));
+    if(name == ET_FORMATDB){
 #ifdef Q_OS_WIN
     executableFileName="formatdb.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
     executableFileName="formatdb";
     #endif
 #endif
@@ -70,11 +69,11 @@ FormatDBSupport::FormatDBSupport(const QString& name, const QString& path) : Ext
 
     versionRegExp=QRegExp("formatdb (\\d+\\.\\d+\\.\\d+)");
     toolKitName="BLAST";
-    }else if(name == MAKEBLASTDB_TOOL_NAME){
+    }else if(name == ET_MAKEBLASTDB){
 #ifdef Q_OS_WIN
     executableFileName="makeblastdb.exe";
 #else
-    #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    #if defined(Q_OS_UNIX)
     executableFileName="makeblastdb";
     #endif
 #endif
@@ -85,24 +84,41 @@ FormatDBSupport::FormatDBSupport(const QString& name, const QString& path) : Ext
                    " can be searched by other BLAST+ tools.");
     versionRegExp=QRegExp("Application to create BLAST databases, version (\\d+\\.\\d+\\.\\d+\\+?)");
     toolKitName="BLAST+";
+    }else if(name == ET_GPU_MAKEBLASTDB){
+#ifdef Q_OS_WIN
+    executableFileName="makeblastdb.exe";
+#else
+    #ifdef Q_OS_UNIX
+    executableFileName="makeblastdb";
+    #endif
+#endif
+    validationArguments<<"-help";
+    validMessage="-sort_volumes";
+    description=tr("The <i>makeblastdb</i> formats protein or"
+                   " nucleotide source databases before these databases"
+                   " can be searched by other BLAST+ tools.");
+    versionRegExp=QRegExp("Application to create BLAST databases, version (\\d+\\.\\d+\\.\\d+\\+?)");
+    toolKitName="GPU-BLAST+";
     }
 }
 
 void FormatDBSupport::sl_runWithExtFileSpecify(){
     //Check that formatDB or makeblastdb and tempory directory path defined
     if (path.isEmpty()){
-        QMessageBox msgBox;
-        if(name == FORMATDB_TOOL_NAME){
-            msgBox.setWindowTitle("BLAST "+name);
-            msgBox.setText(tr("Path for BLAST %1 tool not selected.").arg(name));
+        QObjectScopedPointer<QMessageBox> msgBox = new QMessageBox;
+        if(name == ET_FORMATDB){
+            msgBox->setWindowTitle("BLAST "+name);
+            msgBox->setText(tr("Path for BLAST %1 tool not selected.").arg(name));
         }else{
-            msgBox.setWindowTitle("BLAST+ "+name);
-            msgBox.setText(tr("Path for BLAST+ %1 tool not selected.").arg(name));
+            msgBox->setWindowTitle("BLAST+ "+name);
+            msgBox->setText(tr("Path for BLAST+ %1 tool not selected.").arg(name));
         }
-        msgBox.setInformativeText(tr("Do you want to select it now?"));
-        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-        msgBox.setDefaultButton(QMessageBox::Yes);
-        int ret = msgBox.exec();
+        msgBox->setInformativeText(tr("Do you want to select it now?"));
+        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox->setDefaultButton(QMessageBox::Yes);
+        const int ret = msgBox->exec();
+        CHECK(!msgBox.isNull(), );
+
         switch (ret) {
            case QMessageBox::Yes:
                AppContext::getAppSettingsGUI()->showSettingsDialog(ExternalToolSupportSettingsPageId);
@@ -124,8 +140,11 @@ void FormatDBSupport::sl_runWithExtFileSpecify(){
 
     //Call select input file and setup settings dialog
     FormatDBSupportTaskSettings settings;
-    FormatDBSupportRunDialog formatDBRunDialog(settings, AppContext::getMainWindow()->getQMainWindow());
-    if(formatDBRunDialog.exec() != QDialog::Accepted){
+    QObjectScopedPointer<FormatDBSupportRunDialog> formatDBRunDialog = new FormatDBSupportRunDialog(name, settings, AppContext::getMainWindow()->getQMainWindow());
+    formatDBRunDialog->exec();
+    CHECK(!formatDBRunDialog.isNull(), );
+
+    if (formatDBRunDialog->result() != QDialog::Accepted){
         return;
     }
     //assert(!settings.inputFilePath.isEmpty());

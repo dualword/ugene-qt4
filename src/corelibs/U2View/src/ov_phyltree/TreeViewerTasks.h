@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,14 @@
 #define _U2_TREE_VIEWER_TASKS_H_
 
 #include <U2Core/GObjectReference.h>
+#include <U2Core/StateLockableDataModel.h>
 #include <U2Gui/ObjectViewTasks.h>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QSplitter>
+#else
+#include <QtWidgets/QSplitter>
+#endif
+#include <U2Algorithm/CreatePhyTreeSettings.h>
 
 namespace U2 {
 
@@ -31,21 +38,44 @@ class PhyTreeObject;
 class UnloadedObject;
 class TreeViewer;
 class CreateRectangularBranchesTask;
+class OpenTreeViewerTask;
+class MSAEditor;
+class MSAEditorTreeManager;
+
+
 
 class OpenTreeViewerTask : public ObjectViewTask {
     Q_OBJECT
 public:
-    OpenTreeViewerTask(PhyTreeObject* obj);
-    OpenTreeViewerTask(UnloadedObject* obj);
-    OpenTreeViewerTask(Document* doc);
+    OpenTreeViewerTask(PhyTreeObject* obj, QObject* _parent = NULL);
+    OpenTreeViewerTask(UnloadedObject* obj, QObject* _parent = NULL);
+    OpenTreeViewerTask(Document* doc, QObject* _parent = NULL);
+    virtual ~OpenTreeViewerTask();
 
     virtual void open();
 
+    virtual void createTreeViewer();
+
     static void updateTitle(TreeViewer* tv);
 
-private:
+protected:
     QPointer<PhyTreeObject>     phyObject;
     GObjectReference            unloadedReference;
+    QObject*                    parent;
+    bool                        createMDIWindow;
+};
+
+class MSAEditorOpenTreeViewerTask : public OpenTreeViewerTask {
+    Q_OBJECT
+public:
+    MSAEditorOpenTreeViewerTask(PhyTreeObject* obj, MSAEditorTreeManager* _parent);
+    MSAEditorOpenTreeViewerTask(UnloadedObject* obj, MSAEditorTreeManager* _parent);
+    MSAEditorOpenTreeViewerTask(Document* doc, MSAEditorTreeManager* _parent);
+    virtual ~MSAEditorOpenTreeViewerTask(){}
+
+    virtual void createTreeViewer();
+private:
+    MSAEditorTreeManager* treeManager;
 };
 
 class OpenSavedTreeViewerTask : public ObjectViewTask {
@@ -64,11 +94,28 @@ public:
     virtual void update();
 };
 
+class CreateMSAEditorTreeViewerTask: public Task {
+    Q_OBJECT
+    QString viewName;
+    QPointer<PhyTreeObject> phyObj;
+    CreateRectangularBranchesTask* subTask;
+    QVariantMap stateData;
+    TreeViewer* view;
+    StateLock *docLock;
+public:
+    CreateMSAEditorTreeViewerTask(const QString& name, const QPointer<PhyTreeObject>& obj, const QVariantMap& stateData);
+    virtual void prepare();
+    virtual ReportResult report();
+    TreeViewer* getTreeViewer();
+    const QVariantMap& getStateData();
+};
+
 class CreateTreeViewerTask: public Task {
     QString viewName;
     QPointer<PhyTreeObject> phyObj;
     CreateRectangularBranchesTask* subTask;
     QVariantMap stateData;
+    StateLock *docLock;
 public:
     CreateTreeViewerTask(const QString& name, const QPointer<PhyTreeObject>& obj, const QVariantMap& stateData);
     virtual void prepare();

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,51 +22,82 @@
 #ifndef _U2_REGION_SELECTOR_H_
 #define _U2_REGION_SELECTOR_H_
 
-#include <U2Core/global.h>
 #include <U2Core/DNASequenceSelection.h>
 #include <U2Core/U2Region.h>
+#include <U2Core/global.h>
 
-#include <QtGui/QLineEdit>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QDialog>
-#include <QtGui/QComboBox>
+#include <QtGui/QLineEdit>
+#else
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QLineEdit>
+#endif
+
+class QComboBox;
 
 namespace U2 {
 
+class AnnotatedDNAView;
 class RegionLineEdit;
+
+struct RegionPreset {
+    RegionPreset() {}
+    RegionPreset(const QString &text, const U2Region &region) : text(text), region(region) {}
+    QString text;
+    U2Region region;
+};
+
 class U2GUI_EXPORT RegionSelector : public QWidget {
     Q_OBJECT
 public:
-    RegionSelector(QWidget* p, qint64 len, bool isVertical = false, DNASequenceSelection* selection = NULL);
+    RegionSelector(QWidget* p, qint64 len = 0, bool isVertical = false,
+                   DNASequenceSelection* selection = NULL,
+                   bool isCircularSelectionAvailable = false,
+                   QList<RegionPreset> presetRegions = QList<RegionPreset>());
 
-    ~RegionSelector();
     U2Region getRegion(bool *ok = NULL) const;
+    bool isWholeSequenceSelected() const;
 
-    void setRegion(const U2Region& value);
+    void setMaxLength(qint64 length);
+    void setCustomRegion(const U2Region& value);
+    void setSequenceSelection(DNASequenceSelection* selection);
+    void updateSelectedRegion(const U2Region &selectedRegion);
     void setWholeRegionSelected();
+    void setCircularSelectionAvailable(bool allowCircSelection);
     void reset();
 
     void showErrorMessage();
+
+    static const QString WHOLE_SEQUENCE;
+    static const QString SELECTED_REGION;
+    static const QString CUSTOM_REGION;
 
 signals:
     void si_regionChanged(const U2Region& newRegion);
 
 private slots:
-    void sl_onComboBoxIndexChanged(int);
+    void sl_onComboBoxIndexChanged(int index);
     void sl_onRegionChanged();
     void sl_onValueEdited();
+    void sl_onSelectionChanged(GSelection* selection);
 
 private:
-    void init();
+    void initLayout();
+    void init(const QList<RegionPreset> &presetRegions);
+    void connectSignals();
 
-    qint64          maxLen;
-    RegionLineEdit* startEdit;
-    RegionLineEdit* endEdit;
-    QComboBox*      comboBox;
-    U2Region        region;
-    bool            isVertical;
-    bool            needAddSelectionButton;
+    // Returns circular region or the first selected. If none is selected, returns full sequence range.
+    U2Region getOneRegionFromSelection() const;
 
-    DNASequenceSelection* selection;
+    qint64                maxLen;
+    RegionLineEdit *      startEdit;
+    RegionLineEdit *      endEdit;
+    QComboBox *           comboBox;
+    bool                  isVertical;
+    QString               defaultItemText;
+    DNASequenceSelection *selection;
+    bool                  isCircularSelectionAvailable;
 };
 
 class RegionLineEdit : public QLineEdit {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ namespace U2 {
 
 class IOAdapter;
 
-class U2FORMATS_EXPORT  FastaFormat : public DocumentFormat {
+class U2FORMATS_EXPORT FastaFormat : public DocumentFormat {
     Q_OBJECT
 public:
     FastaFormat(QObject* p);
@@ -41,14 +41,21 @@ public:
     virtual DNASequence *loadSequence( IOAdapter* io, U2OpStatus& os);
 
     void storeSequence(const DNASequence& sequence, IOAdapter* io, U2OpStatus& os);
-    
+    void storeSequence(const U2SequenceObject *sequence, IOAdapter *io, U2OpStatus &os);
+
     virtual void storeDocument(Document* d, IOAdapter* io, U2OpStatus& os);
 
     virtual FormatCheckResult checkRawData(const QByteArray& rawData, const GUrl& = GUrl()) const;
 
+    //name-sequence list
+    static QList <QPair<QString, QString> > getSequencesAndNamesFromUserInput(const QString &userInput, U2OpStatus &os);
+
     virtual bool isStreamingSupport() {return true;}
 
-    virtual void storeEntry(IOAdapter *io, U2SequenceObject *seq, const QList<GObject*> &anns, U2OpStatus &os);
+    virtual void storeEntry(IOAdapter *io, const QMap< GObjectType, QList<GObject*> > &objectsMap, U2OpStatus &os);
+
+    static const char FASTA_HEADER_START_SYMBOL;
+    static const char FASTA_COMMENT_START_SYMBOL;
 
 protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);

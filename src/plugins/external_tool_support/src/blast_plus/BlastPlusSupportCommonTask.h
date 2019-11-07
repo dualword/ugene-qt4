@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,28 +22,19 @@
 #ifndef _U2_BLASTPLUS_SUPPORT_TASK_H
 #define _U2_BLASTPLUS_SUPPORT_TASK_H
 
-#include <U2Core/Task.h>
-#include <U2Core/IOAdapter.h>
-#include <U2Core/DocumentModel.h>
-
 #include <U2Core/AnnotationData.h>
+#include <U2Core/ExternalToolRunTask.h>
 
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/SaveDocumentTask.h>
-#include "utils/ExportTasks.h"
-
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
-
-#include "ExternalToolRunTask.h"
 #include "utils/BlastTaskSettings.h"
 
-#include <QtXml/QDomNode>
-#include <QtXml/QDomDocument>
+class QDomNode;
 
 namespace U2 {
 
-class BlastPlusSupportCommonTask : public Task {
+class SaveDocumentTask;
+class U2PseudoCircularization;
+
+class BlastPlusSupportCommonTask : public ExternalToolSupportTask {
     Q_OBJECT
 public:
     BlastPlusSupportCommonTask(const BlastTaskSettings& settings);
@@ -51,21 +42,27 @@ public:
     QList<Task*> onSubTaskFinished(Task* subTask);
 
     Task::ReportResult report();
+    virtual QString generateReport() const;
 
     QList<SharedAnnotationData> getResultedAnnotations() const;
     BlastTaskSettings           getSettings() const;
 
     virtual ExternalToolRunTask* createBlastPlusTask() = 0;
+
+    static QString toolNameByProgram(const QString &program);
+
 protected:
     BlastTaskSettings               settings;
     ExternalToolLogParser*          logParser;
     QString                         url;
+
 private:
     SaveDocumentTask*               saveTemporaryDocumentTask;
     ExternalToolRunTask*            blastPlusTask;
-    U2SequenceObject*              sequenceObject;
+    U2SequenceObject*               sequenceObject;
     Document*                       tmpDoc;
     QList<SharedAnnotationData>     result;
+    U2PseudoCircularization*        circularization;
 
     void parseTabularResult();
     void parseTabularLine(const QByteArray &line);
@@ -89,6 +86,11 @@ private:
     Document*                   doc;
     QString                     url;
 };
+
+class BlastDbCmdSupportTask : public Task {
+
+};
+
 
 }//namespace
 #endif // _U2_BLASTPLUS_SUPPORT_TASK_H

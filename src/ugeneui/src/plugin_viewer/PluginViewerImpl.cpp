@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,11 @@
 #include <AppContextImpl.h>
 #include "PluginViewerController.h"
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#endif
 
 namespace U2 {
 
@@ -41,7 +45,7 @@ Task* PluginViewerImpl::createServiceDisablingTask() {
 // tasks
 
 EnablePluginViewerTask::EnablePluginViewerTask(PluginViewerImpl* _pv)
-: Task (tr("enable_plugin_viewer_task"), TaskFlag_NoRun), pv(_pv)
+: Task (tr("Enable PluginViewer"), TaskFlag_NoRun), pv(_pv)
 {
 }
 
@@ -53,7 +57,7 @@ Task::ReportResult EnablePluginViewerTask::report() {
 
 
 DisablePluginViewerTask::DisablePluginViewerTask(PluginViewerImpl* _pv)
-: Task (tr("disable_plugin_viewer_task"), TaskFlag_NoRun), pv(_pv)
+: Task (tr("Disable PluginViewer"), TaskFlag_NoRun), pv(_pv)
 {
 }
 

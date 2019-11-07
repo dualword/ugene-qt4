@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 
 namespace U2 {
 
-ADVGlobalAction::ADVGlobalAction(AnnotatedDNAView* v, const QIcon& icon, const QString& text, int ps, ADVGlobalActionFlags fl) 
+ADVGlobalAction::ADVGlobalAction(AnnotatedDNAView* v, const QIcon& icon, const QString& text, int ps, ADVGlobalActionFlags fl)
 : GObjectViewAction(v, v, text), pos(ps), flags(fl)
 {
     setIcon(icon);
@@ -53,6 +53,26 @@ void ADVGlobalAction::updateState() {
         enabled = alphabetFilter.contains(t);
     }
     setEnabled(enabled);
+}
+
+
+QString ADVSelectionUtils::getSequenceIdsFromSelection(const QList<AnnotationSelectionData> &selection, bool localBase) {
+    QStringList genbankID ;
+    foreach (const AnnotationSelectionData &sel, selection) {
+        const Annotation *ann = sel.annotation;
+        QString tmp = ann->findFirstQualifierValue("id");
+        if (!tmp.isEmpty()) {
+            if (!localBase) {
+                int off = tmp.indexOf("|");
+                int off1 = tmp.indexOf("|", off + 1);
+                tmp = tmp.mid(off + 1, off1 - off - 1);
+            }
+            if (!genbankID.contains(tmp)) {
+                genbankID.append(tmp);
+            }
+        }
+    }
+    return genbankID.join(",");
 }
 
 } //namespace

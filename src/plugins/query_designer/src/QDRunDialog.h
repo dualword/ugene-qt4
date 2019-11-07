@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,6 @@
 #include <U2Core/Task.h>
 #include <U2Core/U2Region.h>
 #include <U2Gui/RegionSelector.h>
-
 
 namespace U2 {
 
@@ -59,7 +58,7 @@ private:
     DocumentProviderTask*   loadTask;
     QDScheduler*            scheduler;
     Document*               docWithSequence;
-    AnnotationTableObject*  annObj;
+    AnnotationTableObject *   annObj;
 };
 
 class QueryViewController;

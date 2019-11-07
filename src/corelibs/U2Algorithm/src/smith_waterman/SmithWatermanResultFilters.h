@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,20 +34,20 @@ public:
     virtual bool applyFilter(QList<SmithWatermanResult>* lst) = 0;
     virtual SmithWatermanResultFilter* clone() const = 0;
     virtual ~SmithWatermanResultFilter() {};
-    
+
     virtual QString getId() const = 0;
 };
 
 class U2ALGORITHM_EXPORT SWRF_EmptyFilter: public SmithWatermanResultFilter {
 private:
     static const QString ID;
-    
+
 public:
     virtual bool applyFilter(QList<SmithWatermanResult>* lst);
     virtual SmithWatermanResultFilter* clone() const;
-    
+
     virtual QString getId() const;
-    
+
 private:
     bool needErase(const SmithWatermanResult& currItem,
                    const SmithWatermanResult& someItem) const;
@@ -60,9 +60,9 @@ private:
 public:
     virtual bool applyFilter(QList<SmithWatermanResult>* lst);
     virtual SmithWatermanResultFilter* clone() const;
-    
+
     virtual QString getId() const;
-    
+
 private:
     bool needErase(const SmithWatermanResult& currItem,
                    const SmithWatermanResult& someItem) const;

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@
 
 namespace U2 {
 
-/** 
+/**
     Range or interval or values
     Usually used by functions that must return not exact value, but interval: [min, max]
 */
@@ -38,7 +38,7 @@ public:
     T maxValue;
 };
 
-template <typename T> 
+template <typename T>
 U2Range<T> operator +(const U2Range<T>& r1, const U2Range<T>& r2) {
     U2Range<T> result(qMin(r1.minValue, r2.minValue), qMax(r1.maxValue, r2.maxValue));
     return result;

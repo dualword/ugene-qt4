@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -45,7 +45,12 @@ public:
     
     static ESL_MSA * convertMSA( const MAlignment & ma );
     
-    static P7_HMM * getHmmFromDocument( Document* doc, TaskStateInfo& ti );
+    static QList<const P7_HMM *> getHmmsFromDocument( Document* doc, TaskStateInfo& ti );
+
+    static QList< GObject* > getDocObjects( const QList<const  P7_HMM* >& hmms );
+
+    static Document * getSavingDocument( const QList<const  P7_HMM* >& hmms, const QString & outfile );
+
     
 }; // UHMM3Utilities
 

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,29 +27,48 @@
 #include <U2Core/AppContext.h>
 #include <U2Core/DocumentUtils.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QRadioButton>
 #include <QtGui/QToolButton>
+#include <QtGui/QComboBox>
+#else
+#include <QtWidgets/QRadioButton>
+#include <QtWidgets/QToolButton>
+#include <QtWidgets/QComboBox>
+#endif
 
 namespace U2 {
+
+class LabelClickProvider : public QObject {
+    Q_OBJECT
+public:
+    LabelClickProvider(QLabel *label, QRadioButton *rb);
+
+private:
+    bool eventFilter(QObject *object, QEvent *event);
+
+    QLabel *label;
+    QRadioButton *rb;
+};
 
 class DocumentFormatSelectorController: public QDialog, public Ui_DocumentFormatSelectorDialog {
 	Q_OBJECT
 
-    DocumentFormatSelectorController(const QList<FormatDetectionResult>& results, QWidget *p);
+    DocumentFormatSelectorController(QList<FormatDetectionResult>& results, QWidget *p);
 
 public:
-    static int selectResult(const GUrl& url, const QByteArray& rawData, const QList<FormatDetectionResult>& results);
+    static int selectResult(const GUrl& url, QByteArray& rawData, QList<FormatDetectionResult>& results);
     static QString score2Text(int score);
-
-private:
-    int getSelectedFormatIdx() const;
 
 private slots:
     void sl_moreFormatInfo();
 
 private:
+    int getSelectedFormatIdx() const;
+
     QList<QRadioButton*>    radioButtons;
     QList<QToolButton*>     moreButtons;
+    QComboBox *userSelectedFormat;
     const QList<FormatDetectionResult>& formatDetectionResults;
 };
 

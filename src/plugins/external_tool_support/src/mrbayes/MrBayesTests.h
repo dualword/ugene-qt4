@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -43,7 +43,7 @@ public:
     void prepare();
     Task::ReportResult report();
 
-private:    
+private:
     QString inputDocCtxName;
     QString resultCtxName;
     int mbSeed;

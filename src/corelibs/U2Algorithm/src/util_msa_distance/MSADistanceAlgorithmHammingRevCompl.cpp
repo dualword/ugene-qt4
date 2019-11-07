@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -21,14 +21,17 @@
 
 #include "MSADistanceAlgorithmHammingRevCompl.h"
 
-#include <U2Core/MAlignment.h>
 #include <U2Core/AppContext.h>
 #include <U2Core/DNATranslation.h>
+#include <U2Core/MAlignment.h>
 #include <U2Core/TextUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
+#include <U2Core/U2SafePoints.h>
+
 
 namespace U2 {
 
-MSADistanceAlgorithmFactoryHammingRevCompl::MSADistanceAlgorithmFactoryHammingRevCompl(QObject* p) 
+MSADistanceAlgorithmFactoryHammingRevCompl::MSADistanceAlgorithmFactoryHammingRevCompl(QObject* p)
 : MSADistanceAlgorithmFactory(BuiltInDistanceAlgorithms::HAMMING_REVCOMPL_ALGO, DistanceAlgorithmFlag_Nucleic, p)
 {
 
@@ -52,32 +55,46 @@ MSADistanceAlgorithm* MSADistanceAlgorithmFactoryHammingRevCompl::createAlgorith
 // Algorithm
 
 void MSADistanceAlgorithmHammingRevCompl::run() {
-    QList<DNATranslation*> compTTs = AppContext::getDNATranslationRegistry()->
-        lookupTranslation(ma.getAlphabet(), DNATranslationType_NUCL_2_COMPLNUCL);
+    DNATranslation* compTT = AppContext::getDNATranslationRegistry()->
+        lookupComplementTranslation(ma.getAlphabet());
 
-    assert (!compTTs.isEmpty());
+    assert (compTT != NULL);
 
-    DNATranslation* trans = compTTs.first();
+    DNATranslation* trans = compTT ;
     int nSeq = ma.getNumRows();
     MAlignment revtransl;
     revtransl.setAlphabet(ma.getAlphabet());
+    U2OpStatus2Log os;
     for (int i = 0; i < nSeq; i++) {
-        QByteArray arr = ma.getRow(i).toByteArray(ma.getLength());
+        if (isCanceled()) {
+            return;
+        }
+        QByteArray arr = ma.getRow(i).toByteArray(ma.getLength(), os);
         trans->translate(arr.data(), arr.length());
         TextUtils::reverse(arr.data(), arr.length());
-        revtransl.addRow(MAlignmentRow(ma.getRow(i).getName(), arr));
+
+        revtransl.addRow(ma.getRow(i).getName(), arr, os);
+
+        CHECK_OP_EXT(os, setError(tr("An unexpected error has occurred during running"
+                                      " the Hamming reverse-complement algorithm.")),);
     }
 
     for (int i = 0; i < nSeq; i++) {
         for (int j = i; j < nSeq; j++) {
             int sim = 0;
             for (int k = 0; k < ma.getLength(); k++) {
-                if (ma.charAt(i, k) == revtransl.charAt(j, k)) sim++;
+                if (isCanceled()) {
+                    return;
+                }
+                if (ma.charAt(i, k) == revtransl.charAt(j, k)) {
+                    sim++;
+                }
             }
             lock.lock();
-            distanceTable[i][j] = distanceTable[j][i] = sim;
+            setDistanceValue(i, j, sim);
             lock.unlock();
         }
+        stateInfo.setProgress(i * 100 / nSeq);
     }
 }
 

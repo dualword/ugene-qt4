@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -44,7 +44,6 @@
 #include "u_search/HMMSearchWorker.h"
 
 /* TRANSLATOR U2::LocalWorkflow::HMMLib */
-
 namespace U2 {
 namespace LocalWorkflow {
 
@@ -66,9 +65,9 @@ DataTypePtr HMMLib::HMM_PROFILE_TYPE() {
     return dtr->getById(HMM_PROFILE_TYPE_ID);
 }
 
-const Descriptor HMMLib::HMM2_SLOT("hmm2-profile", HMMLib::tr("HMM Profile"), "");
+const Descriptor HMMLib::HMM2_SLOT("hmm2-profile", QObject::tr("HMM Profile"), "");
 
-const Descriptor HMMLib::HMM_CATEGORY() {return Descriptor("hmmer", tr("HMMER2 tools"), "");}
+const Descriptor HMMLib::HMM_CATEGORY() {return Descriptor("hmmer", tr("HMMER2 Tools"), "");}
 
 HMMIOProto::HMMIOProto(const Descriptor& _desc, const QList<PortDescriptor*>& _ports, const QList<Attribute*>& _attrs ) 
 : IntegralBusActorPrototype(_desc, _ports, _attrs) {
@@ -97,7 +96,7 @@ ReadHMMProto::ReadHMMProto(const Descriptor& _desc, const QList<PortDescriptor*>
     
     attrs << new Attribute(BaseAttributes::URL_IN_ATTRIBUTE(), BaseTypes::STRING_TYPE(), true);
     QMap<QString, PropertyDelegate*> delegateMap;
-    delegateMap[BaseAttributes::URL_IN_ATTRIBUTE().getId()] = new URLDelegate( HMMIO::getHMMFileFilter(), HMMIO::HMM_ID, true );
+    delegateMap[BaseAttributes::URL_IN_ATTRIBUTE().getId()] = new URLDelegate( HMMIO::getHMMFileFilter(), HMMIO::HMM_ID, true, false, false );
     setEditor(new DelegateEditor(delegateMap));
     setIconPath( ":/hmm2/images/hmmer_16.png" );
 }
@@ -141,7 +140,7 @@ void HMMIOWorkerFactory::init() {
          QList<PortDescriptor*> p; QList<Attribute*> a;
          p << new PortDescriptor(id, t, true /*input*/);
          
-         Descriptor desc(HMMWriter::ACTOR, HMMLib::tr("Write HMM profile"), HMMLib::tr("Saves all input HMM profiles to specified location."));
+         Descriptor desc(HMMWriter::ACTOR, HMMLib::tr("Write HMM Profile"), HMMLib::tr("Saves all input HMM profiles to specified location."));
          IntegralBusActorPrototype* proto = new WriteHMMProto(desc, p, a);
          proto->setPrompter(new HMMWritePrompter());
          r->registerProto(HMMLib::HMM_CATEGORY(), proto);
@@ -154,7 +153,7 @@ void HMMIOWorkerFactory::init() {
          outM[HMMLib::HMM2_SLOT] = HMMLib::HMM_PROFILE_TYPE();
          p << new PortDescriptor(od, DataTypePtr(new MapDataType("hmm.read.out", outM)), false /*output*/, true);
          
-         Descriptor desc(HMMReader::ACTOR, HMMLib::tr("Read HMM profile"), HMMLib::tr("Reads HMM profiles from file(s). The files can be local or Internet URLs."));
+         Descriptor desc(HMMReader::ACTOR, HMMLib::tr("Read HMM Profile"), HMMLib::tr("Reads HMM profiles from file(s). The files can be local or Internet URLs."));
          IntegralBusActorPrototype* proto = new ReadHMMProto(desc, p, a);
          proto->setPrompter(new HMMReadPrompter());
          r->registerProto(HMMLib::HMM_CATEGORY(), proto);
@@ -166,7 +165,7 @@ void HMMIOWorkerFactory::init() {
 }
 
 QString HMMReadPrompter::composeRichDoc() {
-    return tr("Read HMM profile(s) from %1").arg(getHyperlink(BaseAttributes::URL_IN_ATTRIBUTE().getId(), getURL(BaseAttributes::URL_IN_ATTRIBUTE().getId())));
+    return tr("Read HMM profile(s) from %1.").arg(getHyperlink(BaseAttributes::URL_IN_ATTRIBUTE().getId(), getURL(BaseAttributes::URL_IN_ATTRIBUTE().getId())));
 }
 
 QString HMMWritePrompter::composeRichDoc() {
@@ -214,9 +213,15 @@ void HMMReader::init() {
 }
 
 Task* HMMReader::tick() {
-    Task* t = new HMMReadTask(urls.takeFirst());
-    connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
-    return t;
+    if (urls.isEmpty()) {
+        setDone();
+        output->setEnded();
+    } else {
+        Task* t = new HMMReadTask(urls.takeFirst());
+        connect(t, SIGNAL(si_stateChanged()), SLOT(sl_taskFinished()));
+        return t;
+    }
+    return NULL;
 }
 
 void HMMReader::sl_taskFinished() {
@@ -227,9 +232,6 @@ void HMMReader::sl_taskFinished() {
             QVariant v = qVariantFromValue<plan7_s*>(t->getHMM());
             output->put(Message(HMMLib::HMM_PROFILE_TYPE(), v));
         }
-        if (urls.isEmpty()) {
-            output->setEnded();
-        }
         ioLog.info(tr("Loaded HMM profile from %1").arg(t->getURL()));
     }
 }
@@ -239,34 +241,38 @@ void HMMWriter::init() {
 }
 
 Task* HMMWriter::tick() {
-    Message inputMessage = getMessageAndSetupScriptValues(input);
-    url = actor->getParameter(BaseAttributes::URL_OUT_ATTRIBUTE().getId())->getAttributeValue<QString>(context);
-    fileMode = actor->getParameter(BaseAttributes::FILE_MODE_ATTRIBUTE().getId())->getAttributeValue<uint>(context);
-    QVariantMap data = inputMessage.getData().toMap();
-    
-    plan7_s* hmm = data.value(HMMLib::HMM2_SLOT.getId()).value<plan7_s*>();
-    QString anUrl = url;
-    if (anUrl.isEmpty()) {
-        anUrl = data.value(BaseSlots::URL_SLOT().getId()).toString();
-    }
-    if (anUrl.isEmpty() || hmm == NULL) {
-        QString err = (hmm == NULL) ? tr("Empty HMM passed for writing to %1").arg(anUrl) : tr("Unspecified URL for writing HMM");
-        //if (failFast) {
-            return new FailTask(err);
-        /*} else {
-            ioLog.error(err);
+    if (input->hasMessage()) {
+        Message inputMessage = getMessageAndSetupScriptValues(input);
+        if (inputMessage.isEmpty()) {
             return NULL;
-        }*/
+        }
+        url = getValue<QString>(BaseAttributes::URL_OUT_ATTRIBUTE().getId());
+        fileMode = actor->getParameter(BaseAttributes::FILE_MODE_ATTRIBUTE().getId())->getAttributeValue<uint>(context);
+        QVariantMap data = inputMessage.getData().toMap();
+        
+        plan7_s* hmm = data.value(HMMLib::HMM2_SLOT.getId()).value<plan7_s*>();
+        QString anUrl = url;
+        if (anUrl.isEmpty()) {
+            anUrl = data.value(BaseSlots::URL_SLOT().getId()).toString();
+        }
+        if (anUrl.isEmpty() || hmm == NULL) {
+            QString err = (hmm == NULL) ? tr("Empty HMM passed for writing to %1").arg(anUrl) : tr("Unspecified URL for writing HMM");
+            return new FailTask(err);
+        }
+        assert(!anUrl.isEmpty());
+        anUrl = context->absolutePath(anUrl);
+        int count = ++counter[anUrl];
+        if (count != 1) {
+            anUrl = GUrlUtils::prepareFileName(anUrl, count, QStringList(HMMIO::HMM_EXT));
+        } else {
+            anUrl = GUrlUtils::ensureFileExt( anUrl, QStringList(HMMIO::HMM_EXT)).getURLString();
+        }
+        ioLog.info(tr("Writing HMM profile to %1").arg(anUrl));
+        return new HMMWriteTask(anUrl, hmm, fileMode);
+    } else if (input->isEnded()) {
+        setDone();
     }
-    assert(!anUrl.isEmpty());
-    int count = ++counter[anUrl];
-    if (count != 1) {
-        anUrl = GUrlUtils::prepareFileName(anUrl, count, QStringList(HMMIO::HMM_EXT));
-    } else {
-        anUrl = GUrlUtils::ensureFileExt( anUrl, QStringList(HMMIO::HMM_EXT)).getURLString();
-    }
-    ioLog.info(tr("Writing HMM profile to %1").arg(anUrl));
-    return new HMMWriteTask(anUrl, hmm, fileMode);
+    return NULL;
 }
 
 

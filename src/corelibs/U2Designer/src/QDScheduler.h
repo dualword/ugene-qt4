@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 #include <U2Core/Task.h>
 #include <U2Core/GObjectReference.h>
 #include <U2Core/DNASequence.h>
-
+#include <U2Core/AnnotationData.h>
 
 namespace U2 {
 
@@ -40,9 +40,10 @@ public:
     offset(0), outputType(Group) {}
 
     DNASequence             dnaSequence;
-    AnnotationTableObject*  annotationsObj;
+    AnnotationTableObject *   annotationsObj;
     GObjectReference        annotationsObjRef;
     QString                 groupName;
+    QString                 annDescription;
     U2Region                region;
     QDScheme*               scheme;
     QString                 viewName;
@@ -71,7 +72,6 @@ private:
 };
 
 class QDScheduler;
-class Annotation;
 
 class QDResultLinker {
 public:
@@ -81,6 +81,7 @@ public:
     QDScheduler* getScheduler() const { return sched; }
     int getCandidatesNumber() const { return candidates.size(); }
     bool isCancelled() const { return cancelled; }
+    const QString& getCancelMessage() const { return cancelMeassage; }
     void prepareAnnotations();
     void createAnnotations(const QString& groupPrefix);
     void createMergedAnnotations(const QString& groupPrefix);
@@ -90,25 +91,25 @@ private:
     void processNewResults(int& progress);
     void initCandidates(int& progress);
     void updateCandidates(int& progress);
+    void cleanupCandidates();
     bool canAdd(QDResultGroup* actorResult, QDResultGroup* candidate, bool complement) const;
     QDStrandOption findResultStrand(QDResultGroup* actorRes);
     //inverts repeat pair if any for complement search
     QList<QDResultUnit> prepareComplResults(QDResultGroup* src) const;
     static QString prepareAnnotationName(const QDResultUnit& res);
 private:
-    QDScheme* scheme;
-    QDScheduler* sched;
-    bool cancelled;
-    QDStep* currentStep;
-    bool needInit;
-    QList<QDResultGroup*> candidates;
-    QMap< QDResultUnit, Annotation* > result2annotation;
-
-    QList<QDResultGroup*> currentResults;
-    QMap< QDActor*, QList<QDResultGroup*> > currentGroupResults;
-
-
-    QMap< QString, QList<Annotation*> > annotations;
+    QDScheme*                                   scheme;
+    QDScheduler*                                sched;
+    bool                                        cancelled;
+    QString                                     cancelMeassage;
+    QDStep*                                     currentStep;
+    bool                                        needInit;
+    QList<QDResultGroup*>                       candidates;
+    QMap<QDResultUnit, SharedAnnotationData>    result2annotation;
+    QList<QDResultGroup*>                       currentResults;
+    QMap< QDActor*, QList<QDResultGroup*> >     currentGroupResults;
+    QMap<QString, QList<SharedAnnotationData> > annotations;
+    int                                         maxMemorySizeInMB;
 };
 
 class QDFindLocationTask : public Task {

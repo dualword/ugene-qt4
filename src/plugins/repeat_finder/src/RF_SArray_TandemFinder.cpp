@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,35 +19,40 @@
  * MA 02110-1301, USA.
  */
 
-#include "RF_SArray_TandemFinder.h"
-#include "RFConstants.h"
+#include <QMutexLocker>
+
 #include <U2Core/AppContext.h>
 #include <U2Core/AppSettings.h>
+#include <U2Core/CreateAnnotationTask.h>
+#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/Log.h>
 #include <U2Core/Timer.h>
-#include <QMutexLocker>
-#include <U2Core/LoadDocumentTask.h>
-#include <U2Core/CreateAnnotationTask.h>
+#include <U2Core/U1AnnotationUtils.h>
+
+#include "RFConstants.h"
+#include "RF_SArray_TandemFinder.h"
 
 namespace U2 {
 
 const int FindTandemsTaskSettings::DEFAULT_MIN_REPEAT_COUNT = 0;
 const int FindTandemsTaskSettings::DEFAULT_MIN_TANDEM_SIZE = 9;
 
-FindTandemsToAnnotationsTask::FindTandemsToAnnotationsTask(const FindTandemsTaskSettings& s, const DNASequence& seq, const QString& _an, const QString& _gn, const GObjectReference& _aor):
-Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), saveAnns(true), mainSeq(seq), annName(_an), annGroup(_gn), annObjRef(_aor)
+FindTandemsToAnnotationsTask::FindTandemsToAnnotationsTask(const FindTandemsTaskSettings& s, const DNASequence& seq, const QString& _an, const QString& _gn, const QString &annDescription, const GObjectReference& _aor):
+Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), saveAnns(true), mainSeq(seq), annName(_an), annGroup(_gn), annDescription(annDescription), annObjRef(_aor), s(s)
 {
+    GCOUNTER(cvar, tvar, "FindTandemsToAnnotationsTask");
     setVerboseLogMode(true);
     if (annObjRef.isValid()) {
-        LoadUnloadedDocumentTask::addLoadingSubtask(this, 
+        LoadUnloadedDocumentTask::addLoadingSubtask(this,
             LoadDocumentTaskConfig(true, annObjRef, new LDTObjectFactory(this)));
     }
     addSubTask(new TandemFinder(s, mainSeq));
 }
 
 FindTandemsToAnnotationsTask::FindTandemsToAnnotationsTask(const FindTandemsTaskSettings& s, const DNASequence& seq)
-: Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), saveAnns(false), mainSeq(seq)
+: Task(tr("Find repeats to annotations"), TaskFlags_NR_FOSCOE), saveAnns(false), mainSeq(seq), s(s)
 {
+    GCOUNTER(cvar, tvar, "FindTandemsToAnnotationsTask");
     setVerboseLogMode(true);
     addSubTask(new TandemFinder(s, mainSeq));
 }
@@ -60,11 +65,12 @@ QList<Task*> FindTandemsToAnnotationsTask::onSubTaskFinished(Task* subTask) {
 
     if (qobject_cast<TandemFinder*>(subTask)!=NULL){
         TandemFinder* tandemFinderTask = qobject_cast<TandemFinder*>(subTask);
-        QList<SharedAnnotationData> annotations = importTandemAnnotations( tandemFinderTask->getResults(), tandemFinderTask->getSettings().seqRegion.startPos,  tandemFinderTask->getSettings().showOverlappedTandems );
+        QList<SharedAnnotationData> annotations = importTandemAnnotations(tandemFinderTask->getResults(),
+            tandemFinderTask->getSettings().seqRegion.startPos, tandemFinderTask->getSettings().showOverlappedTandems);
         if (saveAnns) {
             if (!annotations.isEmpty()) {
                 algoLog.info(tr("Found %1 repeat regions").arg(annotations.size()));
-                Task* createTask = new CreateAnnotationsTask(annObjRef, annGroup, annotations);
+                Task* createTask = new CreateAnnotationsTask(annObjRef, annotations, annGroup);
                 createTask->setSubtaskProgressWeight(0);
                 res.append(createTask);
             }
@@ -75,13 +81,17 @@ QList<Task*> FindTandemsToAnnotationsTask::onSubTaskFinished(Task* subTask) {
     return res;
 }
 
-QList<SharedAnnotationData> FindTandemsToAnnotationsTask::importTandemAnnotations(const QList<Tandem>& tandems, const quint32 seqStart, const bool showOverlapped) {
+QList<SharedAnnotationData> FindTandemsToAnnotationsTask::importTandemAnnotations(const QList<Tandem>& tandems, qint64 seqStart, const bool showOverlapped) {
+
+    seqStart += s.reportSeqShift;
+
     QList<SharedAnnotationData> res;
     foreach(const Tandem& tan, tandems) {
         unsigned offset = 0;
         const unsigned maxOffset = tan.size % tan.repeatLen;
         do{
             SharedAnnotationData ad(new AnnotationData());
+            ad->type = U2FeatureTypes::RepeatRegion;
             ad->name = annName;
             const quint32 tandemEnd = tan.offset+tan.size+seqStart;
             quint32 pos = tan.offset+seqStart+offset;
@@ -93,6 +103,7 @@ QList<SharedAnnotationData> FindTandemsToAnnotationsTask::importTandemAnnotation
             }
             ad->qualifiers.append(U2Qualifier("repeat_len", QString::number(tan.repeatLen)));
             ad->qualifiers.append(U2Qualifier("tandem_size", QString::number(tan.size)));
+            U1AnnotationUtils::addDescriptionQualifier(ad, annDescription);
             res.append(ad);
             offset++;
         }while(showOverlapped && offset<=maxOffset);
@@ -119,22 +130,14 @@ public:
         chunkSize=_chunkSize;
         lastChunkExtraLen=_chunkSize/2;
         overlapSize=TandemFinder::maxCheckPeriod;
+        walkCircular = false;
     }
 };
 
-void TandemFinder::prepare(){
-//    Q_ASSERT(settings.minLen>=3);
-    Q_ASSERT(settings.minRepeatCount>=3);
-    //AppResourcePool* resPool = AppContext::getAppSettings()->getAppResourcePool();
+void TandemFinder::prepare() {
+    Q_ASSERT(settings.minRepeatCount >= 3);
     int chunkSize = 32*1024*1024; // optimized for 32Mb mem-chunk
-    addSubTask(
-        new SequenceWalkerTask(
-            TF_WalkerConfig(sequence, settings.seqRegion.length, chunkSize),
-                this,
-                tr("Find tandems"),
-                TaskFlags_NR_FOSCOE
-        )
-    );
+    addSubTask(new SequenceWalkerTask(TF_WalkerConfig(sequence, settings.seqRegion.length, chunkSize), this, tr("Find tandems"), TaskFlags_NR_FOSCOE));
 }
 
 void TandemFinder::run(){
@@ -191,13 +194,12 @@ void TandemFinder_Region::prepare(){
     int period=1;
     for (; period<=16; period = period*2+1){
         if (period*2<settings.minPeriod || period>settings.maxPeriod || period>=seqSize) continue;
-        addSubTask( new ExactSizedTandemFinder(sequence, seqSize, settings, period) );
+        addSubTask(new ExactSizedTandemFinder(sequence, seqSize, settings, period));
     }
     {
         if (period>settings.maxPeriod) return;
-        addSubTask( new LargeSizedTandemFinder(sequence, seqSize, settings, period) );
+        addSubTask(new LargeSizedTandemFinder(sequence, seqSize, settings, period));
     }
-//    setMaxParallelSubtasks(AppContext::getAppSettings()->getAppResourcePool()->getIdealThreadCount());
 }
 
 void TandemFinder_Region::addResult(const Tandem& tandem){
@@ -205,23 +207,17 @@ void TandemFinder_Region::addResult(const Tandem& tandem){
     foundTandems.append(tandem);
 }
 void  TandemFinder_Region::addResults(const QMap<Tandem,Tandem>& tandems){
-/*    QList<Tandem> checkedTandems;
-    foreach(const Tandem& t, tandems){
-        if(t.repeatLen*minCount>t.size)continue;
-        checkedTandems.append(t);
-    }
-*/
     QMutexLocker tandemsAccessLocker(&tandemsAccessMutex);
-    foundTandems.append( tandems.values() );
+    foundTandems.append(tandems.values());
 }
 
 ConcreteTandemFinder::ConcreteTandemFinder(QString taskName, const char* _sequence, const long _seqSize, const FindTandemsTaskSettings& _settings, const int _prefixLength):
     Task(taskName, TaskFlags_FOSCOE), sequence(_sequence), seqSize(_seqSize), index(NULL), suffixArray(NULL),
     settings(_settings),prefixLength(_prefixLength),suffArrSize(_seqSize-_prefixLength+1){
-        Q_ASSERT( settings.minRepeatCount>1 );
+        Q_ASSERT(settings.minRepeatCount>1);
         int suffArrMemory;
         if (settings.algo == TSConstants::AlgoSuffixBinary){
-            suffArrMemory = seqSize/4 + seqSize*sizeof(quint32) + (1<<qMin(prefixLength*2,24))*sizeof(quint64)*7/6;
+            suffArrMemory = seqSize/4 + seqSize*sizeof(quint32) + ((size_t)1<<qMin(prefixLength*2,24))*sizeof(quint64)*7/6;
         }else{
             suffArrMemory = seqSize*sizeof(quint32)*2;
         }
@@ -240,7 +236,7 @@ void ConcreteTandemFinder::prepare(){
         CreateSArrayIndexTask* indexTask = new CreateSArrayIndexTask(sequence, seqSize, prefixLength,  'N', nuclTable, bitMaskCharBitsNum);
         indexTask->setSubtaskProgressWeight(arrayPercent/100.0F);
         // TODO fix algorithm selection
-        if( qobject_cast<ExactSizedTandemFinder*>(this)!=NULL){
+        if(qobject_cast<ExactSizedTandemFinder*>(this)!=NULL){
             addSubTask(indexTask);
         }
     }
@@ -272,7 +268,7 @@ ExactSizedTandemFinder::~ExactSizedTandemFinder() {
 inline char* seqCast(const quint32* suffArr, int ind){
     return reinterpret_cast<char*>(
         suffArr[ind]
-    );
+   );
 }
 
 void ExactSizedTandemFinder::run(){
@@ -285,7 +281,12 @@ void ExactSizedTandemFinder::run(){
     int minPeriod = qMax(settings.minPeriod, prefixLength/2);
     int maxPeriod = qMin(settings.maxPeriod, prefixLength);
     if (index==NULL){
-        suffixArray = new SuffixArray(sequence, seqSize, prefixLength);
+        try {
+            suffixArray = new SuffixArray(sequence, seqSize, prefixLength);
+        } catch (...) {
+            setError("Not enough memory");
+            return;
+        }
         const BitMask& bitMask = suffixArray->getBitMask();
         const quint32* sArray = suffixArray->getArray();
         quint32* currentDiffPos = (quint32*)sArray;
@@ -293,10 +294,7 @@ void ExactSizedTandemFinder::run(){
         while(currentDiffPos<sArrayLast){
             int diff  = currentDiffPos[1]-currentDiffPos[0];
             if (diff>=minPeriod && diff<=maxPeriod){    //only our exact size
-                quint32 suffixOffset = qMax(1, (settings.minTandemSize-prefixLength)/diff );
-                /*diff==(signed)minRepeatLen ?
-                    qMax(3u-2u, (tandemMinSize-prefixLength)/diff ):
-                    qMax(3u-1u, (tandemMinSize-prefixLength)/diff );*/
+                quint32 suffixOffset = qMax(1, (settings.minTandemSize-prefixLength)/diff);
                 if (currentDiffPos+suffixOffset<=sArrayLast && currentDiffPos[suffixOffset]-currentDiffPos[0] == suffixOffset*diff){
                     if (bitMask[currentDiffPos[0]]==bitMask[currentDiffPos[suffixOffset]]){
                         currentDiffPos = checkAndSpreadTandem_bv(currentDiffPos,currentDiffPos+suffixOffset, diff);
@@ -311,14 +309,12 @@ void ExactSizedTandemFinder::run(){
         const quint32* sArray = index->getSArray();
         const quint32* sArrayLast  = const_cast<quint32*>(sArray + index->getSArraySize() - 1);
         quint32* currentDiffPos = (quint32*)sArray;
-//        const quint32* bitMaskArray = index->getMaskedSequence();
 
         while(currentDiffPos<sArrayLast){
             const qint32 diff  = currentDiffPos[1]-currentDiffPos[0];
             if (diff>=minPeriod && diff<=maxPeriod){    //only our exact size
-                unsigned suffixOffset = qMax(1, signed(settings.minTandemSize-prefixLength)/diff );
+                unsigned suffixOffset = qMax(1, signed(settings.minTandemSize-prefixLength)/diff);
                 if (currentDiffPos+suffixOffset>sArrayLast || currentDiffPos[suffixOffset]-currentDiffPos[0]!=suffixOffset*diff){
-//                    currentDiffPos += suffixOffset;continue;
                 }else{
                     const char* seq0 = index->sarr2seq(currentDiffPos);//seqCast(currentDiffPos,0);
                     const char* seq1 = index->sarr2seq(currentDiffPos+suffixOffset);//seqCast(currentDiffPos,suffixOffset);
@@ -344,17 +340,6 @@ bool ExactSizedTandemFinder::comparePrefixChars(const char* first,const char* se
 }
 quint32* ExactSizedTandemFinder::checkAndSpreadTandem(const quint32* tandemStartIndex, const quint32* tandemLastIndex, quint32 repeatLen){
     const char* tandemStart = index->sarr2seq(tandemStartIndex);//seqCast(tandemStartIndex,0);
-/*    const Tandem small_tandem(tandemStart - sequence, repeatLen, ((char*)tandemLastIndex[0]+repeatLen)-tandemStart);
-    QMap<Tandem,Tandem>::iterator it = rawTandems.find(small_tandem);
-    if (it!=rawTandems.end()){ // there are close tandems
-        Tandem t = *it;
-        if (t.extend(small_tandem)){
-            rawTandems.erase(it);
-            rawTandems.insert(t,t);
-            return (quint32*)tandemLastIndex-1;
-        }
-    }
-*/
     quint32* arrRunner = (quint32*)tandemLastIndex-1;
     {
         const quint32* sArrayLast  = const_cast<quint32*>(index->getSArray() + index->getSArraySize() - 1);
@@ -374,7 +359,7 @@ quint32* ExactSizedTandemFinder::checkAndSpreadTandem(const quint32* tandemStart
         const char* seqRunner = index->sarr2seq(arrRunner);//seqCast(arrRunner,0);
         //move forward by 0.5-1.0 repeatlen to find exact lower bound
         const char* seqEnd = sequence + seqSize;
-        while(seqRunner<=seqEnd-repeatLen && strncmp(tandemStart, seqRunner, repeatLen)==0 ){
+        while(seqRunner<=seqEnd-repeatLen && strncmp(tandemStart, seqRunner, repeatLen)==0){
             seqRunner += repeatLen;
         }
 
@@ -400,17 +385,7 @@ quint32* ExactSizedTandemFinder::checkAndSpreadTandem(const quint32* tandemStart
 quint32* ExactSizedTandemFinder::checkAndSpreadTandem_bv(const quint32* tandemStartIndex, const quint32* tandemLastIndex, quint32 repeatLen){
     const BitMask& bitMask = suffixArray->getBitMask();
     const quint32 tandemStart = tandemStartIndex[0];
-/*    const Tandem small_tandem(tandemStart, repeatLen, tandemLastIndex[0]+repeatLen-tandemStart);
-    QMap<Tandem,Tandem>::iterator it = rawTandems.find(small_tandem);
-    if (it!=rawTandems.end()){ // there are close tandems
-        Tandem t = *it;
-        if (t.extend(small_tandem)){
-            rawTandems.erase(it);
-            rawTandems.insert(t,t);
-            return (quint32*)tandemLastIndex-1;
-        }
-    }
-*/
+
     const quint64 matchRepeat = bitMask[tandemStart];
     quint32* arrRunner = (quint32*)tandemLastIndex-1;
     {
@@ -432,7 +407,7 @@ quint32* ExactSizedTandemFinder::checkAndSpreadTandem_bv(const quint32* tandemSt
         //move forward by 0.5-1.0 repeatlen to find exact lower bound
         const quint32& seqEnd = seqSize;
         const quint64 periodMask = ~(~0ull>>(2*repeatLen));
-        while(seqRunner<=seqEnd-repeatLen && ((matchRepeat^bitMask[seqRunner])&periodMask)==0 ){
+        while(seqRunner<=seqEnd-repeatLen && ((matchRepeat^bitMask[seqRunner])&periodMask)==0){
             seqRunner += repeatLen;
         }
 
@@ -469,7 +444,12 @@ void LargeSizedTandemFinder::run(){
     int minPeriod = qMax(settings.minPeriod, prefixLength);
     int maxPeriod = settings.maxPeriod;
     if (index==NULL){
-        suffixArray = new SuffixArray(sequence, seqSize, prefixLength);
+        try {
+            suffixArray = new SuffixArray(sequence, seqSize, prefixLength);
+        } catch (...) {
+            setError("Not enough memory");
+            return;
+        }
         const BitMask& bitMask = suffixArray->getBitMask();
         const quint32* sArray = suffixArray->getArray();
         quint32* currentDiffPos = (quint32*)sArray;
@@ -485,7 +465,7 @@ void LargeSizedTandemFinder::run(){
                     correctRepeat = bitMask[firstSuffixPos]==bitMask[secondSuffixPos];
                     firstSuffixPos += prefixLength;
                     secondSuffixPos += prefixLength;
-                }while( correctRepeat && firstSuffixPos<endSuffixPos );
+                }while(correctRepeat && firstSuffixPos<endSuffixPos);
                 if (correctRepeat){
                     currentDiffPos = checkAndSpreadTandem_bv(currentDiffPos,currentDiffPos+1, diff);
                     continue;
@@ -498,13 +478,12 @@ void LargeSizedTandemFinder::run(){
         const quint32* sArray = index->getSArray();
         const quint32* sArrayLast  = const_cast<quint32*>(sArray + index->getSArraySize() - 1);
         quint32* currentDiffPos = (quint32*)sArray;
-        //const quint32* bitMaskArray = index->getMaskedSequence();
 
         // TODO: rewrite this code
         while(currentDiffPos<sArrayLast){
             const qint32 diff  = currentDiffPos[1]-currentDiffPos[0];
             if (diff>=minPeriod && diff<=maxPeriod){    //skip already found tandems
-                unsigned suffixOffset = qMax(1, signed(settings.minTandemSize-prefixLength)/diff );
+                unsigned suffixOffset = qMax(1, signed(settings.minTandemSize-prefixLength)/diff);
                 if (currentDiffPos+suffixOffset>sArrayLast || currentDiffPos[suffixOffset]-currentDiffPos[0]!=suffixOffset*diff){
                     //                    currentDiffPos += suffixOffset;continue;
                 }else{
@@ -528,17 +507,7 @@ bool LargeSizedTandemFinder::comparePrefixChars(const char* first,const char* se
 }
 quint32* LargeSizedTandemFinder::checkAndSpreadTandem(const quint32* tandemStartIndex, const quint32* tandemLastIndex, const unsigned repeatLen){
     const char* tandemStart = index->sarr2seq(tandemStartIndex);//seqCast(tandemStartIndex,0);
-/*    const Tandem small_tandem(tandemStart - sequence, repeatLen, ((char*)tandemLastIndex[0]+repeatLen)-tandemStart);
-    QMap<Tandem,Tandem>::iterator it = rawTandems.find(small_tandem);
-    if (it!=rawTandems.end()){ // there are close tandems
-        Tandem t = *it;
-        if (t.extend(small_tandem)){
-            rawTandems.erase(it);
-            rawTandems.insert(t,t);
-            return (quint32*)tandemLastIndex-1;
-        }
-    }
-*/
+
     quint32* arrRunner = (quint32*)tandemLastIndex-1;
     {
         const quint32* sArrayLast  = const_cast<quint32*>(index->getSArray() + index->getSArraySize() - 1);
@@ -551,30 +520,27 @@ quint32* LargeSizedTandemFinder::checkAndSpreadTandem(const quint32* tandemStart
         }
     }
 
-    //    if (index->getMaskedSequence()!=NULL){
-    if (false){
-    }else{
-        // in this case seqCast(tandemStartIndex,1)==seqCast(tandemStartIndex,0)+repeatLen
-        const char* seqRunner = index->sarr2seq(arrRunner);//seqCast(arrRunner,0);
-        //move forward by 0.5-1.0 of repeat len to find exact lower bound
-        const char* seqEnd = sequence + seqSize;
-        while(seqRunner<=seqEnd-repeatLen && strncmp(tandemStart, seqRunner, repeatLen)==0 ){
-            seqRunner += repeatLen;
-        }
-
-        const quint32 size = seqRunner-tandemStart;
-        const Tandem tandem(tandemStart - sequence, repeatLen, size);
-        //check if there is already marked area
-        QMap<Tandem,Tandem>::iterator it = rawTandems.find(tandem);
-        if (it==rawTandems.end()){ // there are no close tandems
-            rawTandems.insert(tandem, tandem);
-        }else{
-            Tandem t = *it;
-            rawTandems.erase(it);
-            t.extend(tandem);
-            rawTandems.insert(t,t);
-        }
+    // in this case seqCast(tandemStartIndex,1)==seqCast(tandemStartIndex,0)+repeatLen
+    const char* seqRunner = index->sarr2seq(arrRunner);//seqCast(arrRunner,0);
+    //move forward by 0.5-1.0 of repeat len to find exact lower bound
+    const char* seqEnd = sequence + seqSize;
+    while(seqRunner<=seqEnd-repeatLen && strncmp(tandemStart, seqRunner, repeatLen)==0){
+        seqRunner += repeatLen;
     }
+
+    const quint32 size = seqRunner-tandemStart;
+    const Tandem tandem(tandemStart - sequence, repeatLen, size);
+    //check if there is already marked area
+    QMap<Tandem,Tandem>::iterator it = rawTandems.find(tandem);
+    if (it==rawTandems.end()){ // there are no close tandems
+        rawTandems.insert(tandem, tandem);
+    }else{
+        Tandem t = *it;
+        rawTandems.erase(it);
+        t.extend(tandem);
+        rawTandems.insert(t,t);
+    }
+
     return arrRunner;
 }
 

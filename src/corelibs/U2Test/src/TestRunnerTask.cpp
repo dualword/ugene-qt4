@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -119,15 +119,30 @@ QList<Task*> TestRunnerTask::onSubTaskFinished(Task* subTask) {
                     newEnv->setVar( var, globalEnvVars[var] );
                 }
 
+                // Set environment variables
                 const QString& suiteDir = QFileInfo(testState->getTestRef()->getSuite()->getURL()).absoluteDir().absolutePath();
                 if (newEnv->getVars().contains("COMMON_DATA_DIR")) {
                     newEnv->setVar("COMMON_DATA_DIR", suiteDir + newEnv->getVar("COMMON_DATA_DIR"));
                 }
+
                 if (newEnv->getVars().contains("TEMP_DATA_DIR")) {
                     newEnv->setVar("TEMP_DATA_DIR", suiteDir + newEnv->getVar("TEMP_DATA_DIR"));
                 }
 
-                GTest* test = tf->createTest(testState->getTestRef()->getShortName(), NULL, newEnv, loader->testData, err);               
+                QDir tmpDir(newEnv->getVar("TEMP_DATA_DIR"));
+                if (!tmpDir.exists()) {
+                    tmpDir.mkpath(tmpDir.absolutePath());
+                }
+
+                QString workflowSamplePath = QDir::searchPaths(PATH_PREFIX_DATA).first() + "/workflow_samples/";
+                newEnv->setVar("WORKFLOW_SAMPLES_DIR", workflowSamplePath);
+
+                const QString& testCaseDir = QFileInfo(testState->getTestRef()->getURL()).absoluteDir().absolutePath();
+                newEnv->setVar("LOCAL_DATA_DIR", testCaseDir + "/_input/");
+                newEnv->setVar("EXPECTED_OUTPUT_DIR", testCaseDir + "/_expected/");
+
+                // Create the test
+                GTest* test = tf->createTest(testState->getTestRef()->getShortName(), NULL, newEnv, loader->testData, err);
                 if (test == NULL) {
                     testState->setFailed(err);
                     teamcityLog.info(QString("##teamcity[testStarted name='%1 : %2']").arg(testState->getTestRef()->getSuite()->getName(),testState->getTestRef()->getShortName()));

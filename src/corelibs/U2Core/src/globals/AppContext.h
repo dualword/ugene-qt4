@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,6 +26,7 @@
 
 namespace U2 {
 
+template<class T> class IdRegistry;
 class PluginSupport;
 class ServiceRegistry;
 class ProjectLoader;
@@ -44,15 +45,16 @@ class DNAAlphabetRegistry;
 class GObjectViewFactoryRegistry;
 class ResourceTracker;
 class TaskScheduler;
-class DocumentFormatConfigurators;
 class AnnotationSettingsRegistry;
 class TestFramework;
 class DBXRefRegistry;
 class SubstMatrixRegistry;
 class SmithWatermanTaskFactoryRegistry;
+class SWMulAlignResultNamesTagsRegistry;
 class MolecularSurfaceFactoryRegistry;
 class SWResultFilterRegistry;
 class MSAColorSchemeRegistry;
+class MSAHighlightingSchemeRegistry;
 class SecStructPredictAlgRegistry;
 class CudaGpuRegistry;
 class OpenCLGpuRegistry;
@@ -62,21 +64,37 @@ class RemoteMachineMonitor;
 class PhyTreeGeneratorRegistry;
 class CMDLineRegistry;
 class MSAConsensusAlgorithmRegistry;
+class AssemblyConsensusAlgorithmRegistry;
 class MSADistanceAlgorithmRegistry;
 class PWMConversionAlgorithmRegistry;
 class VirtualFileSystemRegistry;
 class DnaAssemblyAlgRegistry;
-class MSAAlignAlgRegistry;
+class GenomeAssemblyAlgRegistry;
 class AppGlobalObject;
 class DataBaseRegistry;
 class ExternalToolRegistry;
 class RepeatFinderTaskFactoryRegistry;
 class U2DbiRegistry;
+class UdrSchemaRegistry;
 class QDActorPrototypeRegistry;
 class StructuralAlignmentAlgorithmRegistry;
 class AutoAnnotationsSupport;
 class CDSearchFactoryRegistry;
 class GUITestBase;
+class SplicedAlignmentTaskRegistry;
+class OPCommonWidgetFactoryRegistry;
+class OPWidgetFactoryRegistry;
+class WorkflowScriptRegistry;
+class AppFileStorage;
+class U2DataPathRegistry;
+class AlignmentAlgorithmsRegistry;
+class DASSourceRegistry;
+class ScriptingToolRegistry;
+class CredentialsAsker;
+class PasswordStorage;
+class ConvertFactoryRegistry;
+class WelcomePageAction;
+class ProjectFilterTaskRegistry;
 
 class U2CORE_EXPORT AppContext  : public QObject {
     Q_OBJECT
@@ -126,8 +144,6 @@ public:
 
     static  ResourceTracker* getResourceTracker() {return getInstance()->_getResourceTracker();}
 
-    static DocumentFormatConfigurators* getDocumentFormatConfigurators() {return getInstance()->_getDocumentFormatConfigurators();}
-
     static AnnotationSettingsRegistry* getAnnotationsSettingsRegistry() {return getInstance()->_getAnnotationsSettingsRegistry();}
 
     static TestFramework* getTestFramework() {return getInstance()->_getTestFramework();}
@@ -138,11 +154,15 @@ public:
 
     static SmithWatermanTaskFactoryRegistry* getSmithWatermanTaskFactoryRegistry() {return getInstance()->_getSmithWatermanTaskFactoryRegistry();}
 
+    static SWMulAlignResultNamesTagsRegistry * getSWMulAlignResultNamesTagsRegistry() {return getInstance()->_getSWMulAlignResultNamesTagsRegistry();}
+
     static MolecularSurfaceFactoryRegistry* getMolecularSurfaceFactoryRegistry() {return getInstance()->_getMolecularSurfaceFactoryRegistry();}
 
     static SWResultFilterRegistry* getSWResultFilterRegistry() {return getInstance()->_getSWResultFilterRegistry();}
 
     static MSAColorSchemeRegistry* getMSAColorSchemeRegistry() { return getInstance()->_getMSAColorSchemeRegistry();}
+
+    static MSAHighlightingSchemeRegistry* getMSAHighlightingSchemeRegistry() { return getInstance()->_getMSAHighlightingSchemeRegistry();}
 
     static SecStructPredictAlgRegistry* getSecStructPredictAlgRegistry() { return getInstance()->_getSecStructPredictAlgRegistry(); }
 
@@ -150,7 +170,7 @@ public:
 
     static OpenCLGpuRegistry * getOpenCLGpuRegistry() { return getInstance()->_getOpenCLGpuRegistry(); }
 
-    static RecentlyDownloadedCache* getRecentlyDownloadedCache() { return getInstance()->_getRecentlyDownloadedCache(); }   
+    static RecentlyDownloadedCache* getRecentlyDownloadedCache() { return getInstance()->_getRecentlyDownloadedCache(); }
 
     static ProtocolInfoRegistry * getProtocolInfoRegistry() { return getInstance()->_getProtocolInfoRegistry(); }
 
@@ -164,16 +184,18 @@ public:
 
     static MSADistanceAlgorithmRegistry* getMSADistanceAlgorithmRegistry() {return getInstance()->_getMSADistanceAlgorithmRegistry(); }
 
+    static AssemblyConsensusAlgorithmRegistry* getAssemblyConsensusAlgorithmRegistry() {return getInstance()->_getAssemblyConsensusAlgorithmRegistry(); }
+
     static PWMConversionAlgorithmRegistry* getPWMConversionAlgorithmRegistry() {return getInstance()->_getPWMConversionAlgorithmRegistry(); }
 
     static VirtualFileSystemRegistry * getVirtualFileSystemRegistry() { return getInstance()->_getVirtualFileSystemRegistry(); }
 
     static DnaAssemblyAlgRegistry* getDnaAssemblyAlgRegistry() { return getInstance()->_getDnaAssemblyAlgRegistry(); }
-    
-    static MSAAlignAlgRegistry* getMSAAlignAlgRegistry() { return getInstance()->_getMSAAlignAlgRegistry(); }
+
+    static GenomeAssemblyAlgRegistry* getGenomeAssemblyAlgRegistry() { return getInstance()->_getGenomeAssemblyAlgRegistry(); }
 
     static RepeatFinderTaskFactoryRegistry* getRepeatFinderTaskFactoryRegistry() {return getInstance()->_getRepeatFinderTaskFactoryRegistry();}
-    
+
     static AutoAnnotationsSupport* getAutoAnnotationsSupport() { return getInstance()->_getAutoAnnotationsSupport(); }
 
     static CDSearchFactoryRegistry* getCDSFactoryRegistry() { return getInstance()->_getCDSFactoryRegistry(); }
@@ -195,14 +217,46 @@ public:
 
     static StructuralAlignmentAlgorithmRegistry* getStructuralAlignmentAlgorithmRegistry() { return getInstance()->_getStructuralAlignmentAlgorithmRegistry(); }
 
+    static SplicedAlignmentTaskRegistry* getSplicedAlignmentTaskRegistry() { return getInstance()->_getSplicedAlignmentTaskRegistry(); }
+
+    static OPCommonWidgetFactoryRegistry* getOPCommonWidgetFactoryRegistry() { return getInstance()->_getOPCommonWidgetFactoryRegistry(); }
+
+    static OPWidgetFactoryRegistry* getOPWidgetFactoryRegistry() { return getInstance()->_getOPWidgetFactoryRegistry(); }
+
     static U2DbiRegistry *getDbiRegistry() { return getInstance()->_getDbiRegistry(); }
-    
+
+    static UdrSchemaRegistry *getUdrSchemaRegistry() { return getInstance()->_getUdrSchemaRegistry(); }
+
+    static U2DataPathRegistry* getDataPathRegistry() {return getInstance()->_getDataPathRegistry();}
+
     static bool isGUIMode() {return getInstance()->_isGUIMode(); }
+
+    static WorkflowScriptRegistry* getWorkflowScriptRegistry() { return getInstance()->_getWorkflowScriptRegistry(); }
 
     static QString getActiveWindowName() {return getInstance()->_getActiveWindowName();}
     static void setActiveWindowName(const QString &name) {getInstance()->_setActiveWindowName(name);}
     static GUITestBase *getGUITestBase() {return getInstance()->_getGUITestBase();}
-    
+
+    static AppFileStorage *getAppFileStorage() {return getInstance()->_getAppFileStorage();}
+
+    static AlignmentAlgorithmsRegistry* getAlignmentAlgorithmsRegistry() { return getInstance()->_getAlignmentAlgorithmsRegistry(); }
+
+    static DASSourceRegistry* getDASSourceRegistry() { return getInstance()->_getDASSourceRegistry(); }
+
+    static ScriptingToolRegistry* getScriptingToolRegistry() { return getInstance()->_getScriptingToolRegistry(); }
+
+    static ConvertFactoryRegistry* getConvertFactoryRegistry() { return getInstance()->_getConvertFactoryRegistry(); }
+
+    static IdRegistry<WelcomePageAction>* getWelcomePageActionRegistry() { return getInstance()->_getWelcomePageActionRegistry(); }
+
+    static QString getWorkingDirectoryPath() { return getInstance()->_getWorkingDirectoryPath(); }
+
+    static CredentialsAsker* getCredentialsAsker() { return getInstance()->_getCredentialsAsker(); }
+
+    static PasswordStorage* getPasswordStorage() { return getInstance()->_getPasswordStorage(); }
+
+    static ProjectFilterTaskRegistry * getProjectFilterTaskRegistry() { return getInstance()->_getProjectFilterTaskRegistry(); }
+
 protected:
     static AppContext* getInstance() {assert(instance); return instance;}
 
@@ -223,7 +277,6 @@ protected:
     virtual GObjectViewFactoryRegistry* _getObjectViewFactoryRegistry() const = 0;
     virtual TaskScheduler*              _getTaskScheduler() const = 0;
     virtual ResourceTracker*            _getResourceTracker() const = 0;
-    virtual DocumentFormatConfigurators* _getDocumentFormatConfigurators() const = 0;
     virtual AnnotationSettingsRegistry* _getAnnotationsSettingsRegistry() const = 0;
     virtual AppSettings *               _getAppSettings() const = 0;
     virtual AppSettingsGUI*             _getAppSettingsGUI() const = 0;
@@ -232,8 +285,10 @@ protected:
     virtual SubstMatrixRegistry*        _getSubstMatrixRegistry() const = 0;
     virtual SmithWatermanTaskFactoryRegistry* _getSmithWatermanTaskFactoryRegistry() const = 0;
     virtual MolecularSurfaceFactoryRegistry* _getMolecularSurfaceFactoryRegistry()const = 0;
+    virtual SWMulAlignResultNamesTagsRegistry * _getSWMulAlignResultNamesTagsRegistry() const = 0;
     virtual SWResultFilterRegistry*     _getSWResultFilterRegistry() const = 0;
     virtual MSAColorSchemeRegistry*     _getMSAColorSchemeRegistry() const = 0;
+    virtual MSAHighlightingSchemeRegistry* _getMSAHighlightingSchemeRegistry() const = 0;
     virtual SecStructPredictAlgRegistry* _getSecStructPredictAlgRegistry() const = 0;
     virtual CudaGpuRegistry *           _getCudaGpuRegistry() const = 0;
     virtual OpenCLGpuRegistry *          _getOpenCLGpuRegistry() const = 0;
@@ -244,10 +299,11 @@ protected:
     virtual CMDLineRegistry*            _getCMDLineRegistry() const  = 0;
     virtual MSAConsensusAlgorithmRegistry* _getMSAConsensusAlgorithmRegistry() const = 0;
     virtual MSADistanceAlgorithmRegistry* _getMSADistanceAlgorithmRegistry() const = 0;
+    virtual AssemblyConsensusAlgorithmRegistry* _getAssemblyConsensusAlgorithmRegistry() const = 0;
     virtual PWMConversionAlgorithmRegistry* _getPWMConversionAlgorithmRegistry() const = 0;
     virtual VirtualFileSystemRegistry * _getVirtualFileSystemRegistry() const = 0;
     virtual DnaAssemblyAlgRegistry*     _getDnaAssemblyAlgRegistry() const = 0;
-    virtual MSAAlignAlgRegistry*        _getMSAAlignAlgRegistry() const = 0;
+    virtual GenomeAssemblyAlgRegistry*     _getGenomeAssemblyAlgRegistry() const = 0;
     virtual DataBaseRegistry *          _getDataBaseRegistry() const = 0;
     virtual ExternalToolRegistry *          _getExternalToolRegistry() const = 0;
     virtual RepeatFinderTaskFactoryRegistry*  _getRepeatFinderTaskFactoryRegistry() const = 0;
@@ -255,8 +311,23 @@ protected:
     virtual StructuralAlignmentAlgorithmRegistry* _getStructuralAlignmentAlgorithmRegistry() const = 0;
     virtual AutoAnnotationsSupport*     _getAutoAnnotationsSupport() const = 0;
     virtual U2DbiRegistry *             _getDbiRegistry() const = 0;
+    virtual UdrSchemaRegistry *         _getUdrSchemaRegistry() const = 0;
     virtual CDSearchFactoryRegistry* _getCDSFactoryRegistry() const = 0;
     virtual GUITestBase* _getGUITestBase() const = 0;
+    virtual SplicedAlignmentTaskRegistry* _getSplicedAlignmentTaskRegistry() const = 0;
+    virtual OPCommonWidgetFactoryRegistry* _getOPCommonWidgetFactoryRegistry() const = 0;
+    virtual OPWidgetFactoryRegistry* _getOPWidgetFactoryRegistry() const = 0;
+    virtual WorkflowScriptRegistry* _getWorkflowScriptRegistry() const = 0;
+    virtual AppFileStorage *_getAppFileStorage() const = 0;
+    virtual AlignmentAlgorithmsRegistry* _getAlignmentAlgorithmsRegistry() const = 0;
+    virtual U2DataPathRegistry* _getDataPathRegistry() const = 0;
+    virtual DASSourceRegistry* _getDASSourceRegistry() const = 0;
+    virtual ScriptingToolRegistry* _getScriptingToolRegistry() const = 0;
+    virtual CredentialsAsker* _getCredentialsAsker() const = 0;
+    virtual PasswordStorage* _getPasswordStorage() const = 0;
+    virtual ConvertFactoryRegistry* _getConvertFactoryRegistry() const = 0;
+    virtual IdRegistry<WelcomePageAction>* _getWelcomePageActionRegistry() const = 0;
+    virtual ProjectFilterTaskRegistry * _getProjectFilterTaskRegistry() const = 0;
 
     virtual void _registerGlobalObject(AppGlobalObject* go) = 0;
     virtual void _unregisterGlobalObject(const QString& id) = 0;
@@ -264,6 +335,7 @@ protected:
     virtual bool _isGUIMode() const = 0;
     virtual QString _getActiveWindowName() const = 0;
     virtual void _setActiveWindowName(const QString &name) = 0;
+    virtual QString _getWorkingDirectoryPath() const = 0;
 
     static AppContext* instance;
 };

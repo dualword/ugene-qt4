@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,7 @@ BlastTaskSettings::BlastTaskSettings() {
     isDefaultCosts=true;
     isGappedAlignment=true;
     isDefaultThreshold=true;
+    isSequenceCircular=false;
     reset();
 }
 
@@ -61,6 +62,8 @@ void BlastTaskSettings::reset() {
     windowSize=0;
     threshold=0;
     isDefaultThreshold=true;
+    isSequenceCircular=false;
+    directStrand = TriState_Unknown;
 }
 
 }//namespace

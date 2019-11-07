@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -48,11 +48,12 @@ void DNAFlexGraphAlgorithm::calculate(
     QVector<float>& result,
     U2SequenceObject* sequenceObject,
     const U2Region& region,
-    const GSequenceGraphWindowData* windowData)
+    const GSequenceGraphWindowData* windowData,
+    U2OpStatus &os)
 {
     assert(windowData !=NULL);
 
-    QByteArray sequence = sequenceObject->getWholeSequenceData();
+    const QByteArray& sequence = getSequenceData(sequenceObject);
 
     int windowSize = windowData->window;
     int windowStep = windowData->step;
@@ -74,6 +75,7 @@ void DNAFlexGraphAlgorithm::calculate(
         windowThreshold = 0;
         for (int j = windowLeft; j < windowLeft + windowSize - 1; ++j)
         {
+            CHECK_OP(os, );
             windowThreshold += FindHighFlexRegionsAlgorithm::flexibilityAngle(sequence[j], sequence[j + 1]);
         }
         windowThreshold /= (windowSize - 1);

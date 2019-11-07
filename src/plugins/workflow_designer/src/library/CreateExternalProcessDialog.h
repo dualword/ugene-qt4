@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -37,7 +37,7 @@ class CreateExternalProcessDialog: public QWizard {
     Q_OBJECT
 public:
     CreateExternalProcessDialog(QWidget *p = NULL);
-    CreateExternalProcessDialog(QWidget *p, ExternalProcessConfig *cfg);
+    CreateExternalProcessDialog(QWidget *p, ExternalProcessConfig *cfg, bool lastPage);
     ~CreateExternalProcessDialog();
     ExternalProcessConfig* config() const {return cfg;}
     bool validate();
@@ -63,11 +63,15 @@ private slots:
     void sl_validatePage(int);
     //void sl_OK();
 
+protected:
+    virtual void showEvent(QShowEvent *event);
+
 private:
     Ui::CreateExternalProcessWorkerDialog ui;
     ExternalProcessConfig *initialCfg;
     ExternalProcessConfig *cfg;
     bool editing;
+    bool lastPage;
     static const int INFO_STRINGS_NUM = 5;
     bool validateProcessName(const QString &name, QString &error);
     QString descr1;

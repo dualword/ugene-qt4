@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,6 +35,7 @@
 #include <U2Core/IOAdapterUtils.h>
 
 #include <U2Core/GObjectTypes.h>
+#include <U2Core/MAlignmentImporter.h>
 #include <U2Core/MAlignmentObject.h>
 #include <U2Core/DNASequenceObject.h>
 
@@ -79,7 +80,7 @@ struct GTestBoolProperty {
 failMissingValue((ATTR));\
 return;}
 
-Kalign_Load_Align_Compare_Task::Kalign_Load_Align_Compare_Task( QString inFileURL, QString patFileURL, 
+Kalign_Load_Align_Compare_Task::Kalign_Load_Align_Compare_Task( QString inFileURL, QString patFileURL,
     KalignTaskSettings& _config, QString _name)
     : Task(_name, TaskFlags_FOSCOE), str_inFileURL(inFileURL), str_patFileURL(patFileURL),kalignTask(NULL), config(_config)
 {
@@ -116,8 +117,10 @@ MAlignment Kalign_Load_Align_Compare_Task::dna_to_ma(QList<GObject*> dnaSeqs) {
             stateInfo.setError(  QString("Can't cast GObject to U2SequenceObject") );
             return ma;
         }
-        MAlignmentRow row(seq->getSequenceName(), seq->getWholeSequenceData());
-        ma.addRow(row);
+        QByteArray seqData = seq->getWholeSequenceData(stateInfo);
+        SAFE_POINT_OP(stateInfo, MAlignment());
+        ma.addRow(seq->getSequenceName(), seqData, stateInfo);
+        SAFE_POINT_OP(stateInfo, MAlignment());
     }
     return ma;
 }
@@ -143,19 +146,20 @@ QList<Task*> Kalign_Load_Align_Compare_Task::onSubTaskFinished(Task* subTask) {
             return res;
         }
 
-        const MAlignment &mailgn = dna_to_ma(list);
+        MAlignment malign = dna_to_ma(list);
         if(hasError()) {
             return res;
         }
 
-        ma1 = new MAlignmentObject(mailgn);
+        ma1 = MAlignmentImporter::createAlignment(doc->getDbiRef(), malign, stateInfo);
+        CHECK_OP(stateInfo, res);
 
         if(ma1 == NULL){
             stateInfo.setError(  QString("can't convert dna sequences to MAlignment") );
             return res;
         }
 
-        
+
         res << kalignTask;
         this->connect(kalignTask,SIGNAL(si_progressChanged()),SLOT(sl_kalignProgressChg()));
     }
@@ -166,7 +170,7 @@ QList<Task*> Kalign_Load_Align_Compare_Task::onSubTaskFinished(Task* subTask) {
         }
         KalignTask * localKalign = qobject_cast<KalignTask*>( subTask );
         assert( NULL != localKalign );
-        ma1->setMAlignment( localKalign->resultMA );
+        ma1->copyGapModel(localKalign->resultMA.getRows());
     }
     else if (subTask == loadTask2) {
         if (loadTask2->hasError()) {
@@ -185,12 +189,13 @@ QList<Task*> Kalign_Load_Align_Compare_Task::onSubTaskFinished(Task* subTask) {
             return res;
         }
 
-        const MAlignment &mailgn = dna_to_ma(list);
+        MAlignment malign = dna_to_ma(list);
         if(hasError()) {
             return res;
         }
 
-        ma2 = new MAlignmentObject(mailgn);
+        ma2 = MAlignmentImporter::createAlignment(doc->getDbiRef(), malign, stateInfo);
+        CHECK_OP(stateInfo, res);
 
         if(ma2 == NULL){
             stateInfo.setError(  QString("can't convert dna sequences to MAlignment") );
@@ -244,12 +249,12 @@ Task::ReportResult Kalign_Load_Align_Compare_Task::report() {
 void GTest_Kalign_Load_Align_Compare::init(XMLTestFormat*, const QDomElement& el) {
     inFileURL = el.attribute(IN_FILE_NAME_ATTR);
     if (inFileURL.isEmpty()) {
-        failMissingValue(IN_FILE_NAME_ATTR); 
+        failMissingValue(IN_FILE_NAME_ATTR);
         return;
     }
     patFileURL = el.attribute(OUT_FILE_NAME_ATTR);
     if (inFileURL.isEmpty()) {
-        failMissingValue(OUT_FILE_NAME_ATTR); 
+        failMissingValue(OUT_FILE_NAME_ATTR);
         return;
     }
 }
@@ -288,24 +293,24 @@ GTest_Kalign_Load_Align_Compare::~GTest_Kalign_Load_Align_Compare() {
 void GTest_Kalign_Load_Align_QScore::init(XMLTestFormat*, const QDomElement& el) {
     inFileURL = el.attribute(IN_FILE_NAME_ATTR);
     if (inFileURL.isEmpty()) {
-        failMissingValue(IN_FILE_NAME_ATTR); 
+        failMissingValue(IN_FILE_NAME_ATTR);
         return;
     }
     patFileURL = el.attribute(OUT_FILE_NAME_ATTR);
     if (patFileURL.isEmpty()) {
-        failMissingValue(OUT_FILE_NAME_ATTR); 
+        failMissingValue(OUT_FILE_NAME_ATTR);
         return;
     }
 
     QString str_qscore = el.attribute(QSCORE_ATTR);
     if(str_qscore.isEmpty()) {
-        failMissingValue(QSCORE_ATTR); 
+        failMissingValue(QSCORE_ATTR);
         return;
     }
     bool ok = false;
     qscore = str_qscore.toFloat(&ok);
     if(!ok) {
-        failMissingValue(QSCORE_ATTR); 
+        failMissingValue(QSCORE_ATTR);
         return;
     }
 
@@ -316,7 +321,7 @@ void GTest_Kalign_Load_Align_QScore::init(XMLTestFormat*, const QDomElement& el)
         bool ok = false;
         dqscore = str_dqscore.toFloat(&ok);
         if(!ok) {
-            failMissingValue(QSCORE_DELTA_ATTR); 
+            failMissingValue(QSCORE_DELTA_ATTR);
             return;
         }
     }
@@ -366,8 +371,10 @@ MAlignment GTest_Kalign_Load_Align_QScore::dna_to_ma(QList<GObject*> dnaSeqs) {
             stateInfo.setError(  QString("Can't cast GObject to U2SequenceObject") );
             return ma;
         }
-        MAlignmentRow row(seq->getSequenceName(), seq->getWholeSequenceData());
-        ma.addRow(row);
+        QByteArray seqData = seq->getWholeSequenceData(stateInfo);
+        SAFE_POINT_OP(stateInfo, MAlignment());
+        ma.addRow(seq->getSequenceName(), seqData, stateInfo);
+        SAFE_POINT_OP(stateInfo, MAlignment());
     }
     return ma;
 }
@@ -393,12 +400,13 @@ QList<Task*> GTest_Kalign_Load_Align_QScore::onSubTaskFinished(Task* subTask) {
             return res;
         }
 
-        const MAlignment &mailgn = dna_to_ma(list);
+        MAlignment malign = dna_to_ma(list);
         if(hasError()) {
             return res;
         }
 
-        ma1 = new MAlignmentObject(mailgn);
+        ma1 = MAlignmentImporter::createAlignment(doc->getDbiRef(), malign, stateInfo);
+        CHECK_OP(stateInfo, res);
 
         if(ma1 == NULL){
             stateInfo.setError(  QString("can't convert dna sequences to MAlignment") );
@@ -416,7 +424,7 @@ QList<Task*> GTest_Kalign_Load_Align_QScore::onSubTaskFinished(Task* subTask) {
         }
         KalignTask * localKalign = qobject_cast<KalignTask*>( subTask );
         assert( NULL != localKalign );
-        ma1->setMAlignment( localKalign->resultMA );
+        ma1->copyGapModel(localKalign->resultMA.getRows());
     }
     else if (subTask == loadTask2) {
         if (loadTask2->hasError()) {
@@ -435,12 +443,13 @@ QList<Task*> GTest_Kalign_Load_Align_QScore::onSubTaskFinished(Task* subTask) {
             return res;
         }
 
-        const MAlignment &mailgn = dna_to_ma(list);
+        MAlignment malign = dna_to_ma(list);
         if(hasError()) {
             return res;
         }
 
-        ma2 = new MAlignmentObject(mailgn);
+        ma2 = MAlignmentImporter::createAlignment(doc->getDbiRef(), malign, stateInfo);
+        CHECK_OP(stateInfo, res);
 
         if(ma2 == NULL){
             stateInfo.setError(  QString("can't convert dna sequences to MAlignment") );
@@ -458,9 +467,9 @@ void GTest_Kalign_Load_Align_QScore::run() {
 
     bool match = fabsl (this->qscore - qscore) < dqscore;
 
-	if (!match) {
-		stateInfo.setError(  QString("qscore not matched: %1, expected %2").arg(qscore).arg(this->qscore));
-	}
+    if (!match) {
+        stateInfo.setError(  QString("qscore not matched: %1, expected %2").arg(qscore).arg(this->qscore));
+    }
 }
 
 Task::ReportResult GTest_Kalign_Load_Align_QScore::report() {

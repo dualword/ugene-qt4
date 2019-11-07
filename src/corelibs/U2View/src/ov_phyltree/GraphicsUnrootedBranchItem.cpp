@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,18 +27,24 @@
 #include <QtGui/QPainter>
 #include <QtGui/QPen>
 #include <QtCore/QStack>
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QGraphicsScene>
 #include <QtGui/QGraphicsView>
+#else
+#include <QtWidgets/QGraphicsScene>
+#include <QtWidgets/QGraphicsView>
+#endif
 #include <U2Core/PhyTreeObject.h>
 #include <U2Core/AppContext.h>
 #include <qmath.h>
 
 namespace U2 {
 
-GraphicsUnrootedBranchItem::GraphicsUnrootedBranchItem(QGraphicsItem* parent, qreal angle, GraphicsRectangularBranchItem* from): GraphicsBranchItem(true) {
+GraphicsUnrootedBranchItem::GraphicsUnrootedBranchItem(QGraphicsItem* parent, qreal angle, GraphicsRectangularBranchItem* from, double nodeValue)
+: GraphicsBranchItem(true, nodeValue) {
     setParentItem(parent);
     qreal w = from->getWidth();
-    settings = from->settings;
+    settings = from->getSettings();
     setWidthW(w);
     setDist(from->getDist());
     setPos(w, 0);
@@ -50,33 +56,36 @@ GraphicsUnrootedBranchItem::GraphicsUnrootedBranchItem(QGraphicsItem* parent, qr
     if (from->getNameText() != NULL) {
         nameText = new QGraphicsSimpleTextItem(from->getNameText()->text(), this);
         nameText->setFont(from->getNameText()->font());
+        nameText->setBrush(from->getNameText()->brush());
+    }
+    if (from->getDistanceText() != NULL) {
+        distanceText = new QGraphicsSimpleTextItem(from->getDistanceText()->text(), this);
+        distanceText->setFont(from->getDistanceText()->font());
+        distanceText->setBrush(from->getDistanceText()->brush());
+    }
+    setLabelPositions();
+    setPen(from->pen());
+}
+
+void GraphicsUnrootedBranchItem::setLabelPositions() {
+    if(nameText != NULL) {
         QRectF rect = nameText->boundingRect();
         qreal h = rect.height();
         nameText->setPos(GraphicsBranchItem::TextSpace, -h * 0.5);
         if (nameText->scenePos().x() < 0.0) {
             QPointF p = rect.center();
             nameText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
-//            nameText->setTransformOriginPoint(rect.center());
-//            nameText->setRotation(180);
         }
-
-        nameText->setBrush(from->getNameText()->brush());
     }
-    if (from->getDistanceText() != NULL) {
-        distanceText = new QGraphicsSimpleTextItem(from->getDistanceText()->text(), this);
-        distanceText->setFont(from->getDistanceText()->font());
+    if(distanceText != NULL) {
         QRectF rect = distanceText->boundingRect();
         if (distanceText->scenePos().x() < 0) {
             QPointF p(rect.center().x(), rect.height());
             distanceText->setTransform(QTransform().translate(p.x(), p.y()).rotate(180).translate(-p.x(), -p.y()));
-//            distanceText->setTransformOriginPoint(rect.center().x(), rect.height());
-//            distanceText->setRotation(180);
         }
-        distanceText->setPos(-0.5 * (w + rect.width()), -rect.height());
+        distanceText->setPos(-0.5 * (width + rect.width()), -rect.height());
 
-        distanceText->setBrush(from->getDistanceText()->brush());
     }
-    setPen(from->pen());
 }
 
 QRectF GraphicsUnrootedBranchItem::boundingRect() const {

@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,15 +19,15 @@
  * MA 02110-1301, USA.
  */
 
-#include "QDDocumentFormat.h"
-#include "QDSceneIOTasks.h"
-#include "QDDocument.h"
-#include "QueryViewController.h"
-
-#include <U2Core/IOAdapter.h>
 #include <U2Core/AppContext.h>
+#include <U2Core/GHints.h>
+#include <U2Core/IOAdapter.h>
 #include <U2Core/SelectionUtils.h>
 
+#include "QDDocument.h"
+#include "QDDocumentFormat.h"
+#include "QDSceneIOTasks.h"
+#include "QueryViewController.h"
 
 namespace U2 {
 
@@ -35,8 +35,11 @@ namespace U2 {
  //////////////////////////////////////////////////////////////////////////
 const GObjectType QDGObject::TYPE("query-obj");
 
-GObject* QDGObject::clone(const U2DbiRef& , U2OpStatus& ) const {
-    QDGObject* copy = new QDGObject(getGObjectName(), serializedScene, getGHintsMap());
+GObject* QDGObject::clone(const U2DbiRef& , U2OpStatus& , const QVariantMap &hints) const {
+    GHintsDefaultImpl gHints(getGHintsMap());
+    gHints.setAll(hints);
+
+    QDGObject* copy = new QDGObject(getGObjectName(), serializedScene, gHints.getMap());
     return copy;
 }
 
@@ -47,8 +50,8 @@ const DocumentFormatId QDDocFormat::FORMAT_ID = "QueryDocFormat";
 QDDocFormat::QDDocFormat(QObject* p)
 : DocumentFormat(p, DocumentFormatFlags_W1, QStringList(QUERY_SCHEME_EXTENSION)),
 formatName(tr("Query Schema")) {
-	formatDescription = tr("QDDoc is a format used for creating/editing/storing/retrieving"
-		"query schema with the text file");
+    formatDescription = tr("QDDoc is a format used for creating/editing/storing/retrieving"
+        "query schema with the text file");
     supportedObjectTypes += QDGObject::TYPE;
 }
 
@@ -101,7 +104,7 @@ void QDDocFormat::storeDocument(Document* d, IOAdapter* io, U2OpStatus& ) {
 
 FormatCheckResult QDDocFormat::checkRawData( const QByteArray& rawData, const GUrl&) const {
     const QString& data = rawData;
-    if(data.trimmed().startsWith(QDDocument::HEADER_LINE)) {
+    if(QDDocument::isHeaderLine(data.trimmed())) {
         return FormatDetection_Matched;
     }
     return FormatDetection_NotMatched;
@@ -130,7 +133,7 @@ Task* QDViewFactory::createViewTask( const MultiGSelection& multiSelection, bool
         Task* t = new OpenQDViewTask(d);
         if (result == NULL) {
             return t;
-        } 
+        }
         result->addSubTask(t);
     }
     return result;
@@ -138,7 +141,7 @@ Task* QDViewFactory::createViewTask( const MultiGSelection& multiSelection, bool
 
 //OpenViewTask
 //////////////////////////////////////////////////////////////////////////
-OpenQDViewTask::OpenQDViewTask( Document* doc ) : ObjectViewTask(QDViewFactory::ID) {
+OpenQDViewTask::OpenQDViewTask( Document* doc ) : ObjectViewTask(QDViewFactory::ID), document(doc){
     if (!doc->isLoaded()) {
         documentsToLoad.append(doc);
     } else {
@@ -163,6 +166,7 @@ void OpenQDViewTask::open() {
         assert(o && !o->getScene());
         QueryViewController* view = new QueryViewController;
         view->loadScene(o->getSceneRawData());
+        view->setSchemeUri(document->getURL().getURLString());
         AppContext::getMainWindow()->getMDIManager()->addMDIWindow(view);
         AppContext::getMainWindow()->getMDIManager()->activateWindow(view);
     }

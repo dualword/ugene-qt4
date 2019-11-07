@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -104,7 +104,7 @@ sequence that code for proteins and RNA molecules and information on
 experimentally determined sites of biological significance. Optional
 keyword/one or more records. */
 
-static const QString CHAIN_ID; /* - Molecular chain index from 
+static const QString CHAIN_ID; /* - Molecular chain index from
 corresponding macromolecular structure (PDB or MMDB) */
 
 static const QString CONTIG; /*- This linetype provides information about how individual sequence
@@ -131,10 +131,12 @@ static const QString FASTA_HDR;
 static const QString FASTQ_QUAL_CODES;
 static const QString FASTQ_QUAL_TYPE;
 static const QString GENBANK_HEADER;
+static const QString FASTQ_COMMENT;
 
 static QString getPrimaryAccession(const QVariantMap&);
 static QString getContig(const QVariantMap&);
 static QString getName(const QVariantMap&);
+static QString getFastqComment(const QVariantMap&);
 };
 
 class U2CORE_EXPORT DNALocusInfo {

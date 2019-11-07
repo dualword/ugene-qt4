@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -23,18 +23,32 @@
 #include "MSAEditor.h"
 #include "MSAEditorFactory.h"
 #include "MSAEditorState.h"
+#include "MSAEditorConsensusArea.h"
 
+#include <U2Algorithm/MSAConsensusAlgorithm.h>
+
+#include <U2Core/AppContext.h>
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DNAAlphabet.h>
+#include <U2Core/GUrlUtils.h>
+#include <U2Core/IOAdapter.h>
+#include <U2Core/IOAdapterUtils.h>
 #include <U2Core/Log.h>
 #include <U2Core/L10n.h>
-#include <U2Core/AppContext.h>
 #include <U2Core/ProjectModel.h>
-#include <U2Core/DocumentModel.h>
+#include <U2Core/SaveDocumentTask.h>
+#include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2SafePoints.h>
 
-#include <U2Core/MAlignmentObject.h>
-#include <U2Core/UnloadedObject.h>
 #include <U2Core/GObjectTypes.h>
+#include <U2Core/MAlignmentObject.h>
+#include <U2Core/TextObject.h>
+#include <U2Core/UnloadedObject.h>
 
+#include <U2Gui/OpenViewTask.h>
+
+#include <U2Formats/DocumentFormatUtils.h>
 
 #include <QtCore/QSet>
 
@@ -46,20 +60,20 @@ namespace U2 {
 //////////////////////////////////////////////////////////////////////////
 /// open new view
 
-OpenMSAEditorTask::OpenMSAEditorTask(MAlignmentObject* _obj) 
+OpenMSAEditorTask::OpenMSAEditorTask(MAlignmentObject* _obj)
 : ObjectViewTask(MSAEditorFactory::ID), msaObject(_obj)
 {
     assert(!msaObject.isNull());
 }
 
-OpenMSAEditorTask::OpenMSAEditorTask(UnloadedObject* _obj) 
+OpenMSAEditorTask::OpenMSAEditorTask(UnloadedObject* _obj)
 : ObjectViewTask(MSAEditorFactory::ID), unloadedReference(_obj)
 {
     assert(_obj->getLoadedObjectType() == GObjectTypes::MULTIPLE_ALIGNMENT);
     documentsToLoad.append(_obj->getDocument());
 }
 
-OpenMSAEditorTask::OpenMSAEditorTask(Document* doc) 
+OpenMSAEditorTask::OpenMSAEditorTask(Document* doc)
 : ObjectViewTask(MSAEditorFactory::ID), msaObject(NULL)
 {
     assert(!doc->isLoaded());
@@ -72,6 +86,10 @@ void OpenMSAEditorTask::open() {
     }
     if (msaObject.isNull()) {
         Document* doc = documentsToLoad.first();
+        if(!doc){
+            stateInfo.setError(tr("Documet removed from project"));
+            return;
+        }
         QList<GObject*> objects;
         if (unloadedReference.isValid()) {
             GObject* obj = doc->findGObjectByName(unloadedReference.objName);
@@ -111,7 +129,7 @@ void OpenMSAEditorTask::updateTitle(MSAEditor* msaEd) {
 //////////////////////////////////////////////////////////////////////////
 // open view from state
 
-OpenSavedMSAEditorTask::OpenSavedMSAEditorTask(const QString& viewName, const QVariantMap& stateData) 
+OpenSavedMSAEditorTask::OpenSavedMSAEditorTask(const QString& viewName, const QVariantMap& stateData)
 : ObjectViewTask(MSAEditorFactory::ID, viewName, stateData)
 {
     MSAEditorState state(stateData);
@@ -129,7 +147,7 @@ OpenSavedMSAEditorTask::OpenSavedMSAEditorTask(const QString& viewName, const QV
 
 void OpenSavedMSAEditorTask::open() {
     CHECK_OP(stateInfo, );
-    
+
     MSAEditorState state(stateData);
     GObjectReference ref = state.getMSAObjectRef();
     Document* doc = AppContext::getProject()->findDocumentByURL(ref.docUrl);
@@ -138,7 +156,12 @@ void OpenSavedMSAEditorTask::open() {
         stateInfo.setError(L10N::errorDocumentNotFound(ref.docUrl));
         return;
     }
-    GObject* obj = doc->findGObjectByName(ref.objName);
+    GObject* obj = NULL;
+    if (doc->isDatabaseConnection() && ref.entityRef.isValid()) {
+        obj = doc->getObjectById(ref.entityRef.entityId);
+    } else {
+        obj = doc->findGObjectByName(ref.objName);
+    }
     if (obj == NULL || obj->getGObjectType() != GObjectTypes::MULTIPLE_ALIGNMENT) {
         stateIsIllegal = true;
         stateInfo.setError(tr("Alignment object not found: %1").arg(ref.objName));
@@ -174,7 +197,7 @@ void OpenSavedMSAEditorTask::updateRanges(const QVariantMap& stateData, MSAEdito
 
 //////////////////////////////////////////////////////////////////////////
 // update
-UpdateMSAEditorTask::UpdateMSAEditorTask(GObjectView* v, const QString& stateName, const QVariantMap& stateData) 
+UpdateMSAEditorTask::UpdateMSAEditorTask(GObjectView* v, const QString& stateName, const QVariantMap& stateData)
 : ObjectViewTask(v, stateName, stateData)
 {
 }
@@ -189,5 +212,96 @@ void UpdateMSAEditorTask::update() {
 
     OpenSavedMSAEditorTask::updateRanges(stateData, msaView);
 }
+
+
+ExportMSAConsensusTask::ExportMSAConsensusTask(const ExportMSAConsensusTaskSettings& s )
+: DocumentProviderTask(tr("Export consensus to MSA")
+, (TaskFlags(TaskFlag_NoRun) | TaskFlag_FailOnSubtaskError | TaskFlag_CancelOnSubtaskCancel))
+, settings(s){
+    setVerboseLogMode(true);
+    SAFE_POINT_EXT(s.msa != NULL, setError("Given msa pointer is NULL"), );
+}
+
+void ExportMSAConsensusTask::prepare(){
+    extractConsensus = new ExtractConsensusTask(settings.keepGaps, settings.msa);
+    addSubTask(extractConsensus);
+}
+
+QList<Task*> ExportMSAConsensusTask::onSubTaskFinished( Task* subTask ){
+    QList<Task*> result;
+    if(subTask == extractConsensus && !isCanceled() && !hasError()) {
+        Document *takenDoc = createDocument();
+        CHECK_OP(stateInfo, result);
+        SaveDocumentTask *saveTask = new SaveDocumentTask(takenDoc, takenDoc->getIOAdapterFactory(), takenDoc->getURL());
+        saveTask->addFlag(SaveDoc_Overwrite);
+        Project *proj = AppContext::getProject();
+        if(proj != NULL){
+            if(proj->findDocumentByURL(takenDoc->getURL()) != NULL){
+                result.append(saveTask);
+                return result;
+            }
+        }
+        saveTask->addFlag(SaveDoc_OpenAfter);
+        result.append(saveTask);
+    }
+    return result;
+}
+
+Document *ExportMSAConsensusTask::createDocument(){
+    filteredConsensus = extractConsensus->getExtractedConsensus();
+    CHECK_EXT(!filteredConsensus.isEmpty(), setError("Consensus is empty!"), NULL);
+    QString fullPath = GUrlUtils::prepareFileLocation(settings.url, stateInfo);
+    CHECK_OP(stateInfo, NULL);
+    GUrl url(fullPath);
+
+    IOAdapterFactory* iof = AppContext::getIOAdapterRegistry()->getIOAdapterFactoryById(IOAdapterUtils::url2io(settings.url));
+    DocumentFormat *df = AppContext::getDocumentFormatRegistry()->getFormatById(settings.format);
+    CHECK_EXT(df, setError("Document format is NULL!"), NULL);
+    GObject *obj = NULL;
+    QScopedPointer<Document> doc(df->createNewLoadedDocument(iof, fullPath, stateInfo));
+    CHECK_OP(stateInfo, NULL);
+    if (df->getFormatId() == BaseDocumentFormats::PLAIN_TEXT){
+        obj = TextObject::createInstance(filteredConsensus, settings.name, doc->getDbiRef(), stateInfo);
+    }else{
+        obj = DocumentFormatUtils::addSequenceObject(doc->getDbiRef(), settings.name, filteredConsensus, false, QVariantMap(), stateInfo);
+    }
+    CHECK_OP(stateInfo, NULL);
+    doc->addObject(obj);
+    return doc.take();
+}
+
+ExtractConsensusTask::ExtractConsensusTask( bool keepGaps_, MSAEditor* msa_ )
+: Task(tr("Export consensus to MSA"), TaskFlags(TaskFlag_None)),
+keepGaps(keepGaps_), msa(msa_){
+    setVerboseLogMode(true);
+    SAFE_POINT_EXT(msa != NULL, setError("Given msa pointer is NULL"), );
+}
+
+void ExtractConsensusTask::run() {
+    CHECK(msa->getUI(), );
+    CHECK(msa->getUI()->getConsensusArea(), );
+    CHECK(msa->getUI()->getConsensusArea()->getConsensusCache(),);
+
+    QSharedPointer <MSAEditorConsensusCache> cache(msa->getUI()->getConsensusArea()->getConsensusCache());
+    if(!cache->getConsensusAlgorithm()->getFactory()->isSequenceLikeResult()){
+        keepGaps = true;
+    }
+    QByteArray consensusLine = cache->getConsensusLine(true);
+    foreach(QChar c, consensusLine){
+        if(c == '-' && !keepGaps){
+            continue;
+        }
+        filteredConsensus.append(c);
+    }
+}
+
+const QByteArray& ExtractConsensusTask::getExtractedConsensus() const {
+    return filteredConsensus;
+}
+
+
+ExportMSAConsensusTaskSettings::ExportMSAConsensusTaskSettings(): keepGaps(true), msa(NULL),
+format(BaseDocumentFormats::PLAIN_TEXT)
+{}
 
 } // namespace

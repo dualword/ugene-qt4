@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -40,11 +40,11 @@ public:
 
 class DNAAlphabet;
 
-class U2ALGORITHM_EXPORT CDSearchSettings {        
+class U2ALGORITHM_EXPORT CDSearchSettings {
 public:
     CDSearchSettings() : ev(0.01f), alp(NULL) {}
     float ev;
-    DNAAlphabet* alp;
+    const DNAAlphabet* alp;
     QByteArray query;
     QString localDbFolder;
     QString dbName;
@@ -54,12 +54,15 @@ class Task;
 
 class U2ALGORITHM_EXPORT CDSearchResultListener {
 public:
+    virtual ~CDSearchResultListener() {}
     virtual QList<SharedAnnotationData> getCDSResults() const = 0;
     virtual Task* getTask() const = 0;
 };
 
 class U2ALGORITHM_EXPORT CDSearchFactory {
 public:
+    virtual ~CDSearchFactory() {}
+
     virtual CDSearchResultListener* createCDSearch(const CDSearchSettings& settings) const = 0;
 };
 

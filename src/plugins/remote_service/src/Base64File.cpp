@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -59,7 +59,7 @@ qint64 Base64File::size() const
 qint64 Base64File::readData( char *data, qint64 maxlen )
 {
     qint64 bytesRead = 0;
-    
+
     if (file.atEnd() && bufLen == 0) {
         return -1;
     }
@@ -80,11 +80,11 @@ qint64 Base64File::readData( char *data, qint64 maxlen )
             if (file.atEnd()) {
                 bufLen += base64_encode_blockend(buf.data() + codelen, &encodeState);
             }
-        } 
+        }
 
         qint64 bytesToRead = maxlen - bytesRead;
         qint64 len = bufLen > bytesToRead ? bytesToRead : bufLen;
-        qMemCopy(data + bytesRead, buf.data() + bufOffset, len );
+        memcpy(data + bytesRead, buf.data() + bufOffset, len );
         bufOffset += len;
         bytesRead += len;
         bufLen -= len;
@@ -94,8 +94,8 @@ qint64 Base64File::readData( char *data, qint64 maxlen )
         assert(bufLen == 0);
     }
 
-    return bytesRead;  
-    
+    return bytesRead;
+
 }
 
 qint64 Base64File::writeData( const char* , qint64 )

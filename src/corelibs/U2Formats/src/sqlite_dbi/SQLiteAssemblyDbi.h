@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,11 @@
 #ifndef _U2_SQLITE_ASSEMBLY_DBI_H_
 #define _U2_SQLITE_ASSEMBLY_DBI_H_
 
-#include "SQLiteDbi.h"
 #include <U2Core/U2SqlHelpers.h>
 
-#include "assembly/AssemblyPackAlgorithm.h"
+#include "SQLiteDbi.h"
+#include "util/AssemblyAdapter.h"
+#include "util/AssemblyPackAlgorithm.h"
 
 namespace U2 {
 
@@ -41,32 +42,31 @@ public:
     /** Reads assembly objects by id */
     virtual U2Assembly getAssemblyObject(const U2DataId& assemblyId, U2OpStatus& os);
 
-    /** 
-        Return number of reads in assembly that intersect given region 
+    /**
+        Return number of reads in assembly that intersect given region
         'Intersect' here means that region(leftmost pos, rightmost pos) intersects with 'r'
     */
     virtual qint64 countReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os);
 
-    /** 
+    /**
         Return reads that intersect given region
         Note: iterator instance must be deallocated by caller method
     */
-    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os);
+    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2DataId& assemblyId, const U2Region& r, U2OpStatus& os, bool sortedHint = false);
 
-    /** 
-        Return reads with packed row value >= min, <= max that intersect given region 
+    /**
+        Return reads with packed row value >= min, <= max that intersect given region
         Note: iterator instance must be deallocated by caller method
     */
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByRow(const U2DataId& assemblyId, const U2Region& r, qint64 minRow, qint64 maxRow, U2OpStatus& os);
 
-    /** 
-        Return reads with a specified name. Used to find paired reads that must have equal names 
+    /**
+        Return reads with a specified name. Used to find paired reads that must have equal names
         Note: iterator instance must be deallocated by caller method
     */
     virtual U2DbiIterator<U2AssemblyRead>* getReadsByName(const U2DataId& assemblyId, const QByteArray& name, U2OpStatus& os);
 
-
-    /** 
+    /**
         Return max packed row at the given coordinate
         'Intersect' here means that region(leftmost pos, rightmost pos) intersects with 'r'
     */
@@ -75,27 +75,39 @@ public:
     /** Count 'length of assembly' - position of the rightmost base of all reads */
     virtual qint64 getMaxEndPos(const U2DataId& assemblyId, U2OpStatus& os);
 
-
-    /** 
-        Creates new empty assembly object. Reads iterator can be NULL 
+    /**
+        Creates new empty assembly object. Reads iterator can be NULL
         Requires: U2DbiFeature_WriteAssembly feature support
     */
     virtual void createAssemblyObject(U2Assembly& assembly, const QString& folder,  U2DbiIterator<U2AssemblyRead>* it, U2AssemblyReadsImportInfo& ii, U2OpStatus& os);
 
-    /** 
-        Updates assembly object fields 
+    /**
+        Creates indexes for reads tables.
+        This method mustn't be called inside transaction.
+        Requires: U2DbiFeature_WriteAssembly feature support
+    */
+    virtual void finalizeAssemblyObject(U2Assembly &assembly, U2OpStatus &os);
+
+    /**
+        Removes all assembly data and tables.
+        Does not remove entry from the 'Object' table.
+        Requires: U2DbiFeature_WriteAssembly feature support
+    */
+    virtual void removeAssemblyData(const U2DataId &assemblyId, U2OpStatus& os);
+
+    /**
+        Updates assembly object fields
         Requires: U2DbiFeature_WriteAssembly feature support
     */
     virtual void updateAssemblyObject(U2Assembly&, U2OpStatus& os);
 
-
-    /** 
+    /**
         Removes sequences from assembly
         Automatically removes affected sequences that are not anymore accessible from folders
     */
     virtual void removeReads(const U2DataId& assemblyId, const QList<U2DataId>& rowIds, U2OpStatus& os);
 
-    /**  
+    /**
         Adds sequences to assembly
         Reads got their ids assigned.
     */
@@ -104,8 +116,8 @@ public:
     /**  Packs assembly rows: assigns packedViewRow value for every read in assembly */
     virtual void pack(const U2DataId& assemblyId, U2AssemblyPackStat& stat, U2OpStatus& os);
 
-    /** 
-        Calculates coverage information for the given region. Saves result to 'c.coverage' vector. 
+    /**
+        Calculates coverage information for the given region. Saves result to 'c.coverage' vector.
         Note: Coverage window size depends on 'c.coverage' vector size passed to the method call.
     */
     virtual void calculateCoverage(const U2DataId& assemblyId, const U2Region& region, U2AssemblyCoverageStat& c, U2OpStatus& os);
@@ -113,49 +125,28 @@ public:
     virtual void initSqlSchema(U2OpStatus& os);
     virtual void shutdown(U2OpStatus& os);
 
+    static QString getCreateAssemblyTableQuery(const QString &tableAlias = "Assembly");
+
 private:
     virtual void addReads(AssemblyAdapter* a, U2DbiIterator<U2AssemblyRead>* it, U2AssemblyReadsImportInfo& ii, U2OpStatus& os);
 
+    void removeTables(const U2DataId &assemblyId, U2OpStatus& os);
+    void removeAssemblyEntry(const U2DataId &assemblyId, U2OpStatus& os);
+
     /** Return assembly storage adapter for the given assembly */
     AssemblyAdapter* getAdapter(const U2DataId& assemblyId, U2OpStatus& os);
-    
+
     /** Adapters by database assembly id */
     QHash<qint64, AssemblyAdapter*> adaptersById;
 };
 
-// reserved for future use;
-class AssemblyCompressor {
-};
 
-
-class AssemblyAdapter {
+class SQLiteAssemblyAdapter : public AssemblyAdapter {
 public:
-    AssemblyAdapter(const U2DataId& assemblyId, const AssemblyCompressor* compressor, DbRef* ref);
-    
-    virtual void createReadsTables(U2OpStatus& ) {};
-    virtual void createReadsIndexes(U2OpStatus& ) {};
-    virtual void shutdown(U2OpStatus& ) {};
+    SQLiteAssemblyAdapter(const U2DataId& assemblyId, const AssemblyCompressor* compressor, DbRef* ref) :
+        AssemblyAdapter(assemblyId, compressor), db(ref) {}
 
-    virtual qint64 countReads(const U2Region& r, U2OpStatus& os) = 0;
-
-    virtual qint64 getMaxPackedRow(const U2Region& r, U2OpStatus& os) = 0;
-    virtual qint64 getMaxEndPos(U2OpStatus& os) = 0;
-
-    virtual U2DbiIterator<U2AssemblyRead>* getReads(const U2Region& r, U2OpStatus& os) = 0;
-    virtual U2DbiIterator<U2AssemblyRead>* getReadsByRow(const U2Region& r, qint64 minRow, qint64 maxRow, U2OpStatus& os) = 0;
-    virtual U2DbiIterator<U2AssemblyRead>* getReadsByName(const QByteArray& name, U2OpStatus& os) = 0;
-    
-    virtual void addReads(U2DbiIterator<U2AssemblyRead>* it, U2AssemblyReadsImportInfo& ii, U2OpStatus& os) = 0;
-    
-    virtual void removeReads(const QList<U2DataId>& rowIds, U2OpStatus& os) = 0;
-
-    virtual void pack(U2AssemblyPackStat& stat, U2OpStatus& os) = 0;
-
-    virtual void calculateCoverage(const U2Region& region, U2AssemblyCoverageStat& c, U2OpStatus& os) = 0;
-	virtual ~AssemblyAdapter(){}
 protected:
-    U2DataId                    assemblyId;
-    const AssemblyCompressor*   compressor;
     DbRef*                      db;
 };
 
@@ -168,14 +159,13 @@ enum SQLiteAssemblyDataMethod {
 
 class SQLiteAssemblyUtils {
 public:
-    static QByteArray packData(SQLiteAssemblyDataMethod method, const QByteArray& name, const QByteArray& seq, 
-        const QByteArray& cigarText, const QByteArray& qualityString, U2OpStatus& os);
-    
-    static void unpackData(const QByteArray& packed, QByteArray& name, QByteArray& sequence, QByteArray& cigarText, QByteArray& qualityString, U2OpStatus& os);
+    static QByteArray packData(SQLiteAssemblyDataMethod method, const U2AssemblyRead &read, U2OpStatus& os);
+
+    static void unpackData(const QByteArray& packed, U2AssemblyRead &read, U2OpStatus& os);
 
     static void calculateCoverage(SQLiteQuery& q, const U2Region& r, U2AssemblyCoverageStat& c, U2OpStatus& os);
 
-    static void addToCoverage(U2AssemblyCovereageImportInfo& cii, const U2AssemblyRead& read);
+    static void addToCoverage(U2AssemblyCoverageImportInfo& cii, const U2AssemblyRead& read);
 };
 
 class SQLiteAssemblyNameFilter : public SqlRSFilter<U2AssemblyRead> {

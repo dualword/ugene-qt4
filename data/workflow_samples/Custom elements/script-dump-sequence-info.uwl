@@ -1,10 +1,9 @@
-#!UGENE_WORKFLOW
+#@UGENE_WORKFLOW
 #For all incoming sequences, dump sequence name and sequence size to output
 
 workflow "Dump sequence info"{
-
     Script-Dump-sequence-info {
-        type:"Script-Dump sequence info";
+        type:"Script-Dump Sequence Info";
         name:"Dump sequence info";
         script {
 out_text=getName(in_sequence) + ": " + size(in_sequence);
@@ -21,6 +20,7 @@ out_text=getName(in_sequence) + ": " + size(in_sequence);
         name:"Write plain text";
         accumulate:true;
         write-mode:2;
+        url-out:info.txt;
     }
 
     read-sequence.sequence->Script-Dump-sequence-info.in.sequence
@@ -29,7 +29,6 @@ out_text=getName(in_sequence) + ": " + size(in_sequence);
     .meta {
         visual {
             Script-Dump-sequence-info {
-                tooltip:"Evaluates user's script";
                 pos:"-555 -585";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
@@ -37,14 +36,12 @@ out_text=getName(in_sequence) + ": " + size(in_sequence);
                 out.angle:360;
             }
             read-sequence {
-                tooltip:"Reads sequences and annotations if any from local or remote files.";
                 pos:"-780 -585";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
                 out-sequence.angle:360;
             }
             write-text {
-                tooltip:"Write strings to a file";
                 pos:"-360 -585";
                 style:ext;
                 bg-color-ext:"0 128 128 64";
@@ -57,6 +54,35 @@ out_text=getName(in_sequence) + ": " + size(in_sequence);
                 text-pos:"-32.5 -24";
             }
         }
+        wizard {
+            name:"Dump sequence info Wizard";
+            help-page-id:16122709;
+            page {
+                id:1;
+                next:2;
+                title:"Input sequence(s)";
+                parameters-area {
+                    read-sequence.url-in {
+                        type:datasets;
+                    }
+                }
+            }
+            page {
+                id:2;
+                title:"Output data";
+                parameters-area {
+                    group {
+                        title:"Output data";
+                        label-size:120;
+                        write-text.url-out {
+                            label:"Result file";
+                        }
+                        write-text.accumulate {
+                            label:"Accumulate results";
+                        }
+                    }
+                }
+            }
+        }
     }
 }
-

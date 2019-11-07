@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -35,19 +35,28 @@ public:
     virtual ~GCounter();
 
     static const QList<GCounter*>& allCounters() {return getCounters();}
+    static GCounter *getCounter(const QString &name, const QString &suffix);
 
     QString name;
     QString suffix;
     qint64  totalCount;
     double  counterScale;
-    bool    dynamicCounter; //true if created and deleted dynamically at application runtime (not static init time)
+    bool    destroyMe; //true if counter should be deleted by counter list
 
     double scaledTotal() const {return totalCount / counterScale;}
-    
+
 protected:
-    
+
     static QList<GCounter*>& getCounters();
 };
+
+class GCounterList {
+public:
+    ~GCounterList();
+
+    QList<GCounter *> list;
+};
+
 
 //Marks that counter will be reported by Shtirlitz
 //TODO: implement GPerformanceCounter for plugin_perf_monitor?
@@ -70,6 +79,14 @@ private:
 #define GCOUNTER(cvar, tvar, name) \
     static GReportableCounter cvar(name, "", 1); \
     SimpleEventCounter tvar(&cvar)
+
+#define GRUNTIME_NAMED_COUNTER(cvar, tvar, name, suffix) \
+    GCounter *cvar = GCounter::getCounter(name, suffix); \
+    if (NULL == cvar) { \
+        cvar = new GReportableCounter(name, suffix, 1); \
+        cvar->destroyMe = true; \
+    } \
+    SimpleEventCounter tvar(cvar)
 
 
 } //namespace

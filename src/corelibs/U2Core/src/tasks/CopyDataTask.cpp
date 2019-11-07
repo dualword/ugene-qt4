@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,13 +25,10 @@
 #include <U2Core/L10n.h>
 
 #include <QtCore/QString>
-#include <QtCore/QByteArray>
-
-#include <memory>
 
 namespace U2 {
 
-CopyDataTask::CopyDataTask( IOAdapterFactory * _ioFrom, const GUrl& _urlFrom, 
+CopyDataTask::CopyDataTask( IOAdapterFactory * _ioFrom, const GUrl& _urlFrom,
                            IOAdapterFactory * _ioTo, const GUrl& _urlTo ) :
 Task(tr("Copy Data Task"), TaskFlag_None), ioFrom(_ioFrom), ioTo(_ioTo),
 urlFrom(_urlFrom), urlTo(_urlTo)
@@ -41,29 +38,29 @@ urlFrom(_urlFrom), urlTo(_urlTo)
 }
 
 void CopyDataTask::run() {
-    std::auto_ptr<IOAdapter> from( ioFrom->createIOAdapter() );
-    std::auto_ptr<IOAdapter> where( ioTo->createIOAdapter() );
+    QScopedPointer<IOAdapter> from( ioFrom->createIOAdapter() );
+    QScopedPointer<IOAdapter> where( ioTo->createIOAdapter() );
     from->open( urlFrom, IOAdapterMode_Read );
     if (!from->isOpen()) {
         stateInfo.setError(L10N::errorOpeningFileRead(urlFrom));
         return;
     }
-    
+
     qint64 count = 0;
     qint64 count_w = 0;
     QByteArray buff( BUFFSIZE, 0 );
-    
+
     count = from->readBlock( buff.data(), BUFFSIZE );
-    if (count == 0) {
+    if (count == 0 || count == -1) {
         stateInfo.setError(tr("Cannot get data from: '%1'").arg(urlFrom.getURLString()));
         return;
     }
-    
+
     if (!where->open( urlTo, IOAdapterMode_Write )) {
         stateInfo.setError(L10N::errorOpeningFileWrite(urlTo));
         return;
     }
-    
+
     while( count > 0 ) {
         count_w = where->writeBlock( buff.data(), count );
         if( stateInfo.cancelFlag ) {
@@ -74,7 +71,7 @@ void CopyDataTask::run() {
     }
     if( count < 0 || count_w < 0 ) {
         if (!stateInfo.hasError()) {
-            stateInfo.setError(tr("IO adapter error"));
+            stateInfo.setError(tr("IO adapter error. %1").arg(from->errorString()));
         }
     }
 }

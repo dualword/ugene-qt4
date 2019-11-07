@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,28 +19,35 @@
  * MA 02110-1301, USA.
  */
 
+#include <QtCore/qglobal.h>
+
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMessageBox>
-#include <QtGui/QFileDialog>
+#else
+#include <QtWidgets/QMessageBox>
+#endif
 
 #include <U2Core/AppContext.h>
+
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/U2FileDialog.h>
 
 #include "RemoteServiceMachine.h"
 #include "RemoteServiceUtilTasks.h"
 #include "RemoteTasksDialog.h"
 
-
 namespace U2 {
 
-RemoteTasksDialog::RemoteTasksDialog(const RemoteServiceSettingsPtr& settings,QWidget* parent ) 
-: QDialog(parent), getInfoTask(NULL), fetchResultTask(NULL), deleteRemoteDataTask(NULL), machine(NULL) 
+RemoteTasksDialog::RemoteTasksDialog(const RemoteServiceSettingsPtr& settings,QWidget* parent )
+: QDialog(parent), getInfoTask(NULL), fetchResultTask(NULL), deleteRemoteDataTask(NULL), machine(NULL)
 {
     setupUi(this);
-    
-    
+
+
     machine.reset(new RemoteServiceMachine(settings));
     urlLabel->setText(settings->getName());
-    
+
     connect(this, SIGNAL(finished(int)), SLOT(sl_onDialogClosed()));
     connect(tasksTreeWidget, SIGNAL(itemSelectionChanged()),SLOT(sl_onSelectionChanged()) );
     connect(refreshPushButton, SIGNAL(clicked()), SLOT(sl_onRefreshButtonClicked()));
@@ -48,23 +55,24 @@ RemoteTasksDialog::RemoteTasksDialog(const RemoteServiceSettingsPtr& settings,QW
     connect(removePushButton, SIGNAL(clicked()), SLOT(sl_onRemoveButtonClicked()));
 
     refresh();
-    
+
     updateState();
+    new HelpButton(this, buttonBox, "16122077");
+
 }
 
 void RemoteTasksDialog::updateState() {
-    bool enable = getInfoTask == NULL && machine.get() != NULL && fetchResultTask == NULL;
-    bool itemSelected = tasksTreeWidget->selectedItems().size() > 0;    
+    bool enable = getInfoTask == NULL && !machine.isNull() && fetchResultTask == NULL;
+    bool itemSelected = tasksTreeWidget->selectedItems().size() > 0;
 
     refreshPushButton->setEnabled(enable);
     removePushButton->setEnabled(enable && itemSelected);
     fetchPushButton->setEnabled(enable && itemSelected);
-
 }
 
 void RemoteTasksDialog::refresh() {
     tasksTreeWidget->clear();
-    getInfoTask = new GetUserTasksInfoTask(machine.get());
+    getInfoTask = new GetUserTasksInfoTask(machine.data());
     getInfoTask->setErrorNotificationSuppression(true);
     connect(getInfoTask, SIGNAL(si_stateChanged()), SLOT(sl_onRefreshFinished()));
     AppContext::getTaskScheduler()->registerTopLevelTask(getInfoTask);
@@ -76,9 +84,9 @@ void RemoteTasksDialog::sl_onRefreshFinished() {
     if (getInfoTask->getState() != Task::State_Finished) {
         return;
     }
-    
+
     QList<RemoteTaskInfo> infoItems = getInfoTask->getUserTasksInfo();
-    
+
     foreach(const RemoteTaskInfo& info, infoItems) {
         addItemToView(info);
     }
@@ -108,7 +116,7 @@ void RemoteTasksDialog::sl_onRefreshButtonClicked() {
 #define STATE_FINISHED "FINISHED"
 
 void RemoteTasksDialog::sl_onFetchButtonClicked() {
-   
+
     QTreeWidgetItem* current = tasksTreeWidget->currentItem();
 
     QString state = current->text(2);
@@ -117,13 +125,13 @@ void RemoteTasksDialog::sl_onFetchButtonClicked() {
         return;
     }
 
-    
+
     QString result = current->text(3);
     if (result.isEmpty()) {
         QMessageBox::warning(this, tr("Fetch data error"), tr("No result available for task."));
         return;
     }
-        
+
 
     bool ok = false;
     qint64 taskId = current->text(0).toLongLong(&ok);
@@ -133,8 +141,8 @@ void RemoteTasksDialog::sl_onFetchButtonClicked() {
     }
 
     LastUsedDirHelper h;
-    QString folder = QFileDialog::getExistingDirectory(this, tr("Select directory to save results: "), h.dir);
-    
+    QString folder = U2FileDialog::getExistingDirectory(this, tr("Select directory to save results: "), h.dir);
+
     if (folder.isEmpty()) {
         return;
     }
@@ -145,7 +153,7 @@ void RemoteTasksDialog::sl_onFetchButtonClicked() {
         str.prepend(folder + "/");
     }
 
-    fetchResultTask = new FetchRemoteTaskResultTask(machine.get(), urls, taskId);
+    fetchResultTask = new FetchRemoteTaskResultTask(machine.data(), urls, taskId);
     fetchResultTask->setErrorNotificationSuppression(true);
     connect(fetchResultTask, SIGNAL(si_stateChanged()), SLOT(sl_onFetchFinished()));
     AppContext::getTaskScheduler()->registerTopLevelTask(fetchResultTask);
@@ -155,7 +163,7 @@ void RemoteTasksDialog::sl_onFetchFinished() {
     if (fetchResultTask->getState() != Task::State_Finished) {
         return;
     }
-    
+
     if (!fetchResultTask->hasError()) {
         QMessageBox::information(this, tr("Fetch data"), tr("Download finished successfully."));
     } else {
@@ -179,8 +187,8 @@ void RemoteTasksDialog::sl_onRemoveButtonClicked() {
         QMessageBox::critical(this, "Error!", "Failed to parse task id.");
         return;
     }
-       
-    deleteRemoteDataTask = new DeleteRemoteDataTask(machine.get(), taskId);
+
+    deleteRemoteDataTask = new DeleteRemoteDataTask(machine.data(), taskId);
     deleteRemoteDataTask->setErrorNotificationSuppression(true);
     connect(deleteRemoteDataTask, SIGNAL(si_stateChanged()), SLOT(sl_onRemoveTaskFinished()));
     AppContext::getTaskScheduler()->registerTopLevelTask(deleteRemoteDataTask);
@@ -197,7 +205,7 @@ void RemoteTasksDialog::sl_onRemoveTaskFinished() {
 
     deleteRemoteDataTask = NULL;
     refresh();
-    updateState();   
+    updateState();
 }
 
 void RemoteTasksDialog::sl_onDialogClosed() {
@@ -206,14 +214,14 @@ void RemoteTasksDialog::sl_onDialogClosed() {
     if (fetchResultTask != NULL) {
       fetchResultTask->disconnect(this);
     }
-    
+
     if (getInfoTask != NULL) {
         getInfoTask->disconnect(this);
     }
-    if (deleteRemoteDataTask != NULL) {    
+    if (deleteRemoteDataTask != NULL) {
         deleteRemoteDataTask->disconnect(this);
     }
-    
+
 
 
 

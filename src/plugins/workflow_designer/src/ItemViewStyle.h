@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,16 @@
 #ifndef _U2_WORKFLOW_ITEM_STYLE_H_
 #define _U2_WORKFLOW_ITEM_STYLE_H_
 
+#include <QtGui/QTextDocument>
+#if (QT_VERSION < 0x050000) //Qt 5
+#include <QtGui/QAction>
 #include <QtGui/QGraphicsScene>
 #include <QtGui/QGraphicsItem>
-#include <QtGui/QTextDocument>
-#include <QtGui/QAction>
+#else
+#include <QtWidgets/QAction>
+#include <QtWidgets/QGraphicsScene>
+#include <QtWidgets/QGraphicsItem>
+#endif
 
 class QDomElement;
 
@@ -33,10 +39,8 @@ namespace U2 {
 
 class WorkflowProcessItem;
 
-const qreal PI = 3.141596;
 const qreal R = 30;
 const qreal A = 8;
-
 
 class ItemViewStyle : public QGraphicsObject {
     Q_OBJECT
@@ -55,7 +59,7 @@ public:
     QFont defaultFont() const {return defFont;}
     void setDefaultFont(const QFont & font) { defFont = font; }
     WorkflowProcessItem const* getOwner() const { return owner; }
-    
+
 protected:
     WorkflowProcessItem* owner;
     QColor bgColor;
@@ -94,7 +98,7 @@ public:
     virtual QList<QAction*> getContextMenuActions() const;
     virtual void saveState(QDomElement& ) const;
     virtual void loadState(QDomElement& );
-    
+
     bool isAutoResized() const {return autoResize;}
     void setFixedBounds(const QRectF& b);
 
@@ -106,14 +110,14 @@ signals:
 private slots:
     void setAutoResizeEnabled(bool b);
     void linkHovered(const QString&);
-    
+
 private:
     QTextDocument* doc;
     QRectF bounds;
     bool autoResize;
 
-    enum ResizeMode {NoResize = 0, RightResize = 1, LeftResize = 2, BottomResize = 4, TopResize = 8, 
-        RBResize = RightResize + BottomResize, RTResize = RightResize + TopResize, 
+    enum ResizeMode {NoResize = 0, RightResize = 1, LeftResize = 2, BottomResize = 4, TopResize = 8,
+        RBResize = RightResize + BottomResize, RTResize = RightResize + TopResize,
         LBResize = LeftResize + BottomResize, LTResize = LeftResize + TopResize};
     int resizing;
 
@@ -138,7 +142,7 @@ class DescriptionItem : public QGraphicsTextItem {
     Q_OBJECT
 public:
     DescriptionItem(ExtendedProcStyle* p);
-    void mouseReleaseEvent(QEvent *event);
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
 protected:
     QRectF boundingRect() const;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget);

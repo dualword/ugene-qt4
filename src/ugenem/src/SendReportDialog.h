@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,56 +22,48 @@
 #ifndef _SEND_REPORT_DIALOG_H_
 #define _SEND_REPORT_DIALOG_H_
 
-#include <QtNetwork/QHttp>
-#include <QtCore/QEventLoop>
-#include <QtCore/QBuffer>
-#include <QtCore/QUrl>
-#include <QtCore/QByteArray>
 
-#include <QtCore/QTime>
-#include <QtCore/QDate>
+#include <ui/ui_SendReportDialog.h>
 
-#include "../_tmp/ui/ui_SendReportDialog.h"
+class QEventLoop;
+class QNetworkReply;
 
-
-
-
-class SyncHTTP : public QHttp {
+class ReportSender:public QObject {
     Q_OBJECT
-public:
-    SyncHTTP(const QString& hostName, quint16 port=80, QObject* parent=0);
-    QString syncGet(const QString& path);
-    QString syncPost(const QString& path, const QByteArray &data);
-    protected slots:
-        virtual void finished(int idx, bool err);
-
-private:
-    int requestID;
-    QEventLoop loop;
-};
-
-class ReportSender {
 public:
     ReportSender(): report("") {}
     void parse(const QString &str);
     bool send(const QString &additionalInfo);
     QString getOSVersion();
     QString getReport() const {return report;}
+    int getTotalPhysicalMemory();
+    QString getCPUInfo();
+    QString getUgeneBitCount() const;
+
+private slots:
+    void sl_replyFinished(QNetworkReply*);
 
 private:
     QString report;
+    QEventLoop loop;
 };
 
-class SendReportDialog:public QDialog, public Ui_Dialog{
+class SendReportDialog:public QDialog, public Ui_Dialog {
     Q_OBJECT
 public:
     SendReportDialog(const QString &report, QDialog *d = NULL);
 
-private slots:
-        void sl_onOKclicked();
-        void sl_onMaximumMessageSizeReached();
+private:
+    void openUgene() const;
+    QString getUgeneExecutablePath() const;
+    QStringList getParameters() const;
 
-public:
+private slots:
+    void sl_onOkClicked();
+    void sl_onMaximumMessageSizeReached();
+    void sl_onCancelClicked();
+
+private:
     ReportSender sender;
 };
 

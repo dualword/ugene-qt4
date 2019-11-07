@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -139,6 +139,8 @@ public:
         const cl_event *event_wait_list,
         cl_event *event) CL_API_SUFFIX__VERSION_1_1;
 
+    typedef CL_API_ENTRY cl_int ( CL_API_CALL *clFlush_f)(cl_command_queue command_queue) CL_API_SUFFIX__VERSION_1_1;
+
     typedef CL_API_ENTRY cl_int ( CL_API_CALL *clFinish_f)(cl_command_queue command_queue) CL_API_SUFFIX__VERSION_1_1;
 
     typedef CL_API_ENTRY cl_int ( CL_API_CALL *clReleaseEvent_f)(cl_event event) CL_API_SUFFIX__VERSION_1_1;
@@ -161,6 +163,22 @@ public:
         void *user_data),
         void *user_data) CL_API_SUFFIX__VERSION_1_1;
 
+    typedef CL_API_ENTRY cl_int ( CL_API_CALL *clGetKernelWorkGroupInfo_f)(
+        cl_kernel kernel,
+        cl_device_id device,
+        cl_kernel_work_group_info param_name,
+        size_t param_value_size,
+        void *param_value,
+        size_t *param_value_size_ret) CL_API_SUFFIX__VERSION_1_1;
+
+    typedef CL_API_ENTRY cl_int ( CL_API_CALL *clGetEventProfilingInfo_f)(
+        cl_event event,
+        cl_profiling_info param_name,
+        size_t param_value_size,
+        void *param_value,
+        size_t *param_value_size_ret) CL_API_SUFFIX__VERSION_1_1;
+
+
     clGetPlatformIDs_f clGetPlatformIDs_p;
     clGetPlatformInfo_f clGetPlatformInfo_p;
     clGetDeviceIDs_f clGetDeviceIDs_p;
@@ -176,6 +194,7 @@ public:
     clEnqueueNDRangeKernel_f clEnqueueNDRangeKernel_p;
     clWaitForEvents_f clWaitForEvents_p;
     clEnqueueReadBuffer_f clEnqueueReadBuffer_p;
+    clFlush_f clFlush_p;
     clFinish_f clFinish_p;
     clBuildProgram_f clBuildProgram_p;
     clReleaseEvent_f clReleaseEvent_p;
@@ -185,6 +204,9 @@ public:
     clReleaseCommandQueue_f clReleaseCommandQueue_p;
     clReleaseContext_f clReleaseContext_p;
     clReleaseMemObject_f clReleaseMemObject_p;
+
+    clGetKernelWorkGroupInfo_f clGetKernelWorkGroupInfo_p;
+    clGetEventProfilingInfo_f clGetEventProfilingInfo_p;
 
     enum OpenCLHelperError {
         Error_NoError,

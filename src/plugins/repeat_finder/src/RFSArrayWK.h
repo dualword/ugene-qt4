@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ class RFSArrayWKAlgorithm : public RFAlgorithmBase  {
     Q_OBJECT
     friend class RFSArrayWKSubtask;
 public:
-    RFSArrayWKAlgorithm(RFResultsListener* rl, const char* seqX, int sizeX, const char* seqY, int sizeY, 
+    RFSArrayWKAlgorithm(RFResultsListener* rl, const char* seqX, int sizeX, const char* seqY, int sizeY,
                         DNAAlphabetType seqType, int w, int k);
 
     ~RFSArrayWKAlgorithm() {cleanup();}
@@ -51,8 +51,8 @@ public:
 private:
     void addResult(int a, int s, int l, int c);
     void calculate(RFSArrayWKSubtask* t);
-    
-public:	
+
+public:
     QVector<int>    diagOffsets; //holds start position for the last checked window
     int             ARRAY_SIZE;
     int             SEARCH_SIZE;
@@ -60,7 +60,7 @@ public:
     const char      *arraySeq;
     const char      *searchSeq;
     bool            arrayIsX;
-    
+
     quint32         q;
 
     CreateSArrayIndexTask*  indexTask;
@@ -83,4 +83,4 @@ public:
 
 } //namespace
 
-#endif 
+#endif

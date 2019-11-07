@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,6 +19,8 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/U2SafePoints.h>
+
 #include "BaseSlots.h"
 
 static const QString SEQ_SLOT_ID("sequence");
@@ -27,6 +29,9 @@ static const QString FEATURE_TABLE_SLOT_ID("annotations");
 static const QString TEXT_SLOT_ID("text");
 static const QString URL_SLOT_ID("url");
 static const QString FASTA_HEADER_SLOT_ID("fasta-header");
+static const QString VARIATION_TRACK_SLOT_ID("variation-track");
+static const QString ASSEMBLY_SLOT_ID("assembly");
+static const QString DATASET_SLOT_ID("dataset");
 
 namespace U2 {
 namespace Workflow {
@@ -53,6 +58,18 @@ const Descriptor BaseSlots::URL_SLOT() {
 
 const Descriptor BaseSlots::FASTA_HEADER_SLOT() {
     return Descriptor(FASTA_HEADER_SLOT_ID, tr("FASTA header"), tr("A header line for the FASTA record."));
+}
+
+const Descriptor BaseSlots::VARIATION_TRACK_SLOT() {
+    return Descriptor(VARIATION_TRACK_SLOT_ID, tr("Variation track"), tr("Set of variations"));
+}
+
+const Descriptor BaseSlots::ASSEMBLY_SLOT() {
+    return Descriptor(ASSEMBLY_SLOT_ID, tr("Assembly data"), tr("Assembly data"));
+}
+
+const Descriptor BaseSlots::DATASET_SLOT() {
+    return Descriptor(DATASET_SLOT_ID, tr("Dataset name"), tr("Dataset name"));
 }
 
 } // Workflow

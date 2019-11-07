@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -22,25 +22,24 @@
 #ifndef _GENOME_ALIGNER_IO_H_
 #define _GENOME_ALIGNER_IO_H_
 
+#include <QSharedPointer>
+#include <QString>
 
-#include "GenomeAlignerSearchQuery.h"
-#include "GenomeAlignerIndexPart.h"
-
+#include <U2Core/AssemblyImporter.h>
 #include <U2Core/DNASequenceObject.h>
 #include <U2Core/GUrl.h>
 #include <U2Core/MAlignment.h>
-#include <U2Core/U2OpStatusUtils.h>
 #include <U2Core/U2DbiUtils.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Formats/StreamSequenceReader.h>
 #include <U2Formats/StreamSequenceWriter.h>
+
 #include <U2Lang/LocalDomain.h>
 #include <U2Lang/WorkflowUtils.h>
 
-#include <QtCore/QString>
-#include <QtCore/QSharedPointer>
-
-#include <memory>
+#include "GenomeAlignerSearchQuery.h"
+#include "GenomeAlignerIndexPart.h"
 
 namespace U2 {
 
@@ -58,6 +57,7 @@ public:
 
 class GenomeAlignerWriter {
 public:
+    virtual ~GenomeAlignerWriter() {}
     virtual void write(SearchQuery *seq, SAType offset) = 0;
     virtual void close() = 0;
     virtual void setReferenceName(const QString &refName) = 0;
@@ -162,21 +162,22 @@ private:
     qint64 readNumber;
     qint64 maxRow;
     qint64 readsInAssembly;
-    std::auto_ptr< U2DbiIterator<U2AssemblyRead> > dbiIterator;
+    QScopedPointer< U2DbiIterator<U2AssemblyRead> > dbiIterator;
 
     static const qint64 readBunchSize;
 };
 
 class GenomeAlignerDbiWriter : public GenomeAlignerWriter {
 public:
-    GenomeAlignerDbiWriter(QString dbiFilePath, QString refName, int refLength);
+    GenomeAlignerDbiWriter(const QString &dbiFilePath, const QString &refName, int refLength);
     inline void write(SearchQuery *seq, SAType offset);
     void close();
-    void setReferenceName(const QString &) {};
+    void setReferenceName(const QString &) {}
 private:
     U2OpStatusImpl status;
     QSharedPointer<DbiConnection> dbiHandle;
     U2Dbi* sqliteDbi;
+    AssemblyImporter importer;
     U2AssemblyDbi *wDbi;
     U2Assembly assembly;
     QList<U2AssemblyRead> reads;

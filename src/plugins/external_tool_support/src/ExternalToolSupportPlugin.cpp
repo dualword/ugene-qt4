@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #include <U2Core/DNAAlphabet.h>
 #include <U2Core/DataBaseRegistry.h>
 #include <U2Core/ExternalToolRegistry.h>
+#include <U2Core/MultiTask.h>
 
 #include <U2View/MSAEditor.h>
 #include <U2View/MSAEditorFactory.h>
@@ -38,17 +39,23 @@
 
 #include <U2Core/DNASequenceSelection.h>
 #include <U2Core/DNASequenceObject.h>
+#include <U2Core/U2SafePoints.h>
+#include <U2Core/ScriptingToolRegistry.h>
+
 #include <U2Gui/GUIUtils.h>
+#include <U2Gui/ToolsMenu.h>
 
 #include <U2Test/XMLTestFormat.h>
 #include <U2Test/GTest.h>
 #include <U2Test/GTestFrameworkComponents.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QMenu>
+#else
+#include <QtWidgets/QMenu>
+#endif
 #include <QtCore/QCoreApplication>
-#include <QtCore/QDir>
 #include <QtCore/QDirIterator>
-#include <QtCore/QFileInfo>
 
 #include "ExternalToolSupportPlugin.h"
 #include "ExternalToolSupportSettings.h"
@@ -59,6 +66,8 @@
 
 #include "clustalw/ClustalWSupport.h"
 #include "clustalw/ClustalWWorker.h"
+#include "clustalo/ClustalOSupport.h"
+#include "clustalo/ClustalOWorker.h"
 #include "mafft/MAFFTSupport.h"
 #include "mafft/MAFFTWorker.h"
 #include "tcoffee/TCoffeeSupport.h"
@@ -70,19 +79,82 @@
 #include "blast/BlastAllWorker.h"
 #include "blast_plus/BlastPlusSupport.h"
 #include "blast_plus/BlastPlusWorker.h"
+#include "blast_plus/BlastDBCmdSupport.h"
 #include "cap3/CAP3Support.h"
+#include "cap3/CAP3Worker.h"
 #include "bowtie/BowtieSupport.h"
 #include "bowtie/BowtieTask.h"
 #include "bowtie/BowtieSettingsWidget.h"
 #include "bowtie/bowtie_tests/bowtieTests.h"
+#include "bowtie/BowtieWorker.h"
+#include "bowtie2/Bowtie2Support.h"
+#include "bowtie2/Bowtie2Task.h"
+#include "bowtie2/Bowtie2SettingsWidget.h"
+#include "bowtie2/Bowtie2Worker.h"
 #include "bwa/BwaSupport.h"
 #include "bwa/BwaTask.h"
 #include "bwa/BwaSettingsWidget.h"
 #include "bwa/bwa_tests/bwaTests.h"
+#include "samtools/SamToolsExtToolSupport.h"
+#include "samtools/TabixSupport.h"
+#include "vcftools/VcfConsensusWorker.h"
+#include "vcftools/VcfConsensusSupport.h"
+#include "spidey/SpideySupport.h"
+#include "spidey/SpideySupportTask.h"
+#include "cufflinks/CuffdiffWorker.h"
+#include "cufflinks/CufflinksSupport.h"
+#include "cufflinks/CufflinksWorker.h"
+#include "cufflinks/CuffmergeWorker.h"
+#include "cufflinks/GffreadWorker.h"
+#include "tophat/TopHatSupport.h"
+#include "tophat/TopHatWorker.h"
+#include "ceas/CEASReportWorker.h"
+#include "ceas/CEASSupport.h"
+#include "macs/MACSWorker.h"
+#include "macs/MACSSupport.h"
+#include "peak2gene/Peak2GeneWorker.h"
+#include "peak2gene/Peak2GeneSupport.h"
+#include "conservation_plot/ConservationPlotWorker.h"
+#include "conservation_plot/ConservationPlotSupport.h"
+#include "seqpos/SeqPosWorker.h"
+#include "seqpos/SeqPosSupport.h"
+#include "conduct_go/ConductGOWorker.h"
+#include "conduct_go/ConductGOSupport.h"
+#include "python/PythonSupport.h"
+#include "perl/PerlSupport.h"
+#include "java/JavaSupport.h"
+#include "R/RSupport.h"
+#include "vcfutils/VcfutilsSupport.h"
+#include "samtools/BcfToolsSupport.h"
+#include "R/RSupport.h"
+#include "phyml/PhyMLSupport.h"
+#include "phyml/PhyMLTests.h"
+
+#include "bwa/BwaMemWorker.h"
+#include "bwa/BwaWorker.h"
+#include "bedtools/BedtoolsSupport.h"
+#include "bedtools/BedToolsWorkersLibrary.h"
+#include "bigWigTools/BigWigSupport.h"
+#include "bigWigTools/BedGraphToBigWigWorker.h"
+
+#include "cutadapt/CutadaptSupport.h"
+#include "cutadapt/CutadaptWorker.h"
+
+#include "spades/SpadesSupport.h"
+#include "spades/SpadesSettingsWidget.h"
+#include "spades/SpadesTask.h"
+#include "spades/SpadesWorker.h"
+
+#include "snpeff/SnpEffSupport.h"
+#include "snpeff/SnpEffWorker.h"
+
+#include "fastqc/FastqcSupport.h"
+#include "fastqc/FastqcWorker.h"
 
 
 #include <U2Algorithm/CDSearchTaskFactoryRegistry.h>
 #include <U2Algorithm/DnaAssemblyAlgRegistry.h>
+#include <U2Algorithm/GenomeAssemblyRegistry.h>
 #include <blast_plus/RPSBlastSupportTask.h>
 
 
@@ -96,132 +168,375 @@ extern "C" Q_DECL_EXPORT Plugin * U2_PLUGIN_INIT_FUNC() {
     return plug;
 }
 
+/************************************************************************/
+/* SearchToolsInPathTask */
+/************************************************************************/
+class SearchToolsInPathTask : public Task {
+public:
+    SearchToolsInPathTask(ExternalToolSupportPlugin *_plugin)
+        : Task(ExternalToolSupportPlugin::tr("Search tools in PATH"), TaskFlag_NoRun), plugin(_plugin)
+    {
 
-ExternalToolSupportPlugin::ExternalToolSupportPlugin():Plugin(tr("External tool support"),tr("Runs other external tools")) {
+    }
+
+    void prepare() {
+        QStringList envList = QProcess::systemEnvironment();
+        if(envList.indexOf(QRegExp("PATH=.*",Qt::CaseInsensitive))>=0){
+            QString pathEnv = envList.at(envList.indexOf(QRegExp("PATH=.*",Qt::CaseInsensitive)));
+            QStringList paths;
+#if defined(Q_OS_UNIX)
+            paths = pathEnv.split("=").at(1).split(":");
+#elif defined(Q_OS_WIN)
+            paths = pathEnv.split("=").at(1).split(";");
+#endif
+
+            foreach(ExternalTool* curTool, AppContext::getExternalToolRegistry()->getAllEntries()){
+                // UGENE-1781: Remove python external tool search in PATH
+                // It should be fixed without crutches.
+                if (curTool->getName() == ET_PYTHON) {
+                    continue;
+                }
+
+                if(!curTool->getPath().isEmpty()) {
+                    continue;
+                }
+                foreach(const QString& curPath, paths){
+                    QString exePath = curPath+"/"+curTool->getExecutableFileName();
+                    QFileInfo fileExe(exePath);
+                    if(fileExe.exists() && (curTool->getPath()=="")){
+                        ExternalToolJustValidateTask* validateTask=new ExternalToolJustValidateTask(curTool->getName(), exePath);
+                        connect(validateTask, SIGNAL(si_stateChanged()), plugin, SLOT(sl_validateTaskStateChanged()));
+                        addSubTask(validateTask);
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    ExternalToolSupportPlugin *plugin;
+};
+
+/************************************************************************/
+/* ExternalToolSupportPlugin */
+/************************************************************************/
+ExternalToolSupportPlugin::ExternalToolSupportPlugin() :
+    Plugin(tr("External tool support"), tr("Runs other external tools")) {
+    //External tools registry keeps order of items added
+    //it is important because there might be dependencies
+
+    // python with modules
+    AppContext::getExternalToolRegistry()->registerEntry(new PythonSupport(ET_PYTHON));
+    AppContext::getExternalToolRegistry()->registerEntry(new PythonModuleDjangoSupport(ET_PYTHON_DJANGO));
+    AppContext::getExternalToolRegistry()->registerEntry(new PythonModuleNumpySupport(ET_PYTHON_NUMPY));
+
+    // Rscript with modules
+    AppContext::getExternalToolRegistry()->registerEntry(new RSupport(ET_R));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleGostatsSupport(ET_R_GOSTATS));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleGodbSupport(ET_R_GO_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleHgu133adbSupport(ET_R_HGU133A_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleHgu133bdbSupport(ET_R_HGU133B_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleHgu133plus2dbSupport(ET_R_HGU1333PLUS2_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleHgu95av2dbSupport(ET_R_HGU95AV2_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleMouse430a2dbSupport(ET_R_MOUSE430A2_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleCelegansdbSupport(ET_R_CELEGANS_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleDrosophila2dbSupport(ET_R_DROSOPHILA2_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleOrghsegdbSupport(ET_R_ORG_HS_EG_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleOrgmmegdbSupport(ET_R_ORG_MM_EG_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleOrgceegdbSupport(ET_R_ORG_CE_EG_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleOrgdmegdbSupport(ET_R_ORG_DM_EG_DB));
+    AppContext::getExternalToolRegistry()->registerEntry(new RModuleSeqlogoSupport(ET_R_SEQLOGO));
+
+    //perl
+    PerlSupport *perlSupport = new PerlSupport(ET_PERL);
+    AppContext::getExternalToolRegistry()->registerEntry(perlSupport);
+
+    //java
+    JavaSupport *javaSupport = new JavaSupport(ET_JAVA);
+    AppContext::getExternalToolRegistry()->registerEntry(javaSupport);
 
     //Fill ExternalToolRegistry with supported tools
     //ClustalW
-    ClustalWSupport* clustalWTool=new ClustalWSupport(CLUSTAL_TOOL_NAME);
+    ClustalWSupport* clustalWTool=new ClustalWSupport(ET_CLUSTAL);
     AppContext::getExternalToolRegistry()->registerEntry(clustalWTool);
 
+    //ClustalO
+    ClustalOSupport* clustalOTool=new ClustalOSupport(ET_CLUSTALO);
+    AppContext::getExternalToolRegistry()->registerEntry(clustalOTool);
+
     //MAFFT
-    MAFFTSupport* mAFFTTool=new MAFFTSupport(MAFFT_TOOL_NAME);
+    MAFFTSupport* mAFFTTool=new MAFFTSupport(ET_MAFFT);
     AppContext::getExternalToolRegistry()->registerEntry(mAFFTTool);
 
     //T-Coffee
-    TCoffeeSupport* tCoffeeTool=new TCoffeeSupport(TCOFFEE_TOOL_NAME);
+    TCoffeeSupport* tCoffeeTool=new TCoffeeSupport(ET_TCOFFEE);
     AppContext::getExternalToolRegistry()->registerEntry(tCoffeeTool);
 
     //MrBayes
-    MrBayesSupport* mrBayesTool = new MrBayesSupport(MRBAYES_TOOL_NAME);
+    MrBayesSupport* mrBayesTool = new MrBayesSupport(ET_MRBAYES);
     AppContext::getExternalToolRegistry()->registerEntry(mrBayesTool);
+
+    //PhyML
+    PhyMLSupport* phyMlTool = new PhyMLSupport(PhyMLSupport::PhyMlRegistryId);
+    AppContext::getExternalToolRegistry()->registerEntry(phyMlTool);
 
     if (AppContext::getMainWindow()) {
         clustalWTool->getViewContext()->setParent(this);
         clustalWTool->getViewContext()->init();
 
-        ExternalToolSupportAction* clustalWAction = new ExternalToolSupportAction(tr("ClustalW..."), this, QStringList(CLUSTAL_TOOL_NAME));
+        ExternalToolSupportAction* clustalWAction = new ExternalToolSupportAction(tr("Align with ClustalW..."), this, QStringList(ET_CLUSTAL));
+        clustalWAction->setObjectName(ToolsMenu::MALIGN_CLUSTALW);
         connect(clustalWAction, SIGNAL(triggered()), clustalWTool, SLOT(sl_runWithExtFileSpecify()));
+        ToolsMenu::addAction(ToolsMenu::MALIGN_MENU, clustalWAction);
+
+        clustalOTool->getViewContext()->setParent(this);
+        clustalOTool->getViewContext()->init();
+
+        ExternalToolSupportAction* clustalOAction = new ExternalToolSupportAction(tr("Align with ClustalO..."), this, QStringList(ET_CLUSTALO));
+        clustalOAction->setObjectName(ToolsMenu::MALIGN_CLUSTALO);
+        connect(clustalOAction, SIGNAL(triggered()), clustalOTool, SLOT(sl_runWithExtFileSpecify()));
+        ToolsMenu::addAction(ToolsMenu::MALIGN_MENU, clustalOAction);
 
         mAFFTTool->getViewContext()->setParent(this);
         mAFFTTool->getViewContext()->init();
 
-        ExternalToolSupportAction* mAFFTAction= new ExternalToolSupportAction(tr("MAFFT..."), this, QStringList(MAFFT_TOOL_NAME));
+        ExternalToolSupportAction* mAFFTAction= new ExternalToolSupportAction(tr("Align with MAFFT..."), this, QStringList(ET_MAFFT));
+        mAFFTAction->setObjectName(ToolsMenu::MALIGN_MAFFT);
         connect(mAFFTAction, SIGNAL(triggered()), mAFFTTool, SLOT(sl_runWithExtFileSpecify()));
+        ToolsMenu::addAction(ToolsMenu::MALIGN_MENU, mAFFTAction);
 
         tCoffeeTool->getViewContext()->setParent(this);
         tCoffeeTool->getViewContext()->init();
 
-        ExternalToolSupportAction* tCoffeeAction= new ExternalToolSupportAction(tr("T-Coffee..."), this, QStringList(TCOFFEE_TOOL_NAME));
+        ExternalToolSupportAction* tCoffeeAction= new ExternalToolSupportAction(tr("Align with T-Coffee..."), this, QStringList(ET_TCOFFEE));
+        tCoffeeAction->setObjectName(ToolsMenu::MALIGN_TCOFFEE);
         connect(tCoffeeAction, SIGNAL(triggered()), tCoffeeTool, SLOT(sl_runWithExtFileSpecify()));
-
-        //Add to menu MA
-        QMenu* tools = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS);
-        QMenu* toolsSubmenu = tools->findChild<QMenu*>(MWMENU_TOOLS_MALIGN);
-        if(toolsSubmenu == NULL){
-            toolsSubmenu = tools->addMenu(tr("Multiple alignment"));
-            toolsSubmenu->setObjectName(MWMENU_TOOLS_MALIGN);
-        }
-
-        toolsSubmenu->setIcon(QIcon(":core/images/msa.png"));//bad code
-        toolsSubmenu->addAction(clustalWAction);
-        toolsSubmenu->addAction(mAFFTAction);
-        toolsSubmenu->addAction(tCoffeeAction);
+        ToolsMenu::addAction(ToolsMenu::MALIGN_MENU, tCoffeeAction);
     }
+    ExternalToolRegistry *etRegistry = AppContext::getExternalToolRegistry();
+    CHECK(NULL != etRegistry, );
+
     //FormatDB
-    FormatDBSupport* formatDBTool = new FormatDBSupport(FORMATDB_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(formatDBTool);
+    FormatDBSupport* formatDBTool = new FormatDBSupport(ET_FORMATDB);
+    etRegistry->registerEntry(formatDBTool);
 
     //MakeBLASTDB from BLAST+
-    FormatDBSupport* makeBLASTDBTool = new FormatDBSupport(MAKEBLASTDB_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(makeBLASTDBTool);
+    FormatDBSupport* makeBLASTDBTool = new FormatDBSupport(ET_MAKEBLASTDB);
+    etRegistry->registerEntry(makeBLASTDBTool);
+
+    //MakeBLASTDB from GPU-BLAST+
+//     FormatDBSupport* gpuMakeBLASTDBTool = new FormatDBSupport(GPU_MAKEBLASTDB_TOOL_NAME); // https://ugene.unipro.ru/tracker/browse/UGENE-945
+//     etRegistry->registerEntry(gpuMakeBLASTDBTool);
 
     //BlastAll
-    BlastAllSupport* blastallTool = new BlastAllSupport(BLASTALL_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(blastallTool);
+    BlastAllSupport* blastallTool = new BlastAllSupport(ET_BLASTALL);
+    etRegistry->registerEntry(blastallTool);
 
-    BlastPlusSupport* blastNPlusTool = new BlastPlusSupport(BLASTN_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(blastNPlusTool);
-    BlastPlusSupport* blastPPlusTool = new BlastPlusSupport(BLASTP_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(blastPPlusTool);
-    BlastPlusSupport* blastXPlusTool = new BlastPlusSupport(BLASTX_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(blastXPlusTool);
-    BlastPlusSupport* tBlastNPlusTool = new BlastPlusSupport(TBLASTN_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(tBlastNPlusTool);
-    BlastPlusSupport* tBlastXPlusTool = new BlastPlusSupport(TBLASTX_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(tBlastXPlusTool);
-    BlastPlusSupport* rpsblastTool = new BlastPlusSupport(RPSBLAST_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(rpsblastTool);
-    CAP3Support* cap3Tool = new CAP3Support(CAP3_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(cap3Tool);
-    BowtieSupport* bowtieSupport = new BowtieSupport(BOWTIE_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(bowtieSupport);
-    BowtieSupport* bowtieBuildSupport = new BowtieSupport(BOWTIE_BUILD_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(bowtieBuildSupport);
-    BwaSupport* bwaSupport = new BwaSupport(BWA_TOOL_NAME);
-    AppContext::getExternalToolRegistry()->registerEntry(bwaSupport);
+    BlastPlusSupport* blastNPlusTool = new BlastPlusSupport(ET_BLASTN);
+    etRegistry->registerEntry(blastNPlusTool);
+    BlastPlusSupport* blastPPlusTool = new BlastPlusSupport(ET_BLASTP);
+    etRegistry->registerEntry(blastPPlusTool);
+//     BlastPlusSupport* gpuBlastPPlusTool = new BlastPlusSupport(ET_GPU_BLASTP); // https://ugene.unipro.ru/tracker/browse/UGENE-945
+//     etRegistry->registerEntry(gpuBlastPPlusTool);
+    BlastPlusSupport* blastXPlusTool = new BlastPlusSupport(ET_BLASTX);
+    etRegistry->registerEntry(blastXPlusTool);
+    BlastPlusSupport* tBlastNPlusTool = new BlastPlusSupport(ET_TBLASTN);
+    etRegistry->registerEntry(tBlastNPlusTool);
+    BlastPlusSupport* tBlastXPlusTool = new BlastPlusSupport(ET_TBLASTX);
+    etRegistry->registerEntry(tBlastXPlusTool);
+    BlastPlusSupport* rpsblastTool = new BlastPlusSupport(ET_RPSBLAST);
+    etRegistry->registerEntry(rpsblastTool);
+    BlastDbCmdSupport*  blastDbCmdSupport = new BlastDbCmdSupport();
+    etRegistry->registerEntry(blastDbCmdSupport);
 
+    // CAP3
+    CAP3Support* cap3Tool = new CAP3Support(ET_CAP3);
+    etRegistry->registerEntry(cap3Tool);
+
+    // Bowtie
+    BowtieSupport* bowtieSupport = new BowtieSupport(ET_BOWTIE);
+    etRegistry->registerEntry(bowtieSupport);
+    BowtieSupport* bowtieBuildSupport = new BowtieSupport(ET_BOWTIE_BUILD);
+    etRegistry->registerEntry(bowtieBuildSupport);
+
+    // Bowtie 2
+    Bowtie2Support* bowtie2AlignSupport = new Bowtie2Support(ET_BOWTIE2_ALIGN);
+    Bowtie2Support* bowtie2BuildSupport = new Bowtie2Support(ET_BOWTIE2_BUILD);
+    Bowtie2Support* bowtie2InspectSupport = new Bowtie2Support(ET_BOWTIE2_INSPECT);
+    AppContext::getExternalToolRegistry()->registerEntry(bowtie2AlignSupport);
+    AppContext::getExternalToolRegistry()->registerEntry(bowtie2BuildSupport);
+    AppContext::getExternalToolRegistry()->registerEntry(bowtie2InspectSupport);
+
+    // BWA
+    BwaSupport* bwaSupport = new BwaSupport(ET_BWA);
+    etRegistry->registerEntry(bwaSupport);
+
+    // SPAdes
+    SpadesSupport* spadesSupport = new SpadesSupport(ET_SPADES);
+    etRegistry->registerEntry(spadesSupport);
+
+    // SAMtools (external tool)
+    SamToolsExtToolSupport* samToolsExtToolSupport = new SamToolsExtToolSupport(ET_SAMTOOLS_EXT);
+    AppContext::getExternalToolRegistry()->registerEntry(samToolsExtToolSupport);
+
+    // BCFtools (external tool)
+    BcfToolsSupport* bcfToolsSupport = new BcfToolsSupport(ET_BCFTOOLS);
+    AppContext::getExternalToolRegistry()->registerEntry(bcfToolsSupport);
+
+    // Tabix
+    TabixSupport* tabixSupport = new TabixSupport(ET_TABIX);
+    AppContext::getExternalToolRegistry()->registerEntry(tabixSupport);
+
+    // VcfConsensus
+    VcfConsensusSupport* vcfConsSupport = new VcfConsensusSupport(ET_VCF_CONSENSUS);
+    AppContext::getExternalToolRegistry()->registerEntry(vcfConsSupport);
+
+    // Spidey
+    SpideySupport* spideySupport = new SpideySupport(ET_SPIDEY);
+    etRegistry->registerEntry(spideySupport);
+
+    //bedtools
+    BedtoolsSupport* bedtoolsSupport = new BedtoolsSupport(ET_BEDTOOLS);
+    etRegistry->registerEntry(bedtoolsSupport);
+
+    //cutadapt
+    CutadaptSupport* cutadaptSupport = new CutadaptSupport(ET_CUTADAPT);
+    etRegistry->registerEntry(cutadaptSupport);
+
+    //bigwig
+    BigWigSupport* bigwigSupport = new BigWigSupport(ET_BIGWIG);
+    etRegistry->registerEntry(bigwigSupport);
+
+
+    // TopHat
+    TopHatSupport* tophatTool = new TopHatSupport(ET_TOPHAT);
+    etRegistry->registerEntry(tophatTool);
+
+    // Cufflinks external tools
+    CufflinksSupport *cuffcompareTool = new CufflinksSupport(ET_CUFFCOMPARE);
+    etRegistry->registerEntry(cuffcompareTool);
+    CufflinksSupport *cuffdiffTool = new CufflinksSupport(ET_CUFFDIFF);
+    etRegistry->registerEntry(cuffdiffTool);
+    CufflinksSupport *cufflinksTool = new CufflinksSupport(ET_CUFFLINKS);
+    etRegistry->registerEntry(cufflinksTool);
+    CufflinksSupport *cuffmergeTool = new CufflinksSupport(ET_CUFFMERGE);
+    etRegistry->registerEntry(cuffmergeTool);
+    CufflinksSupport *gffreadTool = new CufflinksSupport(ET_GFFREAD);
+    etRegistry->registerEntry(gffreadTool);
+
+    // CEAS
+    CEASSupport *ceasTool = new CEASSupport(ET_CEAS);
+    etRegistry->registerEntry(ceasTool);
+
+    // MACS
+    MACSSupport *macs = new MACSSupport(ET_MACS);
+    etRegistry->registerEntry(macs);
+
+    // peak2gene
+    Peak2GeneSupport *peak2gene = new Peak2GeneSupport(ET_PEAK2GENE);
+    etRegistry->registerEntry(peak2gene);
+
+    //ConservationPlot
+    ConservationPlotSupport *conservationPlot = new ConservationPlotSupport(ET_CONSERVATION_PLOT);
+    etRegistry->registerEntry(conservationPlot);
+
+    //SeqPos
+    SeqPosSupport *seqPos = new SeqPosSupport(ET_SEQPOS);
+    etRegistry->registerEntry(seqPos);
+
+    //ConductGO
+    ConductGOSupport *conductGO = new ConductGOSupport(ET_GO_ANALYSIS);
+    etRegistry->registerEntry(conductGO);
+
+    //Vcfutils
+    VcfutilsSupport *vcfutils = new VcfutilsSupport(VcfutilsSupport::TOOL_NAME);
+    etRegistry->registerEntry(vcfutils);
+
+    //SnpEff
+    SnpEffSupport *snpeff = new SnpEffSupport(ET_SNPEFF);
+    etRegistry->registerEntry(snpeff);
+
+    //FastQC
+    FastQCSupport *fastqc = new FastQCSupport(ET_FASTQC);
+    etRegistry->registerEntry(fastqc);
 
     if (AppContext::getMainWindow()) {
-        ExternalToolSupportAction* formatDBAction= new ExternalToolSupportAction(tr("FormatDB..."), this, QStringList(FORMATDB_TOOL_NAME));
+        ExternalToolSupportAction* formatDBAction= new ExternalToolSupportAction(tr("Blast format database..."), this, QStringList(ET_FORMATDB));
+        formatDBAction->setObjectName(ToolsMenu::BLAST_DB);
         connect(formatDBAction, SIGNAL(triggered()), formatDBTool, SLOT(sl_runWithExtFileSpecify()));
 
-        ExternalToolSupportAction* makeBLASTDBAction= new ExternalToolSupportAction(tr("BLAST+ make DB..."), this, QStringList(MAKEBLASTDB_TOOL_NAME));
+        ExternalToolSupportAction* makeBLASTDBAction= new ExternalToolSupportAction(tr("BLAST+ make database..."), this, QStringList(ET_MAKEBLASTDB));
+        makeBLASTDBAction->setObjectName(ToolsMenu::BLAST_DBP);
         connect(makeBLASTDBAction, SIGNAL(triggered()), makeBLASTDBTool, SLOT(sl_runWithExtFileSpecify()));
 
-        blastallTool->getViewContext()->setParent(this);
-        blastallTool->getViewContext()->init();
+        BlastAllSupportContext *blastAllViewContext = new BlastAllSupportContext(this);
+        blastAllViewContext->setParent(this);
+        blastAllViewContext->init();
 
-        ExternalToolSupportAction* blastallAction= new ExternalToolSupportAction(tr("BLAST Search..."), this, QStringList(BLASTALL_TOOL_NAME));
+        ExternalToolSupportAction* blastallAction= new ExternalToolSupportAction(tr("BLAST Search..."), this, QStringList(ET_BLASTALL));
+        blastallAction->setObjectName(ToolsMenu::BLAST_SEARCH);
         connect(blastallAction, SIGNAL(triggered()), blastallTool, SLOT(sl_runWithExtFileSpecify()));
+
 
         BlastPlusSupportContext* blastPlusViewCtx = new BlastPlusSupportContext(this);
         blastPlusViewCtx->setParent(this);//may be problems???
         blastPlusViewCtx->init();
         QStringList toolList;
-        toolList << BLASTN_TOOL_NAME << BLASTP_TOOL_NAME << BLASTX_TOOL_NAME << TBLASTN_TOOL_NAME << TBLASTX_TOOL_NAME << RPSBLAST_TOOL_NAME;
-        ExternalToolSupportAction* blastPlusAction= new ExternalToolSupportAction(tr("BLAST+ Search..."), this, toolList);
+        toolList << ET_BLASTN << ET_BLASTP << ET_BLASTX << ET_TBLASTN << ET_TBLASTX << ET_RPSBLAST;
+        ExternalToolSupportAction* blastPlusAction= new ExternalToolSupportAction(tr("BLAST+ search..."), this, toolList);
+        blastPlusAction->setObjectName(ToolsMenu::BLAST_SEARCHP);
         connect(blastPlusAction, SIGNAL(triggered()), blastNPlusTool, SLOT(sl_runWithExtFileSpecify()));
-        
+
+        ExternalToolSupportAction* blastPlusCmdAction= new ExternalToolSupportAction(tr("BLAST+ query database..."), this, QStringList(ET_BLASTDBCMD));
+        blastPlusCmdAction->setObjectName(ToolsMenu::BLAST_QUERYP);
+        connect(blastPlusCmdAction, SIGNAL(triggered()), blastDbCmdSupport, SLOT(sl_runWithExtFileSpecify()));
+
         //Add to menu NCBI Toolkit
-        QMenu* tools = AppContext::getMainWindow()->getTopLevelMenu(MWMENU_TOOLS);
-        QMenu* blastSubmenu = tools->addMenu(tr("BLAST"));
-        blastSubmenu->setIcon(QIcon(":external_tool_support/images/ncbi.png"));
-        blastSubmenu->addAction(formatDBAction);
-        blastSubmenu->addAction(blastallAction);
-        blastSubmenu->addAction(makeBLASTDBAction);
-        blastSubmenu->addAction(blastPlusAction);
-        
-        ExternalToolSupportAction* cap3Action = new ExternalToolSupportAction(QString("Contig assembly with %1").arg(cap3Tool->getName()), this, QStringList(cap3Tool->getName()));
+        ToolsMenu::addAction(ToolsMenu::BLAST_MENU, formatDBAction);
+        ToolsMenu::addAction(ToolsMenu::BLAST_MENU, makeBLASTDBAction);
+        ToolsMenu::addAction(ToolsMenu::BLAST_MENU, blastallAction);
+        ToolsMenu::addAction(ToolsMenu::BLAST_MENU, blastPlusAction);
+        ToolsMenu::addAction(ToolsMenu::BLAST_MENU, blastPlusCmdAction);
+
+        ExternalToolSupportAction* cap3Action = new ExternalToolSupportAction(QString("Contig assembly with %1...").arg(cap3Tool->getName()), this, QStringList(cap3Tool->getName()));
+        cap3Action->setObjectName(ToolsMenu::SANGER_DENOVO);
         connect(cap3Action, SIGNAL(triggered()), cap3Tool, SLOT(sl_runWithExtFileSpecify()));
-        QMenu* assemblySumbenu = tools->findChild<QMenu*>(MWMENU_TOOLS_ASSEMBLY);
-        assemblySumbenu->addAction(cap3Action);
+        ToolsMenu::addAction(ToolsMenu::SANGER_MENU, cap3Action);
+
+        GObjectViewWindowContext* spideyCtx = spideySupport->getViewContext();
+        spideyCtx->setParent(this);
+        spideyCtx->init();
     }
 
     AppContext::getCDSFactoryRegistry()->registerFactory(new CDSearchLocalTaskFactory(), CDSearchFactoryRegistry::LocalSearch);
 
-    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BowtieTask::taskName, new BowtieTaskFactory(), new BowtieGUIExtensionsFactory(), true, false));
-    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BwaTask::taskName, new BwaTaskFactory(), new BwaGUIExtensionsFactory(), true, false));
+    QStringList referenceFormats(BaseDocumentFormats::FASTA);
+    QStringList readsFormats;
+    readsFormats << BaseDocumentFormats::FASTA;
+    readsFormats << BaseDocumentFormats::FASTQ;
+
+    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BowtieTask::taskName, new BowtieTaskFactory(),
+        new BowtieGUIExtensionsFactory(), true/*Index*/, false /*Dbi*/, true/*Paired-reads*/, referenceFormats, readsFormats));
+
+    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BwaTask::ALGORITHM_BWA_ALN, new BwaTaskFactory(),
+        new BwaGUIExtensionsFactory(), true/*Index*/, false/*Dbi*/, true/*Paired*/, referenceFormats, readsFormats));
+
+    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BwaTask::ALGORITHM_BWA_SW, new BwaTaskFactory(),
+        new BwaSwGUIExtensionsFactory(), true/*Index*/, false/*Dbi*/, false/*Paired*/, referenceFormats, readsFormats));
+
+    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(BwaTask::ALGORITHM_BWA_MEM, new BwaTaskFactory(),
+        new BwaMemGUIExtensionsFactory(), true/*Index*/, false/*Dbi*/, true/*Paired*/, referenceFormats, readsFormats));
+
+    readsFormats << BaseDocumentFormats::RAW_DNA_SEQUENCE;
+    AppContext::getDnaAssemblyAlgRegistry()->registerAlgorithm(new DnaAssemblyAlgorithmEnv(Bowtie2Task::taskName, new Bowtie2TaskFactory(),
+        new Bowtie2GUIExtensionsFactory(), true/*Index*/, false /*Dbi*/, true/*Paired-reads*/, referenceFormats, readsFormats));
+
+    QStringList genomeReadsFormats;
+    genomeReadsFormats << BaseDocumentFormats::FASTA;
+    genomeReadsFormats << BaseDocumentFormats::FASTQ;
+
+    AppContext::getGenomeAssemblyAlgRegistry()->registerAlgorithm(new GenomeAssemblyAlgorithmEnv(ET_SPADES, new SpadesTaskFactory(),
+        new SpadesGUIExtensionsFactory(), genomeReadsFormats));
 
     {
         GTestFormatRegistry *tfr = AppContext::getTestFramework()->getTestFormatRegistry();
@@ -260,93 +575,67 @@ ExternalToolSupportPlugin::ExternalToolSupportPlugin():Plugin(tr("External tool 
         GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
         l->qlist = MrBayesToolTests::createTestFactories();
 
-        foreach(XMLTestFactory* f, l->qlist) { 
+        foreach(XMLTestFactory* f, l->qlist) {
+            bool res = xmlTestFormat->registerTestFactory(f);
+            Q_UNUSED(res);
+            assert(res);
+        }
+    }
+    {
+
+        GTestFormatRegistry* tfr = AppContext::getTestFramework()->getTestFormatRegistry();
+        XMLTestFormat *xmlTestFormat = qobject_cast<XMLTestFormat*>(tfr->findFormat("XML"));
+        assert(xmlTestFormat!=NULL);
+
+        GAutoDeleteList<XMLTestFactory>* l = new GAutoDeleteList<XMLTestFactory>(this);
+        l->qlist = PhyMLToolTests::createTestFactories();
+
+        foreach(XMLTestFactory* f, l->qlist) {
             bool res = xmlTestFormat->registerTestFactory(f);
             Q_UNUSED(res);
             assert(res);
         }
     }
 
-    //Read settings
-    ExternalToolSupportSettings::getExternalTools();
-    
-    //Search for tools in application dir
-    
-    QDir appDir(QCoreApplication::applicationDirPath());
-    QStringList entryList = appDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    QString toolsDir;
-    foreach(const QString& dirName, entryList) {
-        if (dirName.contains(TOOLS)) {
-            toolsDir = appDir.absolutePath()+ "/" + dirName;
-            break;
-        }
-    }    
+    etRegistry->setManager(&validationManager);
+    validationManager.start();
 
-    if (!toolsDir.isEmpty()) {
-        foreach(ExternalTool* curTool, AppContext::getExternalToolRegistry()->getAllEntries()){
-             if(!curTool->getPath().isEmpty()){ 
-                 continue;
-             }
-             QString exeName = curTool->getExecutableFileName();
-             QDirIterator it(toolsDir, QDirIterator::Subdirectories);
-             bool fileNotFound = true;
-             while (it.hasNext()&& fileNotFound) {
-                 it.next();
-                 QString toolPath(it.filePath() + "/" + exeName);
-                 QFileInfo info(toolPath);
-                 if(info.exists() && info.isFile() && info.isExecutable()){
-                     QString path = QDir::toNativeSeparators(toolPath);
-                     ExternalToolValidateTask* validateTask=new ExternalToolValidateTask(curTool->getName(), path);
-                     connect(validateTask,SIGNAL(si_stateChanged()),SLOT(sl_validateTaskStateChanged()));
-                     AppContext::getTaskScheduler()->registerTopLevelTask(validateTask);
-                     fileNotFound=false;
-                 }
-             }
-        }
-    }
-
-    //Search for tools in path
-
-    QStringList envList = QProcess::systemEnvironment();
-    if(envList.indexOf(QRegExp("PATH=.*",Qt::CaseInsensitive))>=0){
-        QString pathEnv = envList.at(envList.indexOf(QRegExp("PATH=.*",Qt::CaseInsensitive)));
-#ifdef Q_OS_LINUX
-        QStringList paths = pathEnv.split("=").at(1).split(":");
-#else
-    #ifdef Q_OS_WIN
-        QStringList paths = pathEnv.split("=").at(1).split(";");
-    #else
-        QStringList paths;
-    #endif
-#endif
-        foreach(ExternalTool* curTool, AppContext::getExternalToolRegistry()->getAllEntries()){
-            foreach(const QString& curPath, paths){
-                if(curTool->getPath().isEmpty()){
-                    QString exePath = curPath+"/"+curTool->getExecutableFileName();
-                    QFileInfo fileExe(exePath);
-                    if(fileExe.exists() && (curTool->getPath()=="")){
-                        //curTool->setPath(exePath);
-                        ExternalToolValidateTask* validateTask=new ExternalToolValidateTask(curTool->getName(), exePath);
-                        connect(validateTask,SIGNAL(si_stateChanged()),SLOT(sl_validateTaskStateChanged()));
-                        AppContext::getTaskScheduler()->registerTopLevelTask(validateTask);
-                    }
-                }
-            }
-        }
-    }
-
-
-
+    //Add viewer for settings
     if (AppContext::getMainWindow()) {
-        //Add viewer for settings
         AppContext::getAppSettingsGUI()->registerPage(new ExternalToolSupportSettingsPageController());
     }
     //Add new workers to WD
     LocalWorkflow::ClustalWWorkerFactory::init();
+    LocalWorkflow::ClustalOWorkerFactory::init();
     LocalWorkflow::MAFFTWorkerFactory::init();
     LocalWorkflow::BlastAllWorkerFactory::init();
     LocalWorkflow::BlastPlusWorkerFactory::init();
     LocalWorkflow::TCoffeeWorkerFactory::init();
+    LocalWorkflow::CuffdiffWorkerFactory::init();
+    LocalWorkflow::CufflinksWorkerFactory::init();
+    LocalWorkflow::CuffmergeWorkerFactory::init();
+    LocalWorkflow::GffreadWorkerFactory::init();
+    LocalWorkflow::TopHatWorkerFactory::init();
+    LocalWorkflow::CEASReportWorkerFactory::init();
+    LocalWorkflow::MACSWorkerFactory::init();
+    LocalWorkflow::Peak2GeneWorkerFactory::init();
+    LocalWorkflow::ConservationPlotWorkerFactory::init();
+    LocalWorkflow::SeqPosWorkerFactory::init();
+    LocalWorkflow::ConductGOWorkerFactory::init();
+    LocalWorkflow::CAP3WorkerFactory::init();
+    LocalWorkflow::VcfConsensusWorkerFactory::init();
+    LocalWorkflow::BwaMemWorkerFactory::init();
+    LocalWorkflow::BwaWorkerFactory::init();
+    LocalWorkflow::BowtieWorkerFactory::init();
+    LocalWorkflow::Bowtie2WorkerFactory::init();
+    LocalWorkflow::SlopbedWorkerFactory::init();
+    LocalWorkflow::GenomecovWorkerFactory::init();
+    LocalWorkflow::BedGraphToBigWigFactory::init();
+    LocalWorkflow::SpadesWorkerFactory::init();
+    LocalWorkflow::SnpEffFactory::init();
+    LocalWorkflow::FastQCFactory::init();
+    LocalWorkflow::CutAdaptFastqWorkerFactory::init();
+    LocalWorkflow::BedtoolsIntersectWorkerFactory::init();
 
     if (AppContext::getMainWindow()) {
         //Add project view service
@@ -357,15 +646,7 @@ ExternalToolSupportPlugin::ExternalToolSupportPlugin():Plugin(tr("External tool 
 ExternalToolSupportPlugin::~ExternalToolSupportPlugin(){
     ExternalToolSupportSettings::setExternalTools();
 }
-void ExternalToolSupportPlugin::sl_validateTaskStateChanged(){
-    ExternalToolValidateTask* s=qobject_cast<ExternalToolValidateTask*>(sender());
-    assert(s);
-    if(s->isFinished()){
-        AppContext::getExternalToolRegistry()->getByName(s->getToolName())->setValid(s->isValidTool());
-        AppContext::getExternalToolRegistry()->getByName(s->getToolName())->setVersion(s->getToolVersion());
-        AppContext::getExternalToolRegistry()->getByName(s->getToolName())->setPath(s->getToolPath());
-    }
-}
+
 //////////////////////////////////////////////////////////////////////////
 // Service
 ExternalToolSupportService::ExternalToolSupportService()

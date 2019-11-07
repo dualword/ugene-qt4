@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,19 +19,55 @@
  * MA 02110-1301, USA.
  */
 
+#include <U2Core/BaseDocumentFormats.h>
+
+#include <U2Lang/BaseTypes.h>
 #include <U2Lang/ExternalToolCfg.h>
 
 namespace U2 {
 
+DocumentFormatId DataConfig::StringValue = DocumentFormatId("string-value");
+DocumentFormatId DataConfig::OutputFileUrl = DocumentFormatId("output-file-url");
+
+bool DataConfig::isStringValue() const {
+    return (BaseTypes::STRING_TYPE()->getId() == type) && (StringValue == format);
+}
+
+bool DataConfig::isFileUrl() const {
+    return (OutputFileUrl == format);
+}
+
+bool DataConfig::isSequence() const {
+    return (BaseTypes::DNA_SEQUENCE_TYPE()->getId() == type);
+}
+
+bool DataConfig::isAnnotations() const {
+    return (BaseTypes::ANNOTATION_TABLE_TYPE()->getId() == type);
+}
+
+bool DataConfig::isAnnotatedSequence() const {
+    return (SEQ_WITH_ANNS == type);
+}
+
+bool DataConfig::isAlignment() const {
+    return (BaseTypes::MULTIPLE_ALIGNMENT_TYPE()->getId() == type);
+}
+
+bool DataConfig::isText() const {
+    return (BaseTypes::STRING_TYPE()->getId() == type) && (BaseDocumentFormats::PLAIN_TEXT == format);
+}
+
 bool DataConfig::operator ==(const DataConfig &other) const {
     return attrName == other.attrName
         && type == other.type
-        && format == other.format;
+        && format == other.format
+        && description == other.description;
 }
 
 bool AttributeConfig::operator ==(const AttributeConfig &other) const {
     return attrName == other.attrName
-        && type == other.type;
+        && type == other.type
+        && description == other.description;
 }
 
 #define CHECK_EQ(expr1, expr2) \
@@ -44,6 +80,7 @@ bool ExternalProcessConfig::operator ==(const ExternalProcessConfig &other) cons
     CHECK_EQ(outputs.size(), other.outputs.size());
     CHECK_EQ(attrs.size(), other.attrs.size());
     CHECK_EQ(name, other.name);
+    CHECK_EQ(description, other.description);
 
     foreach (const DataConfig &in, inputs) {
         CHECK_EQ(other.inputs.contains(in), true);

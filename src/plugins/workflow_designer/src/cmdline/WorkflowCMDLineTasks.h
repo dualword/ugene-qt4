@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -34,21 +34,21 @@ public:
     WorkflowRunFromCMDLineBase();
     virtual ~WorkflowRunFromCMDLineBase();
     QList<Task*> onSubTaskFinished( Task* subTask );
-    
+
 protected:
     virtual Task * getWorkflowRunTask() const = 0;
-    
+
 private:
     LoadWorkflowTask * prepareLoadSchemaTask( const QString & schemaName );
     void processLoadSchemaTask( const QString & schemaName, int optionIdx );
-    
+
 protected:
     Schema*             schema;
     int                 optionsStartAt;
     LoadWorkflowTask *  loadTask;
     QString             schemaName;
     QMap<ActorId, ActorId> remapping;
-    
+
 }; // WorkflowRunFromCMDLineBase
 
 class WorkflowRunFromCMDLineTask : public WorkflowRunFromCMDLineBase {
@@ -63,10 +63,10 @@ public:
     WorkflowRemoteRunFromCMDLineTask();
     virtual void prepare();
     virtual Task * getWorkflowRunTask() const;
-    
+
 private:
     RemoteMachineSettingsPtr settings;
-    
+
 }; // WorkflowRemoteRunFromCMDLineTask
 
 } // U2

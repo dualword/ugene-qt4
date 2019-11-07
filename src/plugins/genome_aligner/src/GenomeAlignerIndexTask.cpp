@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@
 namespace U2 {
 
 GenomeAlignerIndexTask::GenomeAlignerIndexTask(const GenomeAlignerIndexSettings &settings)
-: Task("Building genome aligner's index", TaskFlag_None), objLens(NULL),  unknownChar('N')
+    : Task("Building genome aligner's index", TaskFlag_None), objLens(NULL), objCount(0), unknownChar('N')
 {
     GUrl i = settings.indexFileName;
     baseFileName = i.dirPath() + "/" + i.baseFileName();
@@ -145,7 +145,7 @@ void GenomeAlignerIndexTask::run() {
         }
     }
 
-    
+
     if (!index->openIndexFiles()) {
         setError("Can't open some of index files");
         return;
@@ -155,10 +155,12 @@ void GenomeAlignerIndexTask::run() {
     SAType maxLength = index->indexPart.getMaxLength();
 
     try {
+        assert(0!=maxLength);
         index->indexPart.bitMask = new BMType[maxLength];
         index->indexPart.sArray = new SAType[maxLength];
         index->indexPart.seq = new char[maxLength];
-    } catch(std::bad_alloc e) {
+    } catch(std::bad_alloc &e) {
+        Q_UNUSED(e);
         setError("Can't allocate this amount of memory. Try to close some of your programs or to decrease \"maxMemorySize\"-option");
         return;
     }
@@ -195,6 +197,10 @@ void GenomeAlignerIndexTask::reformatSequence() {
             setError("Reference object type must be a sequence, but not a multiple alignment");
             return;
         }
+        if(NULL == seq->alphabet){
+            setError("Cannot define an alphabet for the reference sequence");
+            return;
+        }
         if (DNAAlphabet_NUCL != seq->alphabet->getType()) {
             setError("Unsupported file format: alphabet type is not NUCL");
             return;
@@ -205,11 +211,12 @@ void GenomeAlignerIndexTask::reformatSequence() {
             index->seqObjName = seq->getName() + QString("_and_others");
             firstSeq = false;
         }
+        CHECK_OP_EXT(stateInfo, newRefFile.close(), );
     }
     newRefFile.close();
 
     if (0 == objCount) {
-        setError(QString("Unsupported file format or empty reference in %1").arg(settings.refFileName));
+        setError(QString("Too large sequence, unsupported file format or empty reference in %1").arg(settings.refFileName));
         return;
     }
     index->objLens = new quint32[objCount];

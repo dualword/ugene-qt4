@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@
 
 namespace U2 {
 
-//TODO: rename n,m to rows, columns    
+//TODO: rename n,m to rows, columns
 
 class U2ALGORITHM_EXPORT RollingMatrix {
 
@@ -69,16 +69,21 @@ public:
         }
     }
 
+    static quint64 getMatrixSizeInBytes(const int _n, const int _m)
+    {
+        return _n * _m * sizeof(int);
+    }
+
 private:
 
-    int getIdx(int x, int y) const { 
+    int getIdx(int x, int y) const {
         assert(x>=0 && y>=0 && x<n && y<m);
         return  x*m+y;
     }
 
 
-    int transposeX(int x) const { 
-        assert(x >= 0 && x < n); 
+    int transposeX(int x) const {
+        assert(x >= 0 && x < n);
         return (column0 + x) % n ;
     }
 

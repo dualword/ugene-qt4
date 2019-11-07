@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,6 @@
 #include <U2Core/GUrl.h>
 #include <U2Core/UserApplicationsSettings.h>
 #include <U2Gui/DialogUtils.h>
-#include <QtGui/QFileDialog>
 
 #include "BuildSArraySettingsWidget.h"
 #include "GenomeAlignerTask.h"
@@ -66,7 +65,7 @@ void BuildSArraySettingsWidget::sl_onPartSliderChanged(int value) {
     totalSizeLabel->setText(QByteArray::number(value*13) + " Mb");
 }
 
-void BuildSArraySettingsWidget::buildIndexUrl(const GUrl& url) {
+GUrl BuildSArraySettingsWidget::buildIndexUrl(const GUrl& url) {
     QString refUrl = url.getURLString();
     QFile file(refUrl);
     if (file.exists()) {
@@ -77,6 +76,7 @@ void BuildSArraySettingsWidget::buildIndexUrl(const GUrl& url) {
         partSlider->setEnabled(true);
         partSlider->setValue(qMin(maxPartSize, DEFAULT_PART_SIZE));
     }
+    return GUrl();
 }
 
 } //namespace

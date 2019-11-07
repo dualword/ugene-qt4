@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -19,45 +19,46 @@
  * MA 02110-1301, USA.
  */
 
-#include "QDRunDialog.h"
-#include "QDSceneIOTasks.h"
-#include "QueryViewController.h"
+#include <QMessageBox>
+#include <QPushButton>
 
-#include <U2Core/L10n.h>
-#include <U2Core/AppContext.h>
-#include <U2Core/DocumentModel.h>
-#include <U2Core/BaseDocumentFormats.h>
-#include <U2Core/ProjectModel.h>
-#include <U2Core/GObjectTypes.h>
-#include <U2Core/DNASequenceObject.h>
-#include <U2Core/AnnotationTableObject.h>
-#include <U2Core/GObjectRelationRoles.h>
-#include <U2Core/GObjectUtils.h>
-#include <U2Core/DocumentUtils.h>
-#include <U2Core/SaveDocumentTask.h>
-#include <U2Core/LoadDocumentTask.h>
 #include <U2Core/AddDocumentTask.h>
-#include <U2Core/TaskSignalMapper.h>
+#include <U2Core/AnnotationTableObject.h>
+#include <U2Core/AppContext.h>
+#include <U2Core/BaseDocumentFormats.h>
+#include <U2Core/DNASequenceObject.h>
+#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/DocumentModel.h>
+#include <U2Core/DocumentUtils.h>
+#include <U2Core/GObjectRelationRoles.h>
+#include <U2Core/GObjectTypes.h>
+#include <U2Core/GObjectUtils.h>
 #include <U2Core/IOAdapter.h>
 #include <U2Core/IOAdapterUtils.h>
-#include <U2Core/DNASequenceSelection.h>
+#include <U2Core/L10n.h>
+#include <U2Core/LoadDocumentTask.h>
+#include <U2Core/ProjectModel.h>
+#include <U2Core/SaveDocumentTask.h>
+#include <U2Core/TaskSignalMapper.h>
 #include <U2Core/U2SafePoints.h>
-
-#include <U2View/AnnotatedDNAView.h>
-#include <U2View/AnnotatedDNAViewTasks.h>
-#include <U2View/ADVSequenceObjectContext.h>
-
-#include <U2Gui/OpenViewTask.h>
-#include <U2Gui/CreateAnnotationWidgetController.h>
+#include <U2Core/U2OpStatusUtils.h>
 
 #include <U2Designer/QDScheduler.h>
 
+#include <U2Gui/CreateAnnotationWidgetController.h>
 #include <U2Gui/DialogUtils.h>
+#include <U2Gui/HelpButton.h>
 #include <U2Gui/LastUsedDirHelper.h>
+#include <U2Gui/OpenViewTask.h>
+#include <U2Gui/U2FileDialog.h>
 
-#include <QtGui/QFileDialog>
-#include <QtGui/QMessageBox>
+#include <U2View/ADVSequenceObjectContext.h>
+#include <U2View/AnnotatedDNAView.h>
+#include <U2View/AnnotatedDNAViewTasks.h>
 
+#include "QDRunDialog.h"
+#include "QDSceneIOTasks.h"
+#include "QueryViewController.h"
 
 //TODO: there are issues with 'docWithSequence' here
 // Issue 1: if docWithSequence removed from the project during calc -> crash
@@ -72,11 +73,18 @@ namespace U2 {
 QDRunDialog::QDRunDialog(QDScheme* _scheme, QWidget* parent, const QString& defaultIn, const QString& defaultOut)
 : QDialog(parent), scheme(_scheme) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122045");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Run"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     inFileEdit->setText(defaultIn);
     outFileEdit->setText(defaultOut);
     connect(tbInFile, SIGNAL(clicked()), SLOT(sl_selectFile()));
     connect(tbOutFile, SIGNAL(clicked()), SLOT(sl_selectFile()));
+
+    QPushButton* runBtn = buttonBox->button(QDialogButtonBox::Ok);
     connect(runBtn, SIGNAL(clicked()), SLOT(sl_run()));
+
 }
 
 void QDRunDialog::sl_selectFile() {
@@ -89,7 +97,7 @@ void QDRunDialog::sl_selectFile() {
         assert(tb==tbOutFile);
         edit = outFileEdit;
     }
-    
+
     QString title;
     QString fileFilter;
     if (edit==inFileEdit) {
@@ -99,7 +107,7 @@ void QDRunDialog::sl_selectFile() {
         title = tr("Select output file");
         fileFilter = DialogUtils::prepareDocumentsFileFilter(BaseDocumentFormats::PLAIN_GENBANK, true, QStringList());
     }
-    
+
     LastUsedDirHelper dir;
     if (!edit->text().isEmpty()) {
         QFileInfo fi(edit->text());
@@ -108,11 +116,11 @@ void QDRunDialog::sl_selectFile() {
     }
 
     if (edit==inFileEdit) {
-        dir.url = QFileDialog::getOpenFileName(this, title, dir, fileFilter);
+        dir.url = U2FileDialog::getOpenFileName(this, title, dir, fileFilter);
     } else {
-        dir.url = QFileDialog::getSaveFileName(this, title, dir, fileFilter);
+        dir.url = U2FileDialog::getSaveFileName(this, title, dir, fileFilter);
     }
-    
+
     if (!dir.url.isEmpty()) {
         edit->setText(dir.url);
         QueryViewController* view = qobject_cast<QueryViewController*>(parentWidget());
@@ -128,7 +136,7 @@ void QDRunDialog::sl_selectFile() {
 void QDRunDialog::sl_run() {
     const QString& inUri = inFileEdit->text();
     const QString& outUri = outFileEdit->text();
-    
+
     if (inUri.isEmpty()) {
         QMessageBox::critical(this, L10N::errorTitle(), tr("The sequence is not specified!"));
         return;
@@ -150,7 +158,7 @@ void QDRunDialog::sl_run() {
 QDRunDialogTask::QDRunDialogTask(QDScheme* _scheme, const QString& _inUri, const QString& outUri, bool addToProject)
 : Task(tr("Query Designer"), TaskFlags_NR_FOSCOE), scheme(_scheme), inUri(_inUri), output(outUri),
 addToProject(addToProject), openProjTask(NULL), loadTask(NULL), scheduler(NULL),
-docWithSequence(NULL), annObj(NULL) 
+docWithSequence(NULL), annObj(NULL)
 {
     tpm = Progress_Manual;
     stateInfo.progress = 0;
@@ -206,20 +214,22 @@ QList<Task*> QDRunDialogTask::init() {
     return res;
 }
 
-void QDRunDialogTask::setupQuery() {
+void QDRunDialogTask::setupQuery( ) {
     const QList<GObject*>& objs = docWithSequence->findGObjectByType(GObjectTypes::SEQUENCE);
     CHECK_EXT(!objs.isEmpty(), setError(tr("Sequence not found, document: %1").arg(docWithSequence->getURLString())), );
 
     U2SequenceObject* seqObj = qobject_cast<U2SequenceObject*>(objs.first());
-	DNASequence sequence = seqObj->getWholeSequence();
+    DNASequence sequence = seqObj->getWholeSequence(stateInfo);
+    CHECK_OP(stateInfo, );
     scheme->setSequence(sequence);
-	scheme->setEntityRef(seqObj->getEntityRef());
+    scheme->setEntityRef(seqObj->getEntityRef());
     QDRunSettings settings;
     settings.region = U2Region(0, seqObj->getSequenceLength());
     settings.scheme = scheme;
     settings.dnaSequence = sequence;
-    settings.annotationsObj = new AnnotationTableObject(GObjectTypes::getTypeInfo(GObjectTypes::ANNOTATION_TABLE).name);
-    settings.annotationsObj->addObjectRelation(seqObj, GObjectRelationRole::SEQUENCE);
+    settings.annotationsObj = new AnnotationTableObject(
+        GObjectTypes::getTypeInfo( GObjectTypes::ANNOTATION_TABLE ).name, docWithSequence->getDbiRef( ) );
+    settings.annotationsObj->addObjectRelation(seqObj, ObjectRole_Sequence);
     scheduler = new QDScheduler(settings);
     connect(scheduler, SIGNAL(si_progressChanged()), SLOT(sl_updateProgress()));
 }
@@ -251,7 +261,7 @@ QList<Task*> QDRunDialogTask::onSubTaskFinished(Task* subTask) {
         Project* proj = AppContext::getProject();
         if (!addToProject) {
             scheme->setSequence(DNASequence());
-			scheme->setEntityRef(U2EntityRef());
+            scheme->setEntityRef(U2EntityRef());
             SaveDocumentTask* saveTask = new SaveDocumentTask(docWithAnnotations, SaveDoc_DestroyAfter, QSet<QString>());
             res.append(saveTask);
         } else {
@@ -280,17 +290,23 @@ QList<Task*> QDRunDialogTask::onSubTaskFinished(Task* subTask) {
 QDDialog::QDDialog(ADVSequenceObjectContext* _ctx)
 : QDialog(_ctx->getAnnotatedDNAView()->getWidget()), ctx(_ctx), scheme(NULL), txtDoc(NULL) {
     setupUi(this);
+    new HelpButton(this, buttonBox, "16122046");
+    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Search"));
+    buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+
     rs=new RegionSelector(this, ctx->getSequenceLength(), false, ctx->getSequenceSelection());
     rangeSelectorLayout->addWidget(rs);
 
     addAnnotationsWidget();
     connectGUI();
+
 }
 
 void QDDialog::addAnnotationsWidget() {
     U2SequenceObject *dnaso = qobject_cast<U2SequenceObject*>(ctx->getSequenceGObject());
     CreateAnnotationModel acm;
     acm.sequenceObjectRef = GObjectReference(dnaso);
+    acm.hideAnnotationType = true;
     acm.hideAnnotationName = true;
     acm.hideLocation = true;
     acm.data->name = "Query_results";
@@ -307,6 +323,8 @@ void QDDialog::addAnnotationsWidget() {
 
 void QDDialog::connectGUI() {
     connect(tbSelectQuery, SIGNAL(clicked()), SLOT(sl_selectScheme()));
+
+    QPushButton* okBtn = buttonBox->button(QDialogButtonBox::Ok);
     connect(okBtn, SIGNAL(clicked()), SLOT(sl_okBtnClicked()));
 }
 
@@ -314,7 +332,7 @@ void QDDialog::sl_selectScheme() {
     delete scheme;
     scheme = NULL;
     LastUsedDirHelper dir(QUERY_DESIGNER_ID);
-    dir.url = QFileDialog::getOpenFileName(this, tr("Select query"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
+    dir.url = U2FileDialog::getOpenFileName(this, tr("Select query"), dir, QString("*.%1").arg(QUERY_SCHEME_EXTENSION));
     if (dir.url.isEmpty()) {
         return;
     }
@@ -388,17 +406,26 @@ void QDDialog::sl_okBtnClicked() {
         rs->showErrorMessage();
         return;
     }
-
-    cawc->prepareAnnotationObject();
+    bool objectPrepared = cawc->prepareAnnotationObject();
+    if (!objectPrepared){
+        QMessageBox::warning(this, tr("Error"), tr("Cannot create an annotation object. Please check settings"));
+        return;
+    }
     const CreateAnnotationModel& m = cawc->getModel();
-    
-    DNASequence sequence = ctx->getSequenceObject()->getWholeSequence();
+
+    U2SequenceObject *seqObj = ctx->getSequenceObject();
+    SAFE_POINT(NULL != seqObj, "NULL sequence object", );
+    U2OpStatusImpl os;
+    DNASequence sequence = seqObj->getWholeSequence(os);
+    CHECK_OP_EXT(os, QMessageBox::critical(this, L10N::errorTitle(), os.getError()), );
     scheme->setSequence(sequence);
+    scheme->setEntityRef(seqObj->getSequenceRef());
     QDRunSettings settings;
     GObject* ao = GObjectUtils::selectObjectByReference(m.annotationObjectRef, UOF_LoadedOnly);
-    settings.annotationsObj = qobject_cast<AnnotationTableObject*>(ao);
+    settings.annotationsObj = qobject_cast<AnnotationTableObject *>(ao);
     settings.annotationsObjRef = m.annotationObjectRef;
     settings.groupName = m.groupName;
+    settings.annDescription = m.description;
     settings.scheme = scheme;
     settings.dnaSequence = sequence;
     settings.viewName = ctx->getAnnotatedDNAView()->getName();

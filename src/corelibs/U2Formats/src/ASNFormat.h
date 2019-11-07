@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +36,6 @@ class IOAdapter;
 class BioStruct3D;
 class MoleculeData;
 class ResidueData;
-class AnnotationTableObject;
 class U2SequenceObject;
 class AtomData;
 typedef QSharedDataPointer<AtomData> SharedAtom;
@@ -67,7 +66,7 @@ private:
 
 typedef QList<AsnNode*> AsnNodeList;
 
-class U2FORMATS_EXPORT  ASNFormat : public DocumentFormat 
+class U2FORMATS_EXPORT  ASNFormat : public DocumentFormat
 {
     Q_OBJECT
 public:
@@ -81,7 +80,7 @@ protected:
     virtual Document* loadDocument(IOAdapter* io, const U2DbiRef& dbiRef, const QVariantMap& fs, U2OpStatus& os);
 
 public:
-    class U2FORMATS_EXPORT AsnParser 
+    class U2FORMATS_EXPORT AsnParser
     {
         static const char* filetypeTag;
 
@@ -93,14 +92,13 @@ public:
         };
 
         // Data
-        IOAdapter *io;        
+        IOAdapter *io;
         U2OpStatus& ts;
         QByteArray buffer;
         char prev;
         ParseState curState;
         QByteArray curElementName, curElementValue;
         AsnElementKind curElementKind;
-        bool validFile;
         bool haveErrors;
         bool insideRoot;
         bool fileAtEnd;
@@ -123,9 +121,9 @@ public:
 
 
     public:
-        AsnParser(IOAdapter* _io, U2OpStatus& _ts) : 
-          io(_io), ts(_ts), prev(' '), curElementKind(ASN_NO_KIND), 
-          validFile(false), haveErrors(false), insideRoot(false), fileAtEnd(false) {}
+        AsnParser(IOAdapter* _io, U2OpStatus& _ts) :
+          io(_io), ts(_ts), prev(' '), curElementKind(ASN_NO_KIND),
+          haveErrors(false), insideRoot(false), fileAtEnd(false) {}
         ~AsnParser() {}
         AsnNode* loadAsnTree();
 
@@ -144,7 +142,7 @@ private:
         AsnBaseException( const QString& what ) : msg( what ){}
     };
 
-    struct AsnReadError : AsnBaseException 
+    struct AsnReadError : AsnBaseException
     {
         AsnReadError() : AsnBaseException(ASNFormat::tr("read error occurred")) { }
     };
@@ -177,7 +175,7 @@ private:
 
     private:
         const StdResidueDictionary *standardDictionary;
-        std::auto_ptr<StdResidueDictionary> localDictionary;
+        QScopedPointer<StdResidueDictionary> localDictionary;
         QHash<quint64, StdResidue> stdResidueCache;
         QMap<quint64, AtomCoordSet> atomSetCache;
     };

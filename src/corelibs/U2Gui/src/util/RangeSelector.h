@@ -1,6 +1,6 @@
 /**
  * UGENE - Integrated Bioinformatics Tools.
- * Copyright (C) 2008-2012 UniPro <ugene@unipro.ru>
+ * Copyright (C) 2008-2015 UniPro <ugene@unipro.ru>
  * http://ugene.unipro.ru
  *
  * This program is free software; you can redistribute it and/or
@@ -27,10 +27,17 @@
 #include <U2Core/global.h>
 #include <U2Core/U2Region.h>
 
+#if (QT_VERSION < 0x050000) //Qt 5
 #include <QtGui/QLabel>
 #include <QtGui/QLineEdit>
 #include <QtGui/QToolButton>
 #include <QtGui/QDialog>
+#else
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QToolButton>
+#include <QtWidgets/QDialog>
+#endif
 
 class Ui_RangeSelectionDialog;
 
@@ -90,7 +97,7 @@ private:
 class U2GUI_EXPORT MultipleRangeSelector :public QDialog{
     Q_OBJECT
 public:
-    MultipleRangeSelector(QWidget* parent, const QVector<U2Region>& _regions, int _seqLen);
+    MultipleRangeSelector(QWidget* parent, const QVector<U2Region>& _regions, int _seqLen, bool isCircular);
     ~MultipleRangeSelector();
 
     virtual void accept();
@@ -100,10 +107,12 @@ public:
 private:
     int                 seqLen;
     QVector<U2Region>   selectedRanges;
+    bool                isCircular;
 
     Ui_RangeSelectionDialog* ui;
 
 protected slots:
+    void sl_multipleButtonToggled(bool);
     void sl_buttonClicked(QAbstractButton* b);
     void sl_minButton();
     void sl_maxButton();
