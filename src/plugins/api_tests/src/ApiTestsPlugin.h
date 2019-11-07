@@ -1,0 +1,19 @@
+#ifndef APITESTSPLUGIN_H
+#define APITESTSPLUGIN_H
+
+#include <U2Core/PluginModel.h>
+
+
+namespace U2 {
+
+class ApiTestsPlugin : public Plugin {
+    Q_OBJECT
+public:
+    ApiTestsPlugin();
+private slots:
+    void convert();
+};
+
+} // namespace U2
+
+#endif
